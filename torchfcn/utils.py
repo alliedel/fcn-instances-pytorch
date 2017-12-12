@@ -2,10 +2,14 @@ import numpy as np
 
 
 def _fast_hist(label_true, label_pred, n_class):
-    mask = (label_true >= 0) & (label_true < n_class)
-    hist = np.bincount(
-        n_class * label_true[mask].astype(int) +
-        label_pred[mask], minlength=n_class ** 2).reshape(n_class, n_class)
+    try:
+        mask = (label_true >= 0) & (label_true < n_class)
+        hist = np.bincount(
+            n_class * label_true[mask].astype(int) +
+            label_pred[mask], minlength=n_class ** 2).reshape(n_class, n_class)
+    except:
+        import ipdb; ipdb.set_trace()
+        raise
     return hist
 
 

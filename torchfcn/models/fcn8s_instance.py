@@ -11,9 +11,9 @@ class FCN8sInstance(nn.Module):
     pretrained_model = \
         osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
-    def __init__(self, n_semantic_class=21, n_max_per_class=3):
+    def __init__(self, n_semantic_classes=21, n_max_per_class=3):
         super(FCN8sInstance, self).__init__()
-        self.n_semantic_class = n_semantic_class
+        self.n_semantic_classes = n_semantic_classes
         self.n_max_per_class = n_max_per_class
 
         # conv1
@@ -63,20 +63,20 @@ class FCN8sInstance(nn.Module):
         self.drop6 = nn.Dropout2d()
 
         # fc7
-        self.fc7 = nn.Conv2d(4096, 4096, 1)
+        self.fc7 = nn.Conv2d(4096, 4096, 1)  # H/32 x W/32 x 4096
         self.relu7 = nn.ReLU(inplace=True)
         self.drop7 = nn.Dropout2d()
 
-        self.score_fr = nn.Conv2d(4096, n_semantic_class, 1)
-        self.score_pool3 = nn.Conv2d(256, n_semantic_class, 1)
-        self.score_pool4 = nn.Conv2d(512, n_semantic_class, 1)
+        self.score_fr = nn.Conv2d(4096, n_semantic_classes, 1)  # H/32 x W/32 x n_semantic_cls
+        self.score_pool3 = nn.Conv2d(256, n_semantic_classes, 1)   # H/32 x W/32 x n_semantic_cls
+        self.score_pool4 = nn.Conv2d(512, n_semantic_classes, 1)   # H/32 x W/32 x n_semantic_cls
 
-        self.upscore2 = nn.ConvTranspose2d(
-            n_semantic_class, n_semantic_class, 4, stride=2, bias=False)
-        self.upscore8 = nn.ConvTranspose2d(
-            n_semantic_class, n_semantic_class, 16, stride=8, bias=False)
-        self.upscore_pool4 = nn.ConvTranspose2d(
-            n_semantic_class, n_semantic_class, 4, stride=2, bias=False)
+        self.upscore2 = nn.ConvTranspose2d(   # H/16 x W/16 x n_semantic_cls
+            n_semantic_classes, n_semantic_classes, 4, stride=2, bias=False)
+        self.upscore8 = nn.ConvTranspose2d(   # H/2 x W/2 x n_semantic_cls
+            n_semantic_classes, n_semantic_classes, 16, stride=8, bias=False)
+        self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
+            n_semantic_classes, n_semantic_classes, 4, stride=2, bias=False)
 
         self._initialize_weights()
 
@@ -122,7 +122,9 @@ class FCN8sInstance(nn.Module):
         h = self.drop7(h)
 
         h = self.score_fr(h)
-        h = self.upscore2(h)
+
+        # Transpose Convolution here ('deconvolution')
+        h = self.upscore2(h)  # ConvTranspose2d, stride=2
         upscore2 = h  # 1/16
 
         h = self.score_pool4(pool4 * 0.01)  # XXX: scaling to train at once
@@ -130,7 +132,7 @@ class FCN8sInstance(nn.Module):
         score_pool4c = h  # 1/16
 
         h = upscore2 + score_pool4c  # 1/16
-        h = self.upscore_pool4(h)
+        h = self.upscore_pool4(h)  # ConvTranspose2d, stride=8
         upscore_pool4 = h  # 1/8
 
         h = self.score_pool3(pool3 * 0.0001)  # XXX: scaling to train at once
@@ -141,7 +143,7 @@ class FCN8sInstance(nn.Module):
 
         h = upscore_pool4 + score_pool3c  # 1/8
 
-        h = self.upscore8(h)
+        h = self.upscore8(h)  # ConvTranspose2d, stride=2
         h = h[:, :, 31:31 + x.size()[2], 31:31 + x.size()[3]].contiguous()
 
         return h

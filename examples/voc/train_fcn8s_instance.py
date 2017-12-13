@@ -62,7 +62,7 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN8sInstance(n_class=21)
+    model = torchfcn.models.FCN8sInstance(n_semantic_classes=21)
     start_epoch = 0
     start_iteration = 0
     if resume:

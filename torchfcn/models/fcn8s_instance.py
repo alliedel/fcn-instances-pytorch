@@ -132,7 +132,7 @@ class FCN8sInstance(nn.Module):
         score_pool4c = h  # 1/16
 
         h = upscore2 + score_pool4c  # 1/16
-        h = self.upscore_pool4(h)  # ConvTranspose2d, stride=8
+        h = self.upscore_pool4(h)  # ConvTranspose2d, stride=2
         upscore_pool4 = h  # 1/8
 
         h = self.score_pool3(pool3 * 0.0001)  # XXX: scaling to train at once
@@ -143,7 +143,7 @@ class FCN8sInstance(nn.Module):
 
         h = upscore_pool4 + score_pool3c  # 1/8
 
-        h = self.upscore8(h)  # ConvTranspose2d, stride=2
+        h = self.upscore8(h)  # ConvTranspose2d, stride=8
         h = h[:, :, 31:31 + x.size()[2], 31:31 + x.size()[3]].contiguous()
 
         return h

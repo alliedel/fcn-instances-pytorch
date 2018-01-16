@@ -29,7 +29,7 @@ configurations = {
 here = osp.dirname(osp.abspath(__file__))
 
 
-def main():
+def run_setup():
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=1,
@@ -39,18 +39,19 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir('fcn8s-instance', args.config, cfg)
-    resume = args.resume
+    out_log_dir = get_log_dir('fcn8s-instance', args.config, cfg)
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
+    args.cuda = cuda
 
     torch.manual_seed(1337)
     if cuda:
         torch.cuda.manual_seed(1337)
+    return args, out_log_dir, cfg
 
-    # 1. dataset
 
+def get_datasets():
     if socket.gethostname() == 'allieLaptop-Ubuntu':
         root = osp.expanduser('~/afsDirectories/kalman/data/datasets')
     elif socket.gethostname() == 'kalman':
@@ -59,27 +60,36 @@ def main():
         raise Exception('Specify dataset root for hostname {}'.format(socket.gethostname()))
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
+        torchfcn.datasets.VOC2007ObjectSeg(
+            root, split='train', transform=True),
         batch_size=1, shuffle=True, **kwargs)
     val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2011ClassSeg(
-            root, split='seg11valid', transform=True),
+        torchfcn.datasets.VOC2007ObjectSeg(
+            root, split='val', transform=True),
         batch_size=1, shuffle=False, **kwargs)
+    return train_loader, val_loader
+
+
+def main():
+    # 0. Config/setup
+    args, out_log_dir, cfg = run_setup()
+
+    # 1. dataset
+    train_loader, val_loader = get_datasets()
 
     # 2. model
-
     model = torchfcn.models.FCN8sInstance(n_semantic_classes=21)
     start_epoch = 0
     start_iteration = 0
-    if resume:
-        checkpoint = torch.load(resume)
+    if args.resume:
+        checkpoint = torch.load(args.resume)
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
     else:
         vgg16 = torchfcn.models.VGG16(pretrained=True)
         model.copy_params_from_vgg16(vgg16)
-    if cuda:
+    if args.cuda:
         model = model.cuda()
 
     # 3. optimizer
@@ -93,16 +103,16 @@ def main():
         lr=cfg['lr'],
         momentum=cfg['momentum'],
         weight_decay=cfg['weight_decay'])
-    if resume:
+    if args.resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
     trainer = torchfcn.Trainer(
-        cuda=cuda,
+        cuda=args.cuda,
         model=model,
         optimizer=optim,
         train_loader=train_loader,
         val_loader=val_loader,
-        out=out,
+        out=args.out,
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),
     )

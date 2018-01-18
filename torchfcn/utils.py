@@ -22,7 +22,6 @@ def label_accuracy_score(label_trues, label_preds, n_class):
       - fwavacc
     """
     hist = np.zeros((n_class, n_class))
-    import ipdb; ipdb.set_trace()
     for lt, lp in zip(label_trues, label_preds):
         hist += _fast_hist(lt.flatten(), lp.flatten(), n_class)
     acc = np.diag(hist).sum() / hist.sum()

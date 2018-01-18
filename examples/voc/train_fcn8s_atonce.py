@@ -81,13 +81,14 @@ def main():
 
     optim = torch.optim.SGD(
         [
-            {'params': get_parameters(model, bias=False)},
-            {'params': get_parameters(model, bias=True),
+            {'params': filter(lambda p: p.requires_grad, get_parameters(model, bias=False))},
+            {'params': filter(lambda p: p.requires_grad, get_parameters(model, bias=True)),
              'lr': cfg['lr'] * 2, 'weight_decay': 0},
         ],
         lr=cfg['lr'],
         momentum=cfg['momentum'],
-        weight_decay=cfg['weight_decay'])
+        weight_decay=cfg['weight_decay'],
+        )
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 

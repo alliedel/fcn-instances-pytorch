@@ -38,7 +38,7 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir('fcn8s-atonce', args.config, cfg)
+    out = get_log_dir(__file__.replace('.py',''), args.config, cfg)
     print('logdir: {}'.format(out))
     resume = args.resume
 
@@ -63,7 +63,7 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN8sInstance(n_semantic_classes_with_background=21, n_max_per_class=1)
+    model = torchfcn.models.FCN8sInstance(n_semantic_classes_with_background=21, n_max_per_class=2, map_to_semantic=True)
     start_epoch = 0
     start_iteration = 0
     if resume:

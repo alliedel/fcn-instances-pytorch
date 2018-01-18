@@ -42,7 +42,7 @@ def main():
     resume = args.resume
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
-    cuda = torch.cuda.is_available() if args.gpu >= 0 else False
+    cuda = torch.cuda.is_available()
 
     torch.manual_seed(1337)
     if cuda:
@@ -50,19 +50,19 @@ def main():
 
     # 1. dataset
 
-    root = osp.expanduser('~/data/datasets/')
+    root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.voc.VOC2007ClassSegSingleImage(root, split='train', transform=True),
+        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
         batch_size=1, shuffle=True, **kwargs)
     val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.voc.VOC2007ClassSegSingleImage(
+        torchfcn.datasets.VOC2011ClassSeg(
             root, split='seg11valid', transform=True),
         batch_size=1, shuffle=False, **kwargs)
 
     # 2. model
 
-    model = torchfcn.models.FCN8sAtOnce(n_class=21)
+    model = torchfcn.models.FCN8sInstance(n_semantic_classes_with_background=21, n_max_per_class=1)
     start_epoch = 0
     start_iteration = 0
     if resume:

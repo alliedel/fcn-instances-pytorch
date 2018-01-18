@@ -38,7 +38,7 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir(__file__.replace('.py',''), args.config, cfg)
+    out = get_log_dir(osp.basename(__file__).replace('.py',''), args.config, cfg)
     print('logdir: {}'.format(out))
     resume = args.resume
 
@@ -81,9 +81,9 @@ def main():
 
     optim = torch.optim.SGD(
         [
-            {'params': filter(lambda p: True if p is None else p.requires_grad, get_parameters(
+            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
                 model, bias=False))},
-            {'params': filter(lambda p: True if p is None else p.requires_grad, get_parameters(
+            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
                 model, bias=True)),
              'lr': cfg['lr'] * 2, 'weight_decay': 0},
         ],

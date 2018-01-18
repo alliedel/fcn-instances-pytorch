@@ -108,17 +108,9 @@ class FCN8sInstance(nn.Module):
         self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
             self.n_classes, self.n_classes, kernel_size=4, stride=2, bias=False)
 
-        if map_to_semantic:
-            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
-                                                          out_channels=self.n_semantic_classes,
-                                                          kernel_size=1, bias=False)
-            for param in self.conv1x1_instance_to_semantic.parameters():
-                param.requires_grad = False
-
-            self.conv1x1_instance_to_semantic.weight.data.copy_(
-                self.instance_to_semantic_mapping_matrix.transpose(1, 0))
-            print('conv1x1 initialized to have weights of shape {}'.format(self.conv1x1_instance_to_semantic.weight.data.shape))
-
+        self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
+                                                      out_channels=self.n_semantic_classes,
+                                                      kernel_size=1, bias=False)
         self._initialize_weights()
 
     @classmethod
@@ -291,7 +283,16 @@ class FCN8sInstance(nn.Module):
                     raise
 
     def _initialize_weights(self):
-        for m in self.modules():
+        num_modules = len(list(self.modules()))
+        for idx, m in enumerate(self.modules()):
+            if idx == num_modules - 1:
+                if self.map_to_semantic:
+                    assert m == self.conv1x1_instance_to_semantic
+                    self.conv1x1_instance_to_semantic.weight.data.copy_(
+                        self.instance_to_semantic_mapping_matrix.transpose(1, 0))
+                    self.conv1x1_instance_to_semantic.weight.requires_grad = False  # Fix weights
+                    print('conv1x1 initialized to have weights of shape {}'.format(self.conv1x1_instance_to_semantic.weight.data.shape))
+
             if isinstance(m, nn.Conv2d):
                 # m.weight.data.zero_()
                 m.weight.data.normal_(0.0, 0.02)

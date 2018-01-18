@@ -14,6 +14,7 @@ import local_pyutils
 
 logger = local_pyutils.get_logger()
 
+
 class FCN8sInstance(nn.Module):
 
     pretrained_model = \
@@ -21,19 +22,26 @@ class FCN8sInstance(nn.Module):
 
     def __init__(self, n_semantic_classes_with_background=21, n_max_per_class=3,
                  background_classes=[0],
-                 void_classes=[-1]):
+                 void_classes=[-1], map_to_semantic=False):
         assert len(background_classes) == 1 and background_classes[0] == 0, NotImplementedError
         assert len(void_classes) == 1 and void_classes[0] == -1, NotImplementedError
         super(FCN8sInstance, self).__init__()
+
+        self.map_to_semantic = map_to_semantic
 
         self.semantic_instance_class_list = [0]
         for semantic_class in range(n_semantic_classes_with_background - 1):
             self.semantic_instance_class_list += [semantic_class for _ in range(n_max_per_class)]
 
-        # background_class
         self.n_classes = len(self.semantic_instance_class_list)
         self.n_semantic_classes = n_semantic_classes_with_background
         self.n_max_per_class = n_max_per_class
+
+        self.instance_to_semantic_mapping_matrix = torch.zeros((self.n_classes,
+                                                                self.n_semantic_classes)).float()
+
+        for instance_idx, semantic_idx in enumerate(self.semantic_instance_classes):
+            self.instance_to_semantic_mapping_matrix[instance_idx, semantic_idx] = 1
 
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
@@ -100,6 +108,14 @@ class FCN8sInstance(nn.Module):
         self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
             self.n_classes, self.n_classes, kernel_size=4, stride=2, bias=False)
 
+        if map_to_semantic:
+            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
+                                                          out_channels=self.n_semantic_classes,
+                                                          kernel_size=1, bias=False)
+
+            self.conv1x1_instance_to_semantic.weight.data.copy_(
+                self.instance_to_semantic_mapping_matrix.transpose(1, 0))
+
         self._initialize_weights()
 
     @classmethod
@@ -118,10 +134,12 @@ class FCN8sInstance(nn.Module):
 
         h = self.upscore(h, pool3, pool4)
 
+        if self.map_to_semantic:
+            h = self.conv1x1_instance_to_semantic(h)
+
         h = self.sample_contiguous_center(h, input_size)
 
         return h
-
 
     def conv1(self, h):
         h = self.relu1_1(self.conv1_1(h))
@@ -268,7 +286,6 @@ class FCN8sInstance(nn.Module):
                 except:
                     import ipdb; ipdb.set_trace()
                     raise
-
 
     def _initialize_weights(self):
         for m in self.modules():

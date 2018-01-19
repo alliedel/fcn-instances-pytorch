@@ -54,12 +54,9 @@ def main():
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
-        batch_size=1, shuffle=True, **kwargs)
+        torchfcn.datasets.VOC2011ClassSeg(root, split='train', transform=True), batch_size=1, shuffle=True, **kwargs)
     val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2011ClassSeg(
-            root, split='seg11valid', transform=True),
-        batch_size=1, shuffle=False, **kwargs)
+        torchfcn.datasets.VOC2011ClassSeg(root, split='seg11valid', transform=True), batch_size=1, shuffle=False, **kwargs)
 
     # 2. model
 

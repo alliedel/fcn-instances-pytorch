@@ -45,7 +45,7 @@ class VOCClassSegBase(data.Dataset):
         # VOC2011 and others are subset of VOC2012
         dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC2012')
         self.files = collections.defaultdict(list)
-        for split in ['train', 'val']:
+        for split in ['train', 'val'] + ([] if self.split in ['train', 'val'] else [self.split]):
             imgsets_file = osp.join(
                 dataset_dir, 'ImageSets/Segmentation/%s.txt' % split)
             for did in open(imgsets_file):
@@ -53,9 +53,13 @@ class VOCClassSegBase(data.Dataset):
                 try:
                     img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
                     assert osp.isfile(img_file)
-                except:
+                except AssertionError:
                     if not osp.isfile(img_file):
-                        for did_ext in ['{}_{}'.format(year, did) for year in range(2007, 2013):
+                        # for VOC2007 (and I assume other versions of VOC), the image names are
+                        # different.  So if I generated a split for VOC2007, this allows me to
+                        # use it.  Note it should break in the first iteration (year=2007),
+                        # but maybe the image comes from another year (unlikely).
+                        for did_ext in ['{}_{}'.format(year, did) for year in range(2007, 2013)]:
                             img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did_ext)
                             if osp.isfile(img_file):
                                 did = did_ext
@@ -69,6 +73,8 @@ class VOCClassSegBase(data.Dataset):
                     'img': img_file,
                     'lbl': lbl_file,
                 })
+            assert len(self.files[split]) > 0, "No images found from list {}".format(imgsets_file)
+        assert len(self) > 0, 'self.files[self.split={}] came up empty'.format(self.split)
 
     def __len__(self):
         return len(self.files[self.split])

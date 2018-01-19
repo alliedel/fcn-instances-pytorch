@@ -38,11 +38,12 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir('fcn8s-atonce', args.config, cfg)
+    out = get_log_dir(__file__.replace('.py', ''), args.config, cfg)
+    print('logdir: {}'.format(out))
     resume = args.resume
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
-    cuda = torch.cuda.is_available() if args.gpu >= 0 else False
+    cuda = torch.cuda.is_available()
 
     torch.manual_seed(1337)
     if cuda:
@@ -50,14 +51,14 @@ def main():
 
     # 1. dataset
 
-    root = osp.expanduser('~/data/datasets/')
+    root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.voc.VOC2007ClassSegSingleImage(root, split='train', transform=True),
-        batch_size=1, shuffle=True, **kwargs)
+        torchfcn.datasets.VOC2011ClassSeg(root, split='train_one', transform=True),
+        batch_size=1, shuffle=False, **kwargs)
     val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.voc.VOC2007ClassSegSingleImage(
-            root, split='seg11valid', transform=True),
+        torchfcn.datasets.VOC2011ClassSeg(
+            root, split='val_one', transform=True),
         batch_size=1, shuffle=False, **kwargs)
 
     # 2. model
@@ -80,13 +81,15 @@ def main():
 
     optim = torch.optim.SGD(
         [
-            {'params': get_parameters(model, bias=False)},
-            {'params': get_parameters(model, bias=True),
+            {'params': filter(lambda p: True if p is None else p.requires_grad, get_parameters(
+                model, bias=False))},
+            {'params': filter(lambda p: True if p is None else p.requires_grad, get_parameters(model, bias=True)),
              'lr': cfg['lr'] * 2, 'weight_decay': 0},
         ],
         lr=cfg['lr'],
         momentum=cfg['momentum'],
-        weight_decay=cfg['weight_decay'])
+        weight_decay=cfg['weight_decay'],
+        )
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 

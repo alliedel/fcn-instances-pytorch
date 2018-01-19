@@ -50,7 +50,19 @@ class VOCClassSegBase(data.Dataset):
                 dataset_dir, 'ImageSets/Segmentation/%s.txt' % split)
             for did in open(imgsets_file):
                 did = did.strip()
-                img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
+                try:
+                    img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
+                    assert osp.isfile(img_file)
+                except:
+                    if not osp.isfile(img_file):
+                        for did_ext in ['{}_{}'.format(year, did) for year in range(2007, 2013):
+                            img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did_ext)
+                            if osp.isfile(img_file):
+                                did = did_ext
+                                break
+                    if not osp.isfile(img_file):
+                        raise
+                        
                 lbl_file = osp.join(
                     dataset_dir, 'SegmentationClass/%s.png' % did)
                 self.files[split].append({

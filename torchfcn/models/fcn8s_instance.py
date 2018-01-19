@@ -23,15 +23,18 @@ class FCN8sInstance(nn.Module):
     def __init__(self, n_semantic_classes_with_background=21, n_max_per_class=3,
                  background_classes=[0],
                  void_classes=[-1], map_to_semantic=False):
-        assert len(background_classes) == 1 and background_classes[0] == 0, NotImplementedError
-        assert len(void_classes) == 1 and void_classes[0] == -1, NotImplementedError
+        assert len(
+            background_classes) == 1 and background_classes[0] == 0, NotImplementedError
+        assert len(
+            void_classes) == 1 and void_classes[0] == -1, NotImplementedError
         super(FCN8sInstance, self).__init__()
 
         self.map_to_semantic = map_to_semantic
 
         self.semantic_instance_class_list = [0]
         for semantic_class in range(n_semantic_classes_with_background - 1):
-            self.semantic_instance_class_list += [semantic_class for _ in range(n_max_per_class)]
+            self.semantic_instance_class_list += [
+                semantic_class for _ in range(n_max_per_class)]
 
         self.n_classes = len(self.semantic_instance_class_list)
         self.n_semantic_classes = n_semantic_classes_with_background
@@ -41,7 +44,8 @@ class FCN8sInstance(nn.Module):
                                                                 self.n_semantic_classes)).float()
 
         for instance_idx, semantic_idx in enumerate(self.semantic_instance_class_list):
-            self.instance_to_semantic_mapping_matrix[instance_idx, semantic_idx] = 1
+            self.instance_to_semantic_mapping_matrix[instance_idx,
+                                                     semantic_idx] = 1
 
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
@@ -70,13 +74,15 @@ class FCN8sInstance(nn.Module):
         try:
             self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         self.relu4_1 = nn.ReLU(inplace=True)
         self.conv4_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
         self.relu4_2 = nn.ReLU(inplace=True)
         self.conv4_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
         self.relu4_3 = nn.ReLU(inplace=True)
-        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # 1/16
+        self.pool4 = nn.MaxPool2d(
+            kernel_size=2, stride=2, ceil_mode=True)  # 1/16
 
         # conv5
         self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
@@ -85,7 +91,8 @@ class FCN8sInstance(nn.Module):
         self.relu5_2 = nn.ReLU(inplace=True)
         self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
         self.relu5_3 = nn.ReLU(inplace=True)
-        self.pool5 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # 1/32
+        self.pool5 = nn.MaxPool2d(
+            kernel_size=2, stride=2, ceil_mode=True)  # 1/32
 
         # fc6
         self.fc6 = nn.Conv2d(512, 4096, 7)
@@ -97,9 +104,12 @@ class FCN8sInstance(nn.Module):
         self.relu7 = nn.ReLU(inplace=True)
         self.drop7 = nn.Dropout2d()
 
-        self.score_fr = nn.Conv2d(4096, self.n_classes, 1)  # H/32 x W/32 x n_semantic_cls
-        self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)   # H/32 x W/32 x n_semantic_cls
-        self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)   # H/32 x W/32 x n_semantic_cls
+        # H/32 x W/32 x n_semantic_cls
+        self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
+        # H/32 x W/32 x n_semantic_cls
+        self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)
+        # H/32 x W/32 x n_semantic_cls
+        self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)
 
         self.upscore2 = nn.ConvTranspose2d(   # H/16 x W/16 x n_semantic_cls
             self.n_classes, self.n_classes, kernel_size=4, stride=2, bias=False)
@@ -201,8 +211,8 @@ class FCN8sInstance(nn.Module):
 
         h = self.score_pool3(pool3 * 0.0001)  # XXX: scaling to train at once
         h = h[:, :,
-            9:9 + upscore_pool4.size()[2],
-            9:9 + upscore_pool4.size()[3]]
+              9:9 + upscore_pool4.size()[2],
+              9:9 + upscore_pool4.size()[3]]
         score_pool3c = h  # 1/8
 
         h = upscore_pool4 + score_pool3c  # 1/8
@@ -279,7 +289,8 @@ class FCN8sInstance(nn.Module):
                         l1.weight.data.repeat(*num_repeats_per_dim)
                     l2.weight.data.copy_()
                 except:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb
+                    ipdb.set_trace()
                     raise
 
     def _initialize_weights(self):
@@ -291,7 +302,8 @@ class FCN8sInstance(nn.Module):
                     self.conv1x1_instance_to_semantic.weight.data.copy_(
                         self.instance_to_semantic_mapping_matrix.transpose(1, 0))
                     self.conv1x1_instance_to_semantic.weight.requires_grad = False  # Fix weights
-                    print('conv1x1 initialized to have weights of shape {}'.format(self.conv1x1_instance_to_semantic.weight.data.shape))
+                    print('conv1x1 initialized to have weights of shape {}'.format(
+                        self.conv1x1_instance_to_semantic.weight.data.shape))
 
             if isinstance(m, nn.Conv2d):
                 # m.weight.data.zero_()

@@ -37,10 +37,11 @@ class VOCClassSegBase(data.Dataset):
     ])
     mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
-    def __init__(self, root, split='train', transform=False):
+    def __init__(self, root, split='train', transform=False, n_max_per_class=1):
         self.root = root
         self.split = split
         self._transform = transform
+        self.n_max_per_class = n_max_per_class
 
         # VOC2011 and others are subset of VOC2012
         dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC2012')
@@ -91,9 +92,22 @@ class VOCClassSegBase(data.Dataset):
         lbl = np.array(lbl, dtype=np.int32)
         lbl[lbl == 255] = -1
         if self._transform:
-            return self.transform(img, lbl)
-        else:
-            return img, lbl
+            img, lbl = self.transform(img, lbl)
+
+        # duplicate channels.  We'll do background, plane 0, plane 1, ..., bicycle 0, bicycle 1, ..
+        # for the indices
+
+        instance_semantic_labels = []
+        for semantic_cls_idx, cls_name in enumerate(self.class_names):
+            if semantic_cls_idx == 0:  # only one background instance
+                instance_semantic_labels += [semantic_cls_idx]
+            else:
+                instance_semantic_labels += [semantic_cls_idx in range(self.n_max_per_class)]
+        for instance_cls, semantic_cls in enumerate(instance_semantic_labels):
+            # each instance class gets a copy of the semantic groundtruth (for this debugging
+            # example; this changes when we actually have to separate the instances)
+            lbl[lbl == semantic_cls] = instance_cls
+        return img, lbl
 
     def transform(self, img, lbl):
         img = img[:, :, ::-1]  # RGB -> BGR

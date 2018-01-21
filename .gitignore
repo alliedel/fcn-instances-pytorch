@@ -2,7 +2,7 @@
 *.py[cdo]
 .idea
 *.prof
-
+*.*~
 build/
 dist/
 logs/

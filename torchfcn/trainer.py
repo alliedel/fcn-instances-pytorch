@@ -88,7 +88,7 @@ class Trainer(object):
         training = self.model.training
         self.model.eval()
 
-        n_class = len(self.val_loader.dataset.class_names)
+        n_class = self.model.n_classes
 
         val_loss = 0
         visualizations = []
@@ -161,7 +161,7 @@ class Trainer(object):
     def train_epoch(self):
         self.model.train()
 
-        n_class = len(self.train_loader.dataset.class_names)
+        n_class = self.model.n_classes
 
         for batch_idx, (data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),

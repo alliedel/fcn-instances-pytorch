@@ -38,12 +38,13 @@ class VOCClassSegBase(data.Dataset):
     mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
     def __init__(self, root, split='train', transform=False, n_max_per_class=1,
-                 semantic_subset=None):
+                 semantic_subset=None, map_other_classes_to_bground=True):
         """
         n_max_per_class: number of instances per non-background class
         class_subet: if None, use all classes.  Else, reduce the classes to this list set.
+        map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
         """
-
+        self.map_other_classes_to_bground = map_other_classes_to_bground
         self.root = root
         self.split = split
         self._transform = transform
@@ -130,15 +131,21 @@ class VOCClassSegBase(data.Dataset):
 
     def remap_to_reduced_semantic_classes(self, lbl):
         reduced_class_idxs = self.idxs_into_all_voc
-        original_classes_in_this_img = torch.np.unique(lbl)
-        bool_unique_class_in_reduced_classes = [lbl_cls in reduced_class_idxs
-                                                for lbl_cls in original_classes_in_this_img
-                                                if lbl_cls != -1]
-        if not all(bool_unique_class_in_reduced_classes):
-            print(bool_unique_class_in_reduced_classes)
-            import ipdb; ipdb.set_trace()
-
+        # Make sure all lbl classes can be mapped appropriately.
+        if not self.map_other_classes_to_bground:
+            original_classes_in_this_img = [i for i in range(lbl.min(), lbl.max()+1) if torch.sum(lbl == i) > 0 ]
+            bool_unique_class_in_reduced_classes = [lbl_cls in reduced_class_idxs
+                                                    for lbl_cls in original_classes_in_this_img
+                                                    if lbl_cls != -1]
+            if not all(bool_unique_class_in_reduced_classes):
+                print(bool_unique_class_in_reduced_classes)
+                import ipdb; ipdb.set_trace()
+                raise Exception('Image has class labels outside the subset.\n Subset: {}\n'
+                                'Classes in the image:{}'.format(reduced_class_idxs, original_classes_in_this_img))
+        
         old_lbl = lbl.clone()
+        lbl[...] = 0
+        lbl[old_lbl == -1] = -1
         for new_idx, old_class_idx in enumerate(reduced_class_idxs):
             lbl[old_lbl == old_class_idx] = new_idx
         return lbl

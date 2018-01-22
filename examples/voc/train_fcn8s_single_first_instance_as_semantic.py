@@ -70,6 +70,10 @@ def main():
     model = torchfcn.models.FCN8sInstance(
         n_semantic_classes_with_background=len(train_loader.dataset.class_names), n_max_per_class=2,
         map_to_semantic=False)
+    print('Number of classes: {}'.format(model.n_classes))
+    print('Semantic instances: {}'.format([train_loader.dataset.class_names[c] for c in
+                                           model.semantic_instance_class_list]))
+    import ipdb; ipdb.set_trace()
     start_epoch = 0
     start_iteration = 0
     if resume:

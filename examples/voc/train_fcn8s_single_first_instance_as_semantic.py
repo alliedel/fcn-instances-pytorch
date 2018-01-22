@@ -27,7 +27,7 @@ configurations = {
 
 here = osp.dirname(osp.abspath(__file__))
 
-@profile
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
@@ -51,20 +51,25 @@ def main():
         torch.cuda.manual_seed(1337)
 
     # 1. dataset
-
+    semantic_subset = ['background', 'person']
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2011ClassSeg(root, split='train', transform=True), batch_size=1,
-        shuffle=True, **kwargs)
+        torchfcn.datasets.VOC2011ClassSeg(root, split='train_one', transform=True,
+                                          semantic_subset=semantic_subset), batch_size=1,
+        shuffle=True)
     val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2011ClassSeg(root, split='seg11valid', transform=True), batch_size=1,
+        torchfcn.datasets.VOC2011ClassSeg(root, split='val_one', transform=True,
+                                          semantic_subset=semantic_subset), batch_size=1,
         shuffle=False, **kwargs)
 
     # 2. model
-
+    # n_max_per_class > 1 and map_to_semantic=False: Basically produces extra channels that
+    # should be '0'.  Not good if copying weights over from a pretrained semantic segmenter,
+    # but fine otherwise.
     model = torchfcn.models.FCN8sInstance(
-        n_semantic_classes_with_background=len(train_loader), n_max_per_class=2, map_to_semantic=False)
+        n_semantic_classes_with_background=len(train_loader.dataset.class_names), n_max_per_class=2,
+        map_to_semantic=False)
     start_epoch = 0
     start_iteration = 0
     if resume:

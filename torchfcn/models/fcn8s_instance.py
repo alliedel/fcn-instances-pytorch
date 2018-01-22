@@ -117,10 +117,10 @@ class FCN8sInstance(nn.Module):
             self.n_classes, self.n_classes, kernel_size=16, stride=8, bias=False)
         self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
             self.n_classes, self.n_classes, kernel_size=4, stride=2, bias=False)
-
-        self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
-                                                      out_channels=self.n_semantic_classes,
-                                                      kernel_size=1, bias=False)
+        if self.map_to_semantic:
+            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
+                                                          out_channels=self.n_semantic_classes,
+                                                          kernel_size=1, bias=False)
         self._initialize_weights()
 
     @classmethod
@@ -259,6 +259,7 @@ class FCN8sInstance(nn.Module):
             l2.bias.data.copy_(l1.bias.data.view(l2.bias.size()))
 
     def copy_params_from_fcn8s(self, fcn8s_semantic):
+        print(Warning('I haven\'t thoroughly tested this function.'))
         number_semantic_classes_pretrained = [c for c in fcn8s_semantic.named_children()][-1][
             1].weight.size(1)
         if number_semantic_classes_pretrained == self.n_semantic_classes:
@@ -287,7 +288,7 @@ class FCN8sInstance(nn.Module):
                 try:
                     new_weights_with_background_repeated = \
                         l1.weight.data.repeat(*num_repeats_per_dim)
-                    l2.weight.data.copy_()
+                    l2.weight.data.copy_(new_weights_with_background_repeated)
                 except:
                     import ipdb
                     ipdb.set_trace()
@@ -296,21 +297,19 @@ class FCN8sInstance(nn.Module):
     def _initialize_weights(self):
         num_modules = len(list(self.modules()))
         for idx, m in enumerate(self.modules()):
-            if idx == num_modules - 1:
-                if self.map_to_semantic:
-                    assert m == self.conv1x1_instance_to_semantic
-                    self.conv1x1_instance_to_semantic.weight.data.copy_(
-                        self.instance_to_semantic_mapping_matrix.transpose(1, 0))
-                    self.conv1x1_instance_to_semantic.weight.requires_grad = False  # Fix weights
-                    print('conv1x1 initialized to have weights of shape {}'.format(
-                        self.conv1x1_instance_to_semantic.weight.data.shape))
-
-            if isinstance(m, nn.Conv2d):
+            if idx == num_modules - 1 and self.map_to_semantic:
+                assert m == self.conv1x1_instance_to_semantic
+                self.conv1x1_instance_to_semantic.weight.data.copy_(
+                    self.instance_to_semantic_mapping_matrix.transpose(1, 0))
+                self.conv1x1_instance_to_semantic.weight.requires_grad = False  # Fix weights
+                print('conv1x1 initialized to have weights of shape {}'.format(
+                    self.conv1x1_instance_to_semantic.weight.data.shape))
+            elif isinstance(m, nn.Conv2d):
                 # m.weight.data.zero_()
                 m.weight.data.normal_(0.0, 0.02)
                 if m.bias is not None:
                     m.bias.data.zero_()
-            if isinstance(m, nn.ConvTranspose2d):
+            elif isinstance(m, nn.ConvTranspose2d):
                 assert m.kernel_size[0] == m.kernel_size[1]
                 initial_weight = get_upsampling_weight(
                     m.in_channels, m.out_channels, m.kernel_size[0])

@@ -9,39 +9,49 @@ import scipy.io
 import torch
 from torch.utils import data
 
+ALL_VOC_CLASS_NAMES = np.array([
+    'background',  # 0
+    'aeroplane',   # 1
+    'bicycle',     # 2
+    'bird',        # 3
+    'boat',        # 4
+    'bottle',      # 5
+    'bus',         # 6
+    'car',         # 7
+    'cat',         # 8
+    'chair',       # 9
+    'cow',         # 10
+    'diningtable', # 11
+    'dog',         # 12
+    'horse',       # 13
+    'motorbike',   # 14
+    'person',      # 15
+    'potted plant',# 16
+    'sheep',       # 17
+    'sofa',        # 18
+    'train',       # 19
+    'tv/monitor',  # 20
+])
+
 
 class VOCClassSegBase(data.Dataset):
-
-    class_names = np.array([
-        'background',
-        'aeroplane',
-        'bicycle',
-        'bird',
-        'boat',
-        'bottle',
-        'bus',
-        'car',
-        'cat',
-        'chair',
-        'cow',
-        'diningtable',
-        'dog',
-        'horse',
-        'motorbike',
-        'person',
-        'potted plant',
-        'sheep',
-        'sofa',
-        'train',
-        'tv/monitor',
-    ])
     mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
-    def __init__(self, root, split='train', transform=False, n_max_per_class=1):
+    def __init__(self, root, split='train', transform=False, n_max_per_class=1,
+                 semantic_subset=None):
+        """
+        n_max_per_class: number of instances per non-background class
+        class_subet: if None, use all classes.  Else, reduce the classes to this list set.
+        """
+
         self.root = root
         self.split = split
         self._transform = transform
         self.n_max_per_class = n_max_per_class
+        self.class_names, self.idxs_into_all_voc = self.get_semantic_names_and_idxs(
+            semantic_subset=semantic_subset)
+        self._instance_to_semantic_mapping_matrix = None
+        self.get_instance_to_semantic_mapping()
 
         # VOC2011 and others are subset of VOC2012
         dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC2012')
@@ -65,17 +75,39 @@ class VOCClassSegBase(data.Dataset):
                             if osp.isfile(img_file):
                                 did = did_ext
                                 break
-                    if not osp.isfile(img_file):
-                        raise
-                        
-                lbl_file = osp.join(
+                        if not osp.isfile(img_file):
+                            raise
+                sem_lbl_file = osp.join(
                     dataset_dir, 'SegmentationClass/%s.png' % did)
+                if not osp.isfile(sem_lbl_file):
+                    raise Exception('This image does not exist')
+
+                inst_lbl_file = osp.join(
+                    dataset_dir, 'SegmentationObject/%s.png' % did)
                 self.files[split].append({
                     'img': img_file,
-                    'lbl': lbl_file,
+                    'sem_lbl': sem_lbl_file,
+                    'inst_lbl': inst_lbl_file,
                 })
             assert len(self.files[split]) > 0, "No images found from list {}".format(imgsets_file)
         assert len(self) > 0, 'self.files[self.split={}] came up empty'.format(self.split)
+
+    @staticmethod
+    def get_semantic_names_and_idxs(semantic_subset):
+        if semantic_subset is None:
+            names = ALL_VOC_CLASS_NAMES
+            idxs_into_all_voc = range(len(ALL_VOC_CLASS_NAMES))
+        else:
+            idx_name_tuples = [(idx, cls) for idx, cls in enumerate(ALL_VOC_CLASS_NAMES)
+                               if cls in semantic_subset]
+            idxs_into_all_voc = [tup[0] for tup in idx_name_tuples]
+            names = [tup[1] for tup in idx_name_tuples]
+            assert 'background' in names, ValueError('You must include background in the list of '
+                                                     'class names.')
+            if len(idxs_into_all_voc) != len(semantic_subset):
+                unrecognized_class_names = [cls for cls in semantic_subset if cls not in names]
+                raise Exception('unrecognized class name(s): {}'.format(unrecognized_class_names))
+        return names, idxs_into_all_voc
 
     def __len__(self):
         return len(self.files[self.split])
@@ -87,27 +119,29 @@ class VOCClassSegBase(data.Dataset):
         img = PIL.Image.open(img_file)
         img = np.array(img, dtype=np.uint8)
         # load label
-        lbl_file = data_file['lbl']
+        lbl_file = data_file['sem_lbl']
         lbl = PIL.Image.open(lbl_file)
         lbl = np.array(lbl, dtype=np.int32)
         lbl[lbl == 255] = -1
         if self._transform:
             img, lbl = self.transform(img, lbl)
-
-        # duplicate channels.  We'll do background, plane 0, plane 1, ..., bicycle 0, bicycle 1, ..
-        # for the indices
-
-        instance_semantic_labels = []
-        for semantic_cls_idx, cls_name in enumerate(self.class_names):
-            if semantic_cls_idx == 0:  # only one background instance
-                instance_semantic_labels += [semantic_cls_idx]
-            else:
-                instance_semantic_labels += [semantic_cls_idx in range(self.n_max_per_class)]
-        for instance_cls, semantic_cls in enumerate(instance_semantic_labels):
-            # each instance class gets a copy of the semantic groundtruth (for this debugging
-            # example; this changes when we actually have to separate the instances)
-            lbl[lbl == semantic_cls] = instance_cls
+        lbl = self.remap_to_reduced_semantic_classes(lbl)
         return img, lbl
+
+    def remap_to_reduced_semantic_classes(self, lbl):
+        reduced_class_idxs = self.idxs_into_all_voc
+        original_classes_in_this_img = torch.np.unique(lbl)
+        bool_unique_class_in_reduced_classes = [lbl_cls in reduced_class_idxs
+                                                for lbl_cls in original_classes_in_this_img
+                                                if lbl_cls != -1]
+        if not all(bool_unique_class_in_reduced_classes):
+            print(bool_unique_class_in_reduced_classes)
+            import ipdb; ipdb.set_trace()
+
+        old_lbl = lbl.clone()
+        for new_idx, old_class_idx in enumerate(reduced_class_idxs):
+            lbl[old_lbl == old_class_idx] = new_idx
+        return lbl
 
     def transform(self, img, lbl):
         img = img[:, :, ::-1]  # RGB -> BGR
@@ -127,32 +161,47 @@ class VOCClassSegBase(data.Dataset):
         lbl = lbl.numpy()
         return img, lbl
 
+    def get_instance_semantic_labels(self):
+        instance_semantic_labels = []
+        for semantic_cls_idx, cls_name in enumerate(self.class_names):
+            if semantic_cls_idx == 0:  # only one background instance
+                instance_semantic_labels += [semantic_cls_idx]
+            else:
+                instance_semantic_labels += [semantic_cls_idx in range(self.n_max_per_class)]
+        return instance_semantic_labels
+
+    def get_instance_to_semantic_mapping(self, recompute=False):
+        """
+        returns a binary matrix, where semantic_instance_mapping is N x S
+        (N = # instances, S = # semantic classes)
+        semantic_instance_mapping[inst_idx, :] is a one-hot vector,
+        and semantic_instance_mapping[inst_idx, sem_idx] = 1 iff that instance idx is an instance
+        of that semantic class.
+        """
+        if recompute or self._instance_to_semantic_mapping_matrix is None:
+            if self.n_max_per_class == 1:
+                instance_to_semantic_mapping_matrix = range(len(self.class_names))
+            else:
+                n_semantic_classes_with_background = len(self.class_names)
+                n_instance_classes = \
+                    1 + (n_semantic_classes_with_background - 1) * self.n_max_per_class
+                instance_to_semantic_mapping_matrix = torch.zeros(
+                    (n_instance_classes, n_semantic_classes_with_background)).float()
+
+                semantic_instance_class_list = [0]
+                for semantic_class in range(n_semantic_classes_with_background - 1):
+                    semantic_instance_class_list += [semantic_class for _ in range(
+                        self.n_max_per_class)]
+
+                for instance_idx, semantic_idx in range(n_instance_classes):
+                    instance_to_semantic_mapping_matrix[instance_idx,
+                                                        semantic_idx] = 1
+            self._instance_to_semantic_mapping_matrix = instance_to_semantic_mapping_matrix
+        return self._instance_to_semantic_mapping_matrix
+
 
 class VOCClassSegBase2007(data.Dataset):
-
-    class_names = np.array([
-        'background',
-        'aeroplane',
-        'bicycle',
-        'bird',
-        'boat',
-        'bottle',
-        'bus',
-        'car',
-        'cat',
-        'chair',
-        'cow',
-        'diningtable',
-        'dog',
-        'horse',
-        'motorbike',
-        'person',
-        'potted plant',
-        'sheep',
-        'sofa',
-        'train',
-        'tv/monitor',
-    ])
+    class_names = ALL_VOC_CLASS_NAMES
     mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
     def __init__(self, root, split='train', transform=False):
@@ -169,15 +218,19 @@ class VOCClassSegBase2007(data.Dataset):
             for did in open(imgsets_file):
                 did = did.strip()
                 img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
-                lbl_file = osp.join(
+                sem_lbl_file = osp.join(
                     dataset_dir, 'SegmentationClass/%s.png' % did)
+                inst_lbl_file = osp.join(
+                    dataset_dir, 'SegmentationObject/%s.png' % did)
                 self.files[split].append({
                     'img': img_file,
-                    'lbl': lbl_file,
+                    'sem_lbl': sem_lbl_file,
+                    'inst_lbl': inst_lbl_file,
                 })
                 self.files[split].append({
                     'img': img_file,
-                    'lbl': lbl_file,
+                    'sem_lbl': sem_lbl_file,
+                    'inst_lbl': inst_lbl_file,
                 })
 
     def __len__(self):
@@ -219,10 +272,11 @@ class VOCClassSegBase2007(data.Dataset):
 
 
 class VOC2011ClassSeg(VOCClassSegBase):
-
-    def __init__(self, root, split='train', transform=False):
+    def __init__(self, root, split='train', transform=False, n_max_per_class=1,
+                 semantic_subset=None, **kwargs):
         super(VOC2011ClassSeg, self).__init__(
-            root, split=split, transform=transform)
+            root, split=split, transform=transform, n_max_per_class=n_max_per_class,
+            semantic_subset=semantic_subset, **kwargs)
         pkg_root = osp.join(osp.dirname(osp.realpath(__file__)), '..')
         imgsets_file = osp.join(
             pkg_root, 'ext/fcn.berkeleyvision.org',
@@ -237,7 +291,6 @@ class VOC2011ClassSeg(VOCClassSegBase):
 
 
 class VOC2007ClassSegSingleImage(VOCClassSegBase2007):
-
     def __init__(self, root, split='train', transform=False):
         super(VOC2007ClassSegSingleImage, self).__init__(
             root, split=split, transform=transform)
@@ -252,7 +305,6 @@ class VOC2007ClassSegSingleImage(VOCClassSegBase2007):
 
 
 class VOC2012ClassSeg(VOCClassSegBase):
-
     url = 'http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar'  # NOQA
 
     def __init__(self, root, split='train', transform=False):
@@ -261,7 +313,6 @@ class VOC2012ClassSeg(VOCClassSegBase):
 
 
 class SBDClassSeg(VOCClassSegBase):
-
     # XXX: It must be renamed to benchmark.tar to be extracted.
     url = 'http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/semantic_contours/benchmark.tgz'  # NOQA
 

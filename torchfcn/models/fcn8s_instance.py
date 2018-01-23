@@ -21,8 +21,12 @@ class FCN8sInstance(nn.Module):
         osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
     def __init__(self, n_semantic_classes_with_background=21, n_max_per_class=3,
-                 background_classes=[0],
-                 void_classes=[-1], map_to_semantic=False):
+                 background_classes=(0,),
+                 void_classes=(-1,), map_to_semantic=False):
+        if type(background_classes) is tuple:
+            background_classes = list(background_classes)
+        if type(void_classes) is tuple:
+            void_classes = list(void_classes)
         assert len(
             background_classes) == 1 and background_classes[0] == 0, NotImplementedError
         assert len(
@@ -32,7 +36,7 @@ class FCN8sInstance(nn.Module):
         self.map_to_semantic = map_to_semantic
 
         self.semantic_instance_class_list = [0]
-        for semantic_class in range(n_semantic_classes_with_background - 1):
+        for semantic_class in range(1, n_semantic_classes_with_background):
             self.semantic_instance_class_list += [
                 semantic_class for _ in range(n_max_per_class)]
 

@@ -71,7 +71,11 @@ def main():
         n_semantic_classes_with_background=len(train_loader.dataset.class_names), n_max_per_class=2,
         map_to_semantic=False)
     print('Number of classes: {}'.format(model.n_classes))
+<<<<<<< HEAD
     print('Semantic instances: {}'.format([model.class_names[c] for c in
+=======
+    print('Semantic instances: {}'.format([train_loader.dataset.class_names[c] for c in
+>>>>>>> 151bbae74349791d3b50538ddcf512e7e1108608
                                            model.semantic_instance_class_list]))
     import ipdb; ipdb.set_trace()
     start_epoch = 0

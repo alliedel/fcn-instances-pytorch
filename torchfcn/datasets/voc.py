@@ -9,6 +9,8 @@ import scipy.io
 import torch
 from torch.utils import data
 
+DEBUG_ASSERT = True
+
 ALL_VOC_CLASS_NAMES = np.array([
     'background',  # 0
     'aeroplane',   # 1
@@ -51,12 +53,17 @@ class VOCClassSegBase(data.Dataset):
         self.n_max_per_class = n_max_per_class
         self.class_names, self.idxs_into_all_voc = self.get_semantic_names_and_idxs(
             semantic_subset=semantic_subset)
+        self.n_semantic_classes = len(self.class_names)
         self._instance_to_semantic_mapping_matrix = None
         self.get_instance_to_semantic_mapping()
+        self.n_classes = self._instance_to_semantic_mapping_matrix.size(0)
 
         # VOC2011 and others are subset of VOC2012
         dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC2012')
-        self.files = collections.defaultdict(list)
+        self.files = self.get_files(dataset_dir)
+
+    def get_files(self, dataset_dir):
+        files = collections.defaultdict(list)
         for split in ['train', 'val'] + ([] if self.split in ['train', 'val'] else [self.split]):
             imgsets_file = osp.join(
                 dataset_dir, 'ImageSets/Segmentation/%s.txt' % split)
@@ -82,16 +89,17 @@ class VOCClassSegBase(data.Dataset):
                     dataset_dir, 'SegmentationClass/%s.png' % did)
                 if not osp.isfile(sem_lbl_file):
                     raise Exception('This image does not exist')
-
+                # TODO(allie) -- allow functionality for permuting instance labels
                 inst_lbl_file = osp.join(
                     dataset_dir, 'SegmentationObject/%s.png' % did)
-                self.files[split].append({
+                files[split].append({
                     'img': img_file,
                     'sem_lbl': sem_lbl_file,
                     'inst_lbl': inst_lbl_file,
                 })
-            assert len(self.files[split]) > 0, "No images found from list {}".format(imgsets_file)
-        assert len(self) > 0, 'self.files[self.split={}] came up empty'.format(self.split)
+            assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
+        assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
+        return files
 
     @staticmethod
     def get_semantic_names_and_idxs(semantic_subset):
@@ -119,21 +127,36 @@ class VOCClassSegBase(data.Dataset):
         img_file = data_file['img']
         img = PIL.Image.open(img_file)
         img = np.array(img, dtype=np.uint8)
-        # load label
-        lbl_file = data_file['sem_lbl']
-        lbl = PIL.Image.open(lbl_file)
-        lbl = np.array(lbl, dtype=np.int32)
-        lbl[lbl == 255] = -1
+        # load semantic label
+        sem_lbl_file = data_file['sem_lbl']
+        sem_lbl = PIL.Image.open(sem_lbl_file)
+        sem_lbl = np.array(sem_lbl, dtype=np.int32)
+        sem_lbl[sem_lbl == 255] = -1
         if self._transform:
-            img, lbl = self.transform(img, lbl)
-        lbl = self.remap_to_reduced_semantic_classes(lbl)
+            img, sem_lbl = self.transform(img, sem_lbl)
+        # map to reduced class set
+        sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
+
+        # Handle instances
+        import ipdb; ipdb.set_trace()
+        if self.n_max_per_class == 1:
+            lbl = sem_lbl
+        else:
+            inst_lbl_file = data_file['inst_lbl']
+            inst_lbl = PIL.Image.open(inst_lbl_file)
+            inst_lbl = np.array(inst_lbl, dtype=np.int32)
+            inst_lbl[inst_lbl == 255] = -1
+            inst_lbl = self.transform_lbl(inst_lbl)
+            lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
+
         return img, lbl
 
     def remap_to_reduced_semantic_classes(self, lbl):
         reduced_class_idxs = self.idxs_into_all_voc
         # Make sure all lbl classes can be mapped appropriately.
         if not self.map_other_classes_to_bground:
-            original_classes_in_this_img = [i for i in range(lbl.min(), lbl.max()+1) if torch.sum(lbl == i) > 0 ]
+            original_classes_in_this_img = [i for i in range(lbl.min(), lbl.max()+1)
+                                            if torch.sum(lbl == i) > 0 ]
             bool_unique_class_in_reduced_classes = [lbl_cls in reduced_class_idxs
                                                     for lbl_cls in original_classes_in_this_img
                                                     if lbl_cls != -1]
@@ -150,13 +173,17 @@ class VOCClassSegBase(data.Dataset):
             lbl[old_lbl == old_class_idx] = new_idx
         return lbl
 
+    def transform_lbl(self, lbl):
+        lbl = torch.from_numpy(lbl).long()
+        return lbl
+
     def transform(self, img, lbl):
         img = img[:, :, ::-1]  # RGB -> BGR
         img = img.astype(np.float64)
         img -= self.mean_bgr
         img = img.transpose(2, 0, 1)
         img = torch.from_numpy(img).float()
-        lbl = torch.from_numpy(lbl).long()
+        lbl = self.transform_lbl(lbl)
         return img, lbl
 
     def untransform(self, img, lbl):
@@ -187,7 +214,8 @@ class VOCClassSegBase(data.Dataset):
         """
         if recompute or self._instance_to_semantic_mapping_matrix is None:
             if self.n_max_per_class == 1:
-                instance_to_semantic_mapping_matrix = range(len(self.class_names))
+                instance_to_semantic_mapping_matrix = torch.eye(self.n_semantic_classes,
+                                                                self.n_semantic_classes)
             else:
                 n_semantic_classes_with_background = len(self.class_names)
                 n_instance_classes = \
@@ -205,6 +233,33 @@ class VOCClassSegBase(data.Dataset):
                                                         semantic_idx] = 1
             self._instance_to_semantic_mapping_matrix = instance_to_semantic_mapping_matrix
         return self._instance_to_semantic_mapping_matrix
+
+    def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
+        """
+        sem_lbl is size(img); inst_lbl is size(img).  inst_lbl is just the original instance
+        image (inst_lbls at coordinates of person 0 are 0)
+        """
+        assert sem_lbl.shape == inst_lbl.shape
+        if torch.np.any(inst_lbl >= self.n_max_per_class):
+            raise Exception('There are more instances than the number you allocated for.')
+            # if you don't want to raise an exception here, add a corresponding flag and use the
+            # following line:
+            # y = torch.min(inst_lbl, self.n_max_per_class)
+        y = inst_lbl
+        y += (sem_lbl - 1)*self.n_max_per_class
+        y[y < 0] = 0  # background got 1+range(-self.n_max_per_class,0); all go to 0.
+
+        instance_to_semantic_mapping = self.get_instance_to_semantic_mapping()
+        if DEBUG_ASSERT:
+            mapping_as_list_of_semantic_classes = torch.np.nonzero(
+                torch.from_numpy(np.arange(self.n_semantic_classes)[
+                                     instance_to_semantic_mapping[:,:] == 1
+                                     ])).squeeze()
+            assert mapping_as_list_of_semantic_classes.size() == (self.n_classes,)
+            print('running assert statement now...')
+            assert instance_to_semantic_mapping[y.ravel()] == sem_lbl.ravel()
+
+        return y
 
 
 class VOCClassSegBase2007(data.Dataset):
@@ -356,3 +411,7 @@ class SBDClassSeg(VOCClassSegBase):
             return self.transform(img, lbl)
         else:
             return img, lbl
+
+
+
+

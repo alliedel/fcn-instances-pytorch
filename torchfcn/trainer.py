@@ -88,7 +88,7 @@ class Trainer(object):
         training = self.model.training
         self.model.eval()
 
-        n_class = len(self.val_loader.dataset.class_names)
+        n_class = self.model.n_classes
 
         val_loss = 0
         visualizations = []

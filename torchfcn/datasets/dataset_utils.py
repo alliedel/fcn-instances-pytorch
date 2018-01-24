@@ -10,7 +10,6 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class, n_s
     sem_lbl is size(img); inst_lbl is size(img).  inst_lbl is just the original instance
     image (inst_lbls at coordinates of person 0 are 0)
     """
-    import ipdb; ipdb.set_trace()
     assert sem_lbl.shape == inst_lbl.shape
     if torch.np.any(inst_lbl >= n_max_per_class):
         raise Exception('There are more instances than the number you allocated for.')
@@ -28,9 +27,9 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class, n_s
             torch.from_numpy(np.arange(n_semantic_classes)[
                                  instance_to_semantic_mapping[:,:] == 1
                                  ])).squeeze()
-        assert mapping_as_list_of_semantic_classes.size() == (n_classes,)
-        print('running assert statement now...')
-        assert instance_to_semantic_mapping[y.ravel()] == sem_lbl.ravel()
+        assert mapping_as_list_of_semantic_classes.size() == (n_classes, n_semantic_classes)
+        # import ipdb; ipdb.set_trace()
+        # assert instance_to_semantic_mapping[y.view(-1)].double()[sem_lbl.view(-1)] == 1
 
     return y
 
@@ -57,8 +56,7 @@ def get_instance_to_semantic_mapping(n_max_per_class, n_semantic_classes_with_ba
         for semantic_class in range(n_semantic_classes_with_background - 1):
             semantic_instance_class_list += [semantic_class for _ in range(
                 n_max_per_class)]
-
-        for instance_idx, semantic_idx in range(n_instance_classes):
+        for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
             instance_to_semantic_mapping_matrix[instance_idx,
                                                 semantic_idx] = 1
     return instance_to_semantic_mapping_matrix

@@ -105,6 +105,7 @@ class VOCClassSegBase(data.Dataset):
         return len(self.files[self.split])
 
     def __getitem__(self, index):
+
         data_file = self.files[self.split][index]
         img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
                                                    sem_lbl_file=data_file['sem_lbl'],
@@ -174,7 +175,6 @@ class VOCClassSegBase(data.Dataset):
             n_semantic_classes=self.n_semantic_classes, n_classes=self.n_classes)
 
     def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file):
-        import ipdb; ipdb.set_trace()
         img = PIL.Image.open(img_file)
         img = np.array(img, dtype=np.uint8)
         # load semantic label

@@ -11,6 +11,14 @@ from torch.utils import data
 
 from . import dataset_utils
 
+
+# TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
+#  multiple times with the assigned permutation.  That way you can train in batches that have
+# different permutations for the same image (may affect training if batched that way).
+# You may also want to permute different semantic classes differently, though I'm pretty sure
+# the network shouldn't be able to understand that's going on (semantic classes are handled
+# separately)
+
 DEBUG_ASSERT = True
 
 ALL_VOC_CLASS_NAMES = np.array([
@@ -42,12 +50,16 @@ class VOCClassSegBase(data.Dataset):
     mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
     def __init__(self, root, split='train', transform=False, n_max_per_class=1,
-                 semantic_subset=None, map_other_classes_to_bground=True):
+                 semantic_subset=None, map_other_classes_to_bground=True,
+                 permute_instance_order=True):
         """
         n_max_per_class: number of instances per non-background class
         class_subet: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
+        permute_instance_order: randomly chooses the ordering of the instances (from 0 through
+        n_max_per_class - 1) --> Does this every time the image is loaded.
         """
+        self.permute_instance_order = permute_instance_order
         self.map_other_classes_to_bground = map_other_classes_to_bground
         self.root = root
         self.split = split
@@ -194,6 +206,9 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl = np.array(inst_lbl, dtype=np.int32)
             inst_lbl[inst_lbl == 255] = -1
             inst_lbl = self.transform_lbl(inst_lbl)
+            if self.permute_instance_order:
+                inst_lbl = permute_instance_order(inst_lbl, )
+
             lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
 
         return img, lbl

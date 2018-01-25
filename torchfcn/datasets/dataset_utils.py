@@ -4,6 +4,12 @@ import numpy as np
 DEBUG_ASSERT = True
 
 
+def permute_instance_order(inst_lbl, n_max_per_class):
+    for old_val, new_val in enumerate(np.random.permutation(range(n_max_per_class))):
+        inst_lbl[inst_lbl == old_val] = new_val
+    return inst_lbl
+
+
 def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class, n_semantic_classes,
                                          n_classes):
     """

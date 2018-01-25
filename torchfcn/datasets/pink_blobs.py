@@ -1,9 +1,6 @@
 PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
 
 
-
-
-
 def paint_square(img, start_r, start_c, w, h, clr, allow_overflow=True, row_col_clr_dims=(0,1,2)):
     """
     allow_overflow = False: error if square falls off edge of screen.

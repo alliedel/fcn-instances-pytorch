@@ -207,7 +207,7 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl[inst_lbl == 255] = -1
             inst_lbl = self.transform_lbl(inst_lbl)
             if self.permute_instance_order:
-                inst_lbl = permute_instance_order(inst_lbl, )
+                inst_lbl = dataset_utils.permute_instance_order(inst_lbl, self.n_max_per_class)
 
             lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
 

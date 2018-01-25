@@ -10,37 +10,17 @@ import pytz
 import scipy.misc
 import torch
 from torch.autograd import Variable
-import torch.nn.functional as F
 import tqdm
 
 import torchfcn
-
-
-def cross_entropy2d(input, target, weight=None, size_average=True):
-    # input: (n, c, h, w), target: (n, h, w)
-    n, c, h, w = input.size()
-    # log_p: (n, c, h, w)
-    log_p = F.log_softmax(input)
-    # log_p: (n*h*w, c)
-    log_p = log_p.transpose(1, 2).transpose(2, 3).contiguous().view(-1, c)
-    log_p = log_p[target.view(n, h, w, 1).repeat(1, 1, 1, c) >= 0]
-    log_p = log_p.view(-1, c)
-    # target: (n*h*w,)
-    mask = target >= 0
-    target = target[mask]
-    loss = F.nll_loss(log_p, target, weight=weight, size_average=False)
-    if size_average:
-        loss /= mask.data.sum()
-    return loss
+from torchfcn import losses
 
 
 class Trainer(object):
-
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter,
-                 size_average=False, interval_validate=None):
+                 size_average=False, interval_validate=None, matching_loss=True):
         self.cuda = cuda
-
         self.model = model
         self.optim = optimizer
 
@@ -50,6 +30,7 @@ class Trainer(object):
         self.timestamp_start = \
             datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
         self.size_average = size_average
+        self.matching_loss = matching_loss
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -102,8 +83,9 @@ class Trainer(object):
             data, target = Variable(data, volatile=True), Variable(target)
             score = self.model(data)
 
-            loss = cross_entropy2d(score, target,
-                                   size_average=self.size_average)
+            loss, gt_permutations = losses.cross_entropy2d(
+                score, target, semantic_instance_labels=self.model.semantic_instance_class_list,
+                matching=self.matching_loss, size_average=self.size_average)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while validating')
             val_loss += float(loss.data[0]) / len(data)
@@ -182,8 +164,9 @@ class Trainer(object):
             self.optim.zero_grad()
             score = self.model(data)
 
-            loss = cross_entropy2d(score, target,
-                                   size_average=self.size_average)
+            loss, gt_permutations = losses.cross_entropy2d(score, target,
+                                                           matching=self.matching_loss,
+                                                           size_average=self.size_average)
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
@@ -205,7 +188,7 @@ class Trainer(object):
                     datetime.datetime.now(pytz.timezone('Asia/Tokyo')) -
                     self.timestamp_start).total_seconds()
                 log = [self.epoch, self.iteration] + [loss.data[0]] + \
-                    metrics.tolist() + [''] * 5 + [elapsed_time]
+                      metrics.tolist() + [''] * 5 + [elapsed_time]
                 log = map(str, log)
                 f.write(','.join(log) + '\n')
 

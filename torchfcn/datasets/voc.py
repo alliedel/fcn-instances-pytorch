@@ -51,7 +51,7 @@ class VOCClassSegBase(data.Dataset):
 
     def __init__(self, root, split='train', transform=False, n_max_per_class=1,
                  semantic_subset=None, map_other_classes_to_bground=True,
-                 permute_instance_order=True):
+                 permute_instance_order=True, one_hot_ground_truth=True):
         """
         n_max_per_class: number of instances per non-background class
         class_subet: if None, use all classes.  Else, reduce the classes to this list set.
@@ -220,3 +220,5 @@ class VOC2012ClassSeg(VOCClassSegBase):
     def __init__(self, root, split='train', transform=False, **kwargs):
         super(VOC2012ClassSeg, self).__init__(
             root, split=split, transform=transform, **kwargs)
+
+

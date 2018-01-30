@@ -1,7 +1,51 @@
 import torch
 import numpy as np
+from torch.autograd import Variable
 
 DEBUG_ASSERT = True
+
+
+def zeros_like(x, out_size=None):
+    assert x.__class__.__name__.find('Variable') != -1 \
+           or x.__class__.__name__.find('Tensor') != -1, "Object is neither a Tensor nor a Variable"
+    if out_size is None:
+        out_size = x.size()
+    y = torch.zeros(out_size)
+    if x.is_cuda:
+        y = y.cuda()
+
+    if x.__class__.__name__ == 'Variable':
+        return torch.autograd.Variable(y, requires_grad=x.requires_grad)
+    elif x.__class__.__name__.find('Tensor') != -1:
+        return torch.zeros(y)
+
+
+def labels_to_one_hot(input_labels, n_classes, output_onehot=None):
+    """
+    input_labels: either HxW or NxHxW
+    output_onehot: either CxHxW or NxCxHxW depending on input_labels
+    """
+    ndims = len(input_labels.size())
+
+    if output_onehot is None:
+        if ndims == 2:
+            out_size = (n_classes, input_labels.size(0), input_labels.size(1))
+        elif ndims == 3:
+            out_size = (input_labels.size(0), n_classes, input_labels.size(1), input_labels.size(2))
+        else:
+            raise ValueError('input_labels should be HxW or NxHxW')
+        output_onehot = zeros_like(input_labels, out_size=out_size)
+    else:
+        output_onehot = output_onehot.zero_()
+    if ndims == 2:
+        channel_dim = 0
+        input_labels_expanded = input_labels[torch.np.newaxis, :, :]
+    else:  # ndims == 3:
+        channel_dim = 1
+        input_labels_expanded = input_labels[:, torch.np.newaxis, :, :]
+
+    output_onehot.scatter_(channel_dim, input_labels_expanded, 1)
+    return output_onehot
 
 
 def permute_instance_order(inst_lbl, n_max_per_class):
@@ -25,18 +69,6 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class, n_s
     y = inst_lbl
     y += (sem_lbl - 1) * n_max_per_class
     y[y < 0] = 0  # background got 1+range(-self.n_max_per_class,0); all go to 0.
-
-    instance_to_semantic_mapping = get_instance_to_semantic_mapping(
-        n_max_per_class, n_semantic_classes)
-#    if DEBUG_ASSERT:
-#        import ipdb; ipdb.set_trace()
-#        mapping_as_list_of_semantic_classes = torch.np.nonzero(
-#            torch.from_numpy(np.arange(n_semantic_classes)[
-#                                 instance_to_semantic_mapping == 1
-#                                 ])).squeeze()
-#        assert mapping_as_list_of_semantic_classes.size() == (n_classes, n_semantic_classes)
-        # import ipdb; ipdb.set_trace()
-        # assert instance_to_semantic_mapping[y.view(-1)].double()[sem_lbl.view(-1)] == 1
 
     return y
 
@@ -113,3 +145,18 @@ def get_semantic_names_and_idxs(semantic_subset, full_set):
             unrecognized_class_names = [cls for cls in semantic_subset if cls not in names]
             raise Exception('unrecognized class name(s): {}'.format(unrecognized_class_names))
     return names, idxs_into_all_voc
+
+
+def pytorch_unique(pytorch_1d_tensor):
+    if torch.is_tensor(pytorch_1d_tensor):
+        unique_labels = []
+        for sem_l in pytorch_1d_tensor:
+            if sem_l not in unique_labels:
+                unique_labels.append(sem_l)
+        return pytorch_1d_tensor.type(unique_labels)
+    else:
+        raise Exception('pytorch_1d_tensor isn\'t actually a tensor!  Maybe you want to use '
+                        'local_pyutils.unique() for a list or np.unique() for a np array.')
+
+
+

@@ -11,6 +11,8 @@ import torchfcn
 from examples.voc.script_utils import get_log_dir
 from examples.voc.script_utils import get_parameters
 
+from tensorboardX import SummaryWriter
+
 
 configurations = {
     # same configuration as original work
@@ -30,6 +32,7 @@ here = osp.dirname(osp.abspath(__file__))
 
 def main():
     n_max_per_class = 3
+    matching = True
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=1,
@@ -58,12 +61,14 @@ def main():
     train_loader = torch.utils.data.DataLoader(
         torchfcn.datasets.VOC2012ClassSeg(root, split='train_one', transform=True,
                                           semantic_subset=semantic_subset,
-                                          n_max_per_class=n_max_per_class),
+                                          n_max_per_class=n_max_per_class,
+                                          permute_instance_order=False),
         batch_size=1, shuffle=True)
     val_loader = torch.utils.data.DataLoader(
         torchfcn.datasets.VOC2012ClassSeg(root, split='val_one', transform=True,
                                           semantic_subset=semantic_subset,
-                                          n_max_per_class=n_max_per_class),
+                                          n_max_per_class=n_max_per_class,
+                                          permute_instance_order=False),
         batch_size=1, shuffle=False, **kwargs)
     # Make sure we can load an image
     [img, lbl] = train_loader.dataset[0]
@@ -106,6 +111,7 @@ def main():
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
+    writer = SummaryWriter(log_dir=out)
     trainer = torchfcn.Trainer(
         cuda=cuda,
         model=model,
@@ -115,6 +121,8 @@ def main():
         out=out,
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),
+        tensorboard_writer=writer,
+        matching_loss=matching
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

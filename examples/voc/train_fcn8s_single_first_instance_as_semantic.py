@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python 
 
 import argparse
 import os
@@ -8,8 +8,8 @@ import torch
 
 import torchfcn
 
-from train_fcn32s import get_log_dir
-from train_fcn32s import get_parameters
+from examples.voc.script_utils import get_log_dir
+from examples.voc.script_utils import get_parameters
 
 
 configurations = {
@@ -38,10 +38,11 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir(__file__.replace('.py', ''), args.config, cfg)
+    out = get_log_dir(osp.basename(__file__).replace(
+        '.py', ''), args.config, cfg)
     print('logdir: {}'.format(out))
     resume = args.resume
-
+    
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
 
@@ -50,20 +51,26 @@ def main():
         torch.cuda.manual_seed(1337)
 
     # 1. dataset
-
+    semantic_subset = ['background', 'person']
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
-        batch_size=1, shuffle=True, **kwargs)
+        torchfcn.datasets.VOC2011ClassSeg(root, split='train_one', transform=True,
+                                          semantic_subset=semantic_subset), batch_size=1,
+        shuffle=True)
     val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2011ClassSeg(
-            root, split='seg11valid', transform=True),
-        batch_size=1, shuffle=False, **kwargs)
+        torchfcn.datasets.VOC2011ClassSeg(root, split='val_one', transform=True,
+                                          semantic_subset=semantic_subset), batch_size=1,
+        shuffle=False, **kwargs)
 
     # 2. model
-
-    model = torchfcn.models.FCN8sAtOnce(n_class=21)
+    # n_max_per_class > 1 and map_to_semantic=False: Basically produces extra channels that
+    # should be '0'.  Not good if copying weights over from a pretrained semantic segmenter,
+    # but fine otherwise.
+    model = torchfcn.models.FCN8sInstance(
+        n_semantic_classes_with_background=len(train_loader.dataset.class_names), n_max_per_class=2,
+        map_to_semantic=False)
+    import ipdb; ipdb.set_trace()
     start_epoch = 0
     start_iteration = 0
     if resume:
@@ -81,15 +88,15 @@ def main():
 
     optim = torch.optim.SGD(
         [
-            {'params': filter(lambda p: True if p is None else p.requires_grad, get_parameters(
+            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
                 model, bias=False))},
-            {'params': filter(lambda p: True if p is None else p.requires_grad, get_parameters(model, bias=True)),
+            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+                model, bias=True)),
              'lr': cfg['lr'] * 2, 'weight_decay': 0},
         ],
         lr=cfg['lr'],
         momentum=cfg['momentum'],
-        weight_decay=cfg['weight_decay'],
-        )
+        weight_decay=cfg['weight_decay'])
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 

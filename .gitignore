@@ -1,7 +1,9 @@
 *.egg-info/
 *.py[cdo]
 .idea
-
+*.prof
+*.*~
 build/
 dist/
 logs/
+profile_backup/

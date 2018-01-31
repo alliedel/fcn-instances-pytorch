@@ -56,7 +56,8 @@ def main():
     elif socket.gethostname() == 'kalman':
         root = osp.expanduser('~/afsDirectories/kalman/data/datasets')
     else:
-        raise Exception('Specify dataset root for hostname {}'.format(socket.gethostname()))
+        raise Exception(
+            'Specify dataset root for hostname {}'.format(socket.gethostname()))
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
         torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),

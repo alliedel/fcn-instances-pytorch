@@ -10,21 +10,38 @@ import pytz
 import scipy.misc
 import torch
 from torch.autograd import Variable
+import torch.nn.functional as F
 import tqdm
+tqdm.monitor_interval = 0
 
 import torchfcn
-from torchfcn import losses
-
-from StringIO import StringIO
-import matplotlib.pyplot as plt
 
 
-class Trainer(object):
+def cross_entropy2d(input, target, weight=None, size_average=True):
+    # input: (n, c, h, w), target: (n, h, w)
+    n, c, h, w = input.size()
+    # log_p: (n, c, h, w)
+    log_p = F.log_softmax(input, dim=1)
+    # log_p: (n*h*w, c)
+    log_p = log_p.transpose(1, 2).transpose(2, 3).contiguous().view(-1, c)
+    log_p = log_p[target.view(n, h, w, 1).repeat(1, 1, 1, c) >= 0]
+    log_p = log_p.view(-1, c)
+    # target: (n*h*w,)
+    mask = target >= 0
+    target = target[mask]
+    loss = F.nll_loss(log_p, target, weight=weight, size_average=False)
+    if size_average:
+        loss /= mask.data.sum()
+    return loss
+
+
+class InstanceTrainer(object):
+
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter,
-                 size_average=False, interval_validate=None, matching_loss=True,
-                 tensorboard_writer=None):
+                 size_average=False, interval_validate=None, instance_loss=False):
         self.cuda = cuda
+
         self.model = model
         self.optim = optimizer
 
@@ -34,8 +51,6 @@ class Trainer(object):
         self.timestamp_start = \
             datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
         self.size_average = size_average
-        self.matching_loss = matching_loss
-        self.tensorboard_writer = tensorboard_writer
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -69,43 +84,58 @@ class Trainer(object):
         self.iteration = 0
         self.max_iter = max_iter
         self.best_mean_iu = 0
+        self.instance_loss = instance_loss
 
     def validate(self):
+        print('Running validation')
         training = self.model.training
         self.model.eval()
 
-        n_class = self.model.n_classes
+        n_class = len(self.val_loader.dataset.class_names)
 
         val_loss = 0
         visualizations = []
         label_trues, label_preds = [], []
-        for batch_idx, (data, target) in tqdm.tqdm(
+        for batch_idx, (data, semantic_target, instance_target) in tqdm.tqdm(
                 enumerate(self.val_loader), total=len(self.val_loader),
                 desc='Valid iteration=%d' % self.iteration, ncols=80,
                 leave=False):
             if self.cuda:
-                data, target = data.cuda(), target.cuda()
-            data, target = Variable(data, volatile=True), Variable(target)
+                data, semantic_target, instance_target = data.cuda(), semantic_target.cuda(), \
+                                                         instance_target.cuda()
+            data, semantic_target, instance_target = Variable(data, volatile=True), Variable(
+                semantic_target), Variable(instance_target)
             score = self.model(data)
-
-            gt_permutations, loss = losses.cross_entropy2d(
-                score, target, semantic_instance_labels=self.model.semantic_instance_class_list,
-                matching=self.matching_loss, size_average=self.size_average)
+            if self.instance_loss:
+                raise NotImplementedError
+            else:  # Else, semantic loss
+                loss = cross_entropy2d(score, semantic_target,
+                                       size_average=self.size_average)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while validating')
             val_loss += float(loss.data[0]) / len(data)
 
             imgs = data.data.cpu()
             lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-            lbl_true = target.data.cpu()
-            for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
-                img, lt = self.val_loader.dataset.untransform(img, lt)
-                label_trues.append(lt)
+            if self.instance_loss:
+                raise NotImplementedError
+            else:
+                lbl_true_semantic = semantic_target.data.cpu()
+                lbl_true_instance = instance_target.data.cpu()
+
+            for img, lt_sem, lt_inst, lp in zip(imgs, lbl_true_semantic, lbl_true_instance,
+                                                lbl_pred):
+                img, lt_sem, lt_inst = self.val_loader.dataset.untransform(img, lt_sem, lt_inst)
+                if self.instance_loss:
+                    raise NotImplementedError
+                else:
+                    label_trues.append(lt_sem)
                 label_preds.append(lp)
                 if len(visualizations) < 9:
                     viz = fcn.utils.visualize_segmentation(
-                        lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class)
+                        lbl_pred=lp, lbl_true=lt_sem, img=img, n_class=n_class)
                     visualizations.append(viz)
+        import ipdb; ipdb.set_trace()
         metrics = torchfcn.utils.label_accuracy_score(
             label_trues, label_preds, n_class)
 
@@ -113,16 +143,9 @@ class Trainer(object):
         if not osp.exists(out):
             os.makedirs(out)
         out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
-        out_img = fcn.utils.get_tile_image(visualizations)
-        scipy.misc.imsave(out_file, out_img)
-        if self.tensorboard_writer is not None:
-            basename = 'val_'
-            tag = '{}images'.format(basename, 0)
-            log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
+        scipy.misc.imsave(out_file, fcn.utils.get_tile_image(visualizations))
 
         val_loss /= len(self.val_loader)
-        if self.tensorboard_writer is not None:
-            self.tensorboard_writer.add_scalar('data/validation_loss', val_loss, self.iteration)
 
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
             elapsed_time = (
@@ -153,11 +176,12 @@ class Trainer(object):
             self.model.train()
 
     def train_epoch(self):
+        print('Running train_epoch')
         self.model.train()
 
-        n_class = self.model.n_classes
+        n_class = len(self.train_loader.dataset.class_names)
 
-        for batch_idx, (data, target) in tqdm.tqdm(  # tqdm: progress bar
+        for batch_idx, (data, semantic_target, instance_target) in tqdm.tqdm(
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):
             iteration = batch_idx + self.epoch * len(self.train_loader)
@@ -171,28 +195,26 @@ class Trainer(object):
             assert self.model.training
 
             if self.cuda:
-                data, target = data.cuda(), target.cuda()
-            data, target = Variable(data), Variable(target)
+                data, semantic_target, instance_target = data.cuda(), semantic_target.cuda(), \
+                                                         instance_target.cuda()
+
+            data, semantic_target, instance_target = Variable(data), Variable(semantic_target), \
+                                                     Variable(instance_target)
             self.optim.zero_grad()
             score = self.model(data)
 
-            gt_permutations, loss = losses.cross_entropy2d(
-                score, target,
-                matching=self.matching_loss,
-                size_average=self.size_average,
-                semantic_instance_labels=self.model.semantic_instance_class_list)
+            loss = cross_entropy2d(score, semantic_target,
+                                   size_average=self.size_average)
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
-            if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('data/training_loss', loss.data[0],
-                                                   self.iteration)
+            import ipdb; ipdb.set_trace()
             loss.backward()
             self.optim.step()
 
             metrics = []
             lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-            lbl_true = target.data.cpu().numpy()
+            lbl_true = semantic_target.data.cpu().numpy()
             for lt, lp in zip(lbl_true, lbl_pred):
                 acc, acc_cls, mean_iu, fwavacc = \
                     torchfcn.utils.label_accuracy_score(
@@ -220,40 +242,3 @@ class Trainer(object):
             self.train_epoch()
             if self.iteration >= self.max_iter:
                 break
-
-
-def log_images(writer, tag, images, step, numbers=None, bgr=False):
-    if numbers is None:
-        numbers = range(len(images))
-    for nr, img in enumerate(images):
-        if writer is not None:
-            writer.add_image('%s/%d' % (tag, numbers[nr]), img.astype(float) /
-                             255.0,
-                             global_step=step)
-
-
-def log_plots(writer, tag, plot_handles, step, numbers=None):
-    """Logs a list of images."""
-    assert len(numbers) == len(plot_handles), 'len(plot_handles): {}; numbers: {}'.format(len(
-        plot_handles), numbers)
-    if numbers is None:
-        numbers = range(len(plot_handles))
-    for nr, plot_handle in enumerate(plot_handles):
-        # Write the image to a string
-        h = plt.figure(plot_handle.number)
-        plt_as_np_array = convert_mpl_to_np(h)
-
-        # Create an Image object
-        if writer is not None:
-            writer.add_image('%s/%d' % (tag, numbers[nr]), plt_as_np_array, global_step=step)
-
-
-def convert_mpl_to_np(figure_handle):
-    figure_handle.canvas.draw()
-
-    # Now we can save it to a numpy array.
-    data = np.fromstring(figure_handle.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-    data = data.reshape(figure_handle.canvas.get_width_height()[::-1] + (3,))
-    return data
-
-

@@ -4,3 +4,4 @@ from .instances import VOC2007ObjectSeg
 
 import voc
 import instances
+import pink_blobs

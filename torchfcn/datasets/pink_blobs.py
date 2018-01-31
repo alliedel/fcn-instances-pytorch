@@ -1,13 +1,14 @@
 import numpy as np
 import torch
 
-
 PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
+
+PINK_BLOB_CLASS_NAMES = ['background', 'pink_blob']
 
 
 class Defaults(object):
-    img_size = (60,60)
-    blob_size = (10,10)
+    img_size = (60, 60)
+    blob_size = (10, 10)
     clr = PEPTO_BISMOL_PINK_RGB
     n_max_per_class = 3
     n_instances_per_img = 2
@@ -36,7 +37,7 @@ class PinkBlobExampleGenerator(object):
         self.max_index = max_index
         self.mean_bgr = mean_bgr
         self._transform = transform
-
+        self.class_names = PINK_BLOB_CLASS_NAMES
         # Blob dynamics
         self.blob_generation_type = Defaults.blob_generation_type
         if self.blob_generation_type == 'moving':
@@ -48,6 +49,13 @@ class PinkBlobExampleGenerator(object):
                 self.initial_cols = [0, self.img_size[1] - self.blob_size[1]]
             assert len(self.velocity_r_c) == self.n_instances_per_img, ValueError
             assert len(self.velocity_r_c[0]) == 2, ValueError
+            max_index_r_c = [max_index if abs(self.velocity_r_c[0][j]) == 0 else
+                   np.floor((self.img_size[j] - self.blob_size[j]) /
+                            abs(self.velocity_r_c[0][j])) for j in [0, 1]]
+            self.max_index = np.min(max_index_r_c)
+        else:
+            self.max_index = max_index
+        print('max index: {}'.format(self.max_index))
 
     def __getitem__(self, image_index):
         img, instance_lbl = self.generate_img_lbl_pair(image_index)
@@ -75,7 +83,6 @@ class PinkBlobExampleGenerator(object):
         lbl = np.zeros(self.img_size, dtype=int)
         for instance_number in range(self.n_instances_per_img):
             r, c = self.get_blob_coordinates(image_index, instance_number)
-            print('i, r, c: {}, {}, {}'.format(instance_number,r,c))
             img = self.paint_my_square_in_img(img, r, c)
             lbl = self.paint_my_square_in_lbl(lbl, instance_number + 1, r, c)
         return img, lbl
@@ -151,11 +158,11 @@ def paint_square(img, start_r, start_c, w, h, clr, allow_overflow=True, row_col_
     # Handle 'flat' images
     if color_dim is None:
         assert np.isscalar(clr), ValueError
-        assert row_col_dims == (0,1), NotImplementedError
+        assert row_col_dims == (0, 1), NotImplementedError
         img[start_r:end_r, start_c:end_c] = clr
         return img
     # Handle RGB images
-    if row_col_dims == (0,1):
+    if row_col_dims == (0, 1):
         for ci, c in enumerate(clr):
             img[start_r:end_r, start_c:end_c, ci] = c
     elif row_col_dims == (2, 3):

@@ -220,5 +220,3 @@ class VOC2012ClassSeg(VOCClassSegBase):
     def __init__(self, root, split='train', transform=False, **kwargs):
         super(VOC2012ClassSeg, self).__init__(
             root, split=split, transform=transform, **kwargs)
-
-

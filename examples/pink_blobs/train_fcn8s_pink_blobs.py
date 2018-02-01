@@ -7,18 +7,21 @@ import os.path as osp
 import torch
 
 import torchfcn
+from torchfcn.datasets import dataset_utils
 
 from examples.voc.script_utils import get_log_dir
 from examples.voc.script_utils import get_parameters
 
 from tensorboardX import SummaryWriter
+from torchfcn.datasets import pink_blobs
 
+from numpy import floor
 
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     1: dict(
-        max_iteration=100000,
+        max_iteration=1000,
         lr=1.0e-10,
         momentum=0.99,
         weight_decay=0.0005,
@@ -26,13 +29,16 @@ configurations = {
     )
 }
 
-
 here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
     n_max_per_class = 3
     matching = True
+    clrs = [pink_blobs.Defaults.clrs[0] for _ in range(4)]
+
+
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=1,
@@ -43,10 +49,11 @@ def main():
     gpu = args.gpu
     cfg = configurations[args.config]
     out = get_log_dir(osp.basename(__file__).replace(
-        '.py', ''), args.config, cfg)
+        '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
+
     print('logdir: {}'.format(out))
     resume = args.resume
-    
+
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
 
@@ -55,17 +62,31 @@ def main():
         torch.cuda.manual_seed(1337)
 
     # 1. dataset
-    semantic_subset = ['background', 'person']
+    root = osp.expanduser('~/data/datasets')
+
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.pink_blobs.PinkBlobExampleGenerator(transform=True,
-                                                              n_max_per_class=n_max_per_class),
-        batch_size=1, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.pink_blobs.PinkBlobExampleGenerator(transform=True,
-                                                              n_max_per_class=n_max_per_class),
-        batch_size=1, shuffle=True)
+    velocity_multiplier = 4
+    velocity_r_c = [[v * velocity_multiplier for v in vel]
+                    for vel in pink_blobs.Defaults.velocity_r_c]
+
+    train_dataset = pink_blobs.PinkBlobExampleGenerator(
+        transform=True, n_max_per_class=n_max_per_class, velocity_r_c=velocity_r_c,
+        clrs=clrs)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True)
+    offset_c, offset_r = [velocity_multiplier / 2, velocity_multiplier / 2]
+    val_initial_cols = [c + offset_c for c in train_dataset.initial_cols]
+    val_initial_rows = [r + offset_r for r in train_dataset.initial_rows]
+    val_dataset = pink_blobs.PinkBlobExampleGenerator(transform=True,
+                                                      n_max_per_class=n_max_per_class,
+                                                      initial_cols=val_initial_cols,
+                                                      initial_rows=val_initial_rows,
+                                                      velocity_r_c=velocity_r_c, max_index=2)
+    val_loader = torch.utils.data.DataLoader(val_dataset,
+                                             batch_size=1, shuffle=False)
+
+    dataset_utils.assert_validation_images_arent_in_training_set(train_loader, val_loader)
+
     # Make sure we can load an image
     [img, lbl] = train_loader.dataset[0]
 

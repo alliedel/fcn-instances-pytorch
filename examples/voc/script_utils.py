@@ -21,7 +21,7 @@ def git_hash():
     return hash
 
 
-def get_log_dir(model_name, config_id, cfg):
+def get_log_dir(model_name, config_id, cfg, parent_directory=None):
     # load config
     name = 'MODEL-%s_CFG-%03d' % (model_name, config_id)
     for k, v in cfg.items():
@@ -33,7 +33,9 @@ def get_log_dir(model_name, config_id, cfg):
     name += '_VCS-%s' % git_hash()
     name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
     # create out
-    log_dir = osp.join(here, 'logs', name)
+    if parent_directory is None:
+        parent_directory = here
+    log_dir = osp.join(parent_directory, 'logs', name)
     if not osp.exists(log_dir):
         os.makedirs(log_dir)
     with open(osp.join(log_dir, 'config.yaml'), 'w') as f:

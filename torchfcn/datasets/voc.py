@@ -59,6 +59,7 @@ class VOCClassSegBase(data.Dataset):
         permute_instance_order: randomly chooses the ordering of the instances (from 0 through
         n_max_per_class - 1) --> Does this every time the image is loaded.
         """
+
         self.permute_instance_order = permute_instance_order
         self.map_other_classes_to_bground = map_other_classes_to_bground
         self.root = root

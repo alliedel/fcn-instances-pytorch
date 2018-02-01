@@ -1,15 +1,18 @@
 import numpy as np
 import torch
+from torchfcn.datasets import dataset_utils
 
 PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
+BLUE_RGB = (0, 0, 224)
+GREEN_RGB = (0, 225, 0)
 
 PINK_BLOB_CLASS_NAMES = ['background', 'pink_blob']
 
 
 class Defaults(object):
-    img_size = (60, 60)
-    blob_size = (10, 10)
-    clr = PEPTO_BISMOL_PINK_RGB
+    img_size = (281, 500)
+    blob_size = (100, 100)
+    clrs = [PEPTO_BISMOL_PINK_RGB, BLUE_RGB, GREEN_RGB]
     n_max_per_class = 3
     n_instances_per_img = 2
     return_torch_type = False
@@ -21,16 +24,17 @@ class Defaults(object):
 
 
 class PinkBlobExampleGenerator(object):
-    def __init__(self, img_size=Defaults.img_size, blob_size=Defaults.blob_size, clr=Defaults.clr,
+    def __init__(self, img_size=Defaults.img_size, blob_size=Defaults.blob_size, clrs=Defaults.clrs,
                  n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
                  max_index=Defaults.max_index, mean_bgr=Defaults.mean_bgr,
-                 transform=Defaults.transform, **generation_kwargs):
+                 transform=Defaults.transform, velocity_r_c=None,
+                 initial_rows=None, initial_cols=None):
         self.img_size = img_size
         assert len(self.img_size) == 2
         self.blob_size = blob_size
-        self.clr = clr
+        self.clrs = clrs
         self.n_instances_per_img = n_instances_per_img
         self.n_max_per_class = n_max_per_class
         self.return_torch_type = return_torch_type
@@ -41,12 +45,14 @@ class PinkBlobExampleGenerator(object):
         # Blob dynamics
         self.blob_generation_type = Defaults.blob_generation_type
         if self.blob_generation_type == 'moving':
-            self.velocity_r_c = Defaults.velocity_r_c
+            self.velocity_r_c = Defaults.velocity_r_c if velocity_r_c is None else velocity_r_c
             if self.n_instances_per_img != 2:
                 assert NotImplementedError('Gotta pick initial conditions (random?)')
             else:
-                self.initial_rows = [0, self.img_size[0] - self.blob_size[0]]
-                self.initial_cols = [0, self.img_size[1] - self.blob_size[1]]
+                self.initial_rows = initial_rows if initial_rows is not None else \
+                    [0, self.img_size[0] - self.blob_size[0]]
+                self.initial_cols = initial_cols if initial_cols is not None else\
+                    [0, self.img_size[1] - self.blob_size[1]]
             assert len(self.velocity_r_c) == self.n_instances_per_img, ValueError
             assert len(self.velocity_r_c[0]) == 2, ValueError
             max_index_r_c = [max_index if abs(self.velocity_r_c[0][j]) == 0 else
@@ -55,7 +61,6 @@ class PinkBlobExampleGenerator(object):
             self.max_index = np.min(max_index_r_c)
         else:
             self.max_index = max_index
-        print('max index: {}'.format(self.max_index))
 
     def __getitem__(self, image_index):
         img, instance_lbl = self.generate_img_lbl_pair(image_index)
@@ -64,7 +69,7 @@ class PinkBlobExampleGenerator(object):
         return img, instance_lbl
 
     def __len__(self):
-        return self.max_index
+        return self.max_index + 1
 
     def get_blob_coordinates(self, image_index, instance_idx=None):
         assert self.blob_generation_type == 'moving'
@@ -83,12 +88,12 @@ class PinkBlobExampleGenerator(object):
         lbl = np.zeros(self.img_size, dtype=int)
         for instance_number in range(self.n_instances_per_img):
             r, c = self.get_blob_coordinates(image_index, instance_number)
-            img = self.paint_my_square_in_img(img, r, c)
+            img = self.paint_my_square_in_img(img, r, c, self.clrs[instance_number])
             lbl = self.paint_my_square_in_lbl(lbl, instance_number + 1, r, c)
         return img, lbl
 
-    def paint_my_square_in_img(self, img, r, c):
-        return paint_square(img, r, c, self.blob_size[0], self.blob_size[1], self.clr,
+    def paint_my_square_in_img(self, img, r, c, clr):
+        return paint_square(img, r, c, self.blob_size[0], self.blob_size[1], clr,
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=2)
 
     def paint_my_square_in_lbl(self, lbl, instance_number, r, c):
@@ -96,40 +101,15 @@ class PinkBlobExampleGenerator(object):
         return paint_square(lbl, r, c, self.blob_size[0], self.blob_size[0], instance_number,
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 
-    @staticmethod
-    def transform_lbl(lbl):
-        lbl = torch.from_numpy(lbl).long()
-        return lbl
-
-    def transform_img(self, img):
-        img = img[:, :, ::-1]  # RGB -> BGR
-        img = img.astype(np.float64)
-        img -= self.mean_bgr
-        img = img.transpose(2, 0, 1)
-        img = torch.from_numpy(img).float()
-        return img
-
     def transform(self, img, lbl):
-        img = self.transform_img(img)
-        lbl = self.transform_lbl(lbl)
+        img = dataset_utils.transform_img(img, self.mean_bgr)
+        lbl = dataset_utils.transform_lbl(lbl)
         return img, lbl
 
     def untransform(self, img, lbl):
-        img = self.untransform_img(img)
-        lbl = self.untransform_lbl(lbl)
+        img = dataset_utils.untransform_img(img, self.mean_bgr)
+        lbl = dataset_utils.untransform_lbl(lbl)
         return img, lbl
-
-    def untransform_lbl(self, lbl):
-        lbl = lbl.numpy()
-        return lbl
-
-    def untransform_img(self, img):
-        img = img.numpy()
-        img = img.transpose(1, 2, 0)
-        img += self.mean_bgr
-        img = img.astype(np.uint8)
-        img = img[:, :, ::-1]
-        return img
 
 
 def paint_square(img, start_r, start_c, w, h, clr, allow_overflow=True, row_col_dims=(0, 1),

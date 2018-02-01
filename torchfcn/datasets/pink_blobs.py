@@ -12,11 +12,11 @@ PINK_BLOB_CLASS_NAMES = ['background', 'pink_blob']
 class Defaults(object):
     img_size = (281, 500)
     blob_size = (100, 100)
-    clrs = [PEPTO_BISMOL_PINK_RGB, BLUE_RGB, GREEN_RGB]
+    clrs = [PEPTO_BISMOL_PINK_RGB, PEPTO_BISMOL_PINK_RGB, PEPTO_BISMOL_PINK_RGB]
     n_max_per_class = 3
     n_instances_per_img = 2
     return_torch_type = False
-    blob_generation_type = 'moving'
+    blob_generation_type = 'random'  # 'moving'
     velocity_r_c = [[0, 1], [0, -1]]
     max_index = 100
     mean_bgr = np.array([10.0, 10.0, 10.0])
@@ -59,6 +59,12 @@ class PinkBlobExampleGenerator(object):
                    np.floor((self.img_size[j] - self.blob_size[j]) /
                             abs(self.velocity_r_c[0][j])) for j in [0, 1]]
             self.max_index = np.min(max_index_r_c)
+        elif self.blob_generation_type == 'random':
+            self.max_index = max_index
+            self.random_rows = np.random.randint(0, self.img_size[0] - self.blob_size[
+                0], (max_index + 1, self.n_max_per_class))
+            self.random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[
+                1], (max_index + 1, self.n_max_per_class))
         else:
             self.max_index = max_index
 
@@ -72,15 +78,28 @@ class PinkBlobExampleGenerator(object):
         return self.max_index + 1
 
     def get_blob_coordinates(self, image_index, instance_idx=None):
-        assert self.blob_generation_type == 'moving'
-        if instance_idx is not None:
-            r = self.initial_rows[instance_idx] + self.velocity_r_c[instance_idx][0] * image_index
-            c = self.initial_cols[instance_idx] + self.velocity_r_c[instance_idx][1] * image_index
-            return r, c
-        instance_rows = [self.initial_rows[i] + self.velocity_r_c[i][0] * image_index
-                         for i, start_row in enumerate(self.initial_rows)]
-        instance_cols = [start_col + self.velocity_r_c[i][1] * image_index
-                         for i, start_col in enumerate(self.initial_cols)]
+        if self.blob_generation_type == 'moving':
+            if instance_idx is not None:
+                r = self.initial_rows[instance_idx] + self.velocity_r_c[instance_idx][0] * image_index
+                c = self.initial_cols[instance_idx] + self.velocity_r_c[instance_idx][1] * image_index
+                return r, c
+            instance_rows = [self.initial_rows[i] + self.velocity_r_c[i][0] * image_index
+                             for i, start_row in enumerate(self.initial_rows)]
+            instance_cols = [start_col + self.velocity_r_c[i][1] * image_index
+                             for i, start_col in enumerate(self.initial_cols)]
+            return instance_rows, instance_cols
+        elif self.blob_generation_type == 'random':
+            if instance_idx is not None:
+                r = self.random_rows[image_index, instance_idx]
+                c = self.random_cols[image_index, instance_idx]
+                return r,c
+            instance_rows = [self.random_rows[image_index, i] for i in range(
+                self.n_instances_per_img)]
+            instance_cols = [self.random_cols[image_index, i] for i in range(
+                self.n_instances_per_img)]
+            return instance_rows, instance_cols
+        else:
+            raise ValueError
         return instance_rows, instance_cols
 
     def generate_img_lbl_pair(self, image_index):

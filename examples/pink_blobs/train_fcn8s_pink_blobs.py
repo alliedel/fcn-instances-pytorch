@@ -63,25 +63,14 @@ def main():
 
     # 1. dataset
     root = osp.expanduser('~/data/datasets')
-
-    root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    velocity_multiplier = 4
-    velocity_r_c = [[v * velocity_multiplier for v in vel]
-                    for vel in pink_blobs.Defaults.velocity_r_c]
-
     train_dataset = pink_blobs.PinkBlobExampleGenerator(
-        transform=True, n_max_per_class=n_max_per_class, velocity_r_c=velocity_r_c,
-        clrs=clrs)
+        transform=True, n_max_per_class=n_max_per_class,
+        clrs=clrs, max_index=200)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True)
-    offset_c, offset_r = [velocity_multiplier / 2, velocity_multiplier / 2]
-    val_initial_cols = [c + offset_c for c in train_dataset.initial_cols]
-    val_initial_rows = [r + offset_r for r in train_dataset.initial_rows]
     val_dataset = pink_blobs.PinkBlobExampleGenerator(transform=True,
                                                       n_max_per_class=n_max_per_class,
-                                                      initial_cols=val_initial_cols,
-                                                      initial_rows=val_initial_rows,
-                                                      velocity_r_c=velocity_r_c, max_index=2)
+                                                      max_index=2)
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False)
 

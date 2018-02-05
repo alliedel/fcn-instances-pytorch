@@ -4,7 +4,7 @@ import argparse
 import os
 import os.path as osp
 
-import fcn
+from torchfcn import visualization_utils
 import numpy as np
 import skimage.io
 import torch
@@ -72,9 +72,10 @@ def main():
             label_trues.append(lt)
             label_preds.append(lp)
             if len(visualizations) < 9:
-                viz = fcn.utils.visualize_segmentation(
+                viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class,
-                    label_names=val_loader.dataset.class_names)
+                    label_names=val_loader.dataset.class_names,
+                    overlay=val_loader.visualize_overlay)
                 visualizations.append(viz)
     metrics = torchfcn.utils.label_accuracy_score(
         label_trues, label_preds, n_class=n_class)
@@ -86,7 +87,7 @@ Accuracy Class: {1}
 Mean IU: {2}
 FWAV Accuracy: {3}'''.format(*metrics))
 
-    viz = fcn.utils.get_tile_image(visualizations)
+    viz = visualization_utils.get_tile_image(visualizations)
     skimage.io.imsave('viz_evaluate.png', viz)
 
 

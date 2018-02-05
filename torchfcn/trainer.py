@@ -4,7 +4,7 @@ import os
 import os.path as osp
 import shutil
 
-import fcn
+from torchfcn import visualization_utils
 import numpy as np
 import pytz
 import scipy.misc
@@ -15,7 +15,6 @@ import tqdm
 import torchfcn
 from torchfcn import losses
 
-from StringIO import StringIO
 import matplotlib.pyplot as plt
 
 
@@ -23,7 +22,7 @@ class Trainer(object):
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter,
                  size_average=False, interval_validate=None, matching_loss=True,
-                 tensorboard_writer=None):
+                 tensorboard_writer=None, visualize_overlay=False, visualize_confidence=True):
         self.cuda = cuda
         self.model = model
         self.optim = optimizer
@@ -36,6 +35,8 @@ class Trainer(object):
         self.size_average = size_average
         self.matching_loss = matching_loss
         self.tensorboard_writer = tensorboard_writer
+        self.visualize_overlay = visualize_overlay
+        self.visualize_confidence = visualize_confidence
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -96,15 +97,18 @@ class Trainer(object):
             val_loss += float(loss.data[0]) / len(data)
 
             imgs = data.data.cpu()
-            lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
+            # numpy_score = score.data.numpy()
+            lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+            # confidence = numpy_score[numpy_score == numpy_score.max(dim=1)[0]]
             lbl_true = target.data.cpu()
             for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
                 img, lt = self.val_loader.dataset.untransform(img, lt)
                 label_trues.append(lt)
                 label_preds.append(lp)
                 if len(visualizations) < 9:
-                    viz = fcn.utils.visualize_segmentation(
-                        lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class)
+                    viz = visualization_utils.visualize_segmentation(
+                        lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class,
+                        overlay=self.visualize_overlay)
                     visualizations.append(viz)
         metrics = torchfcn.utils.label_accuracy_score(
             label_trues, label_preds, n_class)
@@ -113,7 +117,7 @@ class Trainer(object):
         if not osp.exists(out):
             os.makedirs(out)
         out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
-        out_img = fcn.utils.get_tile_image(visualizations)
+        out_img = visualization_utils.get_tile_image(visualizations)
         scipy.misc.imsave(out_file, out_img)
         if self.tensorboard_writer is not None:
             basename = 'val_'
@@ -152,6 +156,66 @@ class Trainer(object):
         if training:
             self.model.train()
 
+    def validate_train(self):
+        training = self.model.training
+        self.model.eval()
+
+        n_class = self.model.n_classes
+        max_to_show=3
+
+        val_loss = 0
+        visualizations = []
+        label_trues, label_preds = [], []
+
+        num_to_show = min(max_to_show, len(self.train_loader))
+        for batch_idx, (data, target) in tqdm.tqdm(
+                enumerate(self.train_loader), total=num_to_show,
+                desc='Valid iteration=%d' % self.iteration, ncols=80,
+                leave=False):
+            if batch_idx >= num_to_show:
+                break
+            if self.cuda:
+                data, target = data.cuda(), target.cuda()
+            data, target = Variable(data, volatile=True), Variable(target)
+            score = self.model(data)
+
+            gt_permutations, loss = losses.cross_entropy2d(
+                score, target, semantic_instance_labels=self.model.semantic_instance_class_list,
+                matching=self.matching_loss, size_average=self.size_average)
+            if np.isnan(float(loss.data[0])):
+                raise ValueError('loss is nan while validating')
+            val_loss += float(loss.data[0]) / len(data)
+
+            imgs = data.data.cpu()
+            lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
+            lbl_true = target.data.cpu()
+            for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
+                img, lt = self.val_loader.dataset.untransform(img, lt)
+                label_trues.append(lt)
+                label_preds.append(lp)
+                if len(visualizations) < 9:
+                    viz = visualization_utils.visualize_segmentation(
+                        lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class,
+                        overlay=self.visualize_overlay)
+                    visualizations.append(viz)
+
+        out = osp.join(self.out, 'visualization_viz')
+        if not osp.exists(out):
+            os.makedirs(out)
+        out_file = osp.join(out, 'train_iter%012d.jpg' % self.iteration)
+        out_img = visualization_utils.get_tile_image(visualizations)
+        scipy.misc.imsave(out_file, out_img)
+        if self.tensorboard_writer is not None:
+            h = int(np.floor(out_img.shape[0]/3.0))
+            out_imgs = [out_img[r:(r+h-1),:,:] for r in range(0, out_img.shape[0]-h+1, h)]
+            basename = 'train_'
+            tag = '{}images'.format(basename, 0)
+            log_images(self.tensorboard_writer, tag, out_imgs, self.iteration,
+                       numbers=range(num_to_show))
+
+        if training:
+            self.model.train()
+
     def train_epoch(self):
         self.model.train()
 
@@ -167,6 +231,7 @@ class Trainer(object):
 
             if self.iteration % self.interval_validate == 0:
                 self.validate()
+                self.validate_train()
 
             assert self.model.training
 
@@ -255,5 +320,3 @@ def convert_mpl_to_np(figure_handle):
     data = np.fromstring(figure_handle.canvas.tostring_rgb(), dtype=np.uint8, sep='')
     data = data.reshape(figure_handle.canvas.get_width_height()[::-1] + (3,))
     return data
-
-

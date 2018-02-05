@@ -2,7 +2,44 @@ import torch
 import numpy as np
 from torch.autograd import Variable
 
+
 DEBUG_ASSERT = True
+
+
+def assert_validation_images_arent_in_training_set(train_loader, val_loader):
+    for val_idx, (val_img, _) in enumerate(val_loader):
+        for train_idx, (train_img, _) in enumerate(train_loader):
+            if np.allclose(train_img.numpy(), val_img.numpy()):
+                import ipdb; ipdb.set_trace()
+                raise Exception('validation img {} appears as training img {}'.format(val_idx,
+                                                                                      train_idx))
+
+def transform_lbl(lbl):
+    lbl = torch.from_numpy(lbl).long()
+    return lbl
+
+
+def transform_img(img, mean_bgr):
+    img = img[:, :, ::-1]  # RGB -> BGR
+    img = img.astype(np.float64)
+    img -= mean_bgr
+    img = img.transpose(2, 0, 1)
+    img = torch.from_numpy(img).float()
+    return img
+
+
+def untransform_lbl(lbl):
+    lbl = lbl.numpy()
+    return lbl
+
+
+def untransform_img(img, mean_bgr):
+    img = img.numpy()
+    img = img.transpose(1, 2, 0)
+    img += mean_bgr
+    img = img.astype(np.uint8)
+    img = img[:, :, ::-1]
+    return img
 
 
 def zeros_like(x, out_size=None):

@@ -1,13 +1,9 @@
 import torch
-from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 from ortools.graph import pywrapgraph
 
 import local_pyutils
-
-import local_pyutils
-from torchfcn import match
 from torchfcn.datasets import dataset_utils
 
 logger = local_pyutils.get_logger()
@@ -52,7 +48,7 @@ def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True
         assert pred_permutations.shape[0] == 1, NotImplementedError
         # Somehow the gradient is no longer getting backpropped through loss, so I just recompute
         #  it here with the permutation I computed.
-        loss = cross_entropy2d_without_matching(log_predictions[:, pred_permutations[0,:], :, :],
+        loss = cross_entropy2d_without_matching(log_predictions[:, pred_permutations[0, :], :, :],
                                                 target, **kwargs)
     else:
         pred_permutations = None
@@ -95,7 +91,7 @@ def cross_entropy2d_with_individual_terms_test(log_predictions, target,
     # input: (n, c, h, w), target: (n, h, w)
     loss = -torch.sum(target_onehot * log_predictions)
     if size_average:
-        loss = loss / torch.sum(target_onehot[:,1:,:,:])
+        loss = loss / torch.sum(target_onehot[:, 1:, :, :])
     return loss
 
 
@@ -178,7 +174,7 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, target_onehot, for
     cost_list_2d = [[nll2d_single_class_term(log_predictions[lp_cls, :, :],
                                              target_onehot[t_cls, :, :]) / normalizer
                      for t_idx, t_cls in enumerate(foreground_idxs)]
-                     for lp_idx, lp_cls in enumerate(foreground_idxs)]
+                    for lp_idx, lp_cls in enumerate(foreground_idxs)]
     # normalize by number of pixels
     # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
 
@@ -195,10 +191,10 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
             for c in cl:
                 absolute_max = max(absolute_max, abs(c.data[0]))
         if absolute_max == 0:
-            multiplier = 10**(10)
+            multiplier = 10 ** (10)
         else:
             multiplier = 1 if absolute_max > infinity_cap \
-                else 10**(10 - int(np.log10(absolute_max)))
+                else 10 ** (10 - int(np.log10(absolute_max)))
 
     num_classes = len(cost_list_2d_variables)
     cost_matrix_int = [[long(multiplier * cost_list_2d_variables[r][c].data[0]) for r in range(

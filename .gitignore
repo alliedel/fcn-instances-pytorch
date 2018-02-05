@@ -6,4 +6,5 @@
 build/
 dist/
 logs/
+backup_logs/
 profile_backup/

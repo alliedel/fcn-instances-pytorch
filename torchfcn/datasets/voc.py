@@ -51,7 +51,7 @@ class VOCClassSegBase(data.Dataset):
 
     def __init__(self, root, split='train', transform=False, n_max_per_class=1,
                  semantic_subset=None, map_other_classes_to_bground=True,
-                 permute_instance_order=True, one_hot_ground_truth=True):
+                 permute_instance_order=True, set_extras_to_void=False):
         """
         n_max_per_class: number of instances per non-background class
         class_subet: if None, use all classes.  Else, reduce the classes to this list set.
@@ -71,6 +71,7 @@ class VOCClassSegBase(data.Dataset):
         self._instance_to_semantic_mapping_matrix = None
         self.get_instance_to_semantic_mapping()
         self.n_classes = self._instance_to_semantic_mapping_matrix.size(0)
+        self.set_extras_to_void = set_extras_to_void
 
         # VOC2011 and others are subset of VOC2012
         year = 2012
@@ -184,7 +185,8 @@ class VOCClassSegBase(data.Dataset):
     def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
         return dataset_utils.combine_semantic_and_instance_labels(
             sem_lbl, inst_lbl, n_max_per_class=self.n_max_per_class,
-            n_semantic_classes=self.n_semantic_classes, n_classes=self.n_classes)
+            n_semantic_classes=self.n_semantic_classes, n_classes=self.n_classes,
+            set_extras_to_void=self.set_extras_to_void)
 
     def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file):
         img = PIL.Image.open(img_file)

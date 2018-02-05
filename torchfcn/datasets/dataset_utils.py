@@ -25,13 +25,15 @@ def labels_to_one_hot(input_labels, n_classes, output_onehot=None):
     input_labels: either HxW or NxHxW
     output_onehot: either CxHxW or NxCxHxW depending on input_labels
     """
+    void_class = 1  # If void class could exist (-1), we'll leave room for it and then remove it.
     ndims = len(input_labels.size())
 
     if output_onehot is None:
         if ndims == 2:
-            out_size = (n_classes, input_labels.size(0), input_labels.size(1))
+            out_size = (n_classes + void_class, input_labels.size(0), input_labels.size(1))
         elif ndims == 3:
-            out_size = (input_labels.size(0), n_classes, input_labels.size(1), input_labels.size(2))
+            out_size = (input_labels.size(0), n_classes + void_class, input_labels.size(1),
+                        input_labels.size(2))
         else:
             raise ValueError('input_labels should be HxW or NxHxW')
         output_onehot = zeros_like(input_labels, out_size=out_size)
@@ -39,12 +41,20 @@ def labels_to_one_hot(input_labels, n_classes, output_onehot=None):
         output_onehot = output_onehot.zero_()
     if ndims == 2:
         channel_dim = 0
-        input_labels_expanded = input_labels[torch.np.newaxis, :, :]
+        input_labels_expanded = input_labels[torch.np.newaxis, :, :] + void_class
     else:  # ndims == 3:
         channel_dim = 1
-        input_labels_expanded = input_labels[:, torch.np.newaxis, :, :]
+        input_labels_expanded = input_labels[:, torch.np.newaxis, :, :] + void_class
+    try:
+        output_onehot.scatter_(channel_dim, input_labels_expanded, 1)
+    except:
+        import ipdb; ipdb.set_trace()
+        raise
+    if ndims == 2:
+        output_onehot = output_onehot[void_class:, :, :]
+    else:
+        output_onehot = output_onehot[:, void_class:, :, :]
 
-    output_onehot.scatter_(channel_dim, input_labels_expanded, 1)
     return output_onehot
 
 
@@ -55,20 +65,23 @@ def permute_instance_order(inst_lbl, n_max_per_class):
 
 
 def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class, n_semantic_classes,
-                                         n_classes):
+                                         n_classes, set_extras_to_void=False):
     """
     sem_lbl is size(img); inst_lbl is size(img).  inst_lbl is just the original instance
     image (inst_lbls at coordinates of person 0 are 0)
     """
     assert sem_lbl.shape == inst_lbl.shape
-    if torch.np.any(inst_lbl.numpy() >= n_max_per_class):
-        raise Exception('There are more instances than the number you allocated for.')
+    if torch.np.any(inst_lbl.numpy() >= n_max_per_class) and not set_extras_to_void:
+        raise Exception('more instances than the number you allocated for.')
         # if you don't want to raise an exception here, add a corresponding flag and use the
         # following line:
         # y = torch.min(inst_lbl, self.n_max_per_class)
     y = inst_lbl
-    y += (sem_lbl - 1) * n_max_per_class
+    overflow_instances = inst_lbl >= n_max_per_class
+    y += (sem_lbl - 1) * n_max_per_class + 1
+    y[sem_lbl == -1] = -1
     y[y < 0] = 0  # background got 1+range(-self.n_max_per_class,0); all go to 0.
+    y[overflow_instances] = -1
 
     return y
 
@@ -157,6 +170,3 @@ def pytorch_unique(pytorch_1d_tensor):
     else:
         raise Exception('pytorch_1d_tensor isn\'t actually a tensor!  Maybe you want to use '
                         'local_pyutils.unique() for a list or np.unique() for a np array.')
-
-
-

@@ -6,24 +6,25 @@ PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
 BLUE_RGB = (0, 0, 224)
 GREEN_RGB = (0, 225, 0)
 
-PINK_BLOB_CLASS_NAMES = ['background', 'pink_blob']
+ALL_BLOB_CLASS_NAMES = np.array(['background', 'pink_square', 'blue_square'])
 
 
 class Defaults(object):
     img_size = (281, 500)
     blob_size = (100, 100)
-    clrs = [PEPTO_BISMOL_PINK_RGB, PEPTO_BISMOL_PINK_RGB, PEPTO_BISMOL_PINK_RGB]
+    clrs = [[PEPTO_BISMOL_PINK_RGB], [BLUE_RGB], [GREEN_RGB]]
+    blob_types = ['square', 'circle']
     n_max_per_class = 3
     n_instances_per_img = 2
     return_torch_type = False
-    blob_generation_type = 'random'  # 'moving'
+    location_generation_type = 'random'  # 'moving'
     velocity_r_c = [[0, 1], [0, -1]]
     max_index = 100
     mean_bgr = np.array([10.0, 10.0, 10.0])
     transform = True
 
 
-class PinkBlobExampleGenerator(object):
+class BlobExampleGenerator(object):
     def __init__(self, img_size=Defaults.img_size, blob_size=Defaults.blob_size, clrs=Defaults.clrs,
                  n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
@@ -34,32 +35,36 @@ class PinkBlobExampleGenerator(object):
         self.img_size = img_size
         assert len(self.img_size) == 2
         self.blob_size = blob_size
-        self.clrs = clrs
+        self.clrs = clrs  # nested list: outer list -- one item per semantic class.  inner list
+        # -- list of colors for that semantic class.
         self.n_instances_per_img = n_instances_per_img
         self.n_max_per_class = n_max_per_class
         self.return_torch_type = return_torch_type
         self.max_index = max_index
         self.mean_bgr = mean_bgr
         self._transform = transform
-        self.class_names = PINK_BLOB_CLASS_NAMES
+        self.semantic_subset = None
+        self.class_names, self.idxs_into_all_blobs = self.get_semantic_names_and_idxs(
+            self.semantic_subset)
+
         # Blob dynamics
-        self.blob_generation_type = Defaults.blob_generation_type
-        if self.blob_generation_type == 'moving':
+        self.location_generation_type = Defaults.location_generation_type
+        if self.location_generation_type == 'moving':
             self.velocity_r_c = Defaults.velocity_r_c if velocity_r_c is None else velocity_r_c
             if self.n_instances_per_img != 2:
                 assert NotImplementedError('Gotta pick initial conditions (random?)')
             else:
                 self.initial_rows = initial_rows if initial_rows is not None else \
                     [0, self.img_size[0] - self.blob_size[0]]
-                self.initial_cols = initial_cols if initial_cols is not None else\
+                self.initial_cols = initial_cols if initial_cols is not None else \
                     [0, self.img_size[1] - self.blob_size[1]]
             assert len(self.velocity_r_c) == self.n_instances_per_img, ValueError
             assert len(self.velocity_r_c[0]) == 2, ValueError
             max_index_r_c = [max_index if abs(self.velocity_r_c[0][j]) == 0 else
-                   np.floor((self.img_size[j] - self.blob_size[j]) /
-                            abs(self.velocity_r_c[0][j])) for j in [0, 1]]
+                             np.floor((self.img_size[j] - self.blob_size[j]) /
+                                      abs(self.velocity_r_c[0][j])) for j in [0, 1]]
             self.max_index = np.min(max_index_r_c)
-        elif self.blob_generation_type == 'random':
+        elif self.location_generation_type == 'random':
             self.max_index = max_index
             self.random_rows = np.random.randint(0, self.img_size[0] - self.blob_size[
                 0], (max_index + 1, self.n_max_per_class))
@@ -78,7 +83,7 @@ class PinkBlobExampleGenerator(object):
         return self.max_index + 1
 
     def get_blob_coordinates(self, image_index, instance_idx=None):
-        if self.blob_generation_type == 'moving':
+        if self.location_generation_type == 'moving':
             if instance_idx is not None:
                 r = self.initial_rows[instance_idx] + self.velocity_r_c[instance_idx][0] * image_index
                 c = self.initial_cols[instance_idx] + self.velocity_r_c[instance_idx][1] * image_index
@@ -88,7 +93,7 @@ class PinkBlobExampleGenerator(object):
             instance_cols = [start_col + self.velocity_r_c[i][1] * image_index
                              for i, start_col in enumerate(self.initial_cols)]
             return instance_rows, instance_cols
-        elif self.blob_generation_type == 'random':
+        elif self.location_generation_type == 'random':
             if instance_idx is not None:
                 r = self.random_rows[image_index, instance_idx]
                 c = self.random_cols[image_index, instance_idx]
@@ -100,15 +105,15 @@ class PinkBlobExampleGenerator(object):
             return instance_rows, instance_cols
         else:
             raise ValueError
-        return instance_rows, instance_cols
 
     def generate_img_lbl_pair(self, image_index):
         img = np.zeros(self.img_size + (3,), dtype=float)
         lbl = np.zeros(self.img_size, dtype=int)
-        for instance_number in range(self.n_instances_per_img):
-            r, c = self.get_blob_coordinates(image_index, instance_number)
-            img = self.paint_my_square_in_img(img, r, c, self.clrs[instance_number])
-            lbl = self.paint_my_square_in_lbl(lbl, instance_number + 1, r, c)
+        for semantic_idx in self.semantic_classes:
+            for instance_number in range(self.n_instances_per_img):
+                r, c = self.get_blob_coordinates(image_index, instance_number)
+                img = self.paint_my_square_in_img(img, r, c, self.clrs[semantic_idx])
+                lbl = self.paint_my_square_in_lbl(lbl, instance_number + 1, r, c)
         return img, lbl
 
     def paint_my_square_in_img(self, img, r, c, clr):
@@ -129,6 +134,11 @@ class PinkBlobExampleGenerator(object):
         img = dataset_utils.untransform_img(img, self.mean_bgr)
         lbl = dataset_utils.untransform_lbl(lbl)
         return img, lbl
+
+    @staticmethod
+    def get_semantic_names_and_idxs(semantic_subset):
+        return dataset_utils.get_semantic_names_and_idxs(semantic_subset=semantic_subset,
+                                                         full_set=ALL_BLOB_CLASS_NAMES)
 
 
 def paint_square(img, start_r, start_c, w, h, clr, allow_overflow=True, row_col_dims=(0, 1),

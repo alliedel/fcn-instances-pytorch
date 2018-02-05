@@ -21,7 +21,7 @@ configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     1: dict(
-        max_iteration=1000,
+        max_iteration=10000,
         lr=1.0e-10,
         momentum=0.99,
         weight_decay=0.0005,
@@ -36,8 +36,6 @@ def main():
     n_max_per_class = 3
     matching = True
     clrs = [pink_blobs.Defaults.clrs[0] for _ in range(4)]
-
-
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
@@ -64,13 +62,13 @@ def main():
     # 1. dataset
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    train_dataset = pink_blobs.PinkBlobExampleGenerator(
+    train_dataset = pink_blobs.BlobExampleGenerator(
         transform=True, n_max_per_class=n_max_per_class,
         clrs=clrs, max_index=200)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True)
-    val_dataset = pink_blobs.PinkBlobExampleGenerator(transform=True,
-                                                      n_max_per_class=n_max_per_class,
-                                                      max_index=2)
+    val_dataset = pink_blobs.BlobExampleGenerator(transform=True,
+                                                  n_max_per_class=n_max_per_class,
+                                                  max_index=2)
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False)
 

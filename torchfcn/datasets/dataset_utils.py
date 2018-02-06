@@ -101,15 +101,16 @@ def permute_instance_order(inst_lbl, n_max_per_class):
     return inst_lbl
 
 
-def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class, n_semantic_classes,
-                                         n_classes, set_extras_to_void=False):
+def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class,
+                                         set_extras_to_void=False):
     """
     sem_lbl is size(img); inst_lbl is size(img).  inst_lbl is just the original instance
     image (inst_lbls at coordinates of person 0 are 0)
     """
     assert sem_lbl.shape == inst_lbl.shape
     if torch.np.any(inst_lbl.numpy() >= n_max_per_class) and not set_extras_to_void:
-        raise Exception('more instances than the number you allocated for.')
+        raise Exception('more instances than the number you allocated for ({} vs {}).'.format(
+            inst_lbl.max(), n_max_per_class))
         # if you don't want to raise an exception here, add a corresponding flag and use the
         # following line:
         # y = torch.min(inst_lbl, self.n_max_per_class)

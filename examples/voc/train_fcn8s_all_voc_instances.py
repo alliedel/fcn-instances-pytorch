@@ -13,7 +13,6 @@ from examples.voc.script_utils import get_parameters
 
 from tensorboardX import SummaryWriter
 
-
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
@@ -25,7 +24,6 @@ configurations = {
         interval_validate=4000,
     )
 }
-
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -43,10 +41,10 @@ def main():
     gpu = args.gpu
     cfg = configurations[args.config]
     out = get_log_dir(osp.basename(__file__).replace(
-        '.py', ''), args.config, cfg)
+        '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
     print('logdir: {}'.format(out))
     resume = args.resume
-    
+
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
 
@@ -58,21 +56,23 @@ def main():
     semantic_subset = None  # ['background', 'person']
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2012ClassSeg(root, split='train', transform=True,
-                                          semantic_subset=semantic_subset,
-                                          n_max_per_class=n_max_per_class,
-                                          permute_instance_order=False, set_extras_to_void=True),
-        batch_size=1, shuffle=True)
+    train_dataset = torchfcn.datasets.VOC2012ClassSeg(root, split='train', transform=True,
+                                                      semantic_subset=semantic_subset,
+                                                      n_max_per_class=n_max_per_class,
+                                                      permute_instance_order=False,
+                                                      set_extras_to_void=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True)
+
     # Make sure we can load an image
     [img, lbl] = train_loader.dataset[0]
 
-    val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2012ClassSeg(root, split='val', transform=True,
-                                          semantic_subset=semantic_subset,
-                                          n_max_per_class=n_max_per_class,
-                                          permute_instance_order=False, set_extras_to_void=True),
-        batch_size=1, shuffle=False, **kwargs)
+    val_dataset = torchfcn.datasets.VOC2012ClassSeg(root, split='val', transform=True,
+                                                    semantic_subset=semantic_subset,
+                                                    n_max_per_class=n_max_per_class,
+                                                    permute_instance_order=False,
+                                                    set_extras_to_void=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset,
+                                             batch_size=1, shuffle=False, **kwargs)
 
     # 2. model
     # n_max_per_class > 1 and map_to_semantic=False: Basically produces extra channels that

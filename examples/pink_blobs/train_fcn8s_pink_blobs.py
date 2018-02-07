@@ -15,7 +15,6 @@ from examples.voc.script_utils import get_parameters
 from tensorboardX import SummaryWriter
 from torchfcn.datasets import pink_blobs
 
-from numpy import floor
 
 configurations = {
     # same configuration as original work

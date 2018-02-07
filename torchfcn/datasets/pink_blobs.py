@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torchfcn.datasets import dataset_utils
+from PIL import Image, ImageDraw
 
 PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
 BLUE_RGB = (0, 0, 224)
@@ -180,3 +181,53 @@ def paint_square(img, start_r, start_c, w, h, clr, allow_overflow=True, row_col_
     else:
         raise NotImplementedError
     return img
+
+
+def paint_circle(img, start_r, start_c, radius, clr, allow_overflow=True, row_col_dims=(0, 1),
+                 color_dim=2):
+    """
+    allow_overflow = False: error if square falls off edge of screen.
+    row_col_dims, color_dim: set to (2, 3), 1 if you're using pytorch defaults, for instance
+    (num_images, channels, rows, cols)
+    Other options: (0,1), 2 -- typical image RGB format
+                    (0,1), None -- grayscale format (for labels, for instance)
+    """
+    img_h, img_w = img.shape[0], img.shape[1]
+    end_r = start_r + radius * 2
+    end_c = start_c + radius * 2
+    if not allow_overflow:
+        if end_r > img_h:
+            raise Exception('square overflows image.')
+        if end_c > img_w:
+            raise Exception('square overflows image.')
+    else:
+        end_r = min(end_r, img_h)
+        end_c = min(end_c, img_w)
+
+    # Handle 'flat' images
+    if color_dim is None:
+        assert np.isscalar(clr), ValueError
+        assert row_col_dims == (0, 1), NotImplementedError
+        image = Image.fromarray(img)
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((start_c, start_r, end_c, end_r), fill=clr,
+                     outline=clr)
+        img[start_r:end_r, start_c:end_c] = clr
+        return img
+    # Handle RGB images
+    if row_col_dims == (0, 1):
+        for ci, c in enumerate(clr):
+            img[start_r:end_r, start_c:end_c, ci] = c
+    elif row_col_dims == (2, 3):
+        for ci, c in enumerate(clr):
+            img[:, ci, start_r:end_r, start_c:end_c] = c
+    else:
+        raise NotImplementedError
+    return img
+
+
+def draw_ellipse_on_pil_img(img, start_r, start_c, end_r, end_c, clr):
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((start_c, start_r, end_c, end_r), fill=clr,
+                 outline=clr)
+    return image

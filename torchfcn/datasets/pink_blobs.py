@@ -12,8 +12,8 @@ ALL_BLOB_CLASS_NAMES = np.array(['background', 'pink_square', 'blue_square'])
 
 class Defaults(object):
     img_size = (281, 500)
-    blob_size = (100, 100)
-    clrs = [[PEPTO_BISMOL_PINK_RGB], [BLUE_RGB], [GREEN_RGB]]
+    blob_size = (40, 40)
+    clrs = [PEPTO_BISMOL_PINK_RGB, BLUE_RGB, GREEN_RGB]
     blob_types = ['square', 'circle']
     n_max_per_class = 3
     n_instances_per_img = 2
@@ -45,6 +45,8 @@ class BlobExampleGenerator(object):
         self.mean_bgr = mean_bgr
         self._transform = transform
         self.semantic_subset = None
+        # TODO(allie): change the line below to allow dif. blob types
+        self.semantic_classes = Defaults.blob_types
         self.class_names, self.idxs_into_all_blobs = self.get_semantic_names_and_idxs(
             self.semantic_subset)
 
@@ -67,10 +69,13 @@ class BlobExampleGenerator(object):
             self.max_index = np.min(max_index_r_c)
         elif self.location_generation_type == 'random':
             self.max_index = max_index
+            n_instance_classes = self.n_max_per_class * len(self.semantic_classes)
             self.random_rows = np.random.randint(0, self.img_size[0] - self.blob_size[
-                0], (max_index + 1, self.n_max_per_class))
+                0], (max_index + 1, n_instance_classes))
             self.random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[
-                1], (max_index + 1, self.n_max_per_class))
+                1], (max_index + 1, n_instance_classes))
+            # TODO(allie): check for overlap and get rid of it.
+
         else:
             self.max_index = max_index
 
@@ -110,20 +115,41 @@ class BlobExampleGenerator(object):
     def generate_img_lbl_pair(self, image_index):
         img = np.zeros(self.img_size + (3,), dtype=float)
         lbl = np.zeros(self.img_size, dtype=int)
-        for semantic_idx in self.semantic_classes:
+        for semantic_idx, semantic_class in enumerate(self.semantic_classes):
             for instance_number in range(self.n_instances_per_img):
-                r, c = self.get_blob_coordinates(image_index, instance_number)
-                img = self.paint_my_square_in_img(img, r, c, self.clrs[semantic_idx])
-                lbl = self.paint_my_square_in_lbl(lbl, instance_number + 1, r, c)
+                instance_label = semantic_idx * self.n_max_per_class + instance_number + 1
+                r, c = self.get_blob_coordinates(image_index, instance_label)
+                if semantic_class == 'square':
+                    img = self.paint_my_square_in_img(img, r, c, self.clrs[semantic_idx])
+                    lbl = self.paint_my_square_in_lbl(lbl, r, c, instance_label)
+                elif semantic_class == 'circle':
+                    img = self.paint_my_circle_in_img(img, r, c, self.clrs[semantic_idx])
+                    lbl = self.paint_my_circle_in_lbl(lbl, r, c, instance_label)
+                else:
+                    ValueError('I don\'t know how to draw {}'.format(semantic_class))
+        if not lbl.max() < self.n_max_per_class * len(self.semantic_classes) + 1:
+            import ipdb; ipdb.set_trace()
         return img, lbl
+
+    def paint_my_circle_in_img(self, img, r, c, clr):
+        # noinspection PyTypeChecker
+        return paint_circle(img, r, c, self.blob_size[0], self.blob_size[1], clr,
+                            allow_overflow=True, row_col_dims=(0, 1), color_dim=2)
+
+    def paint_my_circle_in_lbl(self, lbl_img, r, c, instance_label):
+        # noinspection PyTypeChecker
+        return paint_circle(lbl_img, r, c, diameter_a=self.blob_size[0],
+                            diameter_b=self.blob_size[0],
+                            clr=instance_label,
+                            allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 
     def paint_my_square_in_img(self, img, r, c, clr):
         return paint_square(img, r, c, self.blob_size[0], self.blob_size[1], clr,
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=2)
 
-    def paint_my_square_in_lbl(self, lbl, instance_number, r, c):
+    def paint_my_square_in_lbl(self, lbl_img, r, c, instance_label):
         # noinspection PyTypeChecker
-        return paint_square(lbl, r, c, self.blob_size[0], self.blob_size[0], instance_number,
+        return paint_square(lbl_img, r, c, self.blob_size[0], self.blob_size[0], instance_label,
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 
     def transform(self, img, lbl):
@@ -183,7 +209,8 @@ def paint_square(img, start_r, start_c, w, h, clr, allow_overflow=True, row_col_
     return img
 
 
-def paint_circle(img, start_r, start_c, radius, clr, allow_overflow=True, row_col_dims=(0, 1),
+def paint_circle(img, start_r, start_c, diameter_a, diameter_b, clr, allow_overflow=True,
+                 row_col_dims=(0, 1),
                  color_dim=2):
     """
     allow_overflow = False: error if square falls off edge of screen.
@@ -193,8 +220,8 @@ def paint_circle(img, start_r, start_c, radius, clr, allow_overflow=True, row_co
                     (0,1), None -- grayscale format (for labels, for instance)
     """
     img_h, img_w = img.shape[0], img.shape[1]
-    end_r = start_r + radius * 2
-    end_c = start_c + radius * 2
+    end_r = start_r + diameter_b
+    end_c = start_c + diameter_a
     if not allow_overflow:
         if end_r > img_h:
             raise Exception('square overflows image.')
@@ -204,26 +231,41 @@ def paint_circle(img, start_r, start_c, radius, clr, allow_overflow=True, row_co
         end_r = min(end_r, img_h)
         end_c = min(end_c, img_w)
 
+    a, b = int(diameter_a / 2), int(diameter_b / 2)
     # Handle 'flat' images
     if color_dim is None:
         assert np.isscalar(clr), ValueError
         assert row_col_dims == (0, 1), NotImplementedError
-        image = Image.fromarray(img)
-        draw = ImageDraw.Draw(image)
-        draw.ellipse((start_c, start_r, end_c, end_r), fill=clr,
-                     outline=clr)
-        img[start_r:end_r, start_c:end_c] = clr
+        img_shape = img.shape[:2]
+        bool_ellipse_img = valid_ellipse_locations(
+            img_shape, center_r=start_r + b, center_c=start_c + a, b=b, a=a)
+        img = (1 - bool_ellipse_img) * img + (bool_ellipse_img) * clr
         return img
     # Handle RGB images
     if row_col_dims == (0, 1):
-        for ci, c in enumerate(clr):
-            img[start_r:end_r, start_c:end_c, ci] = c
+        img_shape = img.shape[:2]
+        bool_ellipse_img = valid_ellipse_locations(
+            img_shape, center_r=start_r + b, center_c=start_c + a, b=b, a=a)
+        bool_indexing = np.tile(bool_ellipse_img[:, :, np.newaxis], (1, 1, 3))
+        img = (1 - bool_indexing) * img + (bool_indexing) * clr
+
     elif row_col_dims == (2, 3):
-        for ci, c in enumerate(clr):
-            img[:, ci, start_r:end_r, start_c:end_c] = c
+        raise NotImplementedError
+        img_shape = img.shape[2:4]
+        bool_ellipse_img = valid_ellipse_locations(
+            img_shape, center_r=start_r + b, center_c=start_c + a, b=b, a=a)
+        img[np.tile(bool_ellipse_img[np.newaxis, np.newaxis, :, :], (1, 3, 1, 1))] = \
+            np.array(clr)[np.newaxis, :, np.newaxis, np.newaxis]
     else:
         raise NotImplementedError
     return img
+
+
+def valid_ellipse_locations(img_shape, center_r, center_c, b, a):
+    r = np.arange(img_shape[0])[:, None]
+    c = np.arange(img_shape[1])
+    in_ellipse = ((c - center_c)/a)**2 + ((r - center_r)/b)**2 <= 1
+    return in_ellipse
 
 
 def draw_ellipse_on_pil_img(img, start_r, start_c, end_r, end_c, clr):
@@ -231,3 +273,5 @@ def draw_ellipse_on_pil_img(img, start_r, start_c, end_r, end_c, clr):
     draw.ellipse((start_c, start_r, end_c, end_r), fill=clr,
                  outline=clr)
     return image
+
+

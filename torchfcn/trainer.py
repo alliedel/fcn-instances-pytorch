@@ -168,6 +168,7 @@ class Trainer(object):
         label_trues, label_preds = [], []
 
         num_to_show = min(max_to_show, len(self.train_loader))
+        self.train_loader.shuffle = False
         for batch_idx, (data, target) in tqdm.tqdm(
                 enumerate(self.train_loader), total=num_to_show,
                 desc='Valid iteration=%d' % self.iteration, ncols=80,
@@ -198,6 +199,7 @@ class Trainer(object):
                         lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class,
                         overlay=self.visualize_overlay)
                     visualizations.append(viz)
+        self.train_loader.shuffle = True
 
         out = osp.join(self.out, 'visualization_viz')
         if not osp.exists(out):

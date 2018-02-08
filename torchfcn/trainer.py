@@ -70,7 +70,14 @@ class Trainer(object):
         self.max_iter = max_iter
         self.best_mean_iu = 0
 
-    def validate(self):
+    def validate(self, split='train'):
+        assert split in ['train', 'val']
+        if split == 'train':
+            data_loader = self.train_loader
+            data_loader.shuffle = False
+        else:
+            data_loader = self.val_loader
+        shuffle = data_loader.shuffle
         training = self.model.training
         self.model.eval()
 
@@ -80,39 +87,40 @@ class Trainer(object):
         visualizations = []
         label_trues, label_preds = [], []
         for batch_idx, (data, target) in tqdm.tqdm(
-                enumerate(self.val_loader), total=len(self.val_loader),
+                enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration=%d' % self.iteration, ncols=80,
                 leave=False):
+            true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
+                visualizations_single_batch = self.validate_single_batch(
+                    data, target, data_loader=data_loader, n_class=n_class, should_visualize=len(
+                    visualizations) < 9)
+            label_trues.append(true_labels_single_batch)
+            label_preds.append(pred_labels_single_batch)
+            val_loss += val_loss_single_batch
+            visualizations += visualizations
 
-            if self.cuda:
-                data, target = data.cuda(), target.cuda()
-            data, target = Variable(data, volatile=True), Variable(target)
-            score = self.model(data)
+        self.export_visualizations(visualizations)
 
-            gt_permutations, loss = losses.cross_entropy2d(
-                score, target, semantic_instance_labels=self.model.semantic_instance_class_list,
-                matching=self.matching_loss, size_average=self.size_average)
-            if np.isnan(float(loss.data[0])):
-                raise ValueError('loss is nan while validating')
-            val_loss += float(loss.data[0]) / len(data)
+        if split == 'val':
+            metrics = torchfcn.utils.label_accuracy_score(
+                label_trues, label_preds, n_class)
+            self.write_metrics(metrics, val_loss)
 
-            imgs = data.data.cpu()
-            # numpy_score = score.data.numpy()
-            lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
-            # confidence = numpy_score[numpy_score == numpy_score.max(dim=1)[0]]
-            lbl_true = target.data.cpu()
-            for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
-                img, lt = self.val_loader.dataset.untransform(img, lt)
-                label_trues.append(lt)
-                label_preds.append(lp)
-                if len(visualizations) < 9:
-                    viz = visualization_utils.visualize_segmentation(
-                        lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class,
-                        overlay=self.visualize_overlay)
-                    visualizations.append(viz)
-        metrics = torchfcn.utils.label_accuracy_score(
-            label_trues, label_preds, n_class)
+            val_loss /= len(data_loader)
+            if self.tensorboard_writer is not None:
+                self.tensorboard_writer.add_scalar('data/validation_loss', val_loss, self.iteration)
 
+            mean_iu = metrics[2]
+            is_best = mean_iu > self.best_mean_iu
+            if is_best:
+                shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
+                            osp.join(self.out, 'model_best.pth.tar'))
+        if split == 'train':
+            self.train_loader.shuffle = shuffle
+        if training:
+            self.model.train()
+
+    def export_visualizations(self, visualizations):
         out = osp.join(self.out, 'visualization_viz')
         if not osp.exists(out):
             os.makedirs(out)
@@ -125,10 +133,7 @@ class Trainer(object):
             tag = '{}images'.format(basename, 0)
             log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
 
-        val_loss /= len(self.val_loader)
-        if self.tensorboard_writer is not None:
-            self.tensorboard_writer.add_scalar('data/validation_loss', val_loss, self.iteration)
-
+    def write_metrics(self, metrics, val_loss):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
             elapsed_time = (
                 datetime.datetime.now(pytz.timezone('Asia/Tokyo')) -
@@ -150,77 +155,39 @@ class Trainer(object):
             'model_state_dict': self.model.state_dict(),
             'best_mean_iu': self.best_mean_iu,
         }, osp.join(self.out, 'checkpoint.pth.tar'))
-        if is_best:
-            shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
-                        osp.join(self.out, 'model_best.pth.tar'))
 
-        if training:
-            self.model.train()
-
-    def validate_train(self):
-        training = self.model.training
-        self.model.eval()
-
-        n_class = self.model.n_classes
-        max_to_show=3
-
-        val_loss = 0
+    def validate_single_batch(self, data, target, data_loader, n_class, should_visualize):
+        true_labels = []
+        pred_labels = []
         visualizations = []
-        label_trues, label_preds = [], []
+        val_loss = 0
+        if self.cuda:
+            data, target = data.cuda(), target.cuda()
+        data, target = Variable(data, volatile=True), Variable(target)
+        score = self.model(data)
 
-        num_to_show = min(max_to_show, len(self.train_loader))
-        self.train_loader.shuffle = False
-        for batch_idx, (data, target) in tqdm.tqdm(
-                enumerate(self.train_loader), total=num_to_show,
-                desc='Valid iteration=%d' % self.iteration, ncols=80,
-                leave=False):
-            if batch_idx >= num_to_show:
-                break
-            if self.cuda:
-                data, target = data.cuda(), target.cuda()
-            data, target = Variable(data, volatile=True), Variable(target)
-            score = self.model(data)
+        gt_permutations, loss = losses.cross_entropy2d(
+            score, target, semantic_instance_labels=self.model.semantic_instance_class_list,
+            matching=self.matching_loss, size_average=self.size_average)
+        if np.isnan(float(loss.data[0])):
+            raise ValueError('loss is nan while validating')
+        val_loss += float(loss.data[0]) / len(data)
 
-            gt_permutations, loss = losses.cross_entropy2d(
-                score, target, semantic_instance_labels=self.model.semantic_instance_class_list,
-                matching=self.matching_loss, size_average=self.size_average)
-            if np.isnan(float(loss.data[0])):
-                raise ValueError('loss is nan while validating')
-            val_loss += float(loss.data[0]) / len(data)
-
-            imgs = data.data.cpu()
-            lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-            lbl_true = target.data.cpu()
-            for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
-                img, lt = self.val_loader.dataset.untransform(img, lt)
-                label_trues.append(lt)
-                label_preds.append(lp)
-                if len(visualizations) < 9:
-                    viz = visualization_utils.visualize_segmentation(
-                        lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class,
-                        overlay=self.visualize_overlay)
-                    visualizations.append(viz)
-        self.train_loader.shuffle = True
-
-        out = osp.join(self.out, 'visualization_viz')
-        if not osp.exists(out):
-            os.makedirs(out)
-        out_file = osp.join(out, 'train_iter%012d.jpg' % self.iteration)
-        out_img = visualization_utils.get_tile_image(visualizations, margin_size=50)
-        scipy.misc.imsave(out_file, out_img)
-        if self.tensorboard_writer is not None:
-            basename = 'train_'
-            tag = '{}images'.format(basename, 0)
-            log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
-            # h = int(np.floor(out_img.shape[0]/3.0))
-            # out_imgs = [out_img[r:(r+h-1),:,:] for r in range(0, out_img.shape[0]-h+1, h)]
-            # basename = 'train_'
-            # tag = '{}images'.format(basename, 0)
-            # log_images(self.tensorboard_writer, tag, out_imgs, self.iteration,
-            #            numbers=range(num_to_show))
-
-        if training:
-            self.model.train()
+        imgs = data.data.cpu()
+        # numpy_score = score.data.numpy()
+        lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+        # confidence = numpy_score[numpy_score == numpy_score.max(dim=1)[0]]
+        lbl_true = target.data.cpu()
+        for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
+            img, lt = data_loader.dataset.untransform(img, lt)
+            true_labels.append(lt)
+            pred_labels.append(lp)
+            if should_visualize:
+                viz = visualization_utils.visualize_segmentation(
+                    lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class,
+                    overlay=self.visualize_overlay)
+                visualizations.append(viz)
+        return true_labels, pred_labels, val_loss, visualizations
 
     def train_epoch(self):
         self.model.train()

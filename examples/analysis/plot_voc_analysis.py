@@ -116,13 +116,15 @@ def plot_summary_histograms(train_dataset_summary, figure_dir='/tmp'):
             plt.legend()
             plt.savefig('{}/{}.png'.format(figure_dir, k))
         else:
-            if v.shape[0] > 1000:
-                print('Ignoring {}: would require {} plots'.format(k, v.shape[0]))
+            if v.shape[1] > 1000:
+                print('Ignoring {}, shape {}: would require {} plots'.format(k, v.shape,
+                                                                             v.shape[1]))
+                print(v.shape)
                 continue
-            for idx in tqdm.tqdm(range(v.shape[0]), total=v.shape[0], ncols=80,
+            for idx in tqdm.tqdm(range(v.shape[1]), total=v.shape[1], ncols=80,
                                  desc='Subplots for data {}'.format(k), leave=False):
                 plt.clf()
-                plt.hist(v[idx, :], bins, alpha=0.8, label='{}: {}'.format(k, idx))
+                plt.hist(v[:, idx], bins, alpha=0.8, label='{}: {}'.format(k, idx))
                 plt.legend()
                 plt.savefig('{}/{}_{}.png'.format(figure_dir, k, idx))
 

@@ -135,6 +135,13 @@ def create_dataset_summary(dataset, n_max_per_class=None):
                                                  for sem_cls, _ in enumerate(semantic_classes)]
         number_of_pixels_per_instance_num[idx, :] = [torch.sum(inst_target == inst_num)
                                                      for inst_num in range(n_max_per_class)]
+        number_of_instances_per_semantic_class[idx, :] = \
+            [torch.max(inst_target[sem_target == sem_cls]) + 1
+             if (torch.sum(sem_target == sem_cls) > 0) else 0
+             for sem_cls, _ in enumerate(semantic_classes)]
+        number_of_total_instances[idx] = np.sum(number_of_instances_per_semantic_class[idx, :])
+        number_of_void_pixels[idx] = torch.sum(sem_target == -1)
+        # The function below overwrites the inst_target, so gotta be careful!
         full_instance_target = dataset_utils.combine_semantic_and_instance_labels(sem_target,
                                                                                   inst_target,
                                                                                   n_max_per_class)
@@ -142,12 +149,6 @@ def create_dataset_summary(dataset, n_max_per_class=None):
                                                                     sem_inst_cls)
                                                           for sem_inst_cls in
                                                           range(len(per_instance_semantic_names))]
-        number_of_instances_per_semantic_class[idx, :] = \
-            [torch.max(inst_target[sem_target == sem_cls]) + 1
-             if (torch.sum(sem_target == sem_cls) > 0) else 0
-             for sem_cls, _ in enumerate(semantic_classes)]
-        number_of_total_instances[idx] = np.sum(number_of_instances_per_semantic_class[idx, :])
-        number_of_void_pixels[idx] = torch.sum(sem_target == -1)
 
     summary = {'image_names': image_names,
                'number_of_pixels': number_of_pixels,

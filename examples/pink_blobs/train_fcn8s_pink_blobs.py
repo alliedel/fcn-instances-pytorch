@@ -16,15 +16,27 @@ from tensorboardX import SummaryWriter
 from torchfcn.datasets import pink_blobs
 
 
+default_configuration = dict(
+    max_iteration=100000,
+    lr=1.0e-10,
+    momentum=0.99,
+    weight_decay=0.0005,
+    interval_validate=100,
+    n_max_per_class=3,
+    n_training_imgs=100,
+    n_validation_imgs=50,
+    batch_size=1)
+
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
+    0: dict(),
     1: dict(
-        max_iteration=100000,
-        lr=1.0e-10,
-        momentum=0.99,
-        weight_decay=0.0005,
-        interval_validate=100,
+        batch_size=10),
+    2: dict(
+        n_training_imgs=10),
+    3: dict(
+        n_training_imgs=1000,
     )
 }
 
@@ -34,7 +46,6 @@ here = osp.dirname(osp.abspath(__file__))
 def main():
     n_max_per_class = 3
     matching = True
-    clrs = [pink_blobs.Defaults.clrs[0] for _ in range(4)]
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
@@ -44,7 +55,8 @@ def main():
     args = parser.parse_args()
 
     gpu = args.gpu
-    cfg = configurations[args.config]
+    cfg = default_configuration
+    cfg.update(configurations[args.config])
     out = get_log_dir(osp.basename(__file__).replace(
         '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
 
@@ -62,12 +74,12 @@ def main():
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_dataset = pink_blobs.BlobExampleGenerator(
-        transform=True, n_max_per_class=n_max_per_class,
-        clrs=clrs, max_index=200)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True)
+        transform=True, n_max_per_class=n_max_per_class, max_index=cfg['n_training_imgs'] - 1)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg['batch_size'],
+                                               shuffle=True)
     val_dataset = pink_blobs.BlobExampleGenerator(transform=True,
                                                   n_max_per_class=n_max_per_class,
-                                                  max_index=50)
+                                                  max_index=cfg['n_validation_imgs'] - 1)
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False)
 

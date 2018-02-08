@@ -78,10 +78,9 @@ def cross_entropy2d_with_matching(log_predictions, target, semantic_instance_lab
     all_costs = torch.cat([c[torch.np.newaxis, :] for c in all_costs], dim=0).squeeze().float()
     loss_train = all_costs.sum()
     if DEBUG_ASSERTS:
-        assert len(all_costs) == len(semantic_instance_labels)
-    for inst_idx in range(log_predictions.size(1)):
-        val = log_predictions[:, inst_idx, :, :].data.sum()
-        # logger.info('sum(y_pred[:, {}, :, :]): {}'.format(inst_idx, val))
+        if len(all_costs) != len(semantic_instance_labels):
+            import ipdb; ipdb.set_trace()
+            raise
     return all_pred_permutations, loss_train
 
 
@@ -132,6 +131,7 @@ def compute_optimal_match_loss(predictions, target_onehot, semantic_instance_lab
     for label in unique_labels:
         idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == label)]
         cost_list_2d = create_pytorch_cross_entropy_cost_matrix(predictions, target_onehot, idxs)
+
         cost_matrix, multiplier = convert_pytorch_costs_to_ints(cost_list_2d)
 
         assignment = pywrapgraph.LinearSumAssignment()

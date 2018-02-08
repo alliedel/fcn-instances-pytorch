@@ -4,18 +4,17 @@ import os
 import os.path as osp
 import shutil
 
-from torchfcn import visualization_utils
 import numpy as np
 import pytz
 import scipy.misc
 import torch
-from torch.autograd import Variable
 import tqdm
+from torch.autograd import Variable
 
 import torchfcn
 from torchfcn import losses
-
-import matplotlib.pyplot as plt
+from torchfcn import visualization_utils
+from torchfcn.visualization_utils import log_images
 
 
 class Trainer(object):
@@ -84,6 +83,7 @@ class Trainer(object):
                 enumerate(self.val_loader), total=len(self.val_loader),
                 desc='Valid iteration=%d' % self.iteration, ncols=80,
                 leave=False):
+
             if self.cuda:
                 data, target = data.cuda(), target.cuda()
             data, target = Variable(data, volatile=True), Variable(target)
@@ -117,7 +117,8 @@ class Trainer(object):
         if not osp.exists(out):
             os.makedirs(out)
         out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
-        out_img = visualization_utils.get_tile_image(visualizations)
+        out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
+                                                     margin_size=50)
         scipy.misc.imsave(out_file, out_img)
         if self.tensorboard_writer is not None:
             basename = 'val_'
@@ -205,15 +206,18 @@ class Trainer(object):
         if not osp.exists(out):
             os.makedirs(out)
         out_file = osp.join(out, 'train_iter%012d.jpg' % self.iteration)
-        out_img = visualization_utils.get_tile_image(visualizations)
+        out_img = visualization_utils.get_tile_image(visualizations, margin_size=50)
         scipy.misc.imsave(out_file, out_img)
         if self.tensorboard_writer is not None:
-            h = int(np.floor(out_img.shape[0]/3.0))
-            out_imgs = [out_img[r:(r+h-1),:,:] for r in range(0, out_img.shape[0]-h+1, h)]
             basename = 'train_'
             tag = '{}images'.format(basename, 0)
-            log_images(self.tensorboard_writer, tag, out_imgs, self.iteration,
-                       numbers=range(num_to_show))
+            log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
+            # h = int(np.floor(out_img.shape[0]/3.0))
+            # out_imgs = [out_img[r:(r+h-1),:,:] for r in range(0, out_img.shape[0]-h+1, h)]
+            # basename = 'train_'
+            # tag = '{}images'.format(basename, 0)
+            # log_images(self.tensorboard_writer, tag, out_imgs, self.iteration,
+            #            numbers=range(num_to_show))
 
         if training:
             self.model.train()
@@ -287,38 +291,3 @@ class Trainer(object):
             self.train_epoch()
             if self.iteration >= self.max_iter:
                 break
-
-
-def log_images(writer, tag, images, step, numbers=None, bgr=False):
-    if numbers is None:
-        numbers = range(len(images))
-    for nr, img in enumerate(images):
-        if writer is not None:
-            writer.add_image('%s/%d' % (tag, numbers[nr]), img.astype(float) /
-                             255.0,
-                             global_step=step)
-
-
-def log_plots(writer, tag, plot_handles, step, numbers=None):
-    """Logs a list of images."""
-    assert len(numbers) == len(plot_handles), 'len(plot_handles): {}; numbers: {}'.format(len(
-        plot_handles), numbers)
-    if numbers is None:
-        numbers = range(len(plot_handles))
-    for nr, plot_handle in enumerate(plot_handles):
-        # Write the image to a string
-        h = plt.figure(plot_handle.number)
-        plt_as_np_array = convert_mpl_to_np(h)
-
-        # Create an Image object
-        if writer is not None:
-            writer.add_image('%s/%d' % (tag, numbers[nr]), plt_as_np_array, global_step=step)
-
-
-def convert_mpl_to_np(figure_handle):
-    figure_handle.canvas.draw()
-
-    # Now we can save it to a numpy array.
-    data = np.fromstring(figure_handle.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-    data = data.reshape(figure_handle.canvas.get_width_height()[::-1] + (3,))
-    return data

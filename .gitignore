@@ -7,4 +7,5 @@ build/
 dist/
 logs/
 backup_logs/
+useless_logs/
 profile_backup/

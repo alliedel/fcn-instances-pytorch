@@ -155,13 +155,21 @@ def compute_optimal_match_loss(predictions, target_onehot, semantic_instance_lab
 def nll2d_single_class_term(log_predictions_single_instance_cls, binary_target_single_instance_cls):
     lp = log_predictions_single_instance_cls
     bt = binary_target_single_instance_cls
-    assert lp.size() == bt.size()
-    return -torch.sum(lp * bt)
+    if DEBUG_ASSERTS:
+        assert lp.size() == bt.size()
+    try:
+        res = -torch.sum(lp.view(-1,) * bt.view(-1,))
+    except:
+        import ipdb; ipdb.set_trace()
+        raise
+    return res
 
 
 def create_pytorch_cross_entropy_cost_matrix(log_predictions, target_onehot, foreground_idxs):
     # predictions: C,H,W
     # target: C,H,W
+    if DEBUG_ASSERTS:
+        assert log_predictions.size() == target_onehot.size()
     normalizer = float(target_onehot.size(1) * target_onehot.size(2))
     cost_list_2d = [[nll2d_single_class_term(log_predictions[lp_cls, :, :],
                                              target_onehot[t_cls, :, :]) / normalizer

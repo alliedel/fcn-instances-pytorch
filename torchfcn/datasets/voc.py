@@ -51,13 +51,17 @@ class VOCClassSegBase(data.Dataset):
 
     def __init__(self, root, split='train', transform=False, n_max_per_class=1,
                  semantic_subset=None, map_other_classes_to_bground=True,
-                 permute_instance_order=True, one_hot_ground_truth=True):
+                 permute_instance_order=True, set_extras_to_void=False,
+                 return_semantic_instance_tuple=False):
         """
         n_max_per_class: number of instances per non-background class
         class_subet: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
         permute_instance_order: randomly chooses the ordering of the instances (from 0 through
         n_max_per_class - 1) --> Does this every time the image is loaded.
+        return_semantic_instance_tuple : Generally only for debugging; instead of returning an
+        instance index as the target values, it'll return two targets: the semantic target and
+        the instance number: [0, n_max_per_class)
         """
 
         self.permute_instance_order = permute_instance_order
@@ -72,12 +76,21 @@ class VOCClassSegBase(data.Dataset):
         self._instance_to_semantic_mapping_matrix = None
         self.get_instance_to_semantic_mapping()
         self.n_classes = self._instance_to_semantic_mapping_matrix.size(0)
+        self.set_extras_to_void = set_extras_to_void
+        self.return_semantic_instance_tuple = return_semantic_instance_tuple
 
         # VOC2011 and others are subset of VOC2012
         year = 2012
         dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC{}'.format(year))
         self.files = self.get_files(dataset_dir)
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
+
+    def update_n_max_per_class(self, n_max_per_class):
+        self.n_max_per_class = n_max_per_class
+        self.n_semantic_classes = len(self.class_names)
+        self._instance_to_semantic_mapping_matrix = None
+        self.get_instance_to_semantic_mapping(recompute=True)
+        self.n_classes = self._instance_to_semantic_mapping_matrix.size(0)
 
     def get_files(self, dataset_dir):
         files = collections.defaultdict(list)
@@ -122,7 +135,9 @@ class VOCClassSegBase(data.Dataset):
         data_file = self.files[self.split][index]
         img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
                                                    sem_lbl_file=data_file['sem_lbl'],
-                                                   inst_lbl_file=data_file['inst_lbl'])
+                                                   inst_lbl_file=data_file['inst_lbl'],
+                                                   return_semantic_instance_tuple=
+                                                   self.return_semantic_instance_tuple)
         return img, lbl
 
     @staticmethod
@@ -181,13 +196,15 @@ class VOCClassSegBase(data.Dataset):
             self._instance_to_semantic_mapping_matrix = \
                 dataset_utils.get_instance_to_semantic_mapping(self.n_max_per_class,
                                                                self.n_semantic_classes)
+        return self._instance_to_semantic_mapping_matrix
 
     def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
         return dataset_utils.combine_semantic_and_instance_labels(
             sem_lbl, inst_lbl, n_max_per_class=self.n_max_per_class,
-            n_semantic_classes=self.n_semantic_classes, n_classes=self.n_classes)
+            set_extras_to_void=self.set_extras_to_void)
 
-    def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file):
+    def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file,
+                                   return_semantic_instance_tuple=False):
         img = PIL.Image.open(img_file)
         img = np.array(img, dtype=np.uint8)
         # load semantic label
@@ -209,8 +226,10 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl = self.transform_lbl(inst_lbl)
             if self.permute_instance_order:
                 inst_lbl = dataset_utils.permute_instance_order(inst_lbl, self.n_max_per_class)
-
-            lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
+            if return_semantic_instance_tuple:
+                lbl = [sem_lbl, inst_lbl]
+            else:
+                lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
 
         return img, lbl
 

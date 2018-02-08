@@ -10,6 +10,10 @@ logger = local_pyutils.get_logger()
 
 DEBUG_ASSERTS = True
 
+# TODO(allie): Enable exporting of cost matrices through tensorboard as images
+# TODO(allie): Compute other losses ('mixing', 'wrong identity', 'poor shape') along with some
+# image stats like between-instance distance
+
 
 # TODO(allie): dynamically choose multiplier and/or check to see if it gets us into a
 # reasonable range (for converting cost matrix to ints)

@@ -97,7 +97,7 @@ class Trainer(object):
             label_trues.append(true_labels_single_batch)
             label_preds.append(pred_labels_single_batch)
             val_loss += val_loss_single_batch
-            visualizations += visualizations
+            visualizations += visualizations_single_batch
 
         self.export_visualizations(visualizations)
 
@@ -204,7 +204,7 @@ class Trainer(object):
 
             if self.iteration % self.interval_validate == 0:
                 self.validate()
-                self.validate_train()
+                self.validate(split='train')
 
             assert self.model.training
 

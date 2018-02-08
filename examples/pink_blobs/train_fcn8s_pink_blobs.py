@@ -49,7 +49,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
-    parser.add_argument('-c', '--config', type=int, default=1,
+    parser.add_argument('-c', '--config', type=int, default=0,
                         choices=configurations.keys())
     parser.add_argument('--resume', help='Checkpoint path')
     args = parser.parse_args()

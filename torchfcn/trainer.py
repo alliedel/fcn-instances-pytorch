@@ -91,10 +91,6 @@ class Trainer(object):
         else:
             data_loader = self.val_loader
 
-        # Turn off shuffling temporarily
-        shuffle = data_loader.shuffle
-        data_loader.shuffle = False
-
         # eval instead of training mode temporarily
         training = self.model.training
         self.model.eval()
@@ -111,13 +107,13 @@ class Trainer(object):
             should_visualize = len(visualizations) < 9
             if not(compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
-                break
+                continue
             true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
                 visualizations_single_batch = self.validate_single_batch(
                     data, target, data_loader=data_loader, n_class=n_class,
                     should_visualize=should_visualize)
-            label_trues.append(true_labels_single_batch)
-            label_preds.append(pred_labels_single_batch)
+            label_trues += true_labels_single_batch
+            label_preds += pred_labels_single_batch
             val_loss += val_loss_single_batch
             visualizations += visualizations_single_batch
         val_loss /= len(data_loader)
@@ -137,10 +133,9 @@ class Trainer(object):
             if update_best_checkpoint:
                 self.update_best_checkpoint_if_best(mean_iu=metrics[2])
 
-        # Restore shuffle, training settings set prior to function call
-        self.train_loader.shuffle = shuffle
+        # Restore training settings set prior to function call
         if training:
-            self.model.training()
+            self.model.train()
 
     def export_visualizations(self, visualizations, split='val_'):
         out = osp.join(self.out, 'visualization_viz')
@@ -250,7 +245,8 @@ class Trainer(object):
                 score, target,
                 matching=self.matching_loss,
                 size_average=self.size_average,
-                semantic_instance_labels=self.model.semantic_instance_class_list)
+                semantic_instance_labels=self.model.semantic_instance_class_list,
+                break_here=False)  # iteration > 100
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')

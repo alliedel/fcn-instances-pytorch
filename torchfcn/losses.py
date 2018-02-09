@@ -39,9 +39,12 @@ def invert_permutation(perm):
     return []
 
 
-def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True, **kwargs):
+def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True,
+                    break_here=False, **kwargs):
     # Convert scores to predictions
     # log_p: (n, c, h, w)
+    if break_here:
+        import ipdb; ipdb.set_trace()
     log_predictions = F.log_softmax(scores)
 
     if matching:
@@ -143,7 +146,7 @@ def compute_optimal_match_loss(predictions, target_onehot, semantic_instance_lab
         for ground_truth in range(len(cost_matrix)):
             for prediction in range(len(cost_matrix[0])):
                 assignment.AddArcWithCost(ground_truth, prediction,
-                                          cost_matrix[ground_truth][prediction])
+                                          cost_matrix[prediction][ground_truth])
         check_status(assignment.Solve(), assignment)
         debug_print_assignments(assignment, multiplier)
         gt_indices += idxs
@@ -201,9 +204,13 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
                 else 10 ** (10 - int(np.log10(absolute_max)))
 
     num_classes = len(cost_list_2d_variables)
-    cost_matrix_int = [[long(multiplier * cost_list_2d_variables[r][c].data[0]) for r in range(
+    cost_matrix_int = [[long(multiplier * cost_list_2d_variables[r][c].data[0]) for c in range(
         num_classes)]
-                       for c in range(num_classes)]
+                       for r in range(num_classes)]
+    # for p in range(len(cost_matrix_int)):
+    #     for t in range(len(cost_matrix_int[0])):
+    #         logger.info('cost for groundtruth {}, prediction {} is {}'.format(
+    #             t, p, cost_matrix_int[p][t]))
     return cost_matrix_int, multiplier
 
 
@@ -220,5 +227,5 @@ def check_status(solve_status, assignment):
 def debug_print_assignments(assignment, multiplier):
     logger.debug('Total cost = {}'.format(assignment.OptimalCost()))
     for i in range(0, assignment.NumNodes()):
-        logger.debug('prediction %d assigned to ground truth %d.  Cost = %f' % (
+        logger.debug('ground truth %d assigned to prediction %d.  Cost = %f' % (
             i, assignment.RightMate(i), float(assignment.AssignmentCost(i)) / multiplier))

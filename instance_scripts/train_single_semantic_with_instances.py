@@ -11,7 +11,7 @@ import torchfcn
 
 from local_pyutils import get_log_dir
 from torchfcn.models.model_utils import get_parameters
-from torchfcn import instance_trainer
+from torchfcn import trainer
 
 
 configurations = {
@@ -79,7 +79,7 @@ def main():
     train_loader, val_loader = get_datasets(args)
 
     # 2. model
-    model = torchfcn.models.FCN8sInstance(n_semantic_classes=21)
+    model = torchfcn.models.FCN8sInstance(n_semantic_classes_with_background=21)
     start_epoch = 0
     start_iteration = 0
     if args.resume:
@@ -107,7 +107,7 @@ def main():
     if args.resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
-    trainer = instance_trainer.InstanceTrainer(
+    trainer = trainer.Trainer(
         cuda=args.cuda,
         model=model,
         optimizer=optim,

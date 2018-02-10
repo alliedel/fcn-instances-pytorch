@@ -18,7 +18,7 @@ from torchfcn.datasets import pink_blobs
 
 default_configuration = dict(
     max_iteration=100000,
-    lr=1.0e-10,
+    lr=1.0e-4,
     momentum=0.99,
     weight_decay=0.0005,
     interval_validate=100,

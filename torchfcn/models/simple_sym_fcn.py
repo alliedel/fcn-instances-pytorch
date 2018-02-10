@@ -98,7 +98,7 @@ class SimpleSymmetricFCN(nn.Module):
 
         ###### Encoder
         # Create conv-encoder (large net => 5 conv layers with pooling)
-        chn = [32, 64, 128, 256, 256, 256] if wide else [8, 16, 32, 64, 128, 128]  # Num channels
+        chn = [32, 64, 128, 256, 256, 256] if wide else [16, 16, 32, 64, 128, 128]  # Num channels
         self.conv1 = ConvType(3, chn[0], kernel_size=9, stride=1, padding=4,
                               use_pool=True, use_bn=use_bn, nonlinearity=nonlinearity)  # 9x9, 140, 250
         self.conv2 = ConvType(chn[0], chn[1], kernel_size=7, stride=1, padding=3,

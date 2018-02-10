@@ -201,9 +201,9 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
                 else 10 ** (10 - int(np.log10(absolute_max)))
 
     num_classes = len(cost_list_2d_variables)
-    cost_matrix_int = [[long(multiplier * cost_list_2d_variables[r][c].data[0]) for r in range(
+    cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r][c].data[0]) for r in range(
         num_classes)]
-                       for c in range(num_classes)]
+                       for c in range(num_classes)] # Arun: changed long to int (python 3.x has no long)
     return cost_matrix_int, multiplier
 
 

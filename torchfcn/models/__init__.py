@@ -5,3 +5,4 @@ from .fcn8s import FCN8s
 from .fcn8s import FCN8sAtOnce
 from .fcn8s_instance import FCN8sInstance
 from .vgg import VGG16
+from .simple_sym_fcn import SimpleSymmetricFCN

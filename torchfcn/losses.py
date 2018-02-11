@@ -39,9 +39,12 @@ def invert_permutation(perm):
     return []
 
 
-def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True, **kwargs):
+def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True,
+                    break_here=False, **kwargs):
     # Convert scores to predictions
     # log_p: (n, c, h, w)
+    if break_here:
+        import ipdb; ipdb.set_trace()
     log_predictions = F.log_softmax(scores)
 
     if matching:
@@ -143,7 +146,7 @@ def compute_optimal_match_loss(predictions, target_onehot, semantic_instance_lab
         for ground_truth in range(len(cost_matrix)):
             for prediction in range(len(cost_matrix[0])):
                 assignment.AddArcWithCost(ground_truth, prediction,
-                                          cost_matrix[ground_truth][prediction])
+                                          cost_matrix[prediction][ground_truth])
         check_status(assignment.Solve(), assignment)
         debug_print_assignments(assignment, multiplier)
         gt_indices += idxs
@@ -220,5 +223,5 @@ def check_status(solve_status, assignment):
 def debug_print_assignments(assignment, multiplier):
     logger.debug('Total cost = {}'.format(assignment.OptimalCost()))
     for i in range(0, assignment.NumNodes()):
-        logger.debug('prediction %d assigned to ground truth %d.  Cost = %f' % (
+        logger.debug('ground truth %d assigned to prediction %d.  Cost = %f' % (
             i, assignment.RightMate(i), float(assignment.AssignmentCost(i)) / multiplier))

@@ -14,6 +14,9 @@ import yaml
 import torchfcn
 
 
+MY_TIMEZONE = 'America/New_York'
+
+
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
@@ -41,7 +44,7 @@ def get_log_dir(model_name, config_id, cfg):
         if '/' in v:
             continue
         name += '_%s-%s' % (k.upper(), v)
-    now = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
+    now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
     name += '_VCS-%s' % git_hash()
     name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
     # create out

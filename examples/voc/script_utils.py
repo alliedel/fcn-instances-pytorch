@@ -13,7 +13,10 @@ import yaml
 
 import torchfcn
 
+
 here = osp.dirname(osp.abspath(__file__))
+MY_TIMEZONE = 'America/New_York'
+
 
 def git_hash():
     cmd = 'git log -n 1 --pretty="%h"'
@@ -29,7 +32,7 @@ def get_log_dir(model_name, config_id, cfg, parent_directory=None):
         if '/' in v:
             continue
         name += '_%s-%s' % (k.upper(), v)
-    now = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
+    now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
     name += '_VCS-%s' % git_hash()
     name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
     # create out

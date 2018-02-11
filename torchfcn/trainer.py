@@ -16,6 +16,8 @@ from torchfcn import losses
 from torchfcn import visualization_utils
 from torchfcn.visualization_utils import log_images
 
+MY_TIMEZONE = 'America/New_York'
+
 
 class Trainer(object):
     def __init__(self, cuda, model, optimizer,
@@ -30,7 +32,7 @@ class Trainer(object):
         self.val_loader = val_loader
 
         self.timestamp_start = \
-            datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
+            datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
         self.size_average = size_average
         self.matching_loss = matching_loss
         self.tensorboard_writer = tensorboard_writer
@@ -70,14 +72,26 @@ class Trainer(object):
         self.max_iter = max_iter
         self.best_mean_iu = 0
 
-    def validate(self, split='train'):
+    def validate(self, split='val', write_metrics=None, save_checkpoint=None,
+                 update_best_checkpoint=None):
+        """
+        If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
+        If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
+            False.
+        """
+        write_metrics = (split == 'val') if write_metrics is None else write_metrics
+        save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
+        update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
+            else update_best_checkpoint
+        compute_metrics = write_metrics or save_checkpoint or update_best_checkpoint
+
         assert split in ['train', 'val']
         if split == 'train':
             data_loader = self.train_loader
-            data_loader.shuffle = False
         else:
             data_loader = self.val_loader
-        shuffle = data_loader.shuffle
+
+        # eval instead of training mode temporarily
         training = self.model.training
         self.model.eval()
 
@@ -90,37 +104,40 @@ class Trainer(object):
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration=%d' % self.iteration, ncols=80,
                 leave=False):
+            should_visualize = len(visualizations) < 9
+            if not(compute_metrics or should_visualize):
+                # Don't waste computation if we don't need to run on the remaining images
+                continue
             true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
                 visualizations_single_batch = self.validate_single_batch(
-                    data, target, data_loader=data_loader, n_class=n_class, should_visualize=len(
-                    visualizations) < 9)
-            label_trues.append(true_labels_single_batch)
-            label_preds.append(pred_labels_single_batch)
+                    data, target, data_loader=data_loader, n_class=n_class,
+                    should_visualize=should_visualize)
+            label_trues += true_labels_single_batch
+            label_preds += pred_labels_single_batch
             val_loss += val_loss_single_batch
             visualizations += visualizations_single_batch
+        val_loss /= len(data_loader)
 
-        self.export_visualizations(visualizations)
+        self.export_visualizations(visualizations, split)
 
-        if split == 'val':
+        if compute_metrics:
             metrics = torchfcn.utils.label_accuracy_score(
                 label_trues, label_preds, n_class)
-            self.write_metrics(metrics, val_loss)
+            if write_metrics:
+                self.write_metrics(metrics, val_loss, split)
+                if self.tensorboard_writer is not None:
+                    self.tensorboard_writer.add_scalar('data/{}_loss'.format(split),
+                                                       val_loss, self.iteration)
+            if save_checkpoint:
+                self.save_checkpoint()
+            if update_best_checkpoint:
+                self.update_best_checkpoint_if_best(mean_iu=metrics[2])
 
-            val_loss /= len(data_loader)
-            if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('data/validation_loss', val_loss, self.iteration)
-
-            mean_iu = metrics[2]
-            is_best = mean_iu > self.best_mean_iu
-            if is_best:
-                shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
-                            osp.join(self.out, 'model_best.pth.tar'))
-        if split == 'train':
-            self.train_loader.shuffle = shuffle
+        # Restore training settings set prior to function call
         if training:
             self.model.train()
 
-    def export_visualizations(self, visualizations):
+    def export_visualizations(self, visualizations, split='val_'):
         out = osp.join(self.out, 'visualization_viz')
         if not osp.exists(out):
             os.makedirs(out)
@@ -129,24 +146,27 @@ class Trainer(object):
                                                      margin_size=50)
         scipy.misc.imsave(out_file, out_img)
         if self.tensorboard_writer is not None:
-            basename = 'val_'
+            basename = split
             tag = '{}images'.format(basename, 0)
             log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
 
-    def write_metrics(self, metrics, val_loss):
+    def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
             elapsed_time = (
-                datetime.datetime.now(pytz.timezone('Asia/Tokyo')) -
+                datetime.datetime.now(pytz.timezone(MY_TIMEZONE)) -
                 self.timestamp_start).total_seconds()
-            log = [self.epoch, self.iteration] + [''] * 5 + \
-                  [val_loss] + list(metrics) + [elapsed_time]
+            if split == 'val':
+                log = [self.epoch, self.iteration] + [''] * 5 + \
+                      [loss] + list(metrics) + [elapsed_time]
+            elif split == 'train':
+                log = [self.epoch, self.iteration] + [loss] + \
+                      metrics.tolist() + [''] * 5 + [elapsed_time]
+            else:
+                raise ValueError('split not recognized')
             log = map(str, log)
             f.write(','.join(log) + '\n')
 
-        mean_iu = metrics[2]
-        is_best = mean_iu > self.best_mean_iu
-        if is_best:
-            self.best_mean_iu = mean_iu
+    def save_checkpoint(self):
         torch.save({
             'epoch': self.epoch,
             'iteration': self.iteration,
@@ -155,6 +175,13 @@ class Trainer(object):
             'model_state_dict': self.model.state_dict(),
             'best_mean_iu': self.best_mean_iu,
         }, osp.join(self.out, 'checkpoint.pth.tar'))
+
+    def update_best_checkpoint_if_best(self, mean_iu):
+        is_best = mean_iu > self.best_mean_iu
+        if is_best:
+            self.best_mean_iu = mean_iu
+            shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
+                        osp.join(self.out, 'model_best.pth.tar'))
 
     def validate_single_batch(self, data, target, data_loader, n_class, should_visualize):
         true_labels = []
@@ -218,7 +245,8 @@ class Trainer(object):
                 score, target,
                 matching=self.matching_loss,
                 size_average=self.size_average,
-                semantic_instance_labels=self.model.semantic_instance_class_list)
+                semantic_instance_labels=self.model.semantic_instance_class_list,
+                break_here=False)  # iteration > 100
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
@@ -228,9 +256,9 @@ class Trainer(object):
             loss.backward()
             self.optim.step()
 
-            metrics = []
             lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true = target.data.cpu().numpy()
+            metrics = []
             for lt, lp in zip(lbl_true, lbl_pred):
                 acc, acc_cls, mean_iu, fwavacc = \
                     torchfcn.utils.label_accuracy_score(
@@ -238,15 +266,7 @@ class Trainer(object):
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))
             metrics = np.mean(metrics, axis=0)
 
-            with open(osp.join(self.out, 'log.csv'), 'a') as f:
-                elapsed_time = (
-                    datetime.datetime.now(pytz.timezone('Asia/Tokyo')) -
-                    self.timestamp_start).total_seconds()
-                log = [self.epoch, self.iteration] + [loss.data[0]] + \
-                      metrics.tolist() + [''] * 5 + [elapsed_time]
-                log = map(str, log)
-                f.write(','.join(log) + '\n')
-
+            self.write_metrics(metrics, loss, split='train')
             if self.iteration >= self.max_iter:
                 break
 

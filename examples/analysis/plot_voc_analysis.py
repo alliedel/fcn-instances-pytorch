@@ -36,6 +36,53 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
+    pass
+
+
+def load_dataset_summary(summary_file, key_file):
+    val_d = dict(np.load(summary_file).iteritems())
+    key_d = dict(np.load(key_file).iteritems())
+    return val_d, key_d
+
+
+def plot_summary_histograms(train_dataset_summary, figure_dir='/tmp'):
+    for i, (k, v) in tqdm.tqdm(enumerate(train_dataset_summary.iteritems()),
+                               total=len(train_dataset_summary.keys()), ncols=80,
+                               desc='Generating plots...', leave=True):
+        if type(v) is not np.ndarray:
+            print('Ignoring {} of type {}'.format(k, type(v)))
+            continue
+        if not isinstance(v[0], numbers.Number) and type(v[0]) is not np.ndarray:
+            print('Ignoring {} whose elements are of type {}'.format(k, type(v)))
+            continue
+        plt.figure(1)
+        plt.clf()
+        bins = np.linspace(v.min(), v.max(), 50)
+        if k == 'number_of_instances_per_semantic_class':
+            bins = [bin for bin in bins if bin > 0]
+        if len(v.shape) == 1:
+            plt.hist(v, bins, alpha=0.8, label='{}: {}'.format(k, 'all'))
+            plt.legend()
+            plt.savefig('{}/{}.png'.format(figure_dir, k))
+        else:
+            if v.shape[1] > 1000:
+                print('Ignoring {}, shape {}: would require {} plots'.format(k, v.shape,
+                                                                             v.shape[1]))
+                print(v.shape)
+                continue
+            for idx in tqdm.tqdm(range(v.shape[1]), total=v.shape[1], ncols=80,
+                                 desc='Subplots for data {}'.format(k), leave=False):
+                plt.clf()
+                if k == 'number_of_instances_per_semantic_class':
+                    idx_name = train_key['semantic_names'][idx] + ' ({})'.format(idx)
+                else:
+                    idx_name = idx
+                plt.hist(v[:, idx], bins, alpha=0.8, label='{}: {}'.format(k, idx_name))
+                plt.legend()
+                plt.savefig('{}/{}_{}.png'.format(figure_dir, k, idx))
+
+
+if __name__ == '__main__':
     n_max_per_class = 100
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
@@ -90,42 +137,3 @@ def main():
     key_file = '/tmp/{}_key.npz'.format(split)
     train_dataset_summary, train_key = load_dataset_summary(dataset_summary_file, key_file)
     plot_summary_histograms(train_dataset_summary)
-
-
-def load_dataset_summary(summary_file, key_file):
-    val_d = dict(np.load(summary_file).iteritems())
-    key_d = dict(np.load(key_file).iteritems())
-    return val_d, key_d
-
-
-def plot_summary_histograms(train_dataset_summary, figure_dir='/tmp'):
-    for i, (k, v) in tqdm.tqdm(enumerate(train_dataset_summary.iteritems()),
-                               total=len(train_dataset_summary.keys()), ncols=80,
-                               desc='Generating plots...', leave=True):
-        if type(v) is not np.ndarray:
-            print('Ignoring {} of type {}'.format(v, type(v)))
-            continue
-        if not isinstance(v[0], numbers.Number):
-            print('Ignoring {} whose elements are of type {}'.format(v, type(v)))
-            continue
-        plt.figure(1)
-        plt.clf()
-        bins = np.linspace(v.min(), v.max(), 50)
-        if len(v.shape) == 1:
-            plt.hist(v, bins, alpha=0.8, label='{}: {}'.format(k, 'all'))
-            plt.legend()
-            plt.savefig('{}/{}.png'.format(figure_dir, k))
-        else:
-            if v.shape[0] > 1000:
-                print('Ignoring {}: would require {} plots'.format(k, v.shape[0]))
-                continue
-            for idx in tqdm.tqdm(range(v.shape[0]), total=v.shape[0], ncols=80,
-                                 desc='Subplots for data {}'.format(k), leave=False):
-                plt.clf()
-                plt.hist(v[idx, :], bins, alpha=0.8, label='{}: {}'.format(k, idx))
-                plt.legend()
-                plt.savefig('{}/{}_{}.png'.format(figure_dir, k, idx))
-
-
-if __name__ == '__main__':
-    main()

@@ -11,6 +11,7 @@ from torchfcn.datasets import dataset_utils
 
 from examples.voc.script_utils import get_log_dir
 from examples.voc.script_utils import get_parameters
+import local_pyutils
 
 from tensorboardX import SummaryWriter
 from torchfcn.datasets import pink_blobs
@@ -23,7 +24,7 @@ default_configuration = dict(
     weight_decay=0.0005,
     interval_validate=100,
     n_max_per_class=3,
-    n_training_imgs=100,
+    n_training_imgs=1000,
     n_validation_imgs=50,
     batch_size=1)
 
@@ -36,16 +37,18 @@ configurations = {
     2: dict(
         n_training_imgs=10),
     3: dict(
-        n_training_imgs=1000,
+        n_training_imgs=100,
     )
 }
 
 here = osp.dirname(osp.abspath(__file__))
+logger = local_pyutils.get_logger()
 
 
 def main():
     n_max_per_class = 3
     matching = True
+    assert_val_not_in_train = False
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
@@ -83,7 +86,10 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False)
 
-    dataset_utils.assert_validation_images_arent_in_training_set(train_loader, val_loader)
+    if assert_val_not_in_train:
+        logger.info('Checking whether validation images appear in the training set.')
+        dataset_utils.assert_validation_images_arent_in_training_set(train_loader, val_loader)
+        logger.info('Confirmed validation and training set are disjoint.')
 
     # Make sure we can load an image
     [img, lbl] = train_loader.dataset[0]

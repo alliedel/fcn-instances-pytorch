@@ -340,6 +340,7 @@ def visualize_segmentation(**kwargs):
     if lbl_true is None and lbl_pred is None:
         raise ValueError('lbl_true or lbl_pred must be not None.')
 
+    # Generate funky pixels for void class
     mask_unlabeled = None
     viz_unlabeled = None
     if lbl_true is not None:
@@ -352,40 +353,31 @@ def visualize_segmentation(**kwargs):
             lbl_pred[mask_unlabeled] = 0
 
     vizs = []
-
-    if lbl_true is not None:
-        viz_trues = [
-            img,
-            label2rgb(lbl_true, label_names=label_names, n_labels=n_class),
-            label2rgb(lbl_true, img, label_names=label_names,
-                      n_labels=n_class),
-        ]
-        viz_trues[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
-        viz_trues[2][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+    for lbl in [lbl_true, lbl_pred]:
+        if lbl is None:
+            continue
         if overlay:
-            vizs.append(get_tile_image(viz_trues, (1, 3), margin_color=margin_color))
+            viz = [
+                img,
+                label2rgb(lbl, label_names=label_names, n_labels=n_class),
+                label2rgb(lbl, img, label_names=label_names,
+                          n_labels=n_class) if overlay else None
+            ]
+            viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+            viz[2][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
         else:
-            vizs.append(get_tile_image(viz_trues[:2], (1, 2), margin_color=margin_color))
-
-    if lbl_pred is not None:
-        viz_preds = [
-            img,
-            label2rgb(lbl_pred, label_names=label_names, n_labels=n_class),
-            label2rgb(lbl_pred, img, label_names=label_names,
-                      n_labels=n_class),
-        ]
-        if mask_unlabeled is not None and viz_unlabeled is not None:
-            viz_preds[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
-            viz_preds[2][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
-        if overlay:
-            vizs.append(get_tile_image(viz_preds, (1, 3), margin_color=margin_color))
-        else:
-            vizs.append(get_tile_image(viz_preds[:2], (1, 2), margin_color=margin_color))
+            viz = [
+                img,
+                label2rgb(lbl, label_names=label_names, n_labels=n_class)]
+            viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+        vizs.append(viz)
 
     if len(vizs) == 1:
         return vizs[0]
     elif len(vizs) == 2:
-        return get_tile_image(vizs, (2, 1), margin_color=margin_color, margin_size=2)
+        all_vizs = vizs[0] + vizs[1][1:]
+        return get_tile_image(all_vizs, (1, len(all_vizs)), margin_color=margin_color,
+                              margin_size=2)
     else:
         raise RuntimeError
 

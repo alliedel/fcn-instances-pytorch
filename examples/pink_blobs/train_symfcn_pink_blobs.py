@@ -38,6 +38,8 @@ configurations = {
         n_training_imgs=10),
     3: dict(
         n_training_imgs=100,
+    4: dict(
+        n_training_imgs=10000,
     )
 }
 

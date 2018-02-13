@@ -45,7 +45,8 @@ default_configuration = dict(
     n_validation_imgs=50,
     batch_size=1,
     recompute_optimal_loss=False,
-    size_average=True)
+    size_average=True,
+    val_on_train=True)
 
 configurations = {
     # same configuration as original work
@@ -120,6 +121,12 @@ def main():
                                                                           - 1)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg['batch_size'],
                                                shuffle=True)
+    if cfg['val_on_train']:
+        train_dataset_for_val = train_dataset.copy(modified_length=10)
+        train_loader_for_val = torch.utils.data.DataLoader(train_dataset_for_val, batch_size=1,
+                                                           shuffle=False)
+    else:
+        train_loader_for_val = None
     val_dataset = pink_blobs.BlobExampleGenerator(transform=True,
                                                   n_max_per_class=cfg['n_max_per_class'],
                                                   max_index=cfg['n_validation_imgs'] - 1)
@@ -175,7 +182,8 @@ def main():
         tensorboard_writer=writer,
         matching_loss=matching,
         recompute_loss_at_optimal_permutation=cfg['recompute_optimal_loss'],
-        size_average=cfg.get('size_average')
+        size_average=cfg.get('size_average'),
+        train_loader_for_val=train_loader_for_val
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

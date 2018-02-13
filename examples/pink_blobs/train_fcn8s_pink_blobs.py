@@ -1,11 +1,11 @@
-#!/usr/bin/env python 
-
-import torch
-import numpy as np
+#!/usr/bin/env python
 
 import argparse
 import os
 import os.path as osp
+
+import torch
+import numpy as np
 
 import torchfcn
 from torchfcn.datasets import dataset_utils
@@ -56,8 +56,7 @@ configurations = {
     2: dict(
         n_training_imgs=10),
     3: dict(
-        n_training_imgs=100,
-    ),
+        n_training_imgs=100),
     4: dict(
         recompute_optimal_loss=True,
         size_average=True
@@ -75,6 +74,7 @@ configurations = {
 }
 
 here = osp.dirname(osp.abspath(__file__))
+logger = local_pyutils.get_logger()
 
 
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME):
@@ -125,6 +125,7 @@ def main():
                                                   max_index=cfg['n_validation_imgs'] - 1)
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False)
+
     if assert_val_not_in_train:
         logger.info('Checking whether validation images appear in the training set.')
         dataset_utils.assert_validation_images_arent_in_training_set(train_loader, val_loader)

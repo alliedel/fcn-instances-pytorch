@@ -24,7 +24,25 @@ class Trainer(object):
                  train_loader, val_loader, out, max_iter,
                  size_average=True, interval_validate=None, matching_loss=True,
                  tensorboard_writer=None, visualize_overlay=False, visualize_confidence=True,
-                 recompute_loss_at_optimal_permutation=False):
+                 recompute_loss_at_optimal_permutation=False, train_loader_for_val=None):
+        """
+        :param cuda:
+        :param model:
+        :param optimizer:
+        :param train_loader:
+        :param val_loader:
+        :param out:
+        :param max_iter:
+        :param size_average:
+        :param interval_validate:
+        :param matching_loss:
+        :param tensorboard_writer:
+        :param visualize_overlay:
+        :param visualize_confidence:
+        :param recompute_loss_at_optimal_permutation:
+        :param train_loader_copy: copy of train_loader, usually with smaller length and shuffle
+        off so we can visualize with it.
+        """
         self.cuda = cuda
         self.model = model
         self.optim = optimizer
@@ -40,7 +58,7 @@ class Trainer(object):
         self.visualize_overlay = visualize_overlay
         self.visualize_confidence = visualize_confidence
         self.recompute_loss_at_optimal_permutation = recompute_loss_at_optimal_permutation
-
+        self.train_loader_for_val = train_loader_for_val
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
         else:
@@ -97,7 +115,7 @@ class Trainer(object):
 
         assert split in ['train', 'val']
         if split == 'train':
-            data_loader = self.train_loader
+            data_loader = self.train_loader_for_val
         else:
             data_loader = self.val_loader
 
@@ -239,7 +257,8 @@ class Trainer(object):
 
             if self.iteration % self.interval_validate == 0:
                 self.validate()
-                self.validate(split='train')
+                if self.train_loader_for_val is not None:
+                    self.validate(split='train')
 
             assert self.model.training
 

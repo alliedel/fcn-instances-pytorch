@@ -26,13 +26,14 @@ class Defaults(object):
 
 
 class BlobExampleGenerator(object):
-    def __init__(self, img_size=Defaults.img_size, blob_size=Defaults.blob_size, clrs=Defaults.clrs,
+    def __init__(self, img_size=Defaults.img_size, blob_size=Defaults.blob_size,
+                 clrs=Defaults.clrs,
                  n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
                  max_index=Defaults.max_index, mean_bgr=Defaults.mean_bgr,
                  transform=Defaults.transform, velocity_r_c=None,
-                 initial_rows=None, initial_cols=None):
+                 initial_rows=None, initial_cols=None, _im_a_copy=False):
         self.img_size = img_size
         assert len(self.img_size) == 2
         self.blob_size = blob_size
@@ -88,11 +89,22 @@ class BlobExampleGenerator(object):
     def __len__(self):
         return self.max_index + 1
 
+    def copy(self, modified_length=10):
+        my_copy = BlobExampleGenerator(_im_a_copy=True)
+        for attr, val in self.__dict__.items():
+            setattr(my_copy, attr, val)
+        assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
+                                                "the initial dataset"
+        my_copy.max_index = modified_length - 1
+        return my_copy
+
     def get_blob_coordinates(self, image_index, instance_idx=None):
         if self.location_generation_type == 'moving':
             if instance_idx is not None:
-                r = self.initial_rows[instance_idx] + self.velocity_r_c[instance_idx][0] * image_index
-                c = self.initial_cols[instance_idx] + self.velocity_r_c[instance_idx][1] * image_index
+                r = self.initial_rows[instance_idx] + self.velocity_r_c[instance_idx][
+                                                          0] * image_index
+                c = self.initial_cols[instance_idx] + self.velocity_r_c[instance_idx][
+                                                          1] * image_index
                 return r, c
             instance_rows = [self.initial_rows[i] + self.velocity_r_c[i][0] * image_index
                              for i, start_row in enumerate(self.initial_rows)]
@@ -103,7 +115,7 @@ class BlobExampleGenerator(object):
             if instance_idx is not None:
                 r = self.random_rows[image_index, instance_idx]
                 c = self.random_cols[image_index, instance_idx]
-                return r,c
+                return r, c
             instance_rows = [self.random_rows[image_index, i] for i in range(
                 self.n_instances_per_img)]
             instance_cols = [self.random_cols[image_index, i] for i in range(
@@ -128,7 +140,8 @@ class BlobExampleGenerator(object):
                 else:
                     ValueError('I don\'t know how to draw {}'.format(semantic_class))
         if not lbl.max() < self.n_max_per_class * len(self.semantic_classes) + 1:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
         return img, lbl
 
     def paint_my_circle_in_img(self, img, r, c, clr):
@@ -264,7 +277,7 @@ def paint_circle(img, start_r, start_c, diameter_a, diameter_b, clr, allow_overf
 def valid_ellipse_locations(img_shape, center_r, center_c, b, a):
     r = np.arange(img_shape[0])[:, None]
     c = np.arange(img_shape[1])
-    in_ellipse = ((c - center_c)/a)**2 + ((r - center_r)/b)**2 <= 1
+    in_ellipse = ((c - center_c) / a) ** 2 + ((r - center_r) / b) ** 2 <= 1
     return in_ellipse
 
 
@@ -273,5 +286,3 @@ def draw_ellipse_on_pil_img(img, start_r, start_c, end_r, end_c, clr):
     draw.ellipse((start_c, start_r, end_c, end_r), fill=clr,
                  outline=clr)
     return image
-
-

@@ -112,7 +112,7 @@ class Trainer(object):
         label_trues, label_preds = [], []
         for batch_idx, (data, target) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
-                desc='Valid iteration=%d' % self.iteration, ncols=80,
+                desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
                 leave=False):
             should_visualize = len(visualizations) < 9
             if not(compute_metrics or should_visualize):

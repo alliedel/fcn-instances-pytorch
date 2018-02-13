@@ -70,6 +70,8 @@ configurations = {
         recompute_optimal_loss=False,
         size_average=False
     ),
+    7: dict(
+        batch_size=2),
 }
 
 here = osp.dirname(osp.abspath(__file__))

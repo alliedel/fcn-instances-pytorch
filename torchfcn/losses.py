@@ -99,10 +99,10 @@ def cross_entropy2d_with_matching(log_predictions, target, semantic_instance_lab
         all_prediction_indices[i, ...] = prediction_indices
         all_pred_permutations[i, ...] = pred_permutation
         all_costs.append(torch.cat(costs))
-    all_costs = torch.cat([c[torch.np.newaxis, :] for c in all_costs], dim=0).squeeze().float()
+    all_costs = torch.cat([c[torch.np.newaxis, :] for c in all_costs], dim=0).float()
     loss_train = all_costs.sum()
     if DEBUG_ASSERTS:
-        if len(all_costs) != len(semantic_instance_labels):
+        if all_costs.size(1) != len(semantic_instance_labels):
             import ipdb;
             ipdb.set_trace()
             raise

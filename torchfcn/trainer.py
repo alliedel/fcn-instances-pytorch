@@ -22,8 +22,9 @@ MY_TIMEZONE = 'America/New_York'
 class Trainer(object):
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter,
-                 size_average=False, interval_validate=None, matching_loss=True,
-                 tensorboard_writer=None, visualize_overlay=False, visualize_confidence=True):
+                 size_average=True, interval_validate=None, matching_loss=True,
+                 tensorboard_writer=None, visualize_overlay=False, visualize_confidence=True,
+                 recompute_loss_at_optimal_permutation=False):
         self.cuda = cuda
         self.model = model
         self.optim = optimizer
@@ -38,6 +39,7 @@ class Trainer(object):
         self.tensorboard_writer = tensorboard_writer
         self.visualize_overlay = visualize_overlay
         self.visualize_confidence = visualize_confidence
+        self.recompute_loss_at_optimal_permutation = recompute_loss_at_optimal_permutation
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -71,6 +73,14 @@ class Trainer(object):
         self.iteration = 0
         self.max_iter = max_iter
         self.best_mean_iu = 0
+
+    def my_cross_entropy(self, score, target, **kwargs):
+        return losses.cross_entropy2d(
+            score, target,
+            semantic_instance_labels=self.model.semantic_instance_class_list,
+            matching=self.matching_loss, size_average=self.size_average,
+            recompute_optimal_loss=self.recompute_loss_at_optimal_permutation,
+            **kwargs)
 
     def validate(self, split='val', write_metrics=None, save_checkpoint=None,
                  update_best_checkpoint=None):
@@ -193,9 +203,7 @@ class Trainer(object):
         data, target = Variable(data, volatile=True), Variable(target)
         score = self.model(data)
 
-        gt_permutations, loss = losses.cross_entropy2d(
-            score, target, semantic_instance_labels=self.model.semantic_instance_class_list,
-            matching=self.matching_loss, size_average=self.size_average)
+        gt_permutations, loss = self.my_cross_entropy(score, target)
         if np.isnan(float(loss.data[0])):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(data)
@@ -241,12 +249,8 @@ class Trainer(object):
             self.optim.zero_grad()
             score = self.model(data)
 
-            gt_permutations, loss = losses.cross_entropy2d(
-                score, target,
-                matching=self.matching_loss,
-                size_average=self.size_average,
-                semantic_instance_labels=self.model.semantic_instance_class_list,
-                break_here=False)  # iteration > 100
+            gt_permutations, loss = self.my_cross_entropy(
+                score, target, break_here=False)  # iteration > 100
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')

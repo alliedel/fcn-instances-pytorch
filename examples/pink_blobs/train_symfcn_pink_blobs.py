@@ -72,6 +72,8 @@ configurations = {
     ),
     7: dict(
         batch_size=2),
+    8: dict(
+        max_iteration=100000)
 }
 
 here = osp.dirname(osp.abspath(__file__))

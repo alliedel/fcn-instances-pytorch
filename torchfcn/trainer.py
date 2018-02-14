@@ -296,7 +296,7 @@ class Trainer(object):
     def train(self):
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
         for epoch in tqdm.trange(self.epoch, max_epoch,
-                                 desc='Train', ncols=80):
+                                 desc='Train', ncols=80, leave=True):
             self.epoch = epoch
             self.train_epoch()
             if self.iteration >= self.max_iter:

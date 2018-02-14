@@ -5,6 +5,10 @@ import torch.nn as nn
 '''
     Helper functions
 '''
+
+
+# TODO(allie): Figure out why this model doesn't work for other input image sizes
+
 # Choose non-linearities
 def get_nonlinearity(nonlinearity):
     if nonlinearity == 'prelu':
@@ -21,6 +25,7 @@ def get_nonlinearity(nonlinearity):
         return nn.SELU()
     else:
         assert False, "Unknown non-linearity: {}".format(nonlinearity)
+
 
 ### Basic Conv + Pool + BN + Non-linearity structure
 class BasicConv2D(nn.Module):
@@ -40,6 +45,7 @@ class BasicConv2D(nn.Module):
             x = self.bn(x)
         return self.nonlin(x)
 
+
 ### Basic Deconv + (Optional Skip-Add) + BN + Non-linearity structure
 class BasicDeconv2D(nn.Module):
     def __init__(self, in_channels, out_channels, use_bn=True, nonlinearity='prelu', **kwargs):
@@ -57,6 +63,7 @@ class BasicDeconv2D(nn.Module):
         if self.bn:
             x = self.bn(x)
         return self.nonlin(x)
+
 
 ####################################
 ### Mask Encoder (single encoder that takes a depth image and predicts segmentation masks)
@@ -122,7 +129,8 @@ class SimpleSymmetricFCN(nn.Module):
                                   use_bn=use_bn, nonlinearity=nonlinearity)  # 70, 125
         self.deconv4 = DeconvType(chn[1], chn[0], kernel_size=6, stride=2, padding=2,
                                   use_bn=use_bn, nonlinearity=nonlinearity)  # 140, 250
-        self.deconv5 = nn.ConvTranspose2d(chn[0], self.n_classes, kernel_size=(7,8), stride=2, padding=(2,3))  # 281, 500
+        self.deconv5 = nn.ConvTranspose2d(chn[0], self.n_classes, kernel_size=(7,8), stride=2,
+                                          padding=(2,3))  # 281, 500
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
                                                           out_channels=self.n_semantic_classes,

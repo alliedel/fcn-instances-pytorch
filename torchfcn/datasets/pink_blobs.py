@@ -11,7 +11,7 @@ ALL_BLOB_CLASS_NAMES = np.array(['background', 'pink_square', 'blue_square'])
 
 
 class Defaults(object):
-    img_size = (300, 500)
+    img_size = (281, 500)
     blob_size = (40, 40)
     clrs = [PEPTO_BISMOL_PINK_RGB, BLUE_RGB, GREEN_RGB]
     blob_types = ['square', 'circle']

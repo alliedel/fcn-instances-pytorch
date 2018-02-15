@@ -14,6 +14,7 @@ def assert_validation_images_arent_in_training_set(train_loader, val_loader):
                 raise Exception('validation img {} appears as training img {}'.format(val_idx,
                                                                                       train_idx))
 
+
 def transform_lbl(lbl):
     lbl = torch.from_numpy(lbl).long()
     return lbl

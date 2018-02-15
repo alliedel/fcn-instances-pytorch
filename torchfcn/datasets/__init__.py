@@ -4,5 +4,5 @@ from .instances import VOC2007ObjectSeg
 from .cityscapes import CityscapesClassSegBase
 
 import voc
-import instances
-import pink_blobs
+from . import instances
+from . import pink_blobs

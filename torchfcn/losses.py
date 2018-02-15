@@ -11,6 +11,11 @@ logger = local_pyutils.get_logger()
 DEBUG_ASSERTS = True
 
 
+# TODO(allie): Enable exporting of cost matrices through tensorboard as images
+# TODO(allie): Compute other losses ('mixing', 'wrong identity', 'poor shape') along with some
+# image stats like between-instance distance
+
+
 # TODO(allie): dynamically choose multiplier and/or check to see if it gets us into a
 # reasonable range (for converting cost matrix to ints)
 
@@ -35,9 +40,13 @@ def invert_permutation(perm):
     return []
 
 
-def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True, **kwargs):
+def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True,
+                    break_here=False, recompute_optimal_loss=False, **kwargs):
     # Convert scores to predictions
     # log_p: (n, c, h, w)
+    if break_here:
+        import ipdb;
+        ipdb.set_trace()
     log_predictions = F.log_softmax(scores)
 
     if matching:
@@ -45,11 +54,19 @@ def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True
                                                                 'needed for matching.')
         pred_permutations, loss = cross_entropy2d_with_matching(log_predictions, target,
                                                                 semantic_instance_labels, **kwargs)
-        assert pred_permutations.shape[0] == 1, NotImplementedError
+        # assert pred_permutations.shape[0] == 1, NotImplementedError
         # Somehow the gradient is no longer getting backpropped through loss, so I just recompute
         #  it here with the permutation I computed.
-        loss = cross_entropy2d_without_matching(log_predictions[:, pred_permutations[0, :], :, :],
-                                                target, **kwargs)
+        if DEBUG_ASSERTS or recompute_optimal_loss:
+            loss_recomputed = cross_entropy2d_without_matching(
+                log_predictions[:, pred_permutations[0,
+                                   :], :, :], target,
+                **kwargs)
+            # if not tensors_are_close(loss.data, loss_recomputed.data):
+            #     print(Warning('{} != {}'.format(
+            #         loss.data.cpu().numpy(), loss_recomputed.data.cpu().numpy())))
+            if recompute_optimal_loss:
+                loss = loss_recomputed
     else:
         pred_permutations = None
         loss = cross_entropy2d_without_matching(log_predictions, target, **kwargs)
@@ -57,8 +74,14 @@ def cross_entropy2d(scores, target, semantic_instance_labels=None, matching=True
     return pred_permutations, loss
 
 
+def tensors_are_close(tensor_a, tensor_b, tol=None):
+    # tol = tol or 1e-12
+    # return torch.np.all(torch.lt(torch.abs(torch.add(tensor_a, -tensor_b)), tol))
+    return torch.np.allclose(tensor_a.cpu().numpy(), tensor_b.cpu().numpy())
+
+
 def cross_entropy2d_with_matching(log_predictions, target, semantic_instance_labels,
-                                  **kwargs):
+                                  size_average=True):
     target_onehot = dataset_utils.labels_to_one_hot(target, len(semantic_instance_labels))
     # Allocate memory
     n, c = log_predictions.size()[0:2]
@@ -71,28 +94,19 @@ def cross_entropy2d_with_matching(log_predictions, target, semantic_instance_lab
         prediction_indices, pred_permutation, costs = \
             compute_optimal_match_loss(log_predictions[i, ...],
                                        target_onehot[i, ...],
-                                       semantic_instance_labels)
+                                       semantic_instance_labels,
+                                       size_average=size_average)
         all_prediction_indices[i, ...] = prediction_indices
         all_pred_permutations[i, ...] = pred_permutation
         all_costs.append(torch.cat(costs))
-    all_costs = torch.cat([c[torch.np.newaxis, :] for c in all_costs], dim=0).squeeze().float()
+    all_costs = torch.cat([c[torch.np.newaxis, :] for c in all_costs], dim=0).float()
     loss_train = all_costs.sum()
     if DEBUG_ASSERTS:
-        assert len(all_costs) == len(semantic_instance_labels)
-    for inst_idx in range(log_predictions.size(1)):
-        val = log_predictions[:, inst_idx, :, :].data.sum()
-        # logger.info('sum(y_pred[:, {}, :, :]): {}'.format(inst_idx, val))
+        if all_costs.size(1) != len(semantic_instance_labels):
+            import ipdb;
+            ipdb.set_trace()
+            raise
     return all_pred_permutations, loss_train
-
-
-def cross_entropy2d_with_individual_terms_test(log_predictions, target,
-                                               weight=None, size_average=True):
-    target_onehot = dataset_utils.labels_to_one_hot(target, log_predictions.size(1))
-    # input: (n, c, h, w), target: (n, h, w)
-    loss = -torch.sum(target_onehot * log_predictions)
-    if size_average:
-        loss = loss / torch.sum(target_onehot[:, 1:, :, :])
-    return loss
 
 
 def cross_entropy2d_without_matching(log_predictions, target, weight=None, size_average=True):
@@ -114,7 +128,8 @@ def cross_entropy2d_without_matching(log_predictions, target, weight=None, size_
     return loss
 
 
-def compute_optimal_match_loss(predictions, target_onehot, semantic_instance_labels):
+def compute_optimal_match_loss(predictions, target_onehot, semantic_instance_labels,
+                               size_average=True):
     """
     target: C,H,W.  C is the number of instances for ALL semantic classes.
     predictions: C,H,W
@@ -131,7 +146,9 @@ def compute_optimal_match_loss(predictions, target_onehot, semantic_instance_lab
     unique_labels = local_pyutils.unique(semantic_instance_labels)
     for label in unique_labels:
         idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == label)]
-        cost_list_2d = create_pytorch_cross_entropy_cost_matrix(predictions, target_onehot, idxs)
+        cost_list_2d = create_pytorch_cross_entropy_cost_matrix(predictions, target_onehot, idxs,
+                                                                size_average=size_average)
+
         cost_matrix, multiplier = convert_pytorch_costs_to_ints(cost_list_2d)
 
         assignment = pywrapgraph.LinearSumAssignment()
@@ -139,7 +156,7 @@ def compute_optimal_match_loss(predictions, target_onehot, semantic_instance_lab
         for ground_truth in range(len(cost_matrix)):
             for prediction in range(len(cost_matrix[0])):
                 assignment.AddArcWithCost(ground_truth, prediction,
-                                          cost_matrix[ground_truth][prediction])
+                                          cost_matrix[prediction][ground_truth])
         check_status(assignment.Solve(), assignment)
         debug_print_assignments(assignment, multiplier)
         gt_indices += idxs
@@ -158,26 +175,30 @@ def nll2d_single_class_term(log_predictions_single_instance_cls, binary_target_s
     if DEBUG_ASSERTS:
         assert lp.size() == bt.size()
     try:
-        res = -torch.sum(lp.view(-1,) * bt.view(-1,))
+        res = -torch.sum(lp.view(-1, ) * bt.view(-1, ))
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         raise
     return res
 
 
-def create_pytorch_cross_entropy_cost_matrix(log_predictions, target_onehot, foreground_idxs):
+def create_pytorch_cross_entropy_cost_matrix(log_predictions, target_onehot, foreground_idxs,
+                                             size_average=True):
     # predictions: C,H,W
     # target: C,H,W
     if DEBUG_ASSERTS:
         assert log_predictions.size() == target_onehot.size()
-    normalizer = float(target_onehot.size(1) * target_onehot.size(2))
+    if size_average:
+        normalizer = target_onehot.data.sum()
+    else:
+        normalizer = 1
     cost_list_2d = [[nll2d_single_class_term(log_predictions[lp_cls, :, :],
                                              target_onehot[t_cls, :, :]) / normalizer
                      for t_idx, t_cls in enumerate(foreground_idxs)]
                     for lp_idx, lp_cls in enumerate(foreground_idxs)]
-    # normalize by number of pixels
-    # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
 
+    # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
     return cost_list_2d
 
 
@@ -197,9 +218,10 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
                 else 10 ** (10 - int(np.log10(absolute_max)))
 
     num_classes = len(cost_list_2d_variables)
-    cost_matrix_int = [[long(multiplier * cost_list_2d_variables[r][c].data[0]) for r in range(
+    cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r][c].data[0]) for r in range(
         num_classes)]
-                       for c in range(num_classes)]
+                       for c in
+                       range(num_classes)]  # Arun: changed long to int (python 3.x has no long)
     return cost_matrix_int, multiplier
 
 
@@ -216,5 +238,17 @@ def check_status(solve_status, assignment):
 def debug_print_assignments(assignment, multiplier):
     logger.debug('Total cost = {}'.format(assignment.OptimalCost()))
     for i in range(0, assignment.NumNodes()):
-        logger.debug('prediction %d assigned to ground truth %d.  Cost = %f' % (
+        logger.debug('ground truth %d assigned to prediction %d.  Cost = %f' % (
             i, assignment.RightMate(i), float(assignment.AssignmentCost(i)) / multiplier))
+
+
+def cross_entropy2d_with_individual_terms_test(log_predictions, target,
+                                               weight=None, size_average=True):
+    target_onehot = dataset_utils.labels_to_one_hot(target, log_predictions.size(1))
+    # input: (n, c, h, w), target: (n, h, w)
+    loss = -torch.sum(target_onehot * log_predictions)
+    if size_average:
+        loss = loss / torch.sum(target_onehot[:, 1:, :, :])
+    return loss
+
+

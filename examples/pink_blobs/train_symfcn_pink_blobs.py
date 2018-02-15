@@ -72,6 +72,8 @@ configurations = {
     ),
     7: dict(
         batch_size=2),
+    8: dict(
+        max_iteration=100000)
 }
 
 here = osp.dirname(osp.abspath(__file__))
@@ -145,7 +147,7 @@ def main():
     # n_max_per_class > 1 and map_to_semantic=False: Basically produces extra channels that
     # should be '0'.  Not good if copying weights over from a pretrained semantic segmenter,
     # but fine otherwise.
-    model = torchfcn.models.FCN8sInstance(
+    model = torchfcn.models.SimpleSymmetricFCN(
         n_semantic_classes_with_background=len(train_loader.dataset.class_names),
         n_max_per_class=cfg['n_max_per_class'],
         map_to_semantic=False)
@@ -157,9 +159,9 @@ def main():
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
-    else:
-        vgg16 = torchfcn.models.VGG16(pretrained=True)
-        model.copy_params_from_vgg16(vgg16)
+    #else:
+    #    vgg16 = torchfcn.models.VGG16(pretrained=True)
+    #    model.copy_params_from_vgg16(vgg16)
     if cuda:
         model = model.cuda()
 

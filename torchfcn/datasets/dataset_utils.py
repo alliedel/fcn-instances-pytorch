@@ -170,7 +170,10 @@ def remap_to_reduced_semantic_classes(lbl, reduced_class_idxs, map_other_classes
             raise Exception('Image has class labels outside the subset.\n Subset: {}\n'
                             'Classes in the image:{}'.format(reduced_class_idxs,
                                                              original_classes_in_this_img))
-    old_lbl = lbl.clone()
+    if torch.is_tensor(lbl):
+        old_lbl = lbl.clone()
+    else:
+        old_lbl = lbl.copy()
     lbl[...] = 0
     lbl[old_lbl == -1] = -1
     for new_idx, old_class_idx in enumerate(reduced_class_idxs):

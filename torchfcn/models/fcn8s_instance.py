@@ -50,7 +50,7 @@ class FCN8sInstance(nn.Module):
         for instance_idx, semantic_idx in enumerate(self.semantic_instance_class_list):
             self.instance_to_semantic_mapping_matrix[instance_idx,
                                                      semantic_idx] = 1
-
+        # TODO(allie) -- use model_utils.BasicConv2D instead
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
         self.relu1_1 = nn.ReLU(inplace=True)

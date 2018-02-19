@@ -193,7 +193,6 @@ class CityscapesClassSegBase(data.Dataset):
             classes = np.unique(lbl)
             lbl = lbl.astype(float)
             lbl = m.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
-            lbl = lbl.astype(long)
             if DEBUG_ASSERT:
                 if not np.all(classes == np.unique(lbl)):
                     print("WARN: resizing labels yielded fewer classes")
@@ -203,7 +202,7 @@ class CityscapesClassSegBase(data.Dataset):
             if not np.all(np.unique(lbl[lbl != self.ignore_index]) < self.n_classes):
                 print('after det', classes, np.unique(lbl))
                 raise ValueError("Segmentation map contained invalid class values")
-        lbl = torch.from_numpy(lbl).long()
+        lbl = torch.from_numpy(lbl.astype(float)).long()
         return lbl
 
     def transform(self, img, lbl, is_semantic):
@@ -284,6 +283,18 @@ class CityscapesClassSegBase(data.Dataset):
 
     def decode_segmap(self, temp):
         return decode_segmap(temp, self.n_classes, self.label_colors)
+
+    def modify_length(self, modified_length):
+        self.files[self.split] = self.files[self.split][:modified_length]
+
+    def copy(self, modified_length=10):
+        my_copy = CityscapesClassSegBase(root=self.root)
+        for attr, val in self.__dict__.items():
+            setattr(my_copy, attr, val)
+        assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
+                                                "the initial dataset"
+        self.modify_length(modified_length)
+        return my_copy
 
 
 def recursive_glob(rootdir='.', suffix=''):

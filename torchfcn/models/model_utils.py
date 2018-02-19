@@ -22,12 +22,13 @@ def get_nonlinearity(nonlinearity):
 
 ### Basic Conv + Pool + BN + Non-linearity structure
 class BasicConv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, use_pool=False, use_bn=True, nonlinearity='prelu', **kwargs):
+    def __init__(self, in_channels, out_channels, use_pool=False, ceil_mode=False, use_bn=True,
+                 nonlinearity='prelu', **kwargs):
         super(BasicConv2D, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, **kwargs)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2) if use_pool else None
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=ceil_mode) if use_pool else None
         self.bn = nn.BatchNorm2d(out_channels, eps=0.001) if use_bn else None
-        self.nonlin = get_nonlinearity(nonlinearity)
+        self.nonlin = get_nonlinearity(nonlinearity) if nonlinearity is not None else None
 
     # Convolution -> Pool -> BN -> Non-linearity
     def forward(self, x):
@@ -36,7 +37,10 @@ class BasicConv2D(nn.Module):
             x = self.pool(x)
         if self.bn:
             x = self.bn(x)
-        return self.nonlin(x)
+        if self.nonlin is not None:
+            return self.nonlin(x)
+        else:
+            return x
 
 
 ### Basic Deconv + (Optional Skip-Add) + BN + Non-linearity structure

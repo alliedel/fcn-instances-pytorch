@@ -181,7 +181,7 @@ class CityscapesClassSegBase(data.Dataset):
             old_unique_classes = None
         lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resized_sz)
         if old_unique_classes is not None:
-            new_unique_classes = np.unique(lbl)
+            new_unique_classes = np.unique(lbl.numpy())
             if not all([c in new_unique_classes for c in old_unique_classes]):
                 import ipdb; ipdb.set_trace()
                 print("WARN: resizing labels yielded fewer classes")

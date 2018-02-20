@@ -183,7 +183,8 @@ class CityscapesClassSegBase(data.Dataset):
 
         if DEBUG_ASSERT and is_semantic:
             classes = np.unique(lbl)
-            if not np.all(np.unique(lbl[lbl != self.ignore_index]) < self.n_classes):
+            lbl_np = lbl.numpy() if torch.is_tensor else lbl
+            if not np.all(np.unique(lbl_np[lbl_np != self.ignore_index]) < self.n_classes):
                 print('after det', classes, np.unique(lbl))
                 raise ValueError("Segmentation map contained invalid class values")
         return lbl

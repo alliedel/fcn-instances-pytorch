@@ -155,10 +155,10 @@ class CityscapesClassSegBase(data.Dataset):
 
         data_file = self.files[self.split][index]
         img, lbl = self.load_and_process_cityscapes_files(img_file=data_file['img'],
-                                                   sem_lbl_file=data_file['sem_lbl'],
-                                                   inst_lbl_file=data_file['inst_lbl'],
-                                                   return_semantic_instance_tuple=
-                                                   self.return_semantic_instance_tuple)
+                                                          sem_lbl_file=data_file['sem_lbl'],
+                                                          inst_lbl_file=data_file['inst_lbl'],
+                                                          return_semantic_instance_tuple=
+                                                          self.return_semantic_instance_tuple)
         return img, lbl
 
     @staticmethod
@@ -172,37 +172,20 @@ class CityscapesClassSegBase(data.Dataset):
             map_other_classes_to_bground=self.map_other_classes_to_bground)
 
     def transform_img(self, img):
-        resized_sz = self.resized_sz
-        img = img[:, :, ::-1]  # RGB -> BGR
-        img = img.astype(np.float64)
-        img -= self.mean_bgr
-        if resized_sz is not None:
-            img = m.imresize(img, (resized_sz[0], resized_sz[1]))
-            # Resize scales images from 0 to 255, thus we need
-            # to divide by 255.0
-            img = img.astype(float) / 255.0
-            # NHWC -> NCWH
-
-        img = img.transpose(2, 0, 1)
-        img = torch.from_numpy(img).float()
-        return img
+        return dataset_utils.transform_img(img, mean_bgr=self.mean_bgr, resized_sz=self.resized_sz)
 
     def transform_lbl(self, lbl, is_semantic):
-        resized_sz = self.resized_sz
-        if resized_sz is not None:
+        lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resized_sz)
+        if DEBUG_ASSERT and self.resized_sz is not None:
             classes = np.unique(lbl)
-            lbl = lbl.astype(float)
-            lbl = m.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
-            if DEBUG_ASSERT:
-                if not np.all(classes == np.unique(lbl)):
-                    print("WARN: resizing labels yielded fewer classes")
+            if not np.all(classes == np.unique(lbl)):
+                print("WARN: resizing labels yielded fewer classes")
 
         if DEBUG_ASSERT and is_semantic:
             classes = np.unique(lbl)
             if not np.all(np.unique(lbl[lbl != self.ignore_index]) < self.n_classes):
                 print('after det', classes, np.unique(lbl))
                 raise ValueError("Segmentation map contained invalid class values")
-        lbl = torch.from_numpy(lbl.astype(float)).long()
         return lbl
 
     def transform(self, img, lbl, is_semantic):
@@ -212,15 +195,15 @@ class CityscapesClassSegBase(data.Dataset):
 
     def untransform(self, img, lbl):
         img = self.untransform_img(img)
-        lbl = lbl.numpy()
+        lbl = self.untransform_lbl(lbl)
         return img, lbl
 
+    def untransform_lbl(self, lbl):
+        lbl = dataset_utils.untransform_lbl(lbl)
+        return lbl
+
     def untransform_img(self, img):
-        img = img.numpy()
-        img = img.transpose(1, 2, 0)
-        img += self.mean_bgr
-        img = img.astype(np.uint8)
-        img = img[:, :, ::-1]
+        img = dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
         return img
 
     def get_instance_semantic_labels(self):
@@ -246,7 +229,7 @@ class CityscapesClassSegBase(data.Dataset):
             set_extras_to_void=self.set_extras_to_void)
 
     def load_and_process_cityscapes_files(self, img_file, sem_lbl_file, inst_lbl_file,
-                                   return_semantic_instance_tuple=False):
+                                          return_semantic_instance_tuple=False):
         img = PIL.Image.open(img_file)
         img = np.array(img, dtype=np.uint8)
         # load semantic label
@@ -256,10 +239,10 @@ class CityscapesClassSegBase(data.Dataset):
         sem_lbl = np.array(sem_lbl, dtype=np.int32)
         sem_lbl[sem_lbl == 255] = -1
         if self._transform:
-            img, sem_lbl = self.transform(img, sem_lbl, is_semantic=True)
+            img = self.transform_img(img)
+            sem_lbl = self.transform_lbl(sem_lbl, is_semantic=True)
         # map to reduced class set
         sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
-
         # Handle instances
         if self.n_max_per_class == 1:
             lbl = sem_lbl
@@ -267,13 +250,19 @@ class CityscapesClassSegBase(data.Dataset):
             inst_lbl = PIL.Image.open(inst_lbl_file)
             inst_lbl = np.array(inst_lbl, dtype=np.int32)
             inst_lbl[inst_lbl == 255] = -1
-            inst_lbl = self.transform_lbl(inst_lbl, is_semantic=False)
+            if self._transform:
+                inst_lbl = self.transform_lbl(inst_lbl, is_semantic=False)
             if self.permute_instance_order:
                 inst_lbl = dataset_utils.permute_instance_order(inst_lbl, self.n_max_per_class)
             if return_semantic_instance_tuple:
                 lbl = [sem_lbl, inst_lbl]
             else:
-                lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
+                try:
+                    lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
+                except:
+                    import ipdb;
+                    ipdb.set_trace()
+                    raise
 
         return img, lbl
 

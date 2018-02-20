@@ -175,10 +175,14 @@ class CityscapesClassSegBase(data.Dataset):
         return dataset_utils.transform_img(img, mean_bgr=self.mean_bgr, resized_sz=self.resized_sz)
 
     def transform_lbl(self, lbl, is_semantic):
-        lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resized_sz)
         if DEBUG_ASSERT and self.resized_sz is not None:
-            classes = np.unique(lbl)
-            if not np.all(classes == np.unique(lbl)):
+            old_unique_classes = np.unique(lbl)
+        else:
+            old_unique_classes = None
+        lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resized_sz)
+        if old_unique_classes is not None:
+            new_unique_classes = np.unique(lbl)
+            if not all([c in new_unique_classes for c in old_unique_classes]):
                 import ipdb; ipdb.set_trace()
                 print("WARN: resizing labels yielded fewer classes")
 

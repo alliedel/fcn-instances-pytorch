@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from torch.autograd import Variable
-
+import scipy.misc
 
 DEBUG_ASSERT = True
 
@@ -15,15 +15,24 @@ def assert_validation_images_arent_in_training_set(train_loader, val_loader):
                                                                                       train_idx))
 
 
-def transform_lbl(lbl):
-    lbl = torch.from_numpy(lbl).long()
+def transform_lbl(lbl, resized_sz=None):
+    # Resizing is tricky (we may lose classes to sub-pixel downsample)
+    if resized_sz is not None:
+        lbl = lbl.astype(float)
+        lbl = scipy.misc.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
+
+    lbl = torch.from_numpy(lbl).long()  # NOTE(allie): lbl.float() (?)
     return lbl
 
 
-def transform_img(img, mean_bgr):
+def transform_img(img, mean_bgr=None, resized_sz=None):
     img = img[:, :, ::-1]  # RGB -> BGR
+    if resized_sz is not None:
+        img = scipy.misc.imresize(img, (resized_sz[0], resized_sz[1]))
     img = img.astype(np.float64)
-    img -= mean_bgr
+    if mean_bgr is not None:
+        img -= mean_bgr
+    # NHWC -> NCWH
     img = img.transpose(2, 0, 1)
     img = torch.from_numpy(img).float()
     return img
@@ -34,10 +43,13 @@ def untransform_lbl(lbl):
     return lbl
 
 
-def untransform_img(img, mean_bgr):
+def untransform_img(img, mean_bgr=None, original_size=None):
+    if original_size is not None:
+        raise NotImplementedError
     img = img.numpy()
     img = img.transpose(1, 2, 0)
-    img += mean_bgr
+    if mean_bgr is not None:
+        img += mean_bgr
     img = img.astype(np.uint8)
     img = img[:, :, ::-1]
     return img
@@ -109,9 +121,14 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class,
     image (inst_lbls at coordinates of person 0 are 0)
     """
     assert sem_lbl.shape == inst_lbl.shape
-    if torch.np.any(inst_lbl.numpy() >= n_max_per_class) and not set_extras_to_void:
-        raise Exception('more instances than the number you allocated for ({} vs {}).'.format(
-            inst_lbl.max(), n_max_per_class))
+    if torch.is_tensor(inst_lbl):
+        if torch.np.any(inst_lbl.numpy() >= n_max_per_class) and not set_extras_to_void:
+            raise Exception('more instances than the number you allocated for ({} vs {}).'.format(
+                inst_lbl.max(), n_max_per_class))
+    else:
+        if np.any(inst_lbl >= n_max_per_class) and not set_extras_to_void:
+            raise Exception('more instances than the number you allocated for ({} vs {}).'.format(
+                inst_lbl.max(), n_max_per_class))
         # if you don't want to raise an exception here, add a corresponding flag and use the
         # following line:
         # y = torch.min(inst_lbl, self.n_max_per_class)

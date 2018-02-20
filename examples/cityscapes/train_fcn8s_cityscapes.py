@@ -128,12 +128,13 @@ def main():
                                                            shuffle=False)
     else:
         train_loader_for_val = None
-    val_dataset = torchfcn.datasets.CityscapesClassSegBase(root, split='val', transform=True,
+    val_dataset_full = torchfcn.datasets.CityscapesClassSegBase(root, split='val', transform=True,
                                                            semantic_subset=semantic_subset,
                                                            n_max_per_class=cfg['n_max_per_class'],
                                                            permute_instance_order=False,
                                                            set_extras_to_void=True,
                                                            resized_sz=resized_sz)
+    val_dataset = val_dataset_full.copy(modified_length=50)
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False, **kwargs)
 

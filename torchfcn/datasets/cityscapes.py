@@ -179,6 +179,7 @@ class CityscapesClassSegBase(data.Dataset):
         if DEBUG_ASSERT and self.resized_sz is not None:
             classes = np.unique(lbl)
             if not np.all(classes == np.unique(lbl)):
+                import ipdb; ipdb.set_trace()
                 print("WARN: resizing labels yielded fewer classes")
 
         if DEBUG_ASSERT and is_semantic:

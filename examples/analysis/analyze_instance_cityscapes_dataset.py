@@ -4,18 +4,14 @@ import argparse
 import os
 import os.path as osp
 
+import numpy as np
 import torch
+import tqdm
 
 import torchfcn
-import tqdm
-import numpy as np
-from torchfcn.datasets import dataset_utils
-
-from examples.voc.script_utils import get_log_dir
-from examples.voc.script_utils import get_parameters
-
-from tensorboardX import SummaryWriter
+from examples.script_utils import get_log_dir
 from torchfcn.datasets import cityscapes
+from torchfcn.datasets import dataset_utils
 
 configurations = {
     # same configuration as original work

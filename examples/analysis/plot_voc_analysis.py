@@ -1,24 +1,17 @@
 #!/usr/bin/env python
 
 import argparse
+import numbers
 import os
 import os.path as osp
-import numbers
-
-import torch
-
-import torchfcn
-import tqdm
-import numpy as np
-from torchfcn.datasets import dataset_utils
-
-from examples.voc.script_utils import get_log_dir
-from examples.voc.script_utils import get_parameters
-
-from tensorboardX import SummaryWriter
-from torchfcn.datasets import voc
 
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import tqdm
+
+import torchfcn
+from examples.script_utils import get_log_dir
 
 configurations = {
     # same configuration as original work

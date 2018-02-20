@@ -4,20 +4,15 @@ import argparse
 import os
 import os.path as osp
 
-import torch
+import local_pyutils
 import numpy as np
+import torch
+from tensorboardX import SummaryWriter
 
 import torchfcn
+from examples.script_utils import get_log_dir
 from torchfcn.datasets import dataset_utils
-
-from examples.voc.script_utils import get_log_dir
-from examples.voc.script_utils import get_parameters
-
-from tensorboardX import SummaryWriter
 from torchfcn.datasets import pink_blobs
-
-import local_pyutils
-
 
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)

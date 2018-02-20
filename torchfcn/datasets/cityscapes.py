@@ -4,18 +4,11 @@ import collections
 import os.path as osp
 import PIL.Image
 
-import numpy as np
-
-import torch
-from torch.utils import data
-
 from . import dataset_utils
-import scipy.misc as m
 from torch.utils import data
 import os
 import torch
 import numpy as np
-import scipy.misc as m
 
 DEBUG_ASSERT = True
 
@@ -34,12 +27,10 @@ https://github.com/fvisin/dataset_loaders/blob/master/dataset_loaders/images/cit
 
 # TODO(allie): Avoid so much code copying by making a semantic->instance wrapper class or base class
 
-DEBUG_ASSERT = True
-
 ALL_CITYSCAPES_CLASS_NAMES = np.array(
-    ['unlabelled', 'road', 'sidewalk', 'building', 'wall', 'fence', \
-     'pole', 'traffic_light', 'traffic_sign', 'vegetation', 'terrain', \
-     'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train', \
+    ['unlabelled', 'road', 'sidewalk', 'building', 'wall', 'fence',
+     'pole', 'traffic_light', 'traffic_sign', 'vegetation', 'terrain',
+     'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
      'motorcycle', 'bicycle'])
 CITYSCAPES_VOID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 29, 30, -1]
 CITYSCAPES_VALID_CLASSES = [7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32,
@@ -68,12 +59,15 @@ CITYSCAPES_LABEL_COLORS = [  # [  0,   0,   0],
     [119, 11, 32]]
 
 
+# TODO(allie): Allow shuffling within the dataset here (instead of with train_loader) so we can
+# set the loader shuffle to False (so it goes in the same order every time), but still get images
+#  out in a random order.
 class CityscapesClassSegBase(data.Dataset):
     mean_bgr = np.array([73.15835921, 82.90891754, 72.39239876])
 
     def __init__(self, root, split='train', transform=False, n_max_per_class=1,
                  semantic_subset=None, map_other_classes_to_bground=True,
-                 permute_instance_order=True, set_extras_to_void=False,
+                 permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=False, resized_sz=None):
         """
         n_max_per_class: number of instances per non-background class

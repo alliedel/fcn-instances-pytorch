@@ -4,21 +4,15 @@ import argparse
 import os
 import os.path as osp
 
-import torch
+import local_pyutils
 import numpy as np
-
-import torchfcn
-from torchfcn.datasets import dataset_utils
-
-from examples.voc.script_utils import get_log_dir
-
+import torch
 from tensorboardX import SummaryWriter
 
-import local_pyutils
+import torchfcn
+from examples.script_utils import get_log_dir
+from torchfcn.datasets import dataset_utils
 
-torch.manual_seed(0)
-torch.cuda.manual_seed_all(0)
-np.random.seed(0)
 
 # filename starts to exceed max; creating abbreviations so we can keep the config in the log
 # directory name.
@@ -40,7 +34,8 @@ default_configuration = dict(
     batch_size=1,
     recompute_optimal_loss=False,
     size_average=True,
-    val_on_train=True)
+    val_on_train=True,
+    resized_sz=[256, 512])
 
 configurations = {
     # same configuration as original work
@@ -82,7 +77,7 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
 
 
 def main():
-    resized_sz = [256, 512]
+
     matching = True
     assert_val_not_in_train = False
     semantic_subset = None
@@ -119,7 +114,7 @@ def main():
                                                              n_max_per_class=cfg['n_max_per_class'],
                                                              permute_instance_order=False,
                                                              set_extras_to_void=True,
-                                                             resized_sz=resized_sz)
+                                                             resized_sz=cfg['resized_sz'])
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg['batch_size'],
                                                shuffle=True, **kwargs)
     if cfg['val_on_train']:
@@ -129,11 +124,12 @@ def main():
     else:
         train_loader_for_val = None
     val_dataset_full = torchfcn.datasets.CityscapesClassSegBase(root, split='val', transform=True,
-                                                           semantic_subset=semantic_subset,
-                                                           n_max_per_class=cfg['n_max_per_class'],
-                                                           permute_instance_order=False,
-                                                           set_extras_to_void=True,
-                                                           resized_sz=resized_sz)
+                                                                semantic_subset=semantic_subset,
+                                                                n_max_per_class=cfg[
+                                                                    'n_max_per_class'],
+                                                                permute_instance_order=False,
+                                                                set_extras_to_void=True,
+                                                                resized_sz=cfg['resized_sz'])
     val_dataset = val_dataset_full.copy(modified_length=50)
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False, **kwargs)
@@ -145,7 +141,7 @@ def main():
 
     # Make sure we can load an image
     [img, lbl] = train_loader.dataset[0]
-    
+
     # 2. model
     # n_max_per_class > 1 and map_to_semantic=False: Basically produces extra channels that
     # should be '0'.  Not good if copying weights over from a pretrained semantic segmenter,
@@ -153,7 +149,7 @@ def main():
     model = torchfcn.models.FCN8sInstance(
         n_semantic_classes_with_background=len(train_loader.dataset.class_names),
         n_max_per_class=cfg['n_max_per_class'],
-        map_to_semantic=False)
+        map_to_semantic=cfg['map_to_semantic'])
 
     start_epoch = 0
     start_iteration = 0

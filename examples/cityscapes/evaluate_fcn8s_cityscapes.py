@@ -9,6 +9,8 @@ from torch.autograd import Variable
 from torchfcn import losses
 from torchfcn import visualization_utils
 
+import matplotlib.pyplot as plt
+
 logger = local_pyutils.get_logger
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -128,9 +130,15 @@ def main():
     model = torchfcn.models.FCN8sInstance(
         n_semantic_classes_with_background=n_semantic_classes_with_background,
         n_max_per_class=cfg['n_max_per_class'], map_to_semantic=cfg['map_to_semantic'])
-    checkpoint = torch.load(model_path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.cuda()
+    if cuda:
+        checkpoint = torch.load(model_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.cuda()
+    else:
+        raise Exception('You really don\'t want to run this without a GPU. '
+                        'It\'ll take forever...')
+        checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
+        model.load_state_dict(checkpoint['model_state_dict'])
     previous_epoch, previous_iteration = checkpoint['epoch'], checkpoint['iteration']
 
     output_dir = os.path.join(logdir, 'analysis')
@@ -140,10 +148,14 @@ def main():
         semantic_instance_class_list=model.semantic_instance_class_list)
 
     for batch_idx, (data, target) in enumerate(train_loader_for_val):
+        import ipdb; ipdb.set_trace()
         val_loss, lbl_pred, lbl_true, visualizations = \
             predict_one_batch(model, data, target, my_cross_entropy_loss, train_loader_for_val,
                               n_class=model.n_classes, should_visualize=True, cuda=cuda)
-        import ipdb; ipdb.set_trace()
+        with open(os.path.join(output_dir, 'pred_batch_{:06d}.pth'.format(batch_idx)), 'w') as f:
+            torch.save(lbl_pred, f)
+        with open(os.path.join(output_dir, 'true_batch_{:06d}.pth'.format(batch_idx)), 'w') as f:
+            torch.save(lbl_true, f)
 
 
 if __name__ == '__main__':

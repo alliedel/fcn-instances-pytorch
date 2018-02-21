@@ -9,55 +9,18 @@ from torch.utils import data
 import os
 import torch
 import numpy as np
+import labels_table_cityscapes
+import local_pyutils
 
 DEBUG_ASSERT = True
 
-"""CityscapesLoader
-
-https://www.cityscapes-dataset.com
-
-Data is derived from CityScapes, and can be downloaded from here:
-https://www.cityscapes-dataset.com/downloads/
-
-Many Thanks to @fvisin for the loader repo:
-https://github.com/fvisin/dataset_loaders/blob/master/dataset_loaders/images/cityscapes.py
-"""
-
 # TODO(allie): Allow for augmentations
-
 # TODO(allie): Avoid so much code copying by making a semantic->instance wrapper class or base class
+# TODO(allie): Allow for semantic instead of instance segmentation on the semantic classes (
+# instead of mapping them all collectively onto background).
 
-ALL_CITYSCAPES_CLASS_NAMES = np.array(
-    ['unlabelled', 'road', 'sidewalk', 'building', 'wall', 'fence',
-     'pole', 'traffic_light', 'traffic_sign', 'vegetation', 'terrain',
-     'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train',
-     'motorcycle', 'bicycle'])
-CITYSCAPES_VOID_CLASSES = [0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 29, 30, -1]
-CITYSCAPES_VALID_CLASSES = [7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32,
-                            33]
-CITYSCAPES_IGNORE_INDEX = 250
 
-CITYSCAPES_LABEL_COLORS = [  # [  0,   0,   0],
-    [128, 64, 128],
-    [244, 35, 232],
-    [70, 70, 70],
-    [102, 102, 156],
-    [190, 153, 153],
-    [153, 153, 153],
-    [250, 170, 30],
-    [220, 220, 0],
-    [107, 142, 35],
-    [152, 251, 152],
-    [0, 130, 180],
-    [220, 20, 60],
-    [255, 0, 0],
-    [0, 0, 142],
-    [0, 0, 70],
-    [0, 60, 100],
-    [0, 80, 100],
-    [0, 0, 230],
-    [119, 11, 32]]
-
+logger = local_pyutils.get_logger()
 
 # TODO(allie): Allow shuffling within the dataset here (instead of with train_loader) so we can
 # set the loader shuffle to False (so it goes in the same order every time), but still get images
@@ -79,9 +42,10 @@ class CityscapesClassSegBase(data.Dataset):
         instance index as the target values, it'll return two targets: the semantic target and
         the instance number: [0, n_max_per_class)
         """
-        self.valid_classes = CITYSCAPES_VALID_CLASSES
-        self.void_classes = CITYSCAPES_VOID_CLASSES
-        self.label_colors = CITYSCAPES_LABEL_COLORS
+        self.id_is_in_eval = [not x for x in labels_table_cityscapes.ignore_in_eval]
+        self.id_has_instances = labels_table_cityscapes.has_instances
+        self.id_is_void = labels_table_cityscapes.is_void
+        self.label_colors = labels_table_cityscapes.colors
 
         self.permute_instance_order = permute_instance_order
         self.map_other_classes_to_bground = map_other_classes_to_bground
@@ -89,8 +53,8 @@ class CityscapesClassSegBase(data.Dataset):
         self.split = split
         self._transform = transform
         self.n_max_per_class = n_max_per_class
-        self.class_names, self.idxs_into_all_cityscapes = self.get_semantic_names_and_idxs(
-            semantic_subset=semantic_subset)
+        self.semantic_idxs_into_all_cityscapes = [0] + self.valid_instance_classes
+        self.semantic_subset = semantic_subset or self.semantic_idxs_into_all_cityscapes
         self.n_semantic_classes = len(self.class_names)
         self._instance_to_semantic_mapping_matrix = None
         self.get_instance_to_semantic_mapping()
@@ -98,10 +62,8 @@ class CityscapesClassSegBase(data.Dataset):
         self.set_extras_to_void = set_extras_to_void
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.resized_sz = resized_sz
-        self.ignore_index = CITYSCAPES_IGNORE_INDEX
 
-        dataset_dir = self.root
-        self.files = self.get_files(dataset_dir)
+        self.files = self.get_files()
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
 
     def update_n_max_per_class(self, n_max_per_class):
@@ -111,8 +73,7 @@ class CityscapesClassSegBase(data.Dataset):
         self.get_instance_to_semantic_mapping(recompute=True)
         self.n_classes = self._instance_to_semantic_mapping_matrix.size(0)
 
-    def get_files(self, dataset_dir):
-
+    def get_files(self):
         files = collections.defaultdict(list)
         for split in ['train', 'val'] + ([] if self.split in ['train', 'val'] else [self.split]):
 
@@ -162,7 +123,7 @@ class CityscapesClassSegBase(data.Dataset):
 
     def remap_to_reduced_semantic_classes(self, lbl):
         return dataset_utils.remap_to_reduced_semantic_classes(
-            lbl, reduced_class_idxs=self.idxs_into_all_cityscapes,
+            lbl, reduced_class_idxs=self.semantic_idxs_into_all_cityscapes,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
 
     def transform_img(self, img):
@@ -171,21 +132,32 @@ class CityscapesClassSegBase(data.Dataset):
     def transform_lbl(self, lbl, is_semantic):
         if DEBUG_ASSERT and self.resized_sz is not None:
             old_unique_classes = np.unique(lbl)
+            logger.debug(
+                'old_unique_classes ({}): {}'.format('semantic' if is_semantic else 'instance',
+                                                     old_unique_classes))
+            class_counts = [(lbl == c).sum() for c in old_unique_classes]
         else:
-            old_unique_classes = None
+            old_unique_classes, class_counts = None, None
         lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resized_sz)
         if old_unique_classes is not None:
             new_unique_classes = np.unique(lbl.numpy())
             if not all([c in new_unique_classes for c in old_unique_classes]):
                 classes_missing = [c for c in old_unique_classes if c not in new_unique_classes]
-                print("WARN: resizing labels yielded fewer classes.  Missing {}".format(
-                    classes_missing))
+                class_indices_missing = [ci for ci, c in enumerate(old_unique_classes) if c in
+                                         classes_missing]
+                counts_missing = [class_counts[ci] for ci in class_indices_missing]
+                # TODO(allie): set a better condition and raise to Info instead of Debug
+                logger.debug(Warning(
+                    'Resizing labels yielded fewer classes.  Missing classes {}, '
+                    'totaling {} pixels'.format(classes_missing, counts_missing)))
 
         if DEBUG_ASSERT and is_semantic:
             classes = np.unique(lbl)
             lbl_np = lbl.numpy() if torch.is_tensor else lbl
-            if not np.all(np.unique(lbl_np[lbl_np != self.ignore_index]) < self.n_classes):
+            if not np.all(np.unique(lbl_np[lbl_np != 255]) < self.n_classes):
                 print('after det', classes, np.unique(lbl))
+                import ipdb;
+                ipdb.set_trace()
                 raise ValueError("Segmentation map contained invalid class values")
         return lbl
 
@@ -235,44 +207,44 @@ class CityscapesClassSegBase(data.Dataset):
         img = np.array(img, dtype=np.uint8)
         # load semantic label
         sem_lbl = PIL.Image.open(sem_lbl_file)
-        sem_lbl = encode_segmap(np.array(sem_lbl, dtype=np.uint8))
-
-        sem_lbl = np.array(sem_lbl, dtype=np.int32)
-        sem_lbl[sem_lbl == 255] = -1
+        # map to reduced class set
+        sem_lbl = encode_segmap(np.array(sem_lbl, dtype=np.int32))  # used to be uint8; not sure why
+        sem_lbl = sem_lbl.astype(np.int32)
         if self._transform:
             img = self.transform_img(img)
+            sem_lbl[sem_lbl == -1] = 255
+            num_neg_ones = np.sum(sem_lbl == -1)
+            if num_neg_ones > 0:
+                logger.debug('Found {} pixels = -1'.format(num_neg_ones))
             sem_lbl = self.transform_lbl(sem_lbl, is_semantic=True)
-        # map to reduced class set
-        sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
+            sem_lbl[sem_lbl == 255] = -1
         # Handle instances
         if self.n_max_per_class == 1:
             lbl = sem_lbl
         else:
             inst_lbl = PIL.Image.open(inst_lbl_file)
             inst_lbl = np.array(inst_lbl, dtype=np.int32)
-            inst_lbl[inst_lbl == 255] = -1
             if self._transform:
+                inst_lbl[inst_lbl == -1] = 255
                 inst_lbl = self.transform_lbl(inst_lbl, is_semantic=False)
+                inst_lbl[inst_lbl == 255] = -1
             if self.permute_instance_order:
                 inst_lbl = dataset_utils.permute_instance_order(inst_lbl, self.n_max_per_class)
             if return_semantic_instance_tuple:
                 lbl = [sem_lbl, inst_lbl]
             else:
                 try:
+                    inst_lbl[sem_lbl == 0] = -1
+                    sem_lbl[inst_lbl < 1000] = -1  # Need to map to an 'extras' class
+                    inst_lbl[inst_lbl < 1000] = 0  # Not individual instances
+                    inst_lbl[inst_lbl > 1000] -= (inst_lbl[inst_lbl > 1000] / 1000) * 1000
                     lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
                 except:
-                    import ipdb;
+                    import ipdb
                     ipdb.set_trace()
                     raise
 
         return img, lbl
-
-    def encode_segmap(self, mask):
-        return encode_segmap(mask, ignore_index=self.ignore_index, void_classes=self.void_classes,
-                             valid_classes=self.valid_classes)
-
-    def decode_segmap(self, temp):
-        return decode_segmap(temp, self.n_classes, self.label_colors)
 
     def modify_length(self, modified_length):
         self.files[self.split] = self.files[self.split][:modified_length]
@@ -286,6 +258,28 @@ class CityscapesClassSegBase(data.Dataset):
         self.modify_length(modified_length)
         return my_copy
 
+    def encode_segmap(self, mask):
+        ignore_index = -1
+        void_classes = self.void_classes,
+        valid_instance_classes = self.valid_instance_classes
+        semantic_only_classes = self.semantic_only_classes
+        # Put all void classes to zero
+        logger.debug('unique classes before mapping: {}'.format(np.unique(mask)))
+        for id in range(len(CITYSCAPES_LABELS_TABLE)):
+            mask[mask == id] = id_to_trainId(id)
+        logger.debug('unique classes after mapping: {}'.format(np.unique(mask)))
+        for voidc in void_classes:
+            if voidc == ignore_index:
+                continue
+            mask[mask == voidc] = ignore_index
+        logger.debug('unique classes after void mapping: {}'.format(np.unique(mask)))
+        for semanticc in semantic_only_classes:
+            mask[mask == semanticc] = 0
+        logger.debug('unique classes after semantic_only mapping: {}'.format(np.unique(mask)))
+        for validc in valid_instance_classes:
+            mask[mask == validc] = valid_instance_classes.index(validc) + 1
+        logger.debug('unique classes after valid mapping: {}'.format(np.unique(mask)))
+        return mask
 
 def recursive_glob(rootdir='.', suffix=''):
     """Performs recursive glob with given suffix and rootdir
@@ -295,29 +289,3 @@ def recursive_glob(rootdir='.', suffix=''):
     return [os.path.join(looproot, filename)
             for looproot, _, filenames in os.walk(rootdir)
             for filename in filenames if filename.endswith(suffix)]
-
-
-def encode_segmap(mask, ignore_index=CITYSCAPES_IGNORE_INDEX, void_classes=CITYSCAPES_VOID_CLASSES,
-                  valid_classes=CITYSCAPES_VALID_CLASSES):
-    # Put all void classes to zero
-    for voidc in void_classes:
-        mask[mask == voidc] = ignore_index
-    for validc in valid_classes:
-        mask[mask == validc] = valid_classes.index(validc)
-    return mask
-
-
-def decode_segmap(temp, n_classes, label_colours):
-    r = temp.copy()
-    g = temp.copy()
-    b = temp.copy()
-    for l in range(0, n_classes):
-        r[temp == l] = label_colours[l][0]
-        g[temp == l] = label_colours[l][1]
-        b[temp == l] = label_colours[l][2]
-
-    rgb = np.zeros((temp.shape[0], temp.shape[1], 3))
-    rgb[:, :, 0] = r / 255.0
-    rgb[:, :, 1] = g / 255.0
-    rgb[:, :, 2] = b / 255.0
-    return rgb

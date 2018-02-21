@@ -21,21 +21,24 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'n_training_imgs': 'n_train',
                                         'n_validation_imgs': 'n_val',
                                         'recompute_optimal_loss': 'recompute_loss',
-                                        'size_average': 'size_avg'}
+                                        'size_average': 'size_avg',
+                                        'map_to_semantic': 'mts',
+                                        'interval_validate': 'int_val'}
 
 default_configuration = dict(
     max_iteration=10000,
     lr=1.0e-5,
     weight_decay=5e-6,
-    interval_validate=100,
-    n_max_per_class=3,
+    interval_validate=1000,
+    n_max_per_class=10,
     n_training_imgs=1000,
     n_validation_imgs=50,
     batch_size=1,
     recompute_optimal_loss=False,
     size_average=True,
     val_on_train=True,
-    resized_sz=[256, 512])
+    resized_sz=[256, 512],
+    map_to_semantic=False)
 
 configurations = {
     # same configuration as original work
@@ -138,9 +141,10 @@ def main():
         logger.info('Checking whether validation images appear in the training set.')
         dataset_utils.assert_validation_images_arent_in_training_set(train_loader, val_loader)
         logger.info('Confirmed validation and training set are disjoint.')
-
     # Make sure we can load an image
     [img, lbl] = train_loader.dataset[0]
+    torch.save(train_loader.dataset.untransform_img(img), 'untransformed_img.pth')
+    torch.save(train_loader.dataset.untransform_lbl(lbl), 'untransformed_lbl.pth')
 
     # 2. model
     # n_max_per_class > 1 and map_to_semantic=False: Basically produces extra channels that

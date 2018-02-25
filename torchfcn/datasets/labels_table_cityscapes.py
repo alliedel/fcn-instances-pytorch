@@ -1,5 +1,5 @@
-labels_keys = ['name', 'id', 'trainId', 'category', 'catId', 'hasInstances', 'ignoreInEval',
-               'color']
+labels_keys = ['name', 'id', 'train_ids', 'category', 'category_id', 'has_instances',
+               'ignore_in_eval', 'color']
 
 
 def Label(*args):
@@ -45,19 +45,12 @@ CITYSCAPES_LABELS_TABLE = [
     Label(  'bicycle'              , 33 ,       18 , 'vehicle'         , 7       , True         , False        , (119, 11, 32) ),
     Label(  'license plate'        , -1 ,       -1 , 'vehicle'         , 7       , False        , True         , (  0,  0,142) ),
 ]
-CITYSCAPES_LABELS_TABLE[-1]['trainId'] = 13  # make license plate map to car for ease.
+CITYSCAPES_LABELS_TABLE[-1]['train_id'] = 13  # make license plate map to car for ease.
 
 class_names = [class_label['name'] for class_label in CITYSCAPES_LABELS_TABLE]
 ids = [class_label['name'] for class_label in CITYSCAPES_LABELS_TABLE]
 train_ids = [class_label['train_ids'] for class_label in CITYSCAPES_LABELS_TABLE]
 has_instances = [class_label['has_instances'] for class_label in CITYSCAPES_LABELS_TABLE]
 colors = [class_label['color'] for class_label in CITYSCAPES_LABELS_TABLE]
-ignore_in_eval = [class_label['ignoreInEval'] for class_label in CITYSCAPES_LABELS_TABLE]
-is_void = [class_label['ignoreInEval']]
-
-# Make sure all our instance classes will not get mapped to void.
-assert all([not is_void[ci] for ci, is_inst_cls in enumerate(has_instances) if is_inst_cls])
-
-
-def id_to_trainId(id):
-    return train_ids[id]
+ignore_in_eval = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]
+is_void = [not class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]

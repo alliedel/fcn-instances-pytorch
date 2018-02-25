@@ -8,8 +8,6 @@ from .fcn32s import get_upsampling_weight
 
 from .fcn8s import FCN8s
 
-from numpy import mod
-
 import local_pyutils
 
 logger = local_pyutils.get_logger()
@@ -20,36 +18,19 @@ class FCN8sInstance(nn.Module):
     pretrained_model = \
         osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
-    def __init__(self, n_semantic_classes_with_background=21, n_max_per_class=3,
-                 background_classes=(0,),
-                 void_classes=(-1,), map_to_semantic=False):
-        if type(background_classes) is tuple:
-            background_classes = list(background_classes)
-        if type(void_classes) is tuple:
-            void_classes = list(void_classes)
-        assert len(
-            background_classes) == 1 and background_classes[0] == 0, NotImplementedError
-        assert len(
-            void_classes) == 1 and void_classes[0] == -1, NotImplementedError
+    def __init__(self, n_classes, map_to_semantic=False, instance_to_semantic_mapping_matrix=None):
+        """
+        n_classes: Number of output channels
+        map_to_semantic: If True, n_semantic_classes must not be None.
+        """
         super(FCN8sInstance, self).__init__()
-
+        self.n_classes = n_classes
         self.map_to_semantic = map_to_semantic
-
-        self.semantic_instance_class_list = [0]
-        for semantic_class in range(1, n_semantic_classes_with_background):
-            self.semantic_instance_class_list += [
-                semantic_class for _ in range(n_max_per_class)]
-
-        self.n_classes = len(self.semantic_instance_class_list)
-        self.n_semantic_classes = n_semantic_classes_with_background
-        self.n_max_per_class = n_max_per_class
-
-        self.instance_to_semantic_mapping_matrix = torch.zeros((self.n_classes,
-                                                                self.n_semantic_classes)).float()
-
-        for instance_idx, semantic_idx in enumerate(self.semantic_instance_class_list):
-            self.instance_to_semantic_mapping_matrix[instance_idx,
-                                                     semantic_idx] = 1
+        if map_to_semantic:
+            assert instance_to_semantic_mapping_matrix is not None, 'I need to know how to map ' \
+                                                                    'instances to their semantic ' \
+                                                                    'classes'
+        self.instance_to_semantic_mapping_matrix = instance_to_semantic_mapping_matrix
 
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
@@ -150,6 +131,22 @@ class FCN8sInstance(nn.Module):
 
         return h
 
+    def reduce_to_fc7(self, h):
+        h = self.conv1(h)
+        h = self.conv2(h)
+        h = self.conv3(h)
+        pool3 = h  # 1/8
+        h = self.conv4(h)
+        pool4 = h  # 1/16
+        h = self.conv5(h)
+
+        h = self.relu6(self.fc6(h))
+        h = self.drop6(h)
+
+        h = self.relu7(self.fc7(h))
+        h = self.drop7(h)
+        return h, pool3, pool4
+
     def conv1(self, h):
         h = self.relu1_1(self.conv1_1(h))
         h = self.relu1_2(self.conv1_2(h))
@@ -182,22 +179,6 @@ class FCN8sInstance(nn.Module):
         h = self.relu5_3(self.conv5_3(h))
         h = self.pool5(h)
         return h
-
-    def reduce_to_fc7(self, h):
-        h = self.conv1(h)
-        h = self.conv2(h)
-        h = self.conv3(h)
-        pool3 = h  # 1/8
-        h = self.conv4(h)
-        pool4 = h  # 1/16
-        h = self.conv5(h)
-
-        h = self.relu6(self.fc6(h))
-        h = self.drop6(h)
-
-        h = self.relu7(self.fc7(h))
-        h = self.drop7(h)
-        return h, pool3, pool4
 
     def upscore(self, h, pool3, pool4):
         # Transpose Convolution here ('deconvolution')
@@ -275,7 +256,8 @@ class FCN8sInstance(nn.Module):
         for name, l1 in fcn8s_semantic.named_children():
             try:
                 l2 = getattr(self, name)
-                l2.weight  # skip ReLU / Dropout
+                l2.weight  # skip ReLU / Dropout    # TODO(allie): change this line (from fork) -
+                                                    # check for attribute instead.
             except Exception:
                 continue
             if l1.weight.size() == l2.weight.size():

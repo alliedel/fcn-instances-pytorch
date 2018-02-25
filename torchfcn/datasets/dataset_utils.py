@@ -3,6 +3,8 @@ import numpy as np
 from torch.autograd import Variable
 import scipy.misc
 
+# TODO(allie): Allow for augmentations
+
 DEBUG_ASSERT = True
 
 
@@ -140,34 +142,6 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class,
     y[overflow_instances] = -1
 
     return y
-
-
-def get_instance_to_semantic_mapping(n_max_per_class, n_semantic_classes_with_background):
-    """
-    returns a binary matrix, where semantic_instance_mapping is N x S
-    (N = # instances, S = # semantic classes)
-    semantic_instance_mapping[inst_idx, :] is a one-hot vector,
-    and semantic_instance_mapping[inst_idx, sem_idx] = 1 iff that instance idx is an instance
-    of that semantic class.
-    """
-
-    if n_max_per_class == 1:
-        instance_to_semantic_mapping_matrix = torch.eye(n_semantic_classes_with_background,
-                                                        n_semantic_classes_with_background)
-    else:
-        n_instance_classes = \
-            1 + (n_semantic_classes_with_background - 1) * n_max_per_class
-        instance_to_semantic_mapping_matrix = torch.zeros(
-            (n_instance_classes, n_semantic_classes_with_background)).float()
-
-        semantic_instance_class_list = [0]
-        for semantic_class in range(n_semantic_classes_with_background - 1):
-            semantic_instance_class_list += [semantic_class for _ in range(
-                n_max_per_class)]
-        for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
-            instance_to_semantic_mapping_matrix[instance_idx,
-                                                semantic_idx] = 1
-    return instance_to_semantic_mapping_matrix
 
 
 def remap_to_reduced_semantic_classes(lbl, reduced_class_idxs, map_other_classes_to_bground=True):

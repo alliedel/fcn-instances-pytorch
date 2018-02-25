@@ -12,44 +12,6 @@ import dataset_utils
 # TODO(allie): Make CityscapesWithTransformations inherit from Raw
 
 
-class CityscapesWithTransformations(data.Dataset):
-    mean_bgr = np.array([73.15835921, 82.90891754, 72.39239876])
-
-    def __init__(self, root, split, resize=True, resize_size=(512, 1024)):
-        self.raw_dataset = CityscapesRawBase(root, split)
-        self.resize = resize
-        self.resize_size = resize_size
-        # 'inheritance' from base
-        self.files = self.raw_dataset.files
-        self.split = split
-        self.root = root
-
-    def __len__(self):
-        return len(self.raw_dataset)
-
-    def __getitem__(self, index):
-        img, (sem_lbl, inst_lbl) = self.raw_dataset[index]
-        img = self.transform_img(img)
-        lbl = (self.transform_lbl(sem_lbl), self.transform_lbl(inst_lbl))
-        return img, lbl
-
-    def transform_img(self, img):
-        return dataset_utils.transform_img(img, mean_bgr=self.mean_bgr,
-                                           resized_sz=self.resize)
-
-    def transform_lbl(self, lbl):
-        lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resize)
-        return lbl
-
-    def untransform_lbl(self, lbl):
-        lbl = dataset_utils.untransform_lbl(lbl)
-        return lbl
-
-    def untransform_img(self, img):
-        img = dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
-        return img
-
-
 class CityscapesRawBase(data.Dataset):
 
     def __init__(self, root, split='train'):
@@ -83,16 +45,47 @@ class CityscapesRawBase(data.Dataset):
             assert os.path.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
 
             files[split].append({'img': img_file, 'sem_lbl': sem_lbl_file, 'inst_lbl':
-                                 inst_lbl_file})
+                inst_lbl_file})
         assert len(files[split]) > 0, "No images found in directory {}".format(images_base)
         return files
+
+
+class CityscapesWithTransformations(CityscapesRawBase):
+    mean_bgr = np.array([73.15835921, 82.90891754, 72.39239876])
+
+    def __init__(self, root, split, resize=True, resize_size=(512, 1024)):
+        super(CityscapesWithTransformations, self).__init__(root, split)
+        self.resize = resize
+        self.resize_size = resize_size
+
+    def __getitem__(self, index):
+        img, (sem_lbl, inst_lbl) = super(CityscapesWithTransformations, self).__getitem__(index)
+        img = self.transform_img(img)
+        lbl = (self.transform_lbl(sem_lbl), self.transform_lbl(inst_lbl))
+        return img, lbl
+
+    def transform_img(self, img):
+        return dataset_utils.transform_img(img, mean_bgr=self.mean_bgr,
+                                           resized_sz=self.resize_size)
+
+    def transform_lbl(self, lbl):
+        lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resize_size)
+        return lbl
+
+    def untransform_lbl(self, lbl):
+        lbl = dataset_utils.untransform_lbl(lbl)
+        return lbl
+
+    def untransform_img(self, img):
+        img = dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
+        return img
 
 
 def load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file):
     img = PIL.Image.open(img_file)
     img = np.array(img, dtype=np.uint8)
     # load semantic label
-    sem_lbl = PIL.Image.open(sem_lbl_file).astype(np.int32)
+    sem_lbl = np.array(PIL.Image.open(sem_lbl_file), dtype=np.int32)
     # load instance label
-    inst_lbl = PIL.Image.open(inst_lbl_file).astype(np.int32)
+    inst_lbl = np.array(PIL.Image.open(inst_lbl_file), dtype=np.int32)
     return img, (sem_lbl, inst_lbl)

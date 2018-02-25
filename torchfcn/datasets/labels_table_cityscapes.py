@@ -48,9 +48,9 @@ CITYSCAPES_LABELS_TABLE = [
 CITYSCAPES_LABELS_TABLE[-1]['train_id'] = 13  # make license plate map to car for ease.
 
 class_names = [class_label['name'] for class_label in CITYSCAPES_LABELS_TABLE]
-ids = [class_label['name'] for class_label in CITYSCAPES_LABELS_TABLE]
+ids = [class_label['id'] for class_label in CITYSCAPES_LABELS_TABLE]
 train_ids = [class_label['train_ids'] for class_label in CITYSCAPES_LABELS_TABLE]
 has_instances = [class_label['has_instances'] for class_label in CITYSCAPES_LABELS_TABLE]
 colors = [class_label['color'] for class_label in CITYSCAPES_LABELS_TABLE]
 ignore_in_eval = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]
-is_void = [not class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]
+is_void = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]

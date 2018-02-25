@@ -218,7 +218,9 @@ class Trainer(object):
         val_loss = 0
         if self.cuda:
             data, target = data.cuda(), target.cuda()
-        data, target = Variable(data, volatile=True), Variable(target)
+        # TODO(allie): Don't turn target into variables yet here? (Not yet sure if this works
+        # before we've actually combined the semantic and instance labels...)
+        data, target = Variable(data, volatile=True), (Variable(target[0]), Variable(target[1]))
         score = self.model(data)
 
         gt_permutations, loss = self.my_cross_entropy(score, target)

@@ -2,6 +2,8 @@ import torch
 import numpy as np
 
 
+# TODO(allie): allow this to be instantiated directly by attributes (instead of pulling them from
+#  a dataset)
 class InstanceProblemConfig(object):
     """
     Used for both models and datasets to lay out the assumptions of each during instance
@@ -13,7 +15,7 @@ class InstanceProblemConfig(object):
     (training) dataset.
     """
 
-    def __init__(self, n_instances_by_semantic_id, void_value=-1, semantic_vals=None):
+    def __init__(self, semantic_vals=None, n_instances_by_semantic_id=None, void_value=-1):
         assert len(semantic_vals) == len(n_instances_by_semantic_id)
         self.semantic_vals = semantic_vals or range(len(n_instances_by_semantic_id))
         self.void_value = void_value

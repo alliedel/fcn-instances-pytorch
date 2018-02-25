@@ -1,19 +1,17 @@
-from torch.utils import data
 import labels_table_cityscapes
 from torchfcn.datasets import cityscapes_raw
+import numpy as np
 
 
-class CityscapesMappedToInstances(data.Dataset):
-    def __init__(self, root, split='train',
-                 void_value=-1, resize=True, resize_size=(512, 1024)):
-        self.raw_dataset = cityscapes_raw.CityscapesWithTransformations(
-            root, split=split, resize=resize, resize_size=resize_size)
+class CityscapesMappedToInstances(cityscapes_raw.CityscapesWithTransformations):
+    def __init__(self, root, split='train', void_value=-1, resize=True, resize_size=(512, 1024)):
+        super(CityscapesMappedToInstances, self).__init__(root, split=split, resize=resize,
+                                                          resize_size=resize_size)
         self.void_value = void_value
         self.background_value = 0
 
         # Get dictionary of raw id assignments (semantic, instance, void, background)
         self._raw_id_list, self._raw_id_assignments = get_raw_id_assignments()
-
         # Set list of corresponding training ids, and get training id assignments
         self._raw_id_to_train_id, self.train_id_list, self.train_id_assignments = \
             get_train_id_assignments(self._raw_id_assignments, void_value, background_value=0)
@@ -22,27 +20,22 @@ class CityscapesMappedToInstances(data.Dataset):
         self.class_names = []
         for train_id in self.train_id_list:
             raw_ids_mapped_to_this = [raw_id for raw_id in self._raw_id_list
-                                      if self._raw_id_assignments[raw_id] == train_id]
-            class_name = ','.join(labels_table_cityscapes.class_names[raw_ids_mapped_to_this])
+                                      if self._raw_id_to_train_id[raw_id] == train_id]
+            class_name = ','.join([labels_table_cityscapes.class_names[i] for i in
+                                   raw_ids_mapped_to_this])
             self.class_names.append(class_name)
 
-    def __len__(self):
-        return len(self.raw_dataset)
-
     def __getitem__(self, index):
-        img, (sem_lbl, inst_lbl) = self.raw_dataset[index]
-
+        img, (sem_lbl, inst_lbl) = super(CityscapesMappedToInstances, self).__getitem__(index)
         sem_lbl = map_raw_sem_ids_to_train_ids(sem_lbl, self._raw_id_list, self._raw_id_to_train_id)
         inst_lbl = map_raw_inst_labels_to_instance_count(inst_lbl)
         return img, (sem_lbl, inst_lbl)
 
     def modify_length(self, modified_length):
-        self.raw_dataset.files[self.raw_dataset.split] = self.raw_dataset.files[
-                                                             self.raw_dataset.split][
-                                                         :modified_length]
+        self.files[self.split] = self.files[self.split][:modified_length]
 
     def copy(self, modified_length=10):
-        my_copy = CityscapesMappedToInstances(root=self.raw_dataset.root)
+        my_copy = CityscapesMappedToInstances(root=self.root)
         for attr, val in self.__dict__.items():
             setattr(my_copy, attr, val)
         assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
@@ -59,26 +52,33 @@ def get_train_id_assignments(raw_id_assignments, void_value, background_value=0)
     assert void_value not in semantic_values, 'void_value should not overlap with semantic classes'
     assert background_value == 0, NotImplementedError
     # Each semantic class get its own value
-    train_ids = [void_value, background_value].append(range(n_semantic_classes))
-    import ipdb;
-    ipdb.set_trace()
+    train_ids = [void_value, background_value] + list(range(n_semantic_classes))
     train_assignments = {'background': [tid == background_value for tid in train_ids],
                          'void': [tid == void_value for tid in train_ids],
-                         'semantic': [tid not in semantic_values for tid in train_ids]}
+                         'semantic': [tid not in semantic_values for tid in train_ids],
+                         'instance': [raw_id_assignments['instance'][tid] is True
+                                      for tid in train_ids]}
+    assert all([len(train_assignments[k]) == len(train_assignments['void'])
+                for k in train_assignments.keys()])
+    assert all([len(raw_id_assignments[k]) == len(raw_id_assignments['void'])
+                for k in raw_id_assignments.keys()])
     # Map raw ids to unique train ids
     sem_cls = 0
     raw_id_to_train_id = []
     for raw_id in range(n_raw_classes):
-        if raw_id_assignments['semantic']:
+        if raw_id_assignments['background'][raw_id]:
+            raw_id_to_train_id.append(background_value)
+        elif raw_id_assignments['semantic'][raw_id]:
             sem_cls += 1
             raw_id_to_train_id.append(sem_cls)
-        elif raw_id_assignments['void']:
+        elif raw_id_assignments['void'][raw_id]:
             raw_id_to_train_id.append(void_value)
-        elif raw_id_assignments['background']:
-            raw_id_to_train_id.append(background_value)
         else:
             raise Exception('raw_id_assignments does not cover all the classes')
-    assert sem_cls == n_semantic_classes, 'Debug assert failed here.'
+
+    assert sem_cls == n_semantic_classes - sum(raw_id_assignments['background']), \
+        'Debug assert failed here.'
+
     return raw_id_to_train_id, train_ids, train_assignments
 
 
@@ -91,13 +91,16 @@ def get_raw_id_assignments():
       void because we evaluate on it)
     """
     raw_id_list = labels_table_cityscapes.ids
-    is_semantic = [not is_void for ci, is_void in enumerate(labels_table_cityscapes.is_void)]
-    has_instances = [has_instances for ci, has_instances
-                     in enumerate(labels_table_cityscapes.has_instances)]
-    is_void = [is_void for ci, is_void in enumerate(labels_table_cityscapes.is_void)
-               if is_void]
     is_background = [name == 'unlabeled'
                      for c, name in enumerate(labels_table_cityscapes.class_names)]
+    is_semantic = [not is_void or is_background[ci] for ci, is_void in enumerate(
+        labels_table_cityscapes.is_void)]
+    has_instances = [has_instances for ci, has_instances
+                     in enumerate(labels_table_cityscapes.has_instances)]
+    is_void = [is_void and not is_background[ci] for ci, is_void in enumerate(
+        labels_table_cityscapes.is_void)]
+    assert len(is_void) == len(is_background) == len(is_semantic) == len(has_instances)
+    assert all([(b and s) == b for b, s in zip(is_background, is_semantic)])
     return raw_id_list, {'semantic': is_semantic,
                          'instance': has_instances,
                          'void': is_void,
@@ -109,6 +112,7 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
     Specifically for Cityscapes.
     Warning: inst_lbl must be an int/long for this to work
     """
+    inst_lbl[inst_lbl < 1000] = 0
     inst_lbl -= (inst_lbl / 1000) * 1000  # more efficient mod(inst_lbl, 1000)
     return inst_lbl
 
@@ -123,8 +127,11 @@ def map_raw_sem_ids_to_train_ids(sem_lbl, old_values, new_values_from_old_values
     For this to work, train_ids must be <= ids, background_value <= background_ids,
     void_value <= void_ids.
     """
+    new_value_sorted_idxs = np.argsort(new_values_from_old_values)
+    old_values = [old_values[i] for i in new_value_sorted_idxs]
+    new_values_from_old_values = [new_values_from_old_values[i] for i in new_value_sorted_idxs]
     assert len(old_values) == len(new_values_from_old_values)
-    assert all([old < new for old, new in zip(old_values, new_values_from_old_values)]), \
+    assert all([new <= old for old, new in zip(old_values, new_values_from_old_values)]), \
         NotImplementedError('I\'ve got to do something smarter when assigning...')
     # map ids to train_ids (e.g. - tunnel (id=16) is unused, so maps to 255.
     for old_val, new_val in zip(old_values, new_values_from_old_values):

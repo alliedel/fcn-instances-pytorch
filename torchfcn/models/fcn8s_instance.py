@@ -9,6 +9,7 @@ from .fcn32s import get_upsampling_weight
 from .fcn8s import FCN8s
 
 import local_pyutils
+from torchfcn import instance_utils
 
 logger = local_pyutils.get_logger()
 
@@ -18,7 +19,7 @@ class FCN8sInstance(nn.Module):
     pretrained_model = \
         osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
-    def __init__(self, n_classes, map_to_semantic=False, instance_to_semantic_mapping_matrix=None):
+    def __init__(self, n_classes, semantic_instance_class_list, map_to_semantic=False):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -26,11 +27,10 @@ class FCN8sInstance(nn.Module):
         super(FCN8sInstance, self).__init__()
         self.n_classes = n_classes
         self.map_to_semantic = map_to_semantic
-        if map_to_semantic:
-            assert instance_to_semantic_mapping_matrix is not None, 'I need to know how to map ' \
-                                                                    'instances to their semantic ' \
-                                                                    'classes'
-        self.instance_to_semantic_mapping_matrix = instance_to_semantic_mapping_matrix
+        self.semantic_instance_class_list = semantic_instance_class_list
+        self.instance_to_semantic_mapping_matrix = \
+            instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
+                semantic_instance_class_list, as_numpy=False)
 
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)

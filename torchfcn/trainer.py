@@ -15,8 +15,12 @@ import torchfcn
 from torchfcn import losses
 from torchfcn import visualization_utils
 from torchfcn.visualization_utils import log_images
+from torchfcn import instance_utils
 
 MY_TIMEZONE = 'America/New_York'
+
+# TODO(allie): Add in inst_lbl list instead of just the semantic_instance_class_list list
+# (from the model) -- had to recompute these values too many times for it to be practical.
 
 
 class Trainer(object):
@@ -92,9 +96,13 @@ class Trainer(object):
         self.max_iter = max_iter
         self.best_mean_iu = 0
 
-    def my_cross_entropy(self, score, target, **kwargs):
+    def my_cross_entropy(self, score, (sem_lbl, inst_lbl), **kwargs):
+        if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
+                                                      score.size(3))):
+            import ipdb; ipdb.set_trace()
+            raise Exception('Sizes of score, targets are incorrect')
         return losses.cross_entropy2d(
-            score, target,
+            score, sem_lbl=sem_lbl, inst_lbl=inst_lbl,
             semantic_instance_labels=self.model.semantic_instance_class_list,
             matching=self.matching_loss, size_average=self.size_average,
             recompute_optimal_loss=self.recompute_loss_at_optimal_permutation,
@@ -128,7 +136,7 @@ class Trainer(object):
         val_loss = 0
         visualizations = []
         label_trues, label_preds = [], []
-        for batch_idx, (data, target) in tqdm.tqdm(
+        for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
                 leave=False):
@@ -138,7 +146,7 @@ class Trainer(object):
                 continue
             true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
                 visualizations_single_batch = self.validate_single_batch(
-                    data, target, data_loader=data_loader, n_class=n_class,
+                    data, (sem_lbl, inst_lbl), data_loader=data_loader, n_class=n_class,
                     should_visualize=should_visualize)
             label_trues += true_labels_single_batch
             label_preds += pred_labels_single_batch
@@ -211,19 +219,20 @@ class Trainer(object):
             shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
                         osp.join(self.out, 'model_best.pth.tar'))
 
-    def validate_single_batch(self, data, target, data_loader, n_class, should_visualize):
+    def validate_single_batch(self, data, (sem_lbl, inst_lbl), data_loader, n_class,
+                              should_visualize):
         true_labels = []
         pred_labels = []
         visualizations = []
         val_loss = 0
         if self.cuda:
-            data, target = data.cuda(), target.cuda()
+            data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         # TODO(allie): Don't turn target into variables yet here? (Not yet sure if this works
         # before we've actually combined the semantic and instance labels...)
-        data, target = Variable(data, volatile=True), (Variable(target[0]), Variable(target[1]))
+        data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
+                                  Variable(sem_lbl), Variable(inst_lbl)
         score = self.model(data)
-
-        gt_permutations, loss = self.my_cross_entropy(score, target)
+        gt_permutations, loss = self.my_cross_entropy(score, (sem_lbl, inst_lbl))
         if np.isnan(float(loss.data[0])):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(data)
@@ -232,24 +241,38 @@ class Trainer(object):
         # numpy_score = score.data.numpy()
         lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
         # confidence = numpy_score[numpy_score == numpy_score.max(dim=1)[0]]
-        lbl_true = target.data.cpu()
-        for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
-            img, lt = data_loader.dataset.untransform(img, lt)
-            true_labels.append(lt)
+
+        # TODO(allie): convert to sem, inst visualizations.
+        lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
+        for img, sem_lbl, inst_lbl, lp in zip(imgs, lbl_true_sem, lbl_true_inst, lbl_pred):
+            img = data_loader.dataset.untransform_img(img)
+            try:
+                (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
+                                       data_loader.dataset.untransform_lbl(inst_lbl))
+            except:
+                import ipdb; ipdb.set_trace()
+                raise
+            lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
+            true_labels.append(lt_combined)
             pred_labels.append(lp)
             if should_visualize:
                 viz = visualization_utils.visualize_segmentation(
-                    lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class,
+                    lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=n_class,
                     overlay=self.visualize_overlay)
                 visualizations.append(viz)
         return true_labels, pred_labels, val_loss, visualizations
+
+    def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
+        semantic_instance_class_list = self.model.semantic_instance_class_list
+        return instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl,
+                                                                   semantic_instance_class_list)
 
     def train_epoch(self):
         self.model.train()
 
         n_class = self.model.n_classes
 
-        for batch_idx, (data, target) in tqdm.tqdm(  # tqdm: progress bar
+        for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):
             iteration = batch_idx + self.epoch * len(self.train_loader)
@@ -263,15 +286,14 @@ class Trainer(object):
                     self.validate(split='train')
 
             assert self.model.training
-
             if self.cuda:
-                data, target = data.cuda(), target.cuda()
-            data, target = Variable(data), Variable(target)
+                data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
+            data, (sem_lbl, inst_lbl) = Variable(data), (Variable(sem_lbl), Variable(inst_lbl))
             self.optim.zero_grad()
             score = self.model(data)
 
             gt_permutations, loss = self.my_cross_entropy(
-                score, target, break_here=False)  # iteration > 100
+                score, (sem_lbl, inst_lbl), break_here=False)  # iteration > 100
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
@@ -282,12 +304,13 @@ class Trainer(object):
             self.optim.step()
 
             lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-            lbl_true = target.data.cpu().numpy()
+            lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
             metrics = []
-            for lt, lp in zip(lbl_true, lbl_pred):
+            for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, lbl_pred):
+                lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
                 acc, acc_cls, mean_iu, fwavacc = \
                     torchfcn.utils.label_accuracy_score(
-                        [lt], [lp], n_class=n_class)
+                        [lt_combined], [lp], n_class=n_class)
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))
             metrics = np.mean(metrics, axis=0)
 

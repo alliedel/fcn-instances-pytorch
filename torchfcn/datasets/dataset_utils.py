@@ -130,9 +130,9 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class,
         if np.any(inst_lbl >= n_max_per_class) and not set_extras_to_void:
             raise Exception('more instances than the number you allocated for ({} vs {}).'.format(
                 inst_lbl.max(), n_max_per_class))
-        # if you don't want to raise an exception here, add a corresponding flag and use the
-        # following line:
-        # y = torch.min(inst_lbl, self.n_max_per_class)
+            # if you don't want to raise an exception here, add a corresponding flag and use the
+            # following line:
+            # y = torch.min(inst_lbl, self.n_max_per_class)
     y = inst_lbl
     overflow_instances = inst_lbl >= n_max_per_class
     y += (sem_lbl - 1) * n_max_per_class + 1

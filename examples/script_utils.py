@@ -29,49 +29,6 @@ def get_latest_logdir_with_checkpoint(log_parent_directory):
     return os.path.dirname(checkpoint_paths[-1])
 
 
-def get_cityscapes_train_loader(root, n_max_per_class, resized_sz=None, set_extras_to_void=True,
-                                semantic_subset=None, modified_length=None,
-                                cuda=True, num_workers=4, pin_memory=True, batch_size=1,
-                                **dataset_kwargs):
-    # 1. dataset
-    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory} if cuda else {}
-    train_dataset = torchfcn.datasets.CityscapesClassSegBase(root, split='train', transform=True,
-                                                             semantic_subset=semantic_subset,
-                                                             n_max_per_class=n_max_per_class,
-                                                             resized_sz=resized_sz,
-                                                             set_extras_to_void=set_extras_to_void,
-                                                             **dataset_kwargs)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
-                                               shuffle=False, **loader_kwargs)
-    if modified_length is not None:
-        train_dataset_for_val = train_dataset.copy(modified_length=10)
-        train_loader_for_val = torch.utils.data.DataLoader(train_dataset_for_val, batch_size=1,
-                                                           shuffle=False)
-        return train_loader_for_val
-    return train_loader
-
-
-def get_cityscapes_val_loader(root, n_max_per_class, resized_sz=None, set_extras_to_void=True,
-                              semantic_subset=None, modified_length=None,
-                              cuda=True, num_workers=4, pin_memory=True, batch_size=1,
-                              **dataset_kwargs):
-    # 1. dataset
-    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory} if cuda else {}
-    train_dataset = torchfcn.datasets.CityscapesClassSegBase(root, split='val', transform=True,
-                                                             semantic_subset=semantic_subset,
-                                                             n_max_per_class=n_max_per_class,
-                                                             resized_sz=resized_sz,
-                                                             set_extras_to_void=set_extras_to_void,
-                                                             **dataset_kwargs)
-    val_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
-                                             shuffle=False, **loader_kwargs)
-    if modified_length is not None:
-        val_dataset_for_val = train_dataset.copy(modified_length=10)
-        val_loader = torch.utils.data.DataLoader(val_dataset_for_val, batch_size=1,
-                                                 shuffle=False)
-    return val_loader
-
-
 def get_latest_model_path_from_logdir(logdir):
     assert os.path.exists(logdir), '{} doesn\'t exist'.format(logdir)
     best_model_path = os.path.join(logdir, 'model_best.pth.tar')
@@ -97,7 +54,7 @@ def get_log_dir(model_name, config_id, cfg, parent_directory=None):
         v = str(v)
         if '/' in v:
             continue
-        name += '_%s-%s' % (k.upper(), v)
+        name += '_%s-%s' % (k.upper().replace(' ', ''), v.replace(' ', ''))
     now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
     name += '_VCS-%s' % git_hash()
     name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')

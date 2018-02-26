@@ -39,6 +39,10 @@ def main():
     args = parse_args()
     gpu = args.gpu
     cfg = config.get_config(args.config)
+    if cfg['no_inst']:
+        assert cfg['n_max_per_class'] == 1, "no_inst implies n_max_per_class=1.  Please change " \
+                                            "the value accordingly."
+
     out = get_log_dir(osp.basename(__file__).replace(
         '.py', ''), args.config, config.create_config_copy(cfg),
         parent_directory=osp.dirname(osp.abspath(__file__)))
@@ -72,7 +76,7 @@ def main():
     # 2. model
     model = torchfcn.models.FCN8sInstance(
         problem_config.n_classes, map_to_semantic=cfg['map_to_semantic'],
-        instance_to_semantic_mapping_matrix=problem_config.instance_to_semantic_mapping_matrix)
+        semantic_instance_class_list=problem_config.semantic_instance_class_list)
 
     start_epoch = 0
     start_iteration = 0
@@ -111,7 +115,7 @@ def main():
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
-    import ipdb; ipdb.set_trace()
+    logger.info('Starting training.')
     trainer.train()
 
 
@@ -119,7 +123,8 @@ def get_dataset_loaders(cuda, cfg):
     root = osp.expanduser('~/data/cityscapes')
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     dataset_kwargs = {'resize': cfg['resize_size'] is not None,
-                      'resize_size': cfg['resize_size']}
+                      'resize_size': cfg['resize_size'],
+                      'make_all_instance_classes_semantic': cfg['no_inst']}
     train_dataset = torchfcn.datasets.CityscapesMappedToInstances(
         root, split='train', **dataset_kwargs)
     train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True,
@@ -144,8 +149,6 @@ def get_dataset_loaders(cuda, cfg):
         img, (sem_lbl, inst_lbl) = train_loader.dataset[0]
     except:
         print('Can\'t load an image/label pair.')
-        import ipdb;
-        ipdb.set_trace()
         raise
     # Test out the image transformations to make sure they look reasonable
     # torch.save(train_loader.dataset.untransform_img(img), 'untransformed_img.pth')

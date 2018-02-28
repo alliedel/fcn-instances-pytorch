@@ -8,100 +8,125 @@ from .fcn32s import get_upsampling_weight
 
 from .fcn8s import FCN8s
 
+from . import model_utils
+
 import local_pyutils
-from torchfcn import instance_utils
 
 logger = local_pyutils.get_logger()
 
 
-class FCN8sInstance(nn.Module):
+# TODO(allie): Get this to actually work (current bottleneck: copying VGG16 params over)
 
+class FCN8sInstance(nn.Module):
     pretrained_model = \
         osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
-    def __init__(self, n_classes, semantic_instance_class_list, map_to_semantic=False):
-        """
-        n_classes: Number of output channels
-        map_to_semantic: If True, n_semantic_classes must not be None.
-        """
+    def __init__(self, n_semantic_classes_with_background=21, n_max_per_class=3,
+                 background_classes=(0,),
+                 void_classes=(-1,), map_to_semantic=False):
+        if type(background_classes) is tuple:
+            background_classes = list(background_classes)
+        if type(void_classes) is tuple:
+            void_classes = list(void_classes)
+        assert len(
+            background_classes) == 1 and background_classes[0] == 0, NotImplementedError
+        assert len(
+            void_classes) == 1 and void_classes[0] == -1, NotImplementedError
         super(FCN8sInstance, self).__init__()
-        self.n_classes = n_classes
-        self.map_to_semantic = map_to_semantic
-        self.semantic_instance_class_list = semantic_instance_class_list
-        self.instance_to_semantic_mapping_matrix = \
-            instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
-                semantic_instance_class_list, as_numpy=False)
 
-        # TODO(allie) -- use model_utils.BasicConv2D instead
+        self.map_to_semantic = map_to_semantic
+
+        self.semantic_instance_class_list = [0]
+        for semantic_class in range(1, n_semantic_classes_with_background):
+            self.semantic_instance_class_list += [
+                semantic_class for _ in range(n_max_per_class)]
+
+        self.n_classes = len(self.semantic_instance_class_list)
+        self.n_semantic_classes = n_semantic_classes_with_background
+        self.n_max_per_class = n_max_per_class
+
+        self.instance_to_semantic_mapping_matrix = torch.zeros((self.n_classes,
+                                                                self.n_semantic_classes)).float()
+
+        for instance_idx, semantic_idx in enumerate(self.semantic_instance_class_list):
+            self.instance_to_semantic_mapping_matrix[instance_idx,
+                                                     semantic_idx] = 1
+
+        def ConvType(in_channels, out_channels, kernel_size, **kwargs):
+            use_bn = False
+            ceil_mode = kwargs.pop('ceil_mode', True)  # if use_pool
+            nonlinearity = kwargs.pop('nonlinearity', 'relu')
+            use_pool = kwargs.pop('use_pool', False)
+            return model_utils.BasicConv2D(in_channels, out_channels,
+                                           kernel_size, use_bn=use_bn,
+                                           ceil_mode=ceil_mode,
+                                           use_pool=use_pool,
+                                           nonlinearity=nonlinearity, **kwargs)
+
+        def DeconvType(in_channels, out_channels, kernel_size, **kwargs):
+            use_bn = False
+            return model_utils.BasicDeconv2D(in_channels, out_channels, kernel_size, use_bn=use_bn,
+                                             **kwargs)
+
         # conv1
-        self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
-        self.relu1_1 = nn.ReLU(inplace=True)
-        self.conv1_2 = nn.Conv2d(64, 64, 3, padding=1)
-        self.relu1_2 = nn.ReLU(inplace=True)
-        self.pool1 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/2
+        self.conv1_1 = ConvType(in_channels=3, out_channels=64, kernel_size=3, padding=100,
+                                nonlinearity='relu')
+        self.conv1_2 = ConvType(in_channels=64, out_channels=64, kernel_size=3, padding=1,
+                                nonlinearity='relu', use_pool=True, ceil_mode=True)  # H/2, W/2
+        # ceil_mode=True
 
         # conv2
-        self.conv2_1 = nn.Conv2d(64, 128, 3, padding=1)
-        self.relu2_1 = nn.ReLU(inplace=True)
-        self.conv2_2 = nn.Conv2d(128, 128, 3, padding=1)
-        self.relu2_2 = nn.ReLU(inplace=True)
-        self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/4
+        self.conv2_1 = ConvType(in_channels=64, out_channels=128, kernel_size=3, padding=1,
+                                nonlinearity='relu')
+        self.pool2 = ConvType(in_channels=128, out_channels=128, kernel_size=3, padding=1,
+                              nonlinearity='relu', use_pool=True, ceil_mode=True)  # H/4, W/4
 
         # conv3
-        self.conv3_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        self.relu3_1 = nn.ReLU(inplace=True)
-        self.conv3_2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.relu3_2 = nn.ReLU(inplace=True)
-        self.conv3_3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.relu3_3 = nn.ReLU(inplace=True)
-        self.pool3 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/8
+        self.conv3_1 = ConvType(in_channels=128, out_channels=256, kernel_size=3, padding=1)
+        self.conv3_2 = ConvType(in_channels=256, out_channels=256, kernel_size=3, padding=1)
+        self.pool3 = ConvType(in_channels=256, out_channels=256, kernel_size=3, padding=1,
+                              use_pool=True, ceil_mode=True)  # H/8, W/8
 
         # conv4
-        try:
-            self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
-        except:
-            import ipdb
-            ipdb.set_trace()
-        self.relu4_1 = nn.ReLU(inplace=True)
-        self.conv4_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu4_2 = nn.ReLU(inplace=True)
-        self.conv4_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu4_3 = nn.ReLU(inplace=True)
-        self.pool4 = nn.MaxPool2d(
-            kernel_size=2, stride=2, ceil_mode=True)  # 1/16
+        self.conv4_1 = ConvType(in_channels=256, out_channels=512, kernel_size=3, padding=1)
+        self.conv4_2 = ConvType(in_channels=512, out_channels=512, kernel_size=3, padding=1)
+        self.pool4 = ConvType(in_channels=512, out_channels=512, kernel_size=3, padding=1,
+                              use_pool=True, ceil_mode=True)  # H/16, W/16
 
         # conv5
-        self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_1 = nn.ReLU(inplace=True)
-        self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_2 = nn.ReLU(inplace=True)
-        self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_3 = nn.ReLU(inplace=True)
-        self.pool5 = nn.MaxPool2d(
-            kernel_size=2, stride=2, ceil_mode=True)  # 1/32
+        self.conv5_1 = ConvType(in_channels=512, out_channels=512, kernel_size=3, padding=1)
+        self.conv5_2 = ConvType(in_channels=512, out_channels=512, kernel_size=3, padding=1)
+        self.pool5 = ConvType(in_channels=512, out_channels=512, kernel_size=3, padding=1,
+                              use_pool=True, ceil_mode=True)  # H/32, W/32
 
         # fc6
-        self.fc6 = nn.Conv2d(512, 4096, 7)
-        self.relu6 = nn.ReLU(inplace=True)
+        self.fc6 = ConvType(in_channels=512, out_channels=4096, kernel_size=7, padding=1,
+                            nonlinearity='relu')
+        # H/32 x W/32 x 4096
         self.drop6 = nn.Dropout2d()
 
         # fc7
-        self.fc7 = nn.Conv2d(4096, 4096, kernel_size=1)  # H/32 x W/32 x 4096
-        self.relu7 = nn.ReLU(inplace=True)
+        self.fc7 = ConvType(in_channels=4096, out_channels=4096, kernel_size=1, padding=1,
+                            nonlinearity='relu')
+        # H/32 x W/32 x 4096
         self.drop7 = nn.Dropout2d()
 
-        # H/32 x W/32 x n_semantic_cls
-        self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
-        # H/32 x W/32 x n_semantic_cls
-        self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)
-        # H/32 x W/32 x n_semantic_cls
-        self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)
+        # H/32 x W/32 x num_classes
+        self.score_fr = ConvType(in_channels=4096, out_channels=self.n_classes, kernel_size=1,
+                                 nonlinearity=None)
+        # H/32 x W/32 x num_classes
+        self.score_pool3 = nn.Conv2d(in_channels=256, out_channels=self.n_classes, kernel_size=1)
+        # H/32 x W/32 x num_classes
+        self.score_pool4 = nn.Conv2d(in_channels=512, out_channels=self.n_classes, kernel_size=1)
 
-        self.upscore2 = nn.ConvTranspose2d(   # H/16 x W/16 x n_semantic_cls
-            self.n_classes, self.n_classes, kernel_size=4, stride=2, bias=False)
-        self.upscore8 = nn.ConvTranspose2d(   # H/2 x W/2 x n_semantic_cls
-            self.n_classes, self.n_classes, kernel_size=16, stride=8, bias=False)
-        self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
+        self.upscore2 = DeconvType(  # H/16 x W/16 x n_classes
+            in_channels=self.n_classes, out_channels=self.n_classes, kernel_size=4, stride=2,
+            bias=False)
+        self.upscore8 = DeconvType(  # H/2 x W/2 x n_classes
+            in_channels=self.n_classes, out_channels=self.n_classes, kernel_size=16,
+            stride=8,
+            bias=False)
+        self.upscore_pool4 = DeconvType(  # H x W x n_classes
             self.n_classes, self.n_classes, kernel_size=4, stride=2, bias=False)
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
@@ -132,6 +157,34 @@ class FCN8sInstance(nn.Module):
 
         return h
 
+    def conv1(self, h):
+        h = self.conv1_1(h)
+        h = self.pool1(h)
+        return h
+
+    def conv2(self, h):
+        h = self.conv2_1(h)
+        h = self.pool2(h)
+        return h
+
+    def conv3(self, h):
+        h = self.conv3_1(h)
+        h = self.conv3_2(h)
+        h = self.pool3(h)
+        return h
+
+    def conv4(self, h):
+        h = self.conv4_1(h)
+        h = self.conv4_2(h)
+        h = self.pool4(h)
+        return h
+
+    def conv5(self, h):
+        h = self.conv5_1(h)
+        h = self.conv5_2(h)
+        h = self.pool5(h)
+        return h
+
     def reduce_to_fc7(self, h):
         h = self.conv1(h)
         h = self.conv2(h)
@@ -141,45 +194,12 @@ class FCN8sInstance(nn.Module):
         pool4 = h  # 1/16
         h = self.conv5(h)
 
-        h = self.relu6(self.fc6(h))
+        h = self.fc6(h)
         h = self.drop6(h)
 
-        h = self.relu7(self.fc7(h))
+        h = self.fc7(h)
         h = self.drop7(h)
         return h, pool3, pool4
-
-    def conv1(self, h):
-        h = self.relu1_1(self.conv1_1(h))
-        h = self.relu1_2(self.conv1_2(h))
-        h = self.pool1(h)
-        return h
-
-    def conv2(self, h):
-        h = self.relu2_1(self.conv2_1(h))
-        h = self.relu2_2(self.conv2_2(h))
-        h = self.pool2(h)
-        return h
-
-    def conv3(self, h):
-        h = self.relu3_1(self.conv3_1(h))
-        h = self.relu3_2(self.conv3_2(h))
-        h = self.relu3_3(self.conv3_3(h))
-        h = self.pool3(h)
-        return h
-
-    def conv4(self, h):
-        h = self.relu4_1(self.conv4_1(h))
-        h = self.relu4_2(self.conv4_2(h))
-        h = self.relu4_3(self.conv4_3(h))
-        h = self.pool4(h)
-        return h
-
-    def conv5(self, h):
-        h = self.relu5_1(self.conv5_1(h))
-        h = self.relu5_2(self.conv5_2(h))
-        h = self.relu5_3(self.conv5_3(h))
-        h = self.pool5(h)
-        return h
 
     def upscore(self, h, pool3, pool4):
         # Transpose Convolution here ('deconvolution')
@@ -197,8 +217,8 @@ class FCN8sInstance(nn.Module):
 
         h = self.score_pool3(pool3 * 0.0001)  # XXX: scaling to train at once
         h = h[:, :,
-              9:9 + upscore_pool4.size()[2],
-              9:9 + upscore_pool4.size()[3]]
+            9:9 + upscore_pool4.size()[2],
+            9:9 + upscore_pool4.size()[3]]
         score_pool3c = h  # 1/8
 
         h = upscore_pool4 + score_pool3c  # 1/8
@@ -257,8 +277,7 @@ class FCN8sInstance(nn.Module):
         for name, l1 in fcn8s_semantic.named_children():
             try:
                 l2 = getattr(self, name)
-                l2.weight  # skip ReLU / Dropout    # TODO(allie): change this line (from fork) -
-                                                    # check for attribute instead.
+                l2.weight  # skip ReLU / Dropout
             except Exception:
                 continue
             if l1.weight.size() == l2.weight.size():

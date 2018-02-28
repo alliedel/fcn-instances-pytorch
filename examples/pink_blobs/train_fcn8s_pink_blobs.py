@@ -19,8 +19,6 @@ torch.cuda.manual_seed_all(0)
 np.random.seed(0)
 
 
-logger = local_pyutils.get_logger()
-
 # filename starts to exceed max; creating abbreviations so we can keep the config in the log
 # directory name.
 CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',

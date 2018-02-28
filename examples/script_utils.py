@@ -48,13 +48,16 @@ def git_hash():
 
 
 def get_log_dir(model_name, config_id, cfg, parent_directory=None):
+    bad_char_replacements = {' ': '', ',': '-'}
     # load config
     name = 'MODEL-%s_CFG-%03d' % (model_name, config_id)
     for k, v in cfg.items():
         v = str(v)
         if '/' in v:
             continue
-        name += '_%s-%s' % (k.upper().replace(' ', ''), v.replace(' ', ''))
+        name += '_%s-%s' % (k.upper(), v)
+        for key, val in bad_char_replacements.items():
+            name = name.replace(key, val)
     now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
     name += '_VCS-%s' % git_hash()
     name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')

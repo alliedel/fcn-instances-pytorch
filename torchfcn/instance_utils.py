@@ -77,7 +77,7 @@ def get_instance_to_semantic_mapping(n_instances_by_semantic_id, as_numpy=False)
 
 
 def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
-                                         set_extras_to_void=True, write_over_inst_lbl=False):
+                                         set_extras_to_void=True, void_value=-1):
     """
     sem_lbl is size(img); inst_lbl is size(img).  inst_lbl is just the original instance
     image (inst_lbls at coordinates of person 0 are 0)
@@ -89,6 +89,7 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
         y = inst_lbl.clone()
     else:
         y = inst_lbl.copy()
+    y[...] = void_value
     unique_semantic_vals, inst_counts = np.unique(semantic_instance_class_list, return_counts=True)
     for sem_val, n_instances_for_this_sem_cls in zip(unique_semantic_vals, inst_counts):
         for inst_val in range(n_instances_for_this_sem_cls):
@@ -99,4 +100,6 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
             except:
                 import ipdb; ipdb.set_trace()
                 raise
+    if np.sum(y == void_value) == 0:
+        raise Exception('void class got removed here')
     return y

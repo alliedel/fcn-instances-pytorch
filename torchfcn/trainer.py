@@ -252,6 +252,7 @@ class Trainer(object):
             except:
                 import ipdb; ipdb.set_trace()
                 raise
+
             lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
             true_labels.append(lt_combined)
             pred_labels.append(lp)

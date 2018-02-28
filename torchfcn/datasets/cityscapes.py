@@ -21,7 +21,7 @@ class CityscapesMappedToInstances(cityscapes_raw.CityscapesWithTransformations):
         # Get dictionary of raw id assignments (semantic, instance, void, background)
         self._raw_id_list, self._raw_id_assignments = get_raw_id_assignments()
         # Override if asked to
-        if make_all_instance_classes_semantic:
+        if self.make_all_instance_classes_semantic:
             self._raw_id_assignments['instance'] = [False for _ in
                                                     self._raw_id_assignments['instance']]
 
@@ -55,22 +55,7 @@ class CityscapesMappedToInstances(cityscapes_raw.CityscapesWithTransformations):
         """
         img, (sem_lbl, inst_lbl) = super(CityscapesMappedToInstances, self).__getitem__(index)
         sem_lbl = map_raw_sem_ids_to_train_ids(sem_lbl, self._raw_id_list, self._raw_id_to_train_id)
-        inst_lbl = map_raw_inst_labels_to_instance_count(inst_lbl)
-        if self.cutoff_instances_above is not None:
-            # Assign 0 to any instances that are not in the range (1, cutoff + 1) -- leftovers
-            inst_lbl[inst_lbl > self.cutoff_instances_above] = 0
-        # Assign inst_lbl = 0 to all semantic-only classes (non-instance classes)
-        for sem_train_id, is_instance in enumerate(self.train_id_assignments['instance']):
-            if not is_instance:
-                inst_lbl[sem_lbl == sem_train_id] = 0
-            else:
-                # all instance labels at this point should be in the range (1, n_instances + 1)
-                # remap to (0, n_instances).
-                # Note instance labels given the label 0 will now be void (we don't use
-                # the loss from the leftovers in this implementation, though that will likely
-                #  have to change)
-                inst_lbl[sem_lbl == sem_train_id] = inst_lbl - 1
-
+        inst_lbl = self.raw_inst_to_train_inst_labels(inst_lbl, sem_lbl)
         return img, (sem_lbl, inst_lbl)
 
     def modify_length(self, modified_length):
@@ -85,25 +70,40 @@ class CityscapesMappedToInstances(cityscapes_raw.CityscapesWithTransformations):
         self.modify_length(modified_length)
         return my_copy
 
+    def raw_inst_to_train_inst_labels(self, inst_lbl, sem_lbl):
+        inst_lbl = map_raw_inst_labels_to_instance_count(inst_lbl)
+        for (sem_train_id, is_instance, is_semantic) in \
+                zip(self.train_id_list, self.train_id_assignments['instance'],
+                    self.train_id_assignments['semantic']):
+            if not is_instance and is_semantic:
+                inst_lbl[sem_lbl == sem_train_id] = 0
+            elif not is_semantic:
+                inst_lbl[sem_lbl == sem_train_id] = -1
+            else:
+                # all instance labels at this point should be in the range (1, n_instances + 1)
+                # remap to (0, n_instances).
+                # Note instance labels given the label 0 will now be void (we don't use
+                # the loss from the leftovers in this implementation, though that will likely
+                #  have to change)
+                inst_lbl[sem_lbl == sem_train_id] -= 1
+        if self.cutoff_instances_above is not None:
+            # Assign 0 to any instances that are not in the range (1, cutoff + 1) -- leftovers
+            inst_lbl[inst_lbl > self.cutoff_instances_above] = 0
+
+        return inst_lbl
+
 
 def get_train_id_assignments(raw_id_assignments, void_value, background_value=0):
     # train ids include void_value, background_value, and range(1, n_semantic_classes + 1)
     n_raw_classes = len(raw_id_assignments['semantic'])
     n_semantic_classes = raw_id_assignments['semantic'].count(True)
-    semantic_values = range(n_semantic_classes + 1)
-    assert void_value not in semantic_values, 'void_value should not overlap with semantic classes'
+    non_bground_semantic_values = range(1, n_semantic_classes + 1)
+    assert void_value not in non_bground_semantic_values, 'void_value should not overlap with ' \
+                                                          'semantic classes'
     assert background_value == 0, NotImplementedError
     # Each semantic class get its own value
     train_ids = [void_value, background_value] + list(range(n_semantic_classes))
-    train_assignments = {'background': [tid == background_value for tid in train_ids],
-                         'void': [tid == void_value for tid in train_ids],
-                         'semantic': [tid not in semantic_values for tid in train_ids],
-                         'instance': [raw_id_assignments['instance'][tid]
-                                      for tid in train_ids]}
-    assert all([len(train_assignments[k]) == len(train_assignments['void'])
-                for k in train_assignments.keys()])
-    assert all([len(raw_id_assignments[k]) == len(raw_id_assignments['void'])
-                for k in raw_id_assignments.keys()])
+
     # Map raw ids to unique train ids
     sem_cls = 0
     raw_id_to_train_id = []
@@ -117,10 +117,32 @@ def get_train_id_assignments(raw_id_assignments, void_value, background_value=0)
             raw_id_to_train_id.append(void_value)
         else:
             raise Exception('raw_id_assignments does not cover all the classes')
-
     assert sem_cls == n_semantic_classes - sum(raw_id_assignments['background']), \
         'Debug assert failed here.'
 
+    is_background, is_void, is_semantic, is_instance = [], [] , [], []
+    for tid in train_ids:
+        # background
+        is_background.append(tid == background_value)
+        # void
+        is_void.append(tid == void_value)
+        my_raw_ids = [ci for ci, mapped_train_id in enumerate(raw_id_to_train_id)
+                      if mapped_train_id == tid]
+        # semantic
+        is_semantic_for_all_raw = [raw_id_assignments['semantic'][id] for id in my_raw_ids]
+        if not all(is_semantic_for_all_raw[0] == is_sem for is_sem in is_semantic_for_all_raw):
+            raise Exception('Mapped semantic, non-semantic raw classes to the same train id.')
+        is_semantic.append(is_semantic_for_all_raw[0])
+        # instance
+        is_instance_for_all_raw = [raw_id_assignments['instance'][id] for id in my_raw_ids]
+        if not all(is_instance_for_all_raw[0] == is_inst for is_inst in is_instance_for_all_raw):
+            raise Exception('Mapped instance, non-instance raw classes to the same train id')
+        is_instance.append(is_instance_for_all_raw[0])
+
+    train_assignments = {'background': is_background,
+                         'void': is_void,
+                         'semantic': is_semantic,
+                         'instance': is_instance}
     return raw_id_to_train_id, train_ids, train_assignments
 
 
@@ -137,8 +159,9 @@ def get_raw_id_assignments():
                      for c, name in enumerate(labels_table_cityscapes.class_names)]
     is_semantic = [not is_void or is_background[ci] for ci, is_void in enumerate(
         labels_table_cityscapes.is_void)]
-    has_instances = [has_instances for ci, has_instances
-                     in enumerate(labels_table_cityscapes.has_instances)]
+    has_instances = [has_instances and not is_void for ci, (has_instances, is_void)
+                     in enumerate(zip(labels_table_cityscapes.has_instances,
+                                      labels_table_cityscapes.is_void))]
     is_void = [is_void and not is_background[ci] for ci, is_void in enumerate(
         labels_table_cityscapes.is_void)]
     assert len(is_void) == len(is_background) == len(is_semantic) == len(has_instances)

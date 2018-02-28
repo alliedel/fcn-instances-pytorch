@@ -147,6 +147,8 @@ def get_dataset_loaders(cuda, cfg):
     # Make sure we can load an image
     try:
         img, (sem_lbl, inst_lbl) = train_loader.dataset[0]
+        if np.sum(sem_lbl.numpy() == -1) == 0:
+            raise Exception('Debug: Void class is getting removed somewhere.')
     except:
         print('Can\'t load an image/label pair.')
         raise

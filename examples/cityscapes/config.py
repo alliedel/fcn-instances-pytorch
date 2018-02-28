@@ -27,7 +27,8 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'resize_size': 'sz',
                                         'n_max_per_class': 'n_per',
                                         'semantic_subset': 'sem_set',
-                                        'val_on_train': 'vot'}
+                                        'val_on_train': 'vot',
+                                        'matching': 'match'}
 
 configurations = {
     0: dict(),
@@ -56,7 +57,12 @@ configurations = {
     9: dict(
         n_max_per_class=1,
         interval_validate=100,
-        no_inst=True
+        no_inst=True,
+        matching=False
+    ),
+    10: dict(
+        n_max_per_class=10,
+        interval_validate=100
     )
 }
 

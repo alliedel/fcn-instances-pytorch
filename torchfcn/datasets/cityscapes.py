@@ -85,7 +85,10 @@ class CityscapesMappedToInstances(cityscapes_raw.CityscapesWithTransformations):
                 # Note instance labels given the label 0 will now be void (we don't use
                 # the loss from the leftovers in this implementation, though that will likely
                 #  have to change)
-                inst_lbl[sem_lbl == sem_train_id] -= 1
+                # NOTE(allie): removed the line below, because I think we want instance labels
+                # between 1 and (n_instances + 1)
+                # inst_lbl[sem_lbl == sem_train_id] -= 1
+                pass
         if self.cutoff_instances_above is not None:
             # Assign 0 to any instances that are not in the range (1, cutoff + 1) -- leftovers
             inst_lbl[inst_lbl > self.cutoff_instances_above] = 0

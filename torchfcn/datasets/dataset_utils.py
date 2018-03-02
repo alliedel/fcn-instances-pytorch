@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import scipy.misc
+import os
 
 # TODO(allie): Allow for augmentations
 
@@ -202,3 +203,35 @@ def pytorch_unique(pytorch_1d_tensor):
     else:
         raise Exception('pytorch_1d_tensor isn\'t actually a tensor!  Maybe you want to use '
                         'local_pyutils.unique() for a list or np.unique() for a np array.')
+
+
+def get_dataset_loaders(cuda, cfg, train_dataset, val_dataset, assert_val_not_in_train=False,
+                        logger=None):
+    loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
+    train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True,
+                                               batch_size=cfg['batch_size'], **loader_kwargs)
+    if cfg['val_on_train']:
+        train_dataset_for_val = train_dataset.copy(modified_length=10)
+        train_loader_for_val = torch.utils.data.DataLoader(train_dataset_for_val, batch_size=1,
+                                                           shuffle=False, **loader_kwargs)
+    else:
+        train_loader_for_val = None
+    val_loader = torch.utils.data.DataLoader(val_dataset,
+                                             batch_size=1, shuffle=False, **loader_kwargs)
+    if assert_val_not_in_train:
+        if logger:
+            logger.info('Checking whether validation images appear in the training set.')
+        assert_validation_images_arent_in_training_set(train_loader, val_loader)
+        if logger is not None:
+            logger.info('Confirmed validation and training set are disjoint.')
+    # Make sure we can load an image
+    try:
+        img, (sem_lbl, inst_lbl) = train_loader.dataset[0]
+    except:
+        print('Can\'t load an image/label pair.')
+        raise
+    # Test out the image transformations to make sure they look reasonable
+    # torch.save(train_loader.dataset.untransform_img(img), 'untransformed_img.pth')
+    # torch.save(train_loader.dataset.untransform_lbl(lbl), 'untransformed_lbl.pth')
+
+    return train_loader, val_loader, train_loader_for_val

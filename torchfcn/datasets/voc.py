@@ -1,16 +1,8 @@
 #!/usr/bin/env python
 
-import collections
-import os.path as osp
-import PIL.Image
-
+from . import voc_raw
 import numpy as np
-
-import torch
 from torch.utils import data
-
-from . import dataset_utils
-
 
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
 #  multiple times with the assigned permutation.  That way you can train in batches that have
@@ -21,222 +13,196 @@ from . import dataset_utils
 
 DEBUG_ASSERT = True
 
-ALL_VOC_CLASS_NAMES = np.array([
-    'background',  # 0
-    'aeroplane',  # 1
-    'bicycle',  # 2
-    'bird',  # 3
-    'boat',  # 4
-    'bottle',  # 5
-    'bus',  # 6
-    'car',  # 7
-    'cat',  # 8
-    'chair',  # 9
-    'cow',  # 10
-    'diningtable',  # 11
-    'dog',  # 12
-    'horse',  # 13
-    'motorbike',  # 14
-    'person',  # 15
-    'potted plant',  # 16
-    'sheep',  # 17
-    'sofa',  # 18
-    'train',  # 19
-    'tv/monitor',  # 20
-])
 
-
-class VOCClassSegBase(data.Dataset):
-    mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
-
-    def __init__(self, root, split='train', transform=False, n_max_per_class=1,
-                 semantic_subset=None, map_other_classes_to_bground=True,
-                 permute_instance_order=True, set_extras_to_void=False,
-                 return_semantic_instance_tuple=False):
+class VOCMappedToInstances(voc_raw.VOCWithTransformations):
+    def __init__(self, root, split='train', void_value=-1, resize=False, resize_size=None,
+                 cutoff_instances_above=None, make_all_instance_classes_semantic=False):
         """
-        n_max_per_class: number of instances per non-background class
-        class_subet: if None, use all classes.  Else, reduce the classes to this list set.
-        map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
-        permute_instance_order: randomly chooses the ordering of the instances (from 0 through
-        n_max_per_class - 1) --> Does this every time the image is loaded.
-        return_semantic_instance_tuple : Generally only for debugging; instead of returning an
-        instance index as the target values, it'll return two targets: the semantic target and
-        the instance number: [0, n_max_per_class)
+        cutoff_instances_above: int, max number of instances.
+        Note inst_lbl == 0 indicates non-instance label ('rest of them').  We can handle this
+        accordingly after we load the labels.
         """
 
-        self.permute_instance_order = permute_instance_order
-        self.map_other_classes_to_bground = map_other_classes_to_bground
-        self.root = root
-        self.split = split
-        self._transform = transform
-        self.n_max_per_class = n_max_per_class
-        self.class_names, self.idxs_into_all_voc = self.get_semantic_names_and_idxs(
-            semantic_subset=semantic_subset)
-        self.n_semantic_classes = len(self.class_names)
-        self._instance_to_semantic_mapping_matrix = None
-        self.get_instance_to_semantic_mapping()
-        self.n_classes = self._instance_to_semantic_mapping_matrix.size(0)
-        self.set_extras_to_void = set_extras_to_void
-        self.return_semantic_instance_tuple = return_semantic_instance_tuple
+        super(VOCMappedToInstances, self).__init__(root, split=split, resize=resize,
+                                                   resize_size=resize_size)
+        self.void_value = void_value
+        self.background_value = 0
+        self.cutoff_instances_above = cutoff_instances_above
+        self.make_all_instance_classes_semantic = make_all_instance_classes_semantic
 
-        # VOC2011 and others are subset of VOC2012
-        year = 2012
-        dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC{}'.format(year))
-        self.files = self.get_files(dataset_dir)
-        assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
+        # Get dictionary of raw id assignments (semantic, instance, void, background)
+        self._raw_id_list, self._raw_id_assignments = get_raw_id_assignments()
+        # Override if asked to
+        if self.make_all_instance_classes_semantic:
+            self._raw_id_assignments['instance'] = [False for _ in
+                                                    self._raw_id_assignments['instance']]
 
-    def update_n_max_per_class(self, n_max_per_class):
-        self.n_max_per_class = n_max_per_class
-        self.n_semantic_classes = len(self.class_names)
-        self._instance_to_semantic_mapping_matrix = None
-        self.get_instance_to_semantic_mapping(recompute=True)
-        self.n_classes = self._instance_to_semantic_mapping_matrix.size(0)
+        # Set list of corresponding training ids, and get training id assignments
+        self._raw_id_to_train_id, self.train_id_list, self.train_id_assignments = \
+            get_train_id_assignments(self._raw_id_assignments, void_value, background_value=0)
 
-    def get_files(self, dataset_dir):
-        files = collections.defaultdict(list)
-        for split in ['train', 'val'] + ([] if self.split in ['train', 'val'] else [self.split]):
-            imgsets_file = osp.join(
-                dataset_dir, 'ImageSets/Segmentation/%s.txt' % split)
-            for did in open(imgsets_file):
-                did = did.strip()
-                try:
-                    img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
-                    assert osp.isfile(img_file)
-                except AssertionError:
-                    if not osp.isfile(img_file):
-                        # VOC > 2007 has years in the name (VOC2007 doesn't).  Handling both.
-                        for did_ext in ['{}_{}'.format(year, did) for year in range(2007, 2013)]:
-                            img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did_ext)
-                            if osp.isfile(img_file):
-                                did = did_ext
-                                break
-                        if not osp.isfile(img_file):
-                            raise
-                sem_lbl_file = osp.join(
-                    dataset_dir, 'SegmentationClass/%s.png' % did)
-                if not osp.isfile(sem_lbl_file):
-                    raise Exception('This image does not exist')
-                # TODO(allie) -- allow functionality for permuting instance labels
-                inst_lbl_file = osp.join(
-                    dataset_dir, 'SegmentationObject/%s.png' % did)
-                files[split].append({
-                    'img': img_file,
-                    'sem_lbl': sem_lbl_file,
-                    'inst_lbl': inst_lbl_file,
-                })
-            assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
-        return files
-
-    def __len__(self):
-        return len(self.files[self.split])
+        # Get dictionary of class names for each type (semantic, void, background, instance)
+        self.class_names = []
+        for train_id in self.train_id_list:
+            raw_ids_mapped_to_this = [i for i, _ in enumerate(self._raw_id_list)
+                                      if self._raw_id_to_train_id[i] == train_id]
+            class_name = ','.join([voc_raw.class_names[i] for i in
+                                   raw_ids_mapped_to_this])
+            self.class_names.append(class_name)
 
     def __getitem__(self, index):
+        # TODO(allie): Possibly change this convention:
+        """
+        Returns sem_lbl, inst_lbl where:
+        inst_lbl >= 1 for instance classes if instances have been identified
+                    --> we remap these to inst_lbl - 1, so they start from index 0.
+        inst_lbl == 0 for semantic classes
+        inst_lbl == -1 for instance classes that have not been identified
+        Note for instance classes, the 'extras' are -1, but for semantic classes,
+            the 'extras' (all stuff) are 0.  This ensures we can ignore the instance leftovers
+            while still penalizing the semantic classes, without having to carry around
+            identifiers of whether a class is semantic or instance.
+        Note -- when the number of instances for an instance class is just 1, we will
+        break convention and convert it to a semantic class instead.
+        """
+        img, (sem_lbl, inst_lbl) = super(VOCMappedToInstances, self).__getitem__(index)
+        sem_lbl = map_raw_sem_ids_to_train_ids(sem_lbl, self._raw_id_list, self._raw_id_to_train_id)
+        inst_lbl = self.raw_inst_to_train_inst_labels(inst_lbl, sem_lbl)
+        return img, (sem_lbl, inst_lbl)
 
-        data_file = self.files[self.split][index]
-        img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
-                                                   sem_lbl_file=data_file['sem_lbl'],
-                                                   inst_lbl_file=data_file['inst_lbl'],
-                                                   return_semantic_instance_tuple=
-                                                   self.return_semantic_instance_tuple)
-        return img, lbl
+    def modify_length(self, modified_length):
+        self.files[self.split] = self.files[self.split][:modified_length]
 
-    @staticmethod
-    def get_semantic_names_and_idxs(semantic_subset):
-        return dataset_utils.get_semantic_names_and_idxs(semantic_subset=semantic_subset,
-                                                         full_set=ALL_VOC_CLASS_NAMES)
+    def copy(self, modified_length=10):
+        my_copy = VOCMappedToInstances(root=self.root)
+        for attr, val in self.__dict__.items():
+            setattr(my_copy, attr, val)
+        assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
+                                                "the initial dataset"
+        self.modify_length(modified_length)
+        return my_copy
 
-    def remap_to_reduced_semantic_classes(self, lbl):
-        return dataset_utils.remap_to_reduced_semantic_classes(
-            lbl, reduced_class_idxs=self.idxs_into_all_voc,
-            map_other_classes_to_bground=self.map_other_classes_to_bground)
-
-    def transform_img(self, img):
-        img = img[:, :, ::-1]  # RGB -> BGR
-        img = img.astype(np.float64)
-        img -= self.mean_bgr
-        img = img.transpose(2, 0, 1)
-        img = torch.from_numpy(img).float()
-        return img
-
-    @staticmethod
-    def transform_lbl(lbl):
-        lbl = torch.from_numpy(lbl).long()
-        return lbl
-
-    def transform(self, img, lbl):
-        img = self.transform_img(img)
-        lbl = self.transform_lbl(lbl)
-        return img, lbl
-
-    def untransform(self, img, lbl):
-        img = self.untransform_img(img)
-        lbl = lbl.numpy()
-        return img, lbl
-
-    def untransform_img(self, img):
-        img = img.numpy()
-        img = img.transpose(1, 2, 0)
-        img += self.mean_bgr
-        img = img.astype(np.uint8)
-        img = img[:, :, ::-1]
-        return img
-
-    def get_instance_semantic_labels(self):
-        instance_semantic_labels = []
-        for semantic_cls_idx, cls_name in enumerate(self.class_names):
-            if semantic_cls_idx == 0:  # only one background instance
-                instance_semantic_labels += [semantic_cls_idx]
+    def raw_inst_to_train_inst_labels(self, inst_lbl, sem_lbl):
+        inst_lbl = map_raw_inst_labels_to_instance_count(inst_lbl)
+        for (sem_train_id, is_instance, is_semantic) in \
+                zip(self.train_id_list, self.train_id_assignments['instance'],
+                    self.train_id_assignments['semantic']):
+            if not is_instance and is_semantic:
+                inst_lbl[sem_lbl == sem_train_id] = 0
+            elif not is_semantic:
+                inst_lbl[sem_lbl == sem_train_id] = -1
             else:
-                instance_semantic_labels += [semantic_cls_idx in range(self.n_max_per_class)]
-        return instance_semantic_labels
+                # all instance labels at this point should be in the range (1, n_instances + 1)
+                # remap to (0, n_instances).
+                # Note instance labels given the label 0 will now be void (we don't use
+                # the loss from the leftovers in this implementation, though that will likely
+                #  have to change)
+                # inst_lbl[sem_lbl == sem_train_id] -= 1
+                pass
+        if self.cutoff_instances_above is not None:
+            # Assign 0 to any instances that are not in the range (1, cutoff + 1) -- leftovers
+            inst_lbl[inst_lbl > self.cutoff_instances_above] = 0
 
-    def get_instance_to_semantic_mapping(self, recompute=False):
-        """ returns a binary matrix, where semantic_instance_mapping is N x S """
-        if recompute or self._instance_to_semantic_mapping_matrix is None:
-            self._instance_to_semantic_mapping_matrix = \
-                dataset_utils.get_instance_to_semantic_mapping(self.n_max_per_class,
-                                                               self.n_semantic_classes)
-        return self._instance_to_semantic_mapping_matrix
+        return inst_lbl
 
-    def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
-        return dataset_utils.combine_semantic_and_instance_labels(
-            sem_lbl, inst_lbl, n_max_per_class=self.n_max_per_class,
-            set_extras_to_void=self.set_extras_to_void)
 
-    def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file,
-                                   return_semantic_instance_tuple=False):
-        img = PIL.Image.open(img_file)
-        img = np.array(img, dtype=np.uint8)
-        # load semantic label
-        sem_lbl = PIL.Image.open(sem_lbl_file)
-        sem_lbl = np.array(sem_lbl, dtype=np.int32)
-        sem_lbl[sem_lbl == 255] = -1
-        if self._transform:
-            img, sem_lbl = self.transform(img, sem_lbl)
-        # map to reduced class set
-        sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
+def get_train_id_assignments(raw_id_assignments, void_value, background_value=0):
+    # train ids include void_value, background_value, and range(1, n_semantic_classes + 1)
+    n_raw_classes = len(raw_id_assignments['semantic'])
+    n_semantic_classes = raw_id_assignments['semantic'].count(True)
+    assert background_value == 0, NotImplementedError
+    # Each semantic class get its own value
+    train_ids = [void_value, background_value] + list(range(1, n_semantic_classes))
 
-        # Handle instances
-        if self.n_max_per_class == 1:
-            lbl = sem_lbl
+    # Map raw ids to unique train ids
+    sem_cls = 0
+    raw_id_to_train_id = []
+    for raw_id in range(n_raw_classes):
+        if raw_id_assignments['background'][raw_id]:
+            raw_id_to_train_id.append(background_value)
+        elif raw_id_assignments['semantic'][raw_id]:
+            sem_cls += 1
+            raw_id_to_train_id.append(sem_cls)
+        elif raw_id_assignments['void'][raw_id]:
+            raw_id_to_train_id.append(void_value)
         else:
-            inst_lbl = PIL.Image.open(inst_lbl_file)
-            inst_lbl = np.array(inst_lbl, dtype=np.int32)
-            inst_lbl[inst_lbl == 255] = -1
-            inst_lbl = self.transform_lbl(inst_lbl)
-            if self.permute_instance_order:
-                inst_lbl = dataset_utils.permute_instance_order(inst_lbl, self.n_max_per_class)
-            if return_semantic_instance_tuple:
-                lbl = [sem_lbl, inst_lbl]
-            else:
-                lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
+            raise Exception('raw_id_assignments does not cover all the classes')
+    assert sem_cls == n_semantic_classes - sum(raw_id_assignments['background']), \
+        'Debug assert failed here.'
 
-        return img, lbl
+    is_background, is_void, is_semantic, is_instance = [], [], [], []
+    for tid in train_ids:
+        # background
+        is_background.append(tid == background_value)
+        # void
+        is_void.append(tid == void_value)
+        my_raw_ids = [ci for ci, mapped_train_id in enumerate(raw_id_to_train_id)
+                      if mapped_train_id == tid]
+        # semantic
+        is_semantic_for_all_raw = [raw_id_assignments['semantic'][id] for id in my_raw_ids]
+        if not all(is_semantic_for_all_raw[0] == is_sem for is_sem in is_semantic_for_all_raw):
+            raise Exception('Mapped semantic, non-semantic raw classes to the same train id.')
+        is_semantic.append(is_semantic_for_all_raw[0])
+        # instance
+        is_instance_for_all_raw = [raw_id_assignments['instance'][id] for id in my_raw_ids]
+        if not all(is_instance_for_all_raw[0] == is_inst for is_inst in is_instance_for_all_raw):
+            raise Exception('Mapped instance, non-instance raw classes to the same train id')
+        is_instance.append(is_instance_for_all_raw[0])
+
+    train_assignments = {'background': is_background,
+                         'void': is_void,
+                         'semantic': is_semantic,
+                         'instance': is_instance}
+    return raw_id_to_train_id, train_ids, train_assignments
 
 
-class VOC2012ClassSeg(VOCClassSegBase):
-    url = 'http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar'  # NOQA
+def get_raw_id_assignments():
+    """
+    # semantic: All classes we are considering (non-void)
+    # instance: Subset of semantic classes with instances
+    # void: Any classes that don't get evaluated on (too few, or they're unlabeled, etc.)
+    # background: Any classes that get mapped into one big 'miscellanious' class (differs from
+      void because we evaluate on it)
+    """
+    raw_id_list = voc_raw.ids
+    is_background = [name == 'background'
+                     for c, name in enumerate(voc_raw.class_names)]
+    is_semantic = [not is_void or is_background[ci] for ci, is_void in enumerate(
+        voc_raw.is_void)]
+    has_instances = [has_instances and not is_void for ci, (has_instances, is_void)
+                     in enumerate(zip(voc_raw.has_instances,
+                                      voc_raw.is_void))]
+    is_void = [is_void and not is_background[ci] for ci, is_void in enumerate(
+        voc_raw.is_void)]
+    assert len(is_void) == len(is_background) == len(is_semantic) == len(has_instances)
+    assert all([(b and s) == b for b, s in zip(is_background, is_semantic)])
+    return raw_id_list, {'semantic': is_semantic,
+                         'instance': has_instances,
+                         'void': is_void,
+                         'background': is_background}
 
-    def __init__(self, root, split='train', transform=False, **kwargs):
-        super(VOC2012ClassSeg, self).__init__(
-            root, split=split, transform=transform, **kwargs)
+
+def map_raw_inst_labels_to_instance_count(inst_lbl):
+    return inst_lbl
+
+
+def map_raw_sem_ids_to_train_ids(sem_lbl, old_values, new_values_from_old_values):
+    """
+    Specifically for Cityscapes. There are a bunch of classes that didn't get used,
+    so they 'remap' them onto actual training classes.  Leads to very silly remapping after
+    loading...
+
+    WARNING: We map iteratively (less memory-intensive than copying sem_lbl or making masks).
+    For this to work, train_ids must be <= ids, background_value <= background_ids,
+    void_value <= void_ids.
+    """
+    new_value_sorted_idxs = np.argsort(new_values_from_old_values)
+    old_values = [old_values[i] for i in new_value_sorted_idxs]
+    new_values_from_old_values = [new_values_from_old_values[i] for i in new_value_sorted_idxs]
+    assert len(old_values) == len(new_values_from_old_values)
+    assert all([new <= old for old, new in zip(old_values, new_values_from_old_values)]), \
+        NotImplementedError('I\'ve got to do something smarter when assigning...')
+    # map ids to train_ids (e.g. - tunnel (id=16) is unused, so maps to 255.
+    for old_val, new_val in zip(old_values, new_values_from_old_values):
+        sem_lbl[sem_lbl == old_val] = new_val
+    return sem_lbl

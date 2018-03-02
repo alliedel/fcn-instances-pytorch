@@ -9,7 +9,8 @@ from . import voc
 
 class SBDClassSeg(voc.VOCClassSegBase):
     # XXX: It must be renamed to benchmark.tar to be extracted.
-    url = 'http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/semantic_contours/benchmark.tgz'  # NOQA
+    url = 'http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/' \
+          'semantic_contours/benchmark.tgz'  # NOQA
 
     def __init__(self, root, split='train', transform=False):
         self.root = root

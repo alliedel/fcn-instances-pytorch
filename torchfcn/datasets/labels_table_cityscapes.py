@@ -45,7 +45,6 @@ CITYSCAPES_LABELS_TABLE = [
     Label(  'bicycle'              , 33 ,       18 , 'vehicle'         , 7       , True         , False        , (119, 11, 32) ),
     Label(  'license plate'        , -1 ,       -1 , 'vehicle'         , 7       , False        , True         , (  0,  0,142) ),
 ]
-CITYSCAPES_LABELS_TABLE[-1]['train_id'] = 13  # make license plate map to car for ease.
 
 class_names = [class_label['name'] for class_label in CITYSCAPES_LABELS_TABLE]
 ids = [class_label['id'] for class_label in CITYSCAPES_LABELS_TABLE]

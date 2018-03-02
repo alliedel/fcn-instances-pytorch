@@ -1,4 +1,4 @@
-# cityscapes/config.py
+# voc/config.py
 
 default_configuration = dict(
     max_iteration=10000,
@@ -12,11 +12,12 @@ default_configuration = dict(
     recompute_optimal_loss=False,
     size_average=True,
     val_on_train=True,
-    resize_size=[256, 512],
+    resize_size=None,
     map_to_semantic=False,
     no_inst=False,  # convert all instance classes to semantic classes
     matching=True,
-    semantic_subset=None)
+    semantic_subset=None,
+    opt='adam')
 
 CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'weight_decay': 'decay',
@@ -30,7 +31,9 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'n_max_per_class': 'n_per',
                                         'semantic_subset': 'sem_set',
                                         'val_on_train': 'vot',
-                                        'matching': 'match'}
+                                        'matching': 'match',
+                                        'batch_size': 'b_sz',
+                                        'momentum': 'mom'}
 
 configurations = {
     0: dict(),
@@ -65,7 +68,18 @@ configurations = {
     10: dict(
         n_max_per_class=10,
         interval_validate=100
-    )
+    ),
+    11: dict(
+        n_max_per_class=1,
+        interval_validate=100,
+        no_inst=True,
+        matching=False,
+        lr=1.0e-10,
+        weight_decay=0.0005,
+        size_average=False,
+        momentum=0.99,
+        opt='sgd',
+    ),
 }
 
 

@@ -16,19 +16,41 @@ import tqdm
 import torchfcn
 
 
+DEBUG_ASSERTS = True
+
+
+def nll2d_single_class_term(log_predictions_single_instance_cls, binary_target_single_instance_cls):
+    lp = log_predictions_single_instance_cls
+    bt = binary_target_single_instance_cls
+    if DEBUG_ASSERTS:
+        assert lp.size() == bt.size()
+    try:
+        res = -torch.sum(lp.view(-1, ) * bt.view(-1, ))
+    except:
+        import ipdb;
+        ipdb.set_trace()
+        raise
+    return res
+
+
 def cross_entropy2d(input, target, weight=None, size_average=True):
     # input: (n, c, h, w), target: (n, h, w)
     n, c, h, w = input.size()
     # log_p: (n, c, h, w)
-    log_p = F.log_softmax(input)
+    log_p = F.log_softmax(input, dim=1)
     # log_p: (n*h*w, c)
-    log_p = log_p.transpose(1, 2).transpose(2, 3).contiguous().view(-1, c)
-    log_p = log_p[target.view(n, h, w, 1).repeat(1, 1, 1, c) >= 0]
-    log_p = log_p.view(-1, c)
+
     # target: (n*h*w,)
+    loss = None
+    for lp_cls in range(c):
+        if loss is None:
+            loss = nll2d_single_class_term(log_p[:, lp_cls, :, :],
+                                           (target == lp_cls).float())
+        else:
+            loss += nll2d_single_class_term(log_p[:, lp_cls, :, :],
+                                            (target == lp_cls).float())
     mask = target >= 0
-    target = target[mask]
-    loss = F.nll_loss(log_p, target, weight=weight, size_average=False)
+
     if size_average:
         loss /= mask.data.sum()
     return loss
@@ -170,8 +192,8 @@ class Trainer(object):
             if self.iteration != 0 and (iteration - 1) != self.iteration:
                 continue  # for resuming
             self.iteration = iteration
-
-            if self.iteration % self.interval_validate == 0:
+            # TODO(allie): remove once backwards is fixed
+            if self.iteration != 0 and self.iteration % self.interval_validate == 0:
                 self.validate()
 
             assert self.model.training

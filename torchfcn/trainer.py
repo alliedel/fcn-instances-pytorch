@@ -41,6 +41,11 @@ def cross_entropy2d(input, target, weight=None, size_average=True):
     # log_p: (n*h*w, c)
 
     # target: (n*h*w,)
+    if (target < -1).data.sum() > 0:
+        raise Exception
+
+    mask = target >= 0
+
     loss = None
     for lp_cls in range(c):
         if loss is None:
@@ -49,8 +54,10 @@ def cross_entropy2d(input, target, weight=None, size_average=True):
         else:
             loss += nll2d_single_class_term(log_p[:, lp_cls, :, :],
                                             (target == lp_cls).float())
-    mask = target >= 0
 
+    loss2 = F.nll_loss(log_p, target, weight=weight, size_average=False, ignore_index=-1)
+    if not torch.np.isclose(loss.data.cpu().numpy(), loss2.data.cpu().numpy()):
+        import ipdb; ipdb.set_trace()
     if size_average:
         loss /= mask.data.sum()
     return loss

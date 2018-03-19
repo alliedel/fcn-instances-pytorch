@@ -30,18 +30,18 @@ def main():
         num_workers=4, pin_memory=True)
 
     n_class = len(val_loader.dataset.class_names)
-
-    if osp.basename(model_file).startswith('fcn32s'):
+    model_dir = osp.basename(osp.dirname(model_file))
+    if model_dir.startswith('MODEL-fcn32s'):
         model = torchfcn.models.FCN32s(n_class=21)
-    elif osp.basename(model_file).startswith('fcn16s'):
+    elif model_dir.startswith('MODEL-fcn16s'):
         model = torchfcn.models.FCN16s(n_class=21)
-    elif osp.basename(model_file).startswith('fcn8s'):
-        if osp.basename(model_file).startswith('fcn8s-atonce'):
+    elif model_dir.startswith('MODEL-fcn8s'):
+        if osp.basename(osp.dirname(model_file)).startswith('MODEL-fcn8s-atonce'):
             model = torchfcn.models.FCN8sAtOnce(n_class=21)
         else:
             model = torchfcn.models.FCN8s(n_class=21)
     else:
-        raise ValueError
+        raise ValueError('unknown model for file {}'.format(osp.basename(model_file)))
     if torch.cuda.is_available():
         model = model.cuda()
     print('==> Loading %s model file: %s' %

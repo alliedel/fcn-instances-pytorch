@@ -5,12 +5,11 @@ import os
 import os.path as osp
 
 import torch
+from tensorboardX import SummaryWriter
 
 import torchfcn
-
-from train_fcn32s import get_log_dir
-from train_fcn32s import get_parameters
-
+from torchfcn.script_utils import get_log_dir
+from torchfcn.script_utils import get_parameters
 
 configurations = {
     # same configuration as original work
@@ -24,11 +23,12 @@ configurations = {
     )
 }
 
-
 here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
+    n_max_per_class = 5
+    matching = False
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=1,
@@ -38,7 +38,9 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir('fcn8s-instance', args.config, cfg)
+    out = get_log_dir(osp.basename(__file__).replace(
+        '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
+    print('logdir: {}'.format(out))
     resume = args.resume
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -52,9 +54,13 @@ def main():
 
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
+    
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
+        torchfcn.datasets.VOC2011ClassSeg(root, split='train', transform=True),
         batch_size=1, shuffle=True, **kwargs)
+    # train_loader = torch.utils.data.DataLoader(
+    #     torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
+    #     batch_size=1, shuffle=True, **kwargs)
     val_loader = torch.utils.data.DataLoader(
         torchfcn.datasets.VOC2011ClassSeg(
             root, split='seg11valid', transform=True),
@@ -62,7 +68,8 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN8sInstance(n_class=21)
+    model = torchfcn.models.FCN8sAtOnce(n_class=21)
+
     start_epoch = 0
     start_iteration = 0
     if resume:
@@ -77,10 +84,16 @@ def main():
         model = model.cuda()
 
     # 3. optimizer
+
     optim = torch.optim.SGD(
         [
             {'params': get_parameters(model, bias=False)},
             {'params': get_parameters(model, bias=True),
+#            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+#                model, bias=False))},
+#            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+#                model, bias=True)),
+
              'lr': cfg['lr'] * 2, 'weight_decay': 0},
         ],
         lr=cfg['lr'],
@@ -89,6 +102,7 @@ def main():
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
+    writer = SummaryWriter(log_dir=out)
     trainer = torchfcn.Trainer(
         cuda=cuda,
         model=model,
@@ -98,6 +112,8 @@ def main():
         out=out,
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),
+        tensorboard_writer=writer,
+        matching_loss=matching,
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

@@ -1,18 +1,15 @@
 #!/usr/bin/env python
 
 import argparse
-import datetime
 import os
 import os.path as osp
-import shlex
-import subprocess
 
-import pytz
 import torch
-import yaml
+from tensorboardX import SummaryWriter
 
 import torchfcn
-
+from torchfcn.script_utils import get_log_dir
+from torchfcn.script_utils import get_parameters
 
 configurations = {
     # same configuration as original work
@@ -26,67 +23,12 @@ configurations = {
     )
 }
 
-
-def git_hash():
-    cmd = 'git log -n 1 --pretty="%h"'
-    hash = subprocess.check_output(shlex.split(cmd)).strip()
-    return hash
-
-
-def get_log_dir(model_name, config_id, cfg):
-    # load config
-    name = 'MODEL-%s_CFG-%03d' % (model_name, config_id)
-    for k, v in cfg.items():
-        v = str(v)
-        if '/' in v:
-            continue
-        name += '_%s-%s' % (k.upper(), v)
-    now = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
-    name += '_VCS-%s' % git_hash()
-    name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
-    # create out
-    log_dir = osp.join(here, 'logs', name)
-    if not osp.exists(log_dir):
-        os.makedirs(log_dir)
-    with open(osp.join(log_dir, 'config.yaml'), 'w') as f:
-        yaml.safe_dump(cfg, f, default_flow_style=False)
-    return log_dir
-
-
-def get_parameters(model, bias=False):
-    import torch.nn as nn
-    modules_skipped = (
-        nn.ReLU,
-        nn.MaxPool2d,
-        nn.Dropout2d,
-        nn.Sequential,
-        torchfcn.models.FCN32s,
-        torchfcn.models.FCN16s,
-        torchfcn.models.FCN8s,
-        torchfcn.models.FCN8sInstance,
-    )
-    for m in model.modules():
-        # import ipdb; ipdb.set_trace()
-        if isinstance(m, nn.Conv2d):
-            if bias:
-                yield m.bias
-            else:
-                yield m.weight
-        elif isinstance(m, nn.ConvTranspose2d):
-            # weight is frozen because it is just a bilinear upsampling
-            if bias:
-                assert m.bias is None
-        elif isinstance(m, modules_skipped):
-            continue
-        else:
-            import ipdb; ipdb.set_trace()
-            raise ValueError('Unexpected module: %s' % str(m))
-
-
 here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
+    n_max_per_class = 5
+    matching = True
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=1,
@@ -96,7 +38,9 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir('fcn32s', args.config, cfg)
+    out = get_log_dir(osp.basename(__file__).replace(
+        '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
+    print('logdir: {}'.format(out))
     resume = args.resume
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -111,8 +55,11 @@ def main():
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
+        torchfcn.datasets.VOC2011ClassSeg(root, split='train', transform=True),
         batch_size=1, shuffle=True, **kwargs)
+    # train_loader = torch.utils.data.DataLoader(
+    #     torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
+    #     batch_size=1, shuffle=True, **kwargs)
     val_loader = torch.utils.data.DataLoader(
         torchfcn.datasets.VOC2011ClassSeg(
             root, split='seg11valid', transform=True),
@@ -120,7 +67,8 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN32s(n_class=21)
+    model = torchfcn.models.FCN8sAtOnce(n_class=21)
+
     start_epoch = 0
     start_iteration = 0
     if resume:
@@ -140,6 +88,11 @@ def main():
         [
             {'params': get_parameters(model, bias=False)},
             {'params': get_parameters(model, bias=True),
+#            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+#                model, bias=False))},
+#            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+#                model, bias=True)),
+
              'lr': cfg['lr'] * 2, 'weight_decay': 0},
         ],
         lr=cfg['lr'],
@@ -148,6 +101,7 @@ def main():
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
+    writer = SummaryWriter(log_dir=out)
     trainer = torchfcn.Trainer(
         cuda=cuda,
         model=model,
@@ -157,6 +111,8 @@ def main():
         out=out,
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),
+        tensorboard_writer=writer,
+        matching_loss=matching,
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

@@ -5,31 +5,30 @@ import os
 import os.path as osp
 
 import torch
+from tensorboardX import SummaryWriter
 
 import torchfcn
-
-from train_fcn32s import get_log_dir
-from train_fcn32s import get_parameters
-
+from torchfcn.script_utils import get_log_dir
+from torchfcn.script_utils import get_parameters
 
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     1: dict(
         max_iteration=100000,
-        lr=1.0e-14,
+        lr=1.0e-10,
         momentum=0.99,
         weight_decay=0.0005,
         interval_validate=4000,
-        fcn16s_pretrained_model=torchfcn.models.FCN16s.download(),
     )
 }
-
 
 here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
+    n_max_per_class = 5
+    matching = True
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=1,
@@ -39,7 +38,9 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir('fcn8s', args.config, cfg)
+    out = get_log_dir(osp.basename(__file__).replace(
+        '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
+    print('logdir: {}'.format(out))
     resume = args.resume
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -64,6 +65,7 @@ def main():
     # 2. model
 
     model = torchfcn.models.FCN8s(n_class=21)
+
     start_epoch = 0
     start_iteration = 0
     if resume:
@@ -72,9 +74,8 @@ def main():
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
     else:
-        fcn16s = torchfcn.models.FCN16s()
-        fcn16s.load_state_dict(torch.load(cfg['fcn16s_pretrained_model']))
-        model.copy_params_from_fcn16s(fcn16s)
+        vgg16 = torchfcn.models.VGG16(pretrained=True)
+        model.copy_params_from_vgg16(vgg16)
     if cuda:
         model = model.cuda()
 
@@ -84,6 +85,11 @@ def main():
         [
             {'params': get_parameters(model, bias=False)},
             {'params': get_parameters(model, bias=True),
+#            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+#                model, bias=False))},
+#            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+#                model, bias=True)),
+
              'lr': cfg['lr'] * 2, 'weight_decay': 0},
         ],
         lr=cfg['lr'],
@@ -92,6 +98,7 @@ def main():
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
+    writer = SummaryWriter(log_dir=out)
     trainer = torchfcn.Trainer(
         cuda=cuda,
         model=model,
@@ -101,6 +108,8 @@ def main():
         out=out,
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),
+        tensorboard_writer=writer,
+        matching_loss=matching
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

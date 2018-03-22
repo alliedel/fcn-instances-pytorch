@@ -38,7 +38,8 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir('fcn8s-atonce', args.config, cfg)
+    out = get_log_dir(__file__.replace('.py', ''), args.config, cfg)
+    print('logdir: {}'.format(out))
     resume = args.resume
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)

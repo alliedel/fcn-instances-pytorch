@@ -86,13 +86,20 @@ class VOCClassSegBase(data.Dataset):
         lbl = torch.from_numpy(lbl).long()
         return img, lbl
 
-    def untransform(self, img, lbl):
+    def untransform_img(self, img):
         img = img.numpy()
         img = img.transpose(1, 2, 0)
         img += self.mean_bgr
         img = img.astype(np.uint8)
         img = img[:, :, ::-1]
-        lbl = lbl.numpy()
+        return img
+
+    def untransform_lbl(self, lbl):
+        return lbl.numpy()
+
+    def untransform(self, img, lbl):
+        img = self.untransform_img(img)
+        lbl = self.untransform_lbl(lbl)
         return img, lbl
 
 

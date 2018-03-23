@@ -28,6 +28,6 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
             except:
                 import ipdb; ipdb.set_trace()
                 raise
-    if np.sum(y == void_value) == 0:
-        raise Exception('void class got removed here')
+#    if np.sum(y == void_value) == 0:
+#        raise Exception('void class got removed here')
     return y

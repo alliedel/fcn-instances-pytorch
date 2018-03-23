@@ -20,6 +20,15 @@ configurations = {
         momentum=0.99,
         weight_decay=0.0005,
         interval_validate=4000,
+        matching=False
+    ),
+    2: dict(
+        max_iteration=100000,
+        lr=1.0e-12,
+        momentum=0.99,
+        weight_decay=0.0005,
+        interval_validate=4000,
+        matching=False
     )
 }
 
@@ -27,8 +36,6 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
-    n_max_per_class = 5
-    matching = False
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=1,
@@ -56,7 +63,8 @@ def main():
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2011ClassSeg(root, split='train', transform=True),
+        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
+#        torchfcn.datasets.VOC2011ClassSeg(root, split='train', transform=True),
         batch_size=1, shuffle=True, **kwargs)
     # train_loader = torch.utils.data.DataLoader(
     #     torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
@@ -113,7 +121,7 @@ def main():
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),
         tensorboard_writer=writer,
-        matching_loss=matching,
+        matching_loss=cfg['matching'],
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

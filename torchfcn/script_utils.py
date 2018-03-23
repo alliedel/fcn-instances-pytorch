@@ -59,7 +59,7 @@ def get_log_dir(model_name, config_id, cfg, parent_directory=None):
         for key, val in bad_char_replacements.items():
             name = name.replace(key, val)
     now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
-    name += '_VCS-%s' % git_hash()
+    name += '_VCS-%s' % str(git_hash()).replace("'", "")
     name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
     # create out
     if parent_directory is None:

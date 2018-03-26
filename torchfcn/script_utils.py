@@ -44,6 +44,7 @@ def get_latest_model_path_from_logdir(logdir):
 def git_hash():
     cmd = 'git log -n 1 --pretty="%h"'
     hash = subprocess.check_output(shlex.split(cmd)).strip()
+    hash = hash.decode("utf-8")
     return hash
 
 
@@ -59,7 +60,7 @@ def get_log_dir(model_name, config_id, cfg, parent_directory=None):
         for key, val in bad_char_replacements.items():
             name = name.replace(key, val)
     now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
-    name += '_VCS-%s' % str(git_hash()).replace("'", "")
+    name += '_VCS-{}'.format(git_hash().replace("'", ""))
     name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
     # create out
     if parent_directory is None:

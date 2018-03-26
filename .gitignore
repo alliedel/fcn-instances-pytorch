@@ -1,8 +1,12 @@
 *.egg-info/
 *.py[cdo]
 .idea
-
+*.prof
+*.*~
 build/
 dist/
 */*/logs
 */*/logs*
+*/*/backup_logs
+*/*/useless_logs
+profile_backup/

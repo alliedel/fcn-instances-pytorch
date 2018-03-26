@@ -1,51 +1,26 @@
-# pytorch-fcn
-
-[![PyPI Version](https://img.shields.io/pypi/v/torchfcn.svg)](https://pypi.python.org/pypi/torchfcn)
-[![Build Status](https://travis-ci.org/wkentaro/pytorch-fcn.svg?branch=master)](https://travis-ci.org/wkentaro/pytorch-fcn)
-
-PyTorch implementation of [Fully Convolutional Networks](https://github.com/shelhamer/fcn.berkeleyvision.org).
-
-
-## Requirements
-
-- [pytorch](https://github.com/pytorch/pytorch) >= 0.2.0
-- [torchvision](https://github.com/pytorch/vision) >= 0.1.8
-- [fcn](https://github.com/wkentaro/fcn) >= 6.1.5
-- [Pillow](https://github.com/python-pillow/Pillow)
-- [scipy](https://github.com/scipy/scipy)
-- [tqdm](https://github.com/tqdm/tqdm)
-
+# Instance Segmentation, built on top of pytorch-fcn
 
 ## Installation
+Not third-party friendly at the moment (sorry!).  But still should be possible --
 
-```bash
-git clone https://github.com/wkentaro/pytorch-fcn.git
-cd pytorch-fcn
+You'll have to clone this and add it to your python path: https://bitbucket.org/alliedel/my_tools
+(I believe only local_pyutils.py is needed for this project).
 
-conda install pytorch cuda80 torchvision -c soumith
-pip install .
-```
+All packages I have are listed in the requirements.txt file; not all are actually required, so you could alternatively just install packages and rerun until it's happy :)
 
+If you're trying to run on PASCAL, you're likely to run into some hard-coded paths.  Hopefully simply pointing it to the right place resolves that (but I'm not super confident)
 
-## Training
+## Scripts
+Each of the scripts requires an argument for the GPU number to run on.  If you'd like to run on CPU, set -g to -1.
+### Run a synthetic example:
+`python examples/pink_blobs/train_fcn8s_pink_blobs.py -g 0`
 
-See [VOC example](examples/voc).
+### Run on PASCAL VOC:
+`python examples/voc/train_fcn8s_all_voc_instances.py -g 0`
 
+## Pointers to the interesting parts of the code
+Matching loss:
+torchfcn/losses.py
 
-## Accuracy
-
-At `10fdec9`.
-
-| Model | Implementation |   epoch |   iteration | Mean IU |
-|:-----:|:--------------:|:-------:|:-----------:|:-------:|
-|FCN32s      | [Original](https://github.com/shelhamer/fcn.berkeleyvision.org/tree/master/voc-fcn32s)       | - | -     | **63.63** |
-|FCN32s      | Ours                                                                                         |11 | 96000 | 62.84 |
-|FCN16s      | [Original](https://github.com/shelhamer/fcn.berkeleyvision.org/tree/master/voc-fcn16s)       | - | -     | **65.01** |
-|FCN16s      | Ours                                                                                         |11 | 96000 | 64.91 |
-|FCN8s       | [Original](https://github.com/shelhamer/fcn.berkeleyvision.org/tree/master/voc-fcn8s)        | - | -     | **65.51** |
-|FCN8s       | Ours                                                                                         | 7 | 60000 | 65.49 |
-|FCN8sAtOnce | [Original](https://github.com/shelhamer/fcn.berkeleyvision.org/tree/master/voc-fcn8s-atonce) | - | -     | **65.40** |
-|FCN8sAtOnce | Ours                                                                                         |11 | 96000 | 64.74 |
-
-<img src="static/fcn8s_iter28000.jpg" width="50%" />
-Visualization of validation result of FCN8s.
+Network architecture:
+torchfcn/models/fcn8s_instance.py

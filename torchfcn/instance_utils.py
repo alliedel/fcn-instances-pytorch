@@ -31,3 +31,43 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
 #    if np.sum(y == void_value) == 0:
 #        raise Exception('void class got removed here')
     return y
+
+
+def get_semantic_instance_class_list(n_instances_by_semantic_id):
+    return [sem_cls for sem_cls, n_instances in enumerate(n_instances_by_semantic_id)
+            for _ in range(n_instances)]
+
+
+def get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_class_list,
+                                                              as_numpy=False):
+    """
+    returns a binary matrix, where semantic_instance_mapping is N x S
+    (N = # instances, S = # semantic classes)
+    semantic_instance_mapping[inst_idx, :] is a one-hot vector,
+    and semantic_instance_mapping[inst_idx, sem_idx] = 1 iff that instance idx is an instance
+    of that semantic class.
+    """
+    n_instance_classes = len(semantic_instance_class_list)
+    n_semantic_classes = max(semantic_instance_class_list) + 1
+    instance_to_semantic_mapping_matrix = torch.zeros(
+        (n_instance_classes, n_semantic_classes)).float()
+
+    for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
+        instance_to_semantic_mapping_matrix[instance_idx,
+                                            semantic_idx] = 1
+    return instance_to_semantic_mapping_matrix if not as_numpy else \
+        instance_to_semantic_mapping_matrix.numpy()
+
+
+def get_instance_to_semantic_mapping(n_instances_by_semantic_id, as_numpy=False):
+    """
+    returns a binary matrix, where semantic_instance_mapping is N x S
+    (N = # instances, S = # semantic classes)
+    semantic_instance_mapping[inst_idx, :] is a one-hot vector,
+    and semantic_instance_mapping[inst_idx, sem_idx] = 1 iff that instance idx is an instance
+    of that semantic class.
+    """
+    semantic_instance_class_list = get_semantic_instance_class_list(
+        n_instances_by_semantic_id)
+    return get_instance_to_semantic_mapping_from_sem_inst_class_list(
+        semantic_instance_class_list, as_numpy)

@@ -8,6 +8,7 @@ import torch
 from tensorboardX import SummaryWriter
 
 import torchfcn
+import torchfcn.datasets.voc
 from torchfcn.script_utils import get_log_dir
 from torchfcn.script_utils import get_parameters
 
@@ -28,7 +29,8 @@ configurations = {
         momentum=0.99,
         weight_decay=0.0005,
         interval_validate=4000,
-        matching=True
+        matching=True,
+        semantic_only_labels=True
     )
 }
 
@@ -60,18 +62,19 @@ def main():
     # 1. dataset
 
     root = osp.expanduser('~/data/datasets')
+    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     
     train_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
-#        torchfcn.datasets.VOC2011ClassSeg(root, split='train', transform=True),
+        # torchfcn.datasets.SBDClassSeg(root, split='train', **dataset_kwargs), # Can't use SBD for instance (I believe)
+       torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs),
         batch_size=1, shuffle=True, **kwargs)
     # train_loader = torch.utils.data.DataLoader(
     #     torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
     #     batch_size=1, shuffle=True, **kwargs)
     val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.VOC2011ClassSeg(
-            root, split='seg11valid', transform=True),
+        torchfcn.datasets.voc.VOC2011ClassSeg(
+            root, split='seg11valid', **dataset_kwargs),
         batch_size=1, shuffle=False, **kwargs)
 
     # 2. model
@@ -122,6 +125,7 @@ def main():
         interval_validate=cfg.get('interval_validate', len(train_loader)),
         tensorboard_writer=writer,
         matching_loss=cfg['matching'],
+        loader_semantic_lbl_only=cfg['semantic_only_labels']
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

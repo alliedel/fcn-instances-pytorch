@@ -15,6 +15,7 @@ import torchfcn
 from torchfcn import losses
 from torchfcn import visualization_utils, instance_utils
 from torchfcn.visualization_utils import log_images
+
 MY_TIMEZONE = 'America/New_York'
 
 DEBUG_ASSERTS = True
@@ -25,7 +26,7 @@ class Trainer(object):
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter,
                  size_average=False, interval_validate=None, matching_loss=True,
-                 tensorboard_writer=None, train_loader_for_val=None):
+                 tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False):
         self.cuda = cuda
 
         self.model = model
@@ -40,6 +41,7 @@ class Trainer(object):
         self.matching_loss = matching_loss
         self.tensorboard_writer = tensorboard_writer
         self.train_loader_for_val = train_loader_for_val
+        self.loader_semantic_lbl_only = loader_semantic_lbl_only
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -73,9 +75,16 @@ class Trainer(object):
         self.iteration = 0
         self.max_iter = max_iter
         self.best_mean_iu = 0
+        # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
+        self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
-        permutations, loss = losses.cross_entropy2d(score, sem_lbl, inst_lbl, self.model.semantic_instance_class_list,
+        if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
+                                                      score.size(3))):
+            import ipdb; ipdb.set_trace()
+            raise Exception('Sizes of score, targets are incorrect')
+        permutations, loss = losses.cross_entropy2d(score, sem_lbl, inst_lbl,
+                                                    semantic_instance_labels=self.model.semantic_instance_class_list,
                                                     matching=self.matching_loss, size_average=self.size_average,
                                                     break_here=False, recompute_optimal_loss=False, **kwargs)
         return permutations, loss
@@ -103,25 +112,29 @@ class Trainer(object):
         training = self.model.training
         self.model.eval()
 
-        n_class = self.model.n_classes
+        # n_class = self.model.n_classes
 
         val_loss = 0
         visualizations = []
         label_trues, label_preds = [], []
-        for batch_idx, (data, sem_lbl) in tqdm.tqdm(
+        for batch_idx, (data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
                 leave=False):
-            inst_lbl = torch.zeros_like(sem_lbl)
-            inst_lbl[sem_lbl == -1] = -1
+            if not self.loader_semantic_lbl_only:
+                (sem_lbl, inst_lbl) = lbls
+            else:
+                assert type(lbls) is not tuple
+                sem_lbl = lbls
+                inst_lbl = torch.zeros_like(sem_lbl)
+                inst_lbl[sem_lbl == -1] = -1
             should_visualize = len(visualizations) < 9
-            if not(compute_metrics or should_visualize):
+            if not (compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
             true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
                 visualizations_single_batch = self.validate_single_batch(
-                    data, sem_lbl, inst_lbl, data_loader=data_loader, n_class=n_class,
-                    should_visualize=should_visualize)
+                data, sem_lbl, inst_lbl, data_loader=data_loader, should_visualize=should_visualize)
             label_trues += true_labels_single_batch
             label_preds += pred_labels_single_batch
             val_loss += val_loss_single_batch
@@ -132,7 +145,7 @@ class Trainer(object):
 
         if compute_metrics:
             metrics = torchfcn.utils.label_accuracy_score(
-                label_trues, label_preds, n_class)
+                label_trues, label_preds, n_class=self.n_combined_class)
             if write_metrics:
                 self.write_metrics(metrics, val_loss, split)
                 if self.tensorboard_writer is not None:
@@ -163,8 +176,8 @@ class Trainer(object):
     def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
             elapsed_time = (
-                    datetime.datetime.now(pytz.timezone(MY_TIMEZONE)) -
-                    self.timestamp_start).total_seconds()
+                datetime.datetime.now(pytz.timezone(MY_TIMEZONE)) -
+                self.timestamp_start).total_seconds()
             if split == 'val':
                 log = [self.epoch, self.iteration] + [''] * 5 + \
                       [loss] + list(metrics) + [elapsed_time]
@@ -193,14 +206,13 @@ class Trainer(object):
             shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
                         osp.join(self.out, 'model_best.pth.tar'))
 
-    def validate_single_batch(self, data, sem_lbl, inst_lbl, data_loader, n_class,
-                              should_visualize):
+    def validate_single_batch(self, data, sem_lbl, inst_lbl, data_loader, should_visualize):
         true_labels = []
         pred_labels = []
         visualizations = []
         val_loss = 0
         if self.cuda:
-            data, sem_lbl, inst_lbl = data.cuda(), sem_lbl.cuda(), inst_lbl.cuda()
+            data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         # TODO(allie): Don't turn target into variables yet here? (Not yet sure if this works
         # before we've actually combined the semantic and instance labels...)
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
@@ -232,7 +244,7 @@ class Trainer(object):
             pred_labels.append(lp)
             if should_visualize:
                 viz = visualization_utils.visualize_segmentation(
-                    lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=n_class,
+                    lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
                     overlay=False)
                 visualizations.append(viz)
         return true_labels, pred_labels, val_loss, visualizations
@@ -242,87 +254,88 @@ class Trainer(object):
         return instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl,
                                                                    semantic_instance_class_list)
 
-#     def validate(self):
-#         training = self.model.training
-#         self.model.eval()
-#
-#         n_class = len(self.val_loader.dataset.class_names)
-#
-#         val_loss = 0
-#         visualizations = []
-#         label_trues, label_preds = [], []
-#         for batch_idx, (data, target) in tqdm.tqdm(
-#                 enumerate(self.val_loader), total=len(self.val_loader),
-#                 desc='Valid iteration=%d' % self.iteration, ncols=80,
-#                 leave=False):
-#             if self.cuda:
-#                 data, target = data.cuda(), target.cuda()
-#             data, target = Variable(data, volatile=True), Variable(target)
-#             score = self.model(data)
-#
-# # break_here=False, recompute_optimal_loss=False
-#             sem_lbl = target
-#             inst_lbl = torch.zeros_like(sem_lbl)
-#             inst_lbl[sem_lbl == -1] = -1
-#             loss = self.my_loss(score, sem_lbl, inst_lbl)
-#             if np.isnan(float(loss.data[0])):
-#                 raise ValueError('loss is nan while validating')
-#             val_loss += float(loss.data[0]) / len(data)
-#
-#             imgs = data.data.cpu()
-#             lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-#             lbl_true = target.data.cpu()
-#             for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
-#                 img, lt = self.val_loader.dataset.untransform(img, lt)
-#                 label_trues.append(lt)
-#                 label_preds.append(lp)
-#                 if len(visualizations) < 9:
-#                     viz = fcn.utils.visualize_segmentation(
-#                         lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class)
-#                     visualizations.append(viz)
-#         metrics = torchfcn.utils.label_accuracy_score(
-#             label_trues, label_preds, n_class)
-#
-#         out = osp.join(self.out, 'visualization_viz')
-#         if not osp.exists(out):
-#             os.makedirs(out)
-#         out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
-#         scipy.misc.imsave(out_file, fcn.utils.get_tile_image(visualizations))
-#
-#         val_loss /= len(self.val_loader)
-#
-#         with open(osp.join(self.out, 'log.csv'), 'a') as f:
-#             elapsed_time = (
-#                     datetime.datetime.now(pytz.timezone('Asia/Tokyo')) -
-#                     self.timestamp_start).total_seconds()
-#             log = [self.epoch, self.iteration] + [''] * 5 + \
-#                   [val_loss] + list(metrics) + [elapsed_time]
-#             log = map(str, log)
-#             f.write(','.join(log) + '\n')
-#
-#         mean_iu = metrics[2]
-#         is_best = mean_iu > self.best_mean_iu
-#         if is_best:
-#             self.best_mean_iu = mean_iu
-#         torch.save({
-#             'epoch': self.epoch,
-#             'iteration': self.iteration,
-#             'arch': self.model.__class__.__name__,
-#             'optim_state_dict': self.optim.state_dict(),
-#             'model_state_dict': self.model.state_dict(),
-#             'best_mean_iu': self.best_mean_iu,
-#         }, osp.join(self.out, 'checkpoint.pth.tar'))
-#         if is_best:
-#             shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
-#                         osp.join(self.out, 'model_best.pth.tar'))
-#
-#         if training:
-#             self.model.train()
+    #     def validate(self):
+    #         training = self.model.training
+    #         self.model.eval()
+    #
+    #         n_class = len(self.val_loader.dataset.class_names)
+    #
+    #         val_loss = 0
+    #         visualizations = []
+    #         label_trues, label_preds = [], []
+    #         for batch_idx, (data, target) in tqdm.tqdm(
+    #                 enumerate(self.val_loader), total=len(self.val_loader),
+    #                 desc='Valid iteration=%d' % self.iteration, ncols=80,
+    #                 leave=False):
+    #             if self.cuda:
+    #                 data, target = data.cuda(), target.cuda()
+    #             data, target = Variable(data, volatile=True), Variable(target)
+    #             score = self.model(data)
+    #
+    # # break_here=False, recompute_optimal_loss=False
+    #             sem_lbl = target
+    #             inst_lbl = torch.zeros_like(sem_lbl)
+    #             inst_lbl[sem_lbl == -1] = -1
+    #             loss = self.my_loss(score, sem_lbl, inst_lbl)
+    #             if np.isnan(float(loss.data[0])):
+    #                 raise ValueError('loss is nan while validating')
+    #             val_loss += float(loss.data[0]) / len(data)
+    #
+    #             imgs = data.data.cpu()
+    #             lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
+    #             lbl_true = target.data.cpu()
+    #             for img, lt, lp in zip(imgs, lbl_true, lbl_pred):
+    #                 img, lt = self.val_loader.dataset.untransform(img, lt)
+    #                 label_trues.append(lt)
+    #                 label_preds.append(lp)
+    #                 if len(visualizations) < 9:
+    #                     viz = fcn.utils.visualize_segmentation(
+    #                         lbl_pred=lp, lbl_true=lt, img=img, n_class=n_class)
+    #                     visualizations.append(viz)
+    #         metrics = torchfcn.utils.label_accuracy_score(
+    #             label_trues, label_preds, n_class)
+    #
+    #         out = osp.join(self.out, 'visualization_viz')
+    #         if not osp.exists(out):
+    #             os.makedirs(out)
+    #         out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
+    #         scipy.misc.imsave(out_file, fcn.utils.get_tile_image(visualizations))
+    #
+    #         val_loss /= len(self.val_loader)
+    #
+    #         with open(osp.join(self.out, 'log.csv'), 'a') as f:
+    #             elapsed_time = (
+    #                     datetime.datetime.now(pytz.timezone('Asia/Tokyo')) -
+    #                     self.timestamp_start).total_seconds()
+    #             log = [self.epoch, self.iteration] + [''] * 5 + \
+    #                   [val_loss] + list(metrics) + [elapsed_time]
+    #             log = map(str, log)
+    #             f.write(','.join(log) + '\n')
+    #
+    #         mean_iu = metrics[2]
+    #         is_best = mean_iu > self.best_mean_iu
+    #         if is_best:
+    #             self.best_mean_iu = mean_iu
+    #         torch.save({
+    #             'epoch': self.epoch,
+    #             'iteration': self.iteration,
+    #             'arch': self.model.__class__.__name__,
+    #             'optim_state_dict': self.optim.state_dict(),
+    #             'model_state_dict': self.model.state_dict(),
+    #             'best_mean_iu': self.best_mean_iu,
+    #         }, osp.join(self.out, 'checkpoint.pth.tar'))
+    #         if is_best:
+    #             shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
+    #                         osp.join(self.out, 'model_best.pth.tar'))
+    #
+    #         if training:
+    #             self.model.train()
 
     def train_epoch(self):
         self.model.train()
 
-        n_class = len(self.train_loader.dataset.class_names)
+        # n_class = len(self.train_loader.dataset.class_names)
+        # n_class = self.model.n_classes
 
         for batch_idx, (data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
@@ -335,22 +348,28 @@ class Trainer(object):
                 self.validate()
 
             assert self.model.training
+            if not self.loader_semantic_lbl_only:
+                (sem_lbl, inst_lbl) = target
+            else:
+                assert type(target) is not tuple
+                sem_lbl = target
+                inst_lbl = torch.zeros_like(sem_lbl)
+                inst_lbl[sem_lbl == -1] = -1
 
             if self.cuda:
-                data, target = data.cuda(), target.cuda()
-            data, target = Variable(data), Variable(target)
+                data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
+            data, sem_lbl, inst_lbl = Variable(data), \
+                                      Variable(sem_lbl), Variable(inst_lbl)
             self.optim.zero_grad()
             score = self.model(data)
-            sem_lbl = target
-            inst_lbl = torch.zeros_like(sem_lbl)
-            if self.cuda:
-                inst_lbl = inst_lbl.cuda()
 
-            inst_lbl[sem_lbl == -1] = -1
             gt_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
+            if self.tensorboard_writer is not None:
+                self.tensorboard_writer.add_scalar('data/training_loss', loss.data[0],
+                                                   self.iteration)
             loss.backward()
             self.optim.step()
 
@@ -361,7 +380,7 @@ class Trainer(object):
                 lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
                 acc, acc_cls, mean_iu, fwavacc = \
                     torchfcn.utils.label_accuracy_score(
-                        [lt_combined], [lp], n_class=n_class)
+                        [lt_combined], [lp], n_class=self.n_combined_class)
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))
             metrics = np.mean(metrics, axis=0)
 
@@ -372,7 +391,7 @@ class Trainer(object):
     def train(self):
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
         for epoch in tqdm.trange(self.epoch, max_epoch,
-                                 desc='Train', ncols=80):
+                                 desc='Train', ncols=80, leave=True):
             self.epoch = epoch
             self.train_epoch()
             if self.iteration >= self.max_iter:

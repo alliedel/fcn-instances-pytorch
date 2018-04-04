@@ -1,4 +1,3 @@
-import numpy as np
 import os.path as osp
 
 import fcn
@@ -334,7 +333,7 @@ class FCN8sInstanceAtOnce(FCN8sInstanceNotAtOnce):
 
 
 def FCN8sInstanceAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH,
-                                     n_classes=21, semantic_instance_class_list=None, map_to_semantic=False):
+                                  n_classes=21, semantic_instance_class_list=None, map_to_semantic=False):
     model = FCN8sInstanceAtOnce(n_classes=n_classes, semantic_instance_class_list=semantic_instance_class_list,
                                 map_to_semantic=map_to_semantic)
     # state_dict = torch.load(model_file, map_location=lambda storage, location: 'cpu')

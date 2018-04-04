@@ -9,28 +9,37 @@ from tensorboardX import SummaryWriter
 
 import torchfcn
 import torchfcn.datasets.voc
-from torchfcn.script_utils import get_log_dir
-from torchfcn.script_utils import get_parameters
+from torchfcn import script_utils
+from torchfcn import instance_utils
+
+default_config = dict(
+    max_iteration=100000,
+    lr=1.0e-12,
+    momentum=0.99,
+    weight_decay=0.0005,
+    interval_validate=4000,
+    matching=True,
+    semantic_only_labels=False,
+    n_instances_per_class=1,
+    set_extras_to_void=True
+)
 
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     1: dict(
-        max_iteration=100000,
-        lr=1.0e-10,
-        momentum=0.99,
-        weight_decay=0.0005,
-        interval_validate=4000,
-        matching=True
+        n_instances_per_class=1,
+        set_extras_to_void=False
     ),
     2: dict(
-        max_iteration=100000,
-        lr=1.0e-12,
-        momentum=0.99,
-        weight_decay=0.0005,
-        interval_validate=4000,
-        matching=True,
-        semantic_only_labels=True
+        semantic_only_labels=True,
+        n_instances_per_class=1,
+        set_extras_to_void=False
+    ),
+    3: dict(
+        semantic_only_labels=False,
+        n_instances_per_class=3,
+        set_extras_to_void=True
     )
 }
 
@@ -44,11 +53,15 @@ def main():
                         choices=configurations.keys())
     parser.add_argument('--resume', help='Checkpoint path')
     args = parser.parse_args()
-
     gpu = args.gpu
-    cfg = configurations[args.config]
-    out = get_log_dir(osp.basename(__file__).replace(
-        '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
+    config_idx = args.config
+
+    cfg = script_utils.create_config_from_default(configurations[config_idx], default_config)
+
+    out = script_utils.get_log_dir(osp.basename(__file__).replace(
+        '.py', ''), config_idx, script_utils.create_config_copy(cfg),
+        parent_directory=osp.dirname(osp.abspath(__file__)))
+
     print('logdir: {}'.format(out))
     resume = args.resume
 
@@ -59,10 +72,16 @@ def main():
     if cuda:
         torch.cuda.manual_seed(1337)
 
-    # 1. dataset
+    # 0. Problem setup (instance segmentation definition)
+    n_semantic_classes = 21
+    n_instances_by_semantic_id = [0] + [sem_cls for sem_cls in range(1, n_semantic_classes + 1)
+                                        for _ in range(cfg['n_instances_per_class'])]
+    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
 
+    # 1. dataset
     root = osp.expanduser('~/data/datasets')
-    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'])
+    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
+                          set_extras_to_void=cfg['set_extras_to_void'])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     
     train_loader = torch.utils.data.DataLoader(
@@ -79,7 +98,8 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN8sAtOnce(n_class=21)
+    model = torchfcn.models.FCN8sInstanceAtOnce(semantic_instance_class_list=problem_config.semantic_instance_class_list,
+                                                map_to_semantic=False)
 
     start_epoch = 0
     start_iteration = 0
@@ -89,6 +109,7 @@ def main():
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
     else:
+        print('Copying params from vgg16')
         vgg16 = torchfcn.models.VGG16(pretrained=True)
         model.copy_params_from_vgg16(vgg16)
     if cuda:
@@ -98,8 +119,8 @@ def main():
 
     optim = torch.optim.SGD(
         [
-            {'params': get_parameters(model, bias=False)},
-            {'params': get_parameters(model, bias=True),
+            {'params': script_utils.get_parameters(model, bias=False)},
+            {'params': script_utils.get_parameters(model, bias=True),
 #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
 #                model, bias=False))},
 #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(

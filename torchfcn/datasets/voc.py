@@ -50,19 +50,17 @@ class VOCClassSegBase(data.Dataset):
     class_names = ALL_VOC_CLASS_NAMES
     mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
-    def __init__(self, root, split='train', transform=False, n_max_per_class=1,
+    def __init__(self, root, split='train', transform=False,
                  semantic_subset=None, map_other_classes_to_bground=True,
-                 permute_instance_order=True, set_extras_to_void=False,
-                 return_semantic_instance_tuple=None, semantic_only_labels=None):
+                 permute_instance_order=False, set_extras_to_void=False,
+                 return_semantic_instance_tuple=None, semantic_only_labels=None,
+                 n_instances_per_class=None):
         """
-        n_max_per_class: number of instances per non-background class
         class_subet: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
-        permute_instance_order: randomly chooses the ordering of the instances (from 0 through
-        n_max_per_class - 1) --> Does this every time the image is loaded.
         return_semantic_instance_tuple : Generally only for debugging; instead of returning an
         instance index as the target values, it'll return two targets: the semantic target and
-        the instance number: [0, n_max_per_class)
+        the instance number: [0, n_instances_per_class[sem_idx])
         """
         if return_semantic_instance_tuple is None:
             return_semantic_instance_tuple = True if not semantic_only_labels else False
@@ -70,17 +68,21 @@ class VOCClassSegBase(data.Dataset):
             semantic_only_labels = False
 
         self.permute_instance_order = permute_instance_order
+        if permute_instance_order:
+            raise NotImplementedError
         self.map_other_classes_to_bground = map_other_classes_to_bground
         self.root = root
         self.split = split
         self._transform = transform
-        self.n_max_per_class = n_max_per_class
         self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
             semantic_subset=semantic_subset, full_set=ALL_VOC_CLASS_NAMES)
         self.n_semantic_classes = len(self.class_names)
         self._instance_to_semantic_mapping_matrix = None
-        self.n_inst_per_class = [1 if cls_nm == 'background' else self.n_max_per_class
-                                 for cls_idx, cls_nm in enumerate(self.class_names)]
+        if n_instances_per_class is None:
+            self.n_inst_per_class = [1 if cls_nm == 'background' else 1  # default to 1 per class
+                                     for cls_idx, cls_nm in enumerate(self.class_names)]
+        else:
+            self.n_inst_per_class = n_instances_per_class
         assert xor(return_semantic_instance_tuple, semantic_only_labels)
         self.get_instance_to_semantic_mapping()
         self.n_classes = len(self.class_names)
@@ -93,13 +95,6 @@ class VOCClassSegBase(data.Dataset):
         dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC{}'.format(year))
         self.files = self.get_files(dataset_dir)
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
-
-    def update_n_max_per_class(self, n_max_per_class):
-        self.n_max_per_class = n_max_per_class
-        self.n_semantic_classes = len(self.class_names)
-        self._instance_to_semantic_mapping_matrix = None
-        self.get_instance_to_semantic_mapping(recompute=True)
-        self.n_classes = self._instance_to_semantic_mapping_matrix.size(0)
 
     def get_files(self, dataset_dir):
         files = collections.defaultdict(list)
@@ -203,8 +198,6 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl = self.load_img_as_dtype(inst_lbl_file, np.int32)
             inst_lbl[inst_lbl == 255] = -1
             inst_lbl = self.transform_lbl(inst_lbl)
-            if self.permute_instance_order:
-                inst_lbl = dataset_utils.permute_instance_order(inst_lbl, self.n_max_per_class)
             if self.return_semantic_instance_tuple:
                 lbl = [sem_lbl, inst_lbl]
             else:

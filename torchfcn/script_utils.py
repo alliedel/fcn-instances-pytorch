@@ -10,11 +10,39 @@ import pytz
 import yaml
 
 import torchfcn
-import torch
 from glob import glob
 
 here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'
+
+
+CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
+                                        'weight_decay': 'decay',
+                                        'n_training_imgs': 'n_train',
+                                        'n_validation_imgs': 'n_val',
+                                        'recompute_optimal_loss': 'recomp',
+                                        'size_average': 'size_avg',
+                                        'map_to_semantic': 'mts',
+                                        'interval_validate': 'int_val',
+                                        'resize_size': 'sz',
+                                        'n_max_per_class': 'n_per',
+                                        'semantic_subset': 'sem_set',
+                                        'val_on_train': 'vot',
+                                        'matching': 'match'}
+
+
+def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME):
+    cfg_print = config_dict.copy()
+    for key, replacement_key in config_key_replacements.items():
+        if key in cfg_print:
+            cfg_print[replacement_key] = cfg_print.pop(key)
+    return cfg_print
+
+
+def create_config_from_default(config_args, default_config):
+    cfg = default_config
+    cfg.update(config_args)
+    return cfg
 
 
 def load_config(config_path):
@@ -83,7 +111,9 @@ def get_parameters(model, bias=False):
         torchfcn.models.FCN32s,
         torchfcn.models.FCN16s,
         torchfcn.models.FCN8s,
-        torchfcn.models.FCN8sInstance,
+        torchfcn.models.FCN8sInstanceNotAtOnce,
+        torchfcn.models.FCN8sAtOnce,
+        torchfcn.models.FCN8sInstanceAtOnce
     )
     for m in model.modules():
         # import ipdb; ipdb.set_trace()

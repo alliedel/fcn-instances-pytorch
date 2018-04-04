@@ -4,6 +4,38 @@ import numpy as np
 import local_pyutils
 
 
+class InstanceProblemConfig(object):
+    """
+    Used for both models and datasets to lay out the assumptions of each during instance
+    segmentation.
+
+    For models: Specifies the max # of instances of each semantic class it will attempt to produce.
+
+    For datasets: Specifies the max # of instances of each class that appear in the
+    (training) dataset.
+    """
+
+    def __init__(self, n_instances_by_semantic_id, semantic_vals=None, void_value=-1):
+        if semantic_vals is not None:
+            assert len(semantic_vals) == len(n_instances_by_semantic_id)
+        self.semantic_vals = semantic_vals or range(len(n_instances_by_semantic_id))
+        self.void_value = void_value
+        self.n_instances_by_semantic_id = n_instances_by_semantic_id
+
+        # Compute derivative stuff
+
+        self.sem_ids_by_instance_id = [id_into_sem_vals for
+                                       id_into_sem_vals, n_inst in
+                                       enumerate(self.n_instances_by_semantic_id)
+                                       for _ in range(n_inst)]
+        self.n_semantic_classes = len(self.semantic_vals)
+        self.n_classes = sum(self.n_instances_by_semantic_id)
+        self.semantic_instance_class_list = get_semantic_instance_class_list(
+            n_instances_by_semantic_id)
+        self.instance_to_semantic_mapping_matrix = get_instance_to_semantic_mapping(
+            n_instances_by_semantic_id)
+
+
 def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
                                          set_extras_to_void=True, void_value=-1):
     """
@@ -48,10 +80,11 @@ def get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_
     of that semantic class.
     """
     n_instance_classes = len(semantic_instance_class_list)
-    n_semantic_classes = max(semantic_instance_class_list) + 1
-    instance_to_semantic_mapping_matrix = torch.zeros(
-        (n_instance_classes, n_semantic_classes)).float()
-
+    n_semantic_classes = int(max(semantic_instance_class_list) + 1)
+    try:
+        instance_to_semantic_mapping_matrix = torch.zeros((n_instance_classes, n_semantic_classes)).float()
+    except:
+        import ipdb; ipdb.set_trace()
     for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
         instance_to_semantic_mapping_matrix[instance_idx,
                                             semantic_idx] = 1

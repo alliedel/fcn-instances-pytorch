@@ -42,7 +42,7 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, matchin
     if break_here:
         import ipdb;
         ipdb.set_trace()
-    log_predictions = F.log_softmax(scores)
+    log_predictions = F.log_softmax(scores, dim=1)
 
     if matching:
         pred_permutations, loss = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl,
@@ -117,13 +117,18 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
            sem_lbl.size()
     assert weight is None, NotImplementedError
     unique_semantic_vals, inst_counts = np.unique(semantic_instance_labels, return_counts=True)
+    unique_semantic_vals = unique_semantic_vals.tolist()
+    inst_counts = inst_counts.tolist()
     losses = []
     for sem_val, n_instances_for_this_sem_cls in zip(unique_semantic_vals, inst_counts):
         for inst_val in range(n_instances_for_this_sem_cls):
             sem_inst_idx = local_pyutils.nth_item(n=inst_val, item=sem_val,
                                                   iterable=semantic_instance_labels)
-            binary_target_single_instance_cls = (sem_lbl == sem_val).float() * (inst_lbl ==
-                                                                                inst_val).float()
+            try:
+                binary_target_single_instance_cls = ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
+            except:
+                import ipdb; ipdb.set_trace()
+                raise Exception
             log_predictions_single_instance_cls = log_predictions[:, sem_inst_idx, :, :]
             losses.append(nll2d_single_class_term(log_predictions_single_instance_cls,
                                                   binary_target_single_instance_cls))

@@ -81,7 +81,8 @@ class Trainer(object):
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                       score.size(3))):
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
             raise Exception('Sizes of score, targets are incorrect')
         permutations, loss = losses.cross_entropy2d(score, sem_lbl, inst_lbl,
                                                     semantic_instance_labels=self.model.semantic_instance_class_list,
@@ -133,7 +134,7 @@ class Trainer(object):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
             true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
-                visualizations_single_batch = self.validate_single_batch(
+            visualizations_single_batch = self.validate_single_batch(
                 data, sem_lbl, inst_lbl, data_loader=data_loader, should_visualize=should_visualize)
             label_trues += true_labels_single_batch
             label_preds += pred_labels_single_batch
@@ -151,6 +152,10 @@ class Trainer(object):
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('data/{}_loss'.format(split),
                                                        val_loss, self.iteration)
+                if self.tensorboard_writer is not None:
+                    self.tensorboard_writer.add_scalar('data/val_mIOU', metrics[2],
+                                                       self.iteration)
+
             if save_checkpoint:
                 self.save_checkpoint()
             if update_best_checkpoint:
@@ -176,8 +181,8 @@ class Trainer(object):
     def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
             elapsed_time = (
-                datetime.datetime.now(pytz.timezone(MY_TIMEZONE)) -
-                self.timestamp_start).total_seconds()
+                    datetime.datetime.now(pytz.timezone(MY_TIMEZONE)) -
+                    self.timestamp_start).total_seconds()
             if split == 'val':
                 log = [self.epoch, self.iteration] + [''] * 5 + \
                       [loss] + list(metrics) + [elapsed_time]
@@ -236,7 +241,8 @@ class Trainer(object):
                 (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
                                        data_loader.dataset.untransform_lbl(inst_lbl))
             except:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 raise
 
             lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
@@ -385,6 +391,7 @@ class Trainer(object):
             metrics = np.mean(metrics, axis=0)
 
             self.write_metrics(metrics, loss, split='train')
+
             if self.iteration >= self.max_iter:
                 break
 

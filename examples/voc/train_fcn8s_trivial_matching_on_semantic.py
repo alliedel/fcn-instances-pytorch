@@ -95,6 +95,9 @@ def main():
             root, split='seg11valid', **dataset_kwargs),
         batch_size=1, shuffle=False, **kwargs)
 
+    for batch_idx, (data, lbls) in enumerate(val_loader):
+        print('{}/{}'.format(batch_idx, len(val_loader)))
+
     # 2. model
 
     model = torchfcn.models.FCN8sInstanceAtOnce(semantic_instance_class_list=problem_config.semantic_instance_class_list,

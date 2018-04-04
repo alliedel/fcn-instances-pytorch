@@ -4,6 +4,7 @@ import collections
 import numpy as np
 import os.path as osp
 import PIL.Image
+import shutil
 
 from torch.utils import data
 
@@ -121,11 +122,18 @@ class VOCClassSegBase(data.Dataset):
                 if not osp.isfile(sem_lbl_file):
                     raise Exception('This image does not exist')
                 # TODO(allie) -- allow functionality for permuting instance labels
-                inst_lbl_file = osp.join(
+                inst_absolute_lbl_file = osp.join(
                     dataset_dir, 'SegmentationObject/%s.png' % did)
+                inst_lbl_file = osp.join(
+                    dataset_dir, 'SegmentationObject/%s_per_sem_cls.png' % did)
+                if not osp.isfile(inst_lbl_file):
+                    if not osp.isfile(inst_absolute_lbl_file):
+                        raise Exception('This image does not exist')
+                    self.generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file)
                 files[split].append({
                     'img': img_file,
                     'sem_lbl': sem_lbl_file,
+                    'inst_absolute_lbl': inst_absolute_lbl_file,
                     'inst_lbl': inst_lbl_file,
                 })
             assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
@@ -140,6 +148,24 @@ class VOCClassSegBase(data.Dataset):
                                                    sem_lbl_file=data_file['sem_lbl'],
                                                    inst_lbl_file=data_file['inst_lbl'])
         return img, lbl
+
+    def generate_per_sem_instance_file(self, inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
+        print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
+        sem_lbl = self.load_img_as_dtype(sem_lbl_file, np.int32)
+        unique_sem_lbls = np.unique(sem_lbl)
+        if sum(unique_sem_lbls > 0) <= 1:  # only one semantic object type
+            shutil.copyfile(inst_absolute_lbl_file, inst_lbl_file)
+        else:
+            inst_lbl = self.load_img_as_dtype(inst_absolute_lbl_file, np.int32)
+            inst_lbl[inst_lbl == 255] = -1
+            for sem_val in unique_sem_lbls[unique_sem_lbls > 0]:
+                first_instance_idx = inst_lbl[sem_lbl == sem_val].min()
+                inst_lbl[sem_lbl == sem_val] -= (first_instance_idx - 1)
+            self.write_np_array_as_img(inst_lbl, inst_lbl_file)
+
+    def write_np_array_as_img(self, arr, filename):
+        im = PIL.Image.fromarray(arr.astype(np.uint8))
+        im.save(filename)
 
     def load_img_as_dtype(self, img_file, dtype):
         img = PIL.Image.open(img_file)
@@ -198,6 +224,11 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl = self.load_img_as_dtype(inst_lbl_file, np.int32)
             inst_lbl[inst_lbl == 255] = -1
             inst_lbl = self.transform_lbl(inst_lbl)
+            # if 1:
+            #     import torch
+            #     unique_sem_classes = torch.np.unique(sem_lbl)
+            #     if sum(unique_sem_classes > 0) > 1:
+            #         import ipdb; ipdb.set_trace()
             if self.return_semantic_instance_tuple:
                 lbl = [sem_lbl, inst_lbl]
             else:

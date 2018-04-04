@@ -74,8 +74,7 @@ def main():
 
     # 0. Problem setup (instance segmentation definition)
     n_semantic_classes = 21
-    n_instances_by_semantic_id = [0] + [sem_cls for sem_cls in range(1, n_semantic_classes + 1)
-                                        for _ in range(cfg['n_instances_per_class'])]
+    n_instances_by_semantic_id = [1] + [cfg['n_instances_per_class'] for sem_cls in range(1, n_semantic_classes)]
     problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
 
     # 1. dataset
@@ -100,7 +99,7 @@ def main():
 
     model = torchfcn.models.FCN8sInstanceAtOnce(semantic_instance_class_list=problem_config.semantic_instance_class_list,
                                                 map_to_semantic=False)
-
+    print('Number of classes in model: {}'.format(model.n_classes))
     start_epoch = 0
     start_iteration = 0
     if resume:

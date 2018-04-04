@@ -56,7 +56,7 @@ class VOCClassSegBase(data.Dataset):
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
                  n_instances_per_class=None):
         """
-        class_subet: if None, use all classes.  Else, reduce the classes to this list set.
+        semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
         return_semantic_instance_tuple : Generally only for debugging; instead of returning an
         instance index as the target values, it'll return two targets: the semantic target and

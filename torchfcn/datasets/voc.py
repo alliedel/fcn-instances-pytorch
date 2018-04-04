@@ -52,7 +52,7 @@ class VOCClassSegBase(data.Dataset):
     def __init__(self, root, split='train', transform=False, n_max_per_class=1,
                  semantic_subset=None, map_other_classes_to_bground=True,
                  permute_instance_order=True, set_extras_to_void=False,
-                 return_semantic_instance_tuple=False):
+                 return_semantic_instance_tuple=False, return_semantic_only=False):
         """
         n_max_per_class: number of instances per non-background class
         class_subet: if None, use all classes.  Else, reduce the classes to this list set.

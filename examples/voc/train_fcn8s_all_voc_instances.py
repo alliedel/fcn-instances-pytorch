@@ -22,6 +22,26 @@ configurations = {
         momentum=0.99,
         weight_decay=0.0005,
         interval_validate=4000,
+        matching = True,
+        size_average=True
+    ),
+    2: dict(
+        max_iteration=100000,
+        lr=1.0e-10,
+        momentum=0.99,
+        weight_decay=0.0005,
+        interval_validate=4000,
+        matching=False,
+        size_average=True
+    ),
+    3: dict(
+        max_iteration=100000,
+        lr=1.0e-10,
+        momentum=0.99,
+        weight_decay=0.0005,
+        interval_validate=4000,
+        matching=False,
+        size_average=False
     )
 }
 
@@ -29,8 +49,7 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
-    n_max_per_class = 5
-    matching = True
+    n_max_per_class = 1
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=1,
@@ -123,7 +142,8 @@ def main():
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),
         tensorboard_writer=writer,
-        matching_loss=matching
+        matching_loss=cfg['matching'],
+        size_average=cfg['size_average']
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

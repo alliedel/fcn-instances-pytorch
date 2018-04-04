@@ -9,7 +9,9 @@ from torchfcn import instance_utils
 from .fcn32s import get_upsampling_weight
 
 
-DEFAULT_SAVED_MODEL_PATH=osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
+DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
+
+# TODO(allie): print out flops so you know how long things should take
 
 
 class FCN8sInstanceNotAtOnce(nn.Module):

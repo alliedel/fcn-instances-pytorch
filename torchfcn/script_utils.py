@@ -29,7 +29,10 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'semantic_subset': 'sem_set',
                                         'val_on_train': 'vot',
                                         'matching': 'match',
-                                        'filter_images_by_semantic_subset': 'filter_sem'}
+                                        'filter_images_by_semantic_subset': 'filter_sem',
+                                        'set_extras_to_void': 'void'}
+
+BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "]'": ''}
 
 
 def check_clean_work_tree(exit_on_error=False, interactive=True):
@@ -94,7 +97,7 @@ def git_hash():
 
 
 def get_log_dir(model_name, config_id, cfg, parent_directory=None):
-    bad_char_replacements = {' ': '', ',': '-'}
+    bad_char_replacements = BAD_CHAR_REPLACEMENTS
     # load config
     name = 'MODEL-%s_CFG-%03d' % (model_name, config_id)
     for k, v in cfg.items():

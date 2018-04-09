@@ -29,6 +29,7 @@ default_config = dict(
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
+    0: dict(),
     1: dict(
         n_instances_per_class=1,
         set_extras_to_void=False
@@ -57,8 +58,7 @@ def main():
     script_utils.check_clean_work_tree()
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
-    parser.add_argument('-c', '--config', type=int, default=1,
-                        choices=configurations.keys())
+    parser.add_argument('-c', '--config', type=int, default=0, choices=configurations.keys())
     parser.add_argument('--resume', help='Checkpoint path')
     args = parser.parse_args()
     gpu = args.gpu

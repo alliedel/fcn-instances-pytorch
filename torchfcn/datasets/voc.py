@@ -55,7 +55,8 @@ class VOCClassSegBase(data.Dataset):
                  semantic_subset=None, map_other_classes_to_bground=True,
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
-                 n_instances_per_class=None, filter_images_by_semantic_subset=False):
+                 n_instances_per_class=None, filter_images_by_semantic_subset=False,
+                 modified_indices=None):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -67,7 +68,7 @@ class VOCClassSegBase(data.Dataset):
             return_semantic_instance_tuple = True if not semantic_only_labels else False
         if semantic_only_labels is None:
             semantic_only_labels = False
-
+        self.modified_indices = modified_indices
         self.permute_instance_order = permute_instance_order
         if permute_instance_order:
             raise NotImplementedError
@@ -148,14 +149,21 @@ class VOCClassSegBase(data.Dataset):
         return files
 
     def __len__(self):
-        return len(self.files[self.split])
+        return len(self.files[self.split]) if self.modified_indices is None else len(self.modified_indices)
 
     def __getitem__(self, index):
-        data_file = self.files[self.split][index]
+        data_file = self.files[self.split][index] if self.modified_indices is None \
+            else self.files[self.split][self.modified_indices[index]]
         img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
                                                    sem_lbl_file=data_file['sem_lbl'],
                                                    inst_lbl_file=data_file['inst_lbl'])
         return img, lbl
+
+    def modify_image_set(self, index_list):
+        if max(index_list) >= self.__len__():
+            self.modified_indices = index_list
+        else:
+            raise ValueError('index list must be within 0 and {}, not {}'.format(self.__len__() - 1, max(index_list)))
 
     def generate_per_sem_instance_file(self, inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
         print('Generating per-semantic instance file: {}'.format(inst_lbl_file))

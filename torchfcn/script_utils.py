@@ -30,9 +30,11 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'val_on_train': 'vot',
                                         'matching': 'match',
                                         'filter_images_by_semantic_subset': 'filter_sem',
-                                        'set_extras_to_void': 'void'}
+                                        'set_extras_to_void': 'void',
+                                        'momentum': 'm',
+                                        'n_instances_per_class': 'n_inst_cls'}
 
-BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "]'": ''}
+BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 
 
 def check_clean_work_tree(exit_on_error=False, interactive=True):

@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-
+from torch import nn
 import local_pyutils
 
 
@@ -32,8 +32,18 @@ class InstanceProblemConfig(object):
         self.n_classes = sum(self.n_instances_by_semantic_id)
         self.semantic_instance_class_list = get_semantic_instance_class_list(
             n_instances_by_semantic_id)
+        self.instance_count_id_list = get_semantic_instance_class_list(
+            n_instances_by_semantic_id)
         self.instance_to_semantic_mapping_matrix = get_instance_to_semantic_mapping(
             n_instances_by_semantic_id)
+        self.instance_to_semantic_conv1x1 = nn.Conv2d(in_channels=self.n_classes, out_channels=self.n_semantic_classes,
+                                                      kernel_size=1, bias=False)
+
+        def decouple_instance_result(self, instance_scores):
+            assert torch.is_tensor(instance_scores)
+            semantic_only_result = instance_scores.clone()
+            # instance_only_result =
+            raise NotImplementedError
 
 
 def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
@@ -70,6 +80,12 @@ def get_semantic_instance_class_list(n_instances_by_semantic_id):
             for _ in range(n_instances)]
 
 
+def get_instance_count_id_list(semantic_instance_class_list, n_semantic_classes=None):
+    if n_semantic_classes is None:
+        n_semantic_classes = max(semantic_instance_class_list) - 1
+    
+
+
 def get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_class_list,
                                                               as_numpy=False):
     """
@@ -85,11 +101,13 @@ def get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_
         instance_to_semantic_mapping_matrix = torch.zeros((n_instance_classes, n_semantic_classes)).float()
     except:
         import ipdb; ipdb.set_trace()
+        raise Exception
     for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
         instance_to_semantic_mapping_matrix[instance_idx,
                                             semantic_idx] = 1
     return instance_to_semantic_mapping_matrix if not as_numpy else \
         instance_to_semantic_mapping_matrix.numpy()
+
 
 
 def get_instance_to_semantic_mapping(n_instances_by_semantic_id, as_numpy=False):

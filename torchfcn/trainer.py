@@ -24,7 +24,7 @@ DEBUG_ASSERTS = True
 class Trainer(object):
 
     def __init__(self, cuda, model, optimizer,
-                 train_loader, val_loader, out, max_iter,
+                 train_loader, val_loader, out, max_iter, instance_problem,
                  size_average=False, interval_validate=None, matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False):
         self.cuda = cuda
@@ -42,6 +42,7 @@ class Trainer(object):
         self.tensorboard_writer = tensorboard_writer
         self.train_loader_for_val = train_loader_for_val
         self.loader_semantic_lbl_only = loader_semantic_lbl_only
+        self.instance_problem = instance_problem
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -230,12 +231,14 @@ class Trainer(object):
 
         imgs = data.data.cpu()
         # numpy_score = score.data.numpy()
-        lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+        inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+        # Collapse to semantic
+        # sem_lbl_pred =
         # confidence = numpy_score[numpy_score == numpy_score.max(dim=1)[0]]
 
         # TODO(allie): convert to sem, inst visualizations.
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
-        for img, sem_lbl, inst_lbl, lp in zip(imgs, lbl_true_sem, lbl_true_inst, lbl_pred):
+        for img, sem_lbl, inst_lbl, lp in zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred):
             img = data_loader.dataset.untransform_img(img)
             try:
                 (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
@@ -379,10 +382,10 @@ class Trainer(object):
             loss.backward()
             self.optim.step()
 
-            lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
+            inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
             metrics = []
-            for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, lbl_pred):
+            for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
                 lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
                 acc, acc_cls, mean_iu, fwavacc = \
                     torchfcn.utils.label_accuracy_score(

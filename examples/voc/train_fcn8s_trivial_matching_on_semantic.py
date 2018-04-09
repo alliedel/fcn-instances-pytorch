@@ -44,7 +44,7 @@ configurations = {
         set_extras_to_void=True
     ),
     4: dict(
-        semantic_subset=['person, background'],
+        semantic_subset=['person', 'background'],
         set_extras_to_void=True,
         filter_images_by_semantic_subset=True
     )

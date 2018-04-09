@@ -28,7 +28,24 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'n_max_per_class': 'n_per',
                                         'semantic_subset': 'sem_set',
                                         'val_on_train': 'vot',
-                                        'matching': 'match'}
+                                        'matching': 'match',
+                                        'filter_images_by_semantic_subset': 'filter_sem'}
+
+
+def check_clean_work_tree(exit_on_error=False, interactive=True):
+    child = subprocess.Popen(['git', 'diff', '--name-only', '--exit-code'], stdout=subprocess.PIPE)
+    stdout = child.communicate()[0]
+    exit_code = child.returncode
+    if exit_code != 0:
+        'Your working directory tree isn\'t clean ({}).'.format(stdout)
+        override = False
+        if interactive:
+            override = 'Y' == input('Your working directory tree isn\'t clean ({}).  '
+                                    'Please commit or stash your changes. If you\'d like to run anyway, \
+                                    type \'Y\''.format(stdout))
+        if exit_on_error or interactive and not override:
+            raise Exception('Exiting.  Please commit or stash your changes.')
+    return exit_code, stdout
 
 
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME):

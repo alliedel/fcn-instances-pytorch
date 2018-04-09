@@ -55,7 +55,7 @@ class VOCClassSegBase(data.Dataset):
                  semantic_subset=None, map_other_classes_to_bground=True,
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
-                 n_instances_per_class=None):
+                 n_instances_per_class=None, filter_images_by_semantic_subset=False):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -75,6 +75,7 @@ class VOCClassSegBase(data.Dataset):
         self.root = root
         self.split = split
         self._transform = transform
+        self.semantic_subset = semantic_subset
         self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
             semantic_subset=semantic_subset, full_set=ALL_VOC_CLASS_NAMES)
         self.n_semantic_classes = len(self.class_names)
@@ -90,6 +91,7 @@ class VOCClassSegBase(data.Dataset):
         self.set_extras_to_void = set_extras_to_void
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
+        self.filter_images_by_semantic_subset = filter_images_by_semantic_subset
 
         # VOC2011 and others are subset of VOC2012
         year = 2012
@@ -136,7 +138,13 @@ class VOCClassSegBase(data.Dataset):
                     'inst_absolute_lbl': inst_absolute_lbl_file,
                     'inst_lbl': inst_lbl_file,
                 })
+
             assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
+        if self.filter_images_by_semantic_subset and self.semantic_subset is not None:
+            non_bground_idxs = [idx for idx, nm in zip(self.idxs_into_all_voc, self.class_names)
+                                if nm is not 'background']
+            files = [files[valid_index] for valid_index in self.filter_by_semantic_subset(files, non_bground_idxs)]
+
         return files
 
     def __len__(self):
@@ -240,6 +248,21 @@ class VOCClassSegBase(data.Dataset):
             lbl, reduced_class_idxs=self.idxs_into_all_voc,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
 
+    def filter_by_semantic_subset(self, sem_lbl_files, semantic_subset_vals):
+        valid_indices = []
+        for index, file in enumerate(sem_lbl_files):
+            sem_lbl = self.load_img_as_dtype(file, np.int32)
+            sem_lbl[sem_lbl == 255] = -1
+            is_valid = False
+            for semantic_val in semantic_subset_vals:
+                if np.any(sem_lbl == semantic_val):
+                    is_valid = True
+                    break
+            if is_valid:
+                valid_indices.append(index)
+
+        return valid_indices
+
 
 class VOC2011ClassSeg(VOCClassSegBase):
 
@@ -299,3 +322,5 @@ class VOC2012ClassSeg(VOCClassSegBase):
 
 def xor(a, b):
     return (a and not b) or (not a and b)
+
+

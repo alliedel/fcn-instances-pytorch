@@ -61,7 +61,6 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
     else:
         y = inst_lbl.copy()
     y[...] = void_value
-    semantic_instance_class_arr = np.array(semantic_instance_class_list)
     unique_semantic_vals, inst_counts = np.unique(semantic_instance_class_list, return_counts=True)
     for sem_val, n_instances_for_this_sem_cls in zip(unique_semantic_vals, inst_counts):
         sem_inst_idxs = [i for i, s in enumerate(semantic_instance_class_list) if s == sem_val]
@@ -72,8 +71,6 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
             except:
                 import ipdb; ipdb.set_trace()
                 raise
-#    if np.sum(y == void_value) == 0:
-#        raise Exception('void class got removed here')
     return y
 
 

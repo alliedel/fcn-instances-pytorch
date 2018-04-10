@@ -253,7 +253,6 @@ class Trainer(object):
             true_labels.append(lt_combined)
             pred_labels.append(lp)
             if should_visualize:
-                import ipdb; ipdb.set_trace()
                 viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
                     overlay=False)

@@ -82,13 +82,13 @@ class Trainer(object):
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                       score.size(3))):
-            import ipdb;
-            ipdb.set_trace()
+            import ipdb; ipdb.set_trace()
             raise Exception('Sizes of score, targets are incorrect')
-        permutations, loss = losses.cross_entropy2d(score, sem_lbl, inst_lbl,
-                                                    semantic_instance_labels=self.model.semantic_instance_class_list,
-                                                    matching=self.matching_loss, size_average=self.size_average,
-                                                    break_here=False, recompute_optimal_loss=False, **kwargs)
+        permutations, loss = losses.cross_entropy2d(
+            score, sem_lbl, inst_lbl,
+            semantic_instance_labels=self.model.semantic_instance_class_list, matching=self.matching_loss,
+            size_average=self.size_average, break_here=False, recompute_optimal_loss=False,
+            include_instance_channel0=self.instance_problem.include_instance_channel0, **kwargs)
         return permutations, loss
 
     def validate(self, split='val', write_metrics=None, save_checkpoint=None,

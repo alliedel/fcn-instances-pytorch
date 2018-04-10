@@ -64,6 +64,10 @@ class VOCClassSegBase(data.Dataset):
         instance index as the target values, it'll return two targets: the semantic target and
         the instance number: [0, n_instances_per_class[sem_idx])
         """
+
+        assert (modified_indices is None) or (not filter_images_by_semantic_subset), \
+            ValueError('Cannot specify modified indices and image filtering method')
+
         if return_semantic_instance_tuple is None:
             return_semantic_instance_tuple = True if not semantic_only_labels else False
         if semantic_only_labels is None:

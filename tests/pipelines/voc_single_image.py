@@ -34,27 +34,35 @@ configurations = {
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     0: dict(
         interval_validate=10,
-        max_iteration=11
+        max_iteration=11,
+        image_index=3
     ),
+    1: dict(
+        interval_validate=10,
+        max_iteration=500,
+        image_index=7,
+        n_instances_per_class=2
+    )
 }
 
 here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
-    image_number = 0
     script_utils.check_clean_work_tree()
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=0,
                         choices=configurations.keys())
     parser.add_argument('--resume', help='Checkpoint path')
-    parser.add_argument('--image_index', help='Which validation image you\'d like to overfit to', type=int, default=3)
+    parser.add_argument('--image_index', type=int, help='Image index to use for train/validation set', default=None)
     args = parser.parse_args()
     gpu = args.gpu
     config_idx = args.config
 
     cfg = script_utils.create_config_from_default(configurations[config_idx], default_config)
+    if args.image_index is not None:
+        cfg['image_index'] = args.image_index
 
     out = script_utils.get_log_dir(osp.basename(__file__).replace(
         '.py', ''), config_idx, script_utils.create_config_copy(cfg),
@@ -79,7 +87,7 @@ def main():
     root = osp.expanduser('~/data/datasets')
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
-                          modified_indices=[args.image_index])
+                          modified_indices=[cfg['image_index']])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
@@ -143,6 +151,7 @@ def main():
     trainer.iteration = start_iteration
     trainer.train()
 
+    print('Evaluating final model')
     metrics, visualizations = trainer.validate(should_export_visualizations=False)
     viz = visualization_utils.get_tile_image(visualizations)
     skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
@@ -154,7 +163,9 @@ def main():
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
     if metrics[2] < 85:
-        raise Exception('Test FAILED.  mIOU: {}'.format(metrics[2]))
+        print(script_utils.bcolors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + script_utils.bcolors.ENDC)
+    else:
+        print(script_utils.bcolors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + script_utils.bcolors.ENDC)
 
 
 if __name__ == '__main__':

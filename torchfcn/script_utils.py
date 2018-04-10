@@ -36,6 +36,20 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 
 
+class bcolors:
+    """
+    https://stackoverflow.com/questions/287871/print-in-terminal-with-colors
+    """
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
 def check_clean_work_tree(exit_on_error=False, interactive=True):
     child = subprocess.Popen(['git', 'diff', '--name-only', '--exit-code'], stdout=subprocess.PIPE)
     stdout = child.communicate()[0]
@@ -45,7 +59,7 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
         override = False
         if interactive:
             override = 'y' == input('Your working directory tree isn\'t clean ({}).  '
-                                    'Please commit or stash your changes. If you\'d like to run anyway,\n type \'y\''
+                                    'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': '
                                     ''.format(stdout.decode()))
         if exit_on_error or interactive and not override:
             raise Exception('Exiting.  Please commit or stash your changes.')

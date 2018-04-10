@@ -388,7 +388,11 @@ class Trainer(object):
             self.optim.step()
 
             inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-            inst_lbl_pred_matched = inst_lbl_pred[:, :, pred_permutations]
+            score_permuted_to_match = score.clone()
+            for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
+                # batch size?
+                score_permuted_to_match[:, ch, :, :] = score[:, pred_permutations[:, ch], :, :]
+            inst_lbl_pred_matched = score_permuted_to_match.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
             metrics = []
             for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred_matched):

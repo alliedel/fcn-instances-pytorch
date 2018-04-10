@@ -227,7 +227,7 @@ class Trainer(object):
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
                                   Variable(sem_lbl), Variable(inst_lbl)
         score = self.model(data)
-        gt_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
         if np.isnan(float(loss.data[0])):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(data)
@@ -377,7 +377,7 @@ class Trainer(object):
             self.optim.zero_grad()
             score = self.model(data)
 
-            gt_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+            pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
             loss /= len(data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
@@ -388,9 +388,10 @@ class Trainer(object):
             self.optim.step()
 
             inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
+            inst_lbl_pred_matched = inst_lbl_pred[:, :, pred_permutations]
             lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
             metrics = []
-            for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
+            for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred_matched):
                 lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
                 acc, acc_cls, mean_iu, fwavacc = \
                     torchfcn.utils.label_accuracy_score(

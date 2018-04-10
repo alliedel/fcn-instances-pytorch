@@ -103,7 +103,7 @@ def get_instance_count_id_list(semantic_instance_class_list, non_instance_sem_cl
     """
     semantic_instance_class_array = np.array(semantic_instance_class_list)
     unique_semantic_classes = np.unique(semantic_instance_class_array)
-    instance_count_id_arr = np.array(len(semantic_instance_class_list))
+    instance_count_id_arr = np.empty((len(semantic_instance_class_list),))
     for sem_cls in unique_semantic_classes:
         sem_cls_locs = semantic_instance_class_array == sem_cls
         if sem_cls in list(non_instance_sem_classes):

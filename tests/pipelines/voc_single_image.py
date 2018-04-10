@@ -153,6 +153,8 @@ def main():
         Accuracy Class: {1}
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
+    if metrics[2] < 85:
+        raise Exception('Test FAILED.  mIOU: {}'.format(metrics[2]))
 
 
 if __name__ == '__main__':

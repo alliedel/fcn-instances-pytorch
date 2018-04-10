@@ -146,6 +146,13 @@ def main():
     metrics, visualizations = trainer.validate(should_export_visualizations=False)
     viz = visualization_utils.get_tile_image(visualizations)
     skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
+    metrics = np.array(metrics)
+    metrics *= 100
+    print('''\
+        Accuracy: {0}
+        Accuracy Class: {1}
+        Mean IU: {2}
+        FWAV Accuracy: {3}'''.format(*metrics))
 
 
 if __name__ == '__main__':

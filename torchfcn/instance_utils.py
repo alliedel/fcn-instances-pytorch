@@ -47,8 +47,8 @@ class InstanceProblemConfig(object):
             raise NotImplementedError
 
 
-def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
-                                         set_extras_to_void=True, void_value=-1, include_instance_channel0=False):
+def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list, instance_count_id_list,
+                                         set_extras_to_void=True, void_value=-1):
     """
     sem_lbl is size(img); inst_lbl is size(img).  inst_lbl is just the original instance
     image (inst_lbls at coordinates of person 0 are 0)
@@ -61,13 +61,12 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
     else:
         y = inst_lbl.copy()
     y[...] = void_value
+    semantic_instance_class_arr = np.array(semantic_instance_class_list)
     unique_semantic_vals, inst_counts = np.unique(semantic_instance_class_list, return_counts=True)
     for sem_val, n_instances_for_this_sem_cls in zip(unique_semantic_vals, inst_counts):
-        instance_vals = range(n_instances_for_this_sem_cls) if not include_instance_channel0 \
-            else range(1, n_instances_for_this_sem_cls)
-        for inst_val in instance_vals:
-            sem_inst_idx = local_pyutils.nth_item(n=inst_val, item=sem_val,
-                                                  iterable=semantic_instance_class_list)
+        sem_inst_idxs = [i for i, s in enumerate(semantic_instance_class_list) if s == sem_val]
+        for sem_inst_idx in sem_inst_idxs:
+            inst_val = instance_count_id_list[sem_inst_idx]
             try:
                 y[(sem_lbl == sem_val) * (inst_lbl == inst_val)] = sem_inst_idx
             except:

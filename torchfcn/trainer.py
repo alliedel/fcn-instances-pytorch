@@ -124,7 +124,6 @@ class Trainer(object):
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
                 leave=False):
-            import ipdb; ipdb.set_trace()
             if not self.loader_semantic_lbl_only:
                 (sem_lbl, inst_lbl) = lbls
             else:
@@ -254,6 +253,7 @@ class Trainer(object):
             true_labels.append(lt_combined)
             pred_labels.append(lp)
             if should_visualize:
+                import ipdb; ipdb.set_trace()
                 viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
                     overlay=False)
@@ -261,9 +261,11 @@ class Trainer(object):
         return true_labels, pred_labels, val_loss, visualizations
 
     def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
-        semantic_instance_class_list = self.model.semantic_instance_class_list
+        semantic_instance_class_list = self.instance_problem.semantic_instance_class_list
+        instance_count_id_list = self.instance_problem.instance_count_id_list
         return instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl,
-                                                                   semantic_instance_class_list)
+                                                                   semantic_instance_class_list,
+                                                                   instance_count_id_list)
 
     #     def validate(self):
     #         training = self.model.training

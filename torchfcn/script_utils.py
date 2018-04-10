@@ -44,8 +44,8 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
         'Your working directory tree isn\'t clean ({}).'.format(stdout.decode('utf-8'))
         override = False
         if interactive:
-            override = 'Y' == input('Your working directory tree isn\'t clean ({}).  '
-                                    'Please commit or stash your changes. If you\'d like to run anyway,\n type \'Y\''
+            override = 'y' == input('Your working directory tree isn\'t clean ({}).  '
+                                    'Please commit or stash your changes. If you\'d like to run anyway,\n type \'y\''
                                     ''.format(stdout.decode()))
         if exit_on_error or interactive and not override:
             raise Exception('Exiting.  Please commit or stash your changes.')

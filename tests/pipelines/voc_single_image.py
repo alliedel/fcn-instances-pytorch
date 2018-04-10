@@ -29,7 +29,10 @@ default_config = dict(
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
-    0: dict()
+    0: dict(),
+    1: dict(
+        interval_validate=10
+    )
 }
 
 here = osp.dirname(osp.abspath(__file__))

@@ -225,7 +225,7 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
                                              (sem_lbl == sem_val).float() *
                                              (inst_lbl == inst_val).float())
                      / normalizer for inst_val in inst_id_lbls_for_this_class]
-                    for sem_inst_idx in enumerate(sem_inst_idxs_for_this_class)]
+                    for sem_inst_idx in sem_inst_idxs_for_this_class]
 
     # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
     return cost_list_2d

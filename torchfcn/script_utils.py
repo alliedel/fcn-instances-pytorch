@@ -15,7 +15,6 @@ from glob import glob
 here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'
 
-
 CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'weight_decay': 'decay',
                                         'n_training_imgs': 'n_train',
@@ -42,12 +41,12 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
     stdout = child.communicate()[0]
     exit_code = child.returncode
     if exit_code != 0:
-        'Your working directory tree isn\'t clean ({}).'.format(stdout)
+        'Your working directory tree isn\'t clean ({}).'.format(stdout.decode('utf-8'))
         override = False
         if interactive:
             override = 'Y' == input('Your working directory tree isn\'t clean ({}).  '
-                                    'Please commit or stash your changes. If you\'d like to run anyway, \
-                                    type \'Y\''.format(stdout))
+                                    'Please commit or stash your changes. If you\'d like to run anyway,\n type \'Y\''
+                                    ''.format(stdout.decode()))
         if exit_on_error or interactive and not override:
             raise Exception('Exiting.  Please commit or stash your changes.')
     return exit_code, stdout
@@ -151,5 +150,6 @@ def get_parameters(model, bias=False):
         elif isinstance(m, modules_skipped):
             continue
         else:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
             raise ValueError('Unexpected module: %s' % str(m))

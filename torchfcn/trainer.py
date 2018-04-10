@@ -124,6 +124,7 @@ class Trainer(object):
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
                 leave=False):
+            import ipdb; ipdb.set_trace()
             if not self.loader_semantic_lbl_only:
                 (sem_lbl, inst_lbl) = lbls
             else:

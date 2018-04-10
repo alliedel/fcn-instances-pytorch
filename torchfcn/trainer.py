@@ -86,9 +86,10 @@ class Trainer(object):
             raise Exception('Sizes of score, targets are incorrect')
         permutations, loss = losses.cross_entropy2d(
             score, sem_lbl, inst_lbl,
-            semantic_instance_labels=self.model.semantic_instance_class_list, matching=self.matching_loss,
-            size_average=self.size_average, break_here=False, recompute_optimal_loss=False,
-            include_instance_channel0=self.instance_problem.include_instance_channel0, **kwargs)
+            semantic_instance_labels=self.instance_problem.semantic_instance_class_list,
+            instance_id_labels=self.instance_problem.instance_count_id_list,
+            matching=self.matching_loss,
+            size_average=self.size_average, break_here=False, recompute_optimal_loss=False, **kwargs)
         return permutations, loss
 
     def validate(self, split='val', write_metrics=None, save_checkpoint=None,

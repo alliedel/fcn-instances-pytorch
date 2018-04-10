@@ -93,12 +93,13 @@ class Trainer(object):
         return permutations, loss
 
     def validate(self, split='val', write_metrics=None, save_checkpoint=None,
-                 update_best_checkpoint=None):
+                 update_best_checkpoint=None, should_export_visualizations=True):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
         If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
             False.
         """
+        metrics, visualizations = None, None
         write_metrics = (split == 'val') if write_metrics is None else write_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -143,8 +144,8 @@ class Trainer(object):
             val_loss += val_loss_single_batch
             visualizations += visualizations_single_batch
         val_loss /= len(data_loader)
-
-        self.export_visualizations(visualizations, split)
+        if should_export_visualizations:
+            self.export_visualizations(visualizations, split)
 
         if compute_metrics:
             metrics = torchfcn.utils.label_accuracy_score(
@@ -166,6 +167,7 @@ class Trainer(object):
         # Restore training settings set prior to function call
         if training:
             self.model.train()
+        return metrics, visualizations
 
     def export_visualizations(self, visualizations, split='val_'):
         out = osp.join(self.out, 'visualization_viz')

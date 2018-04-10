@@ -26,7 +26,8 @@ default_config = dict(
     n_instances_per_class=1,
     set_extras_to_void=True,
     semantic_subset=None,
-    filter_images_by_semantic_subset=False
+    filter_images_by_semantic_subset=False,
+    optim='adam'
 )
 
 configurations = {
@@ -85,8 +86,7 @@ def main():
 
     # 1. dataset
     root = osp.expanduser('~/data/datasets')
-    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
-                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
+    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
                           modified_indices=[cfg['image_index']])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
@@ -114,21 +114,25 @@ def main():
         model = model.cuda()
 
     # 3. optimizer
+    if cfg['optim'] == 'adam':
+        optim = torch.optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
+    elif cfg['optim'] == 'sgd':
+        optim = torch.optim.SGD(
+            [
+                {'params': script_utils.get_parameters(model, bias=False)},
+                {'params': script_utils.get_parameters(model, bias=True),
+                 #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+                 #                model, bias=False))},
+                 #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+                 #                model, bias=True)),
 
-    optim = torch.optim.SGD(
-        [
-            {'params': script_utils.get_parameters(model, bias=False)},
-            {'params': script_utils.get_parameters(model, bias=True),
-             #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
-             #                model, bias=False))},
-             #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
-             #                model, bias=True)),
-
-             'lr': cfg['lr'] * 2, 'weight_decay': 0},
-        ],
-        lr=cfg['lr'],
-        momentum=cfg['momentum'],
-        weight_decay=cfg['weight_decay'])
+                 'lr': cfg['lr'] * 2, 'weight_decay': 0},
+            ],
+            lr=cfg['lr'],
+            momentum=cfg['momentum'],
+            weight_decay=cfg['weight_decay'])
+    else:
+        raise Exception('optimizer {} not recognized.'.format(cfg['optim']))
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 

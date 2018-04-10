@@ -17,7 +17,7 @@ default_config = dict(
     lr=1.0e-12,
     momentum=0.99,
     weight_decay=0.0005,
-    interval_validate=20,
+    interval_validate=4000,
     matching=True,
     semantic_only_labels=False,
     n_instances_per_class=1,
@@ -31,23 +31,7 @@ configurations = {
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     0: dict(),
     1: dict(
-        n_instances_per_class=1,
-        set_extras_to_void=False
-    ),
-    2: dict(
-        semantic_only_labels=True,
-        n_instances_per_class=1,
-        set_extras_to_void=False
-    ),
-    3: dict(
-        semantic_only_labels=False,
-        n_instances_per_class=3,
-        set_extras_to_void=True
-    ),
-    4: dict(
-        semantic_subset=['person', 'background'],
-        set_extras_to_void=True,
-        filter_images_by_semantic_subset=True
+        interval_validate=20
     )
 }
 

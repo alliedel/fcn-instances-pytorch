@@ -451,22 +451,21 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255),
         colormap = np.ones_like(heatmap) * color
         if channel_labels is not None:
             write_word_in_img_center(colormap, channel_labels[channel])
-
         pred_label_masks.append(pred_label_mask)
         true_label_masks.append(true_label_mask)
         heatmaps.append(heatmap)
         heatmaps_normalized.append(heatmap_normalized)
         colormaps.append(colormap)
-    true_label_mask_row = get_tile_image(true_label_masks, (1, n_channels), margin_color=margin_color,
+    true_label_mask_row = get_tile_image(true_label_masks, (1, len(channels_to_visualize)), margin_color=margin_color,
                                          margin_size=2)
-    pred_label_mask_row = get_tile_image(pred_label_masks, (1, n_channels), margin_color=margin_color,
+    pred_label_mask_row = get_tile_image(pred_label_masks, (1, len(channels_to_visualize)), margin_color=margin_color,
                                          margin_size=2)
-    heatmap_row = get_tile_image(heatmaps, (1, n_channels), margin_color=margin_color,
+    heatmap_row = get_tile_image(heatmaps, (1, len(channels_to_visualize)), margin_color=margin_color,
                                  margin_size=2)
-    heatmap_row_normalized = get_tile_image(heatmaps_normalized, (1, n_channels), margin_color=margin_color,
+    heatmap_row_normalized = get_tile_image(heatmaps_normalized, (1, len(channels_to_visualize)), margin_color=margin_color,
                                             margin_size=2)
-    colormaps_row = get_tile_image(colormaps, (1, n_channels), margin_color=margin_color, margin_size=2)
-
+    colormaps_row = get_tile_image(colormaps, (1, len(channels_to_visualize)), margin_color=margin_color, margin_size=2)
+    import ipdb; ipdb.set_trace()
     all_rows = [heatmap_row, heatmap_row_normalized, pred_label_mask_row, colormaps_row, true_label_mask_row]
     return get_tile_image(all_rows, (len(all_rows), 1), margin_color=margin_color, margin_size=2)
 

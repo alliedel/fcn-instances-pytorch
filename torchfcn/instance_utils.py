@@ -40,11 +40,16 @@ class InstanceProblemConfig(object):
         self.instance_to_semantic_conv1x1 = nn.Conv2d(in_channels=self.n_classes, out_channels=self.n_semantic_classes,
                                                       kernel_size=1, bias=False)
 
-        def decouple_instance_result(self, instance_scores):
-            assert torch.is_tensor(instance_scores)
-            semantic_only_result = instance_scores.clone()
-            # instance_only_result =
-            raise NotImplementedError
+    def get_channel_labels(self, sem_inst_format='{} {}'):
+        channel_labels = [sem_inst_format.format(sem_cls, inst_id) for inst_id, sem_cls in zip(
+            self.semantic_instance_class_list, self.instance_count_id_list)]
+        return channel_labels
+
+    def decouple_instance_result(self, instance_scores):
+        assert torch.is_tensor(instance_scores)
+        semantic_only_result = instance_scores.clone()
+        # instance_only_result =
+        raise NotImplementedError
 
 
 def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list, instance_count_id_list,

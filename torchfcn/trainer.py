@@ -285,11 +285,14 @@ class Trainer(object):
                 else:
                     raise ValueError('which heatmaps to visualize is not recognized: {}'.format(
                         self.which_heatmaps_to_visualize))
-                viz = visualization_utils.visualize_heatmaps(scores=sp[channels_to_visualize, :, :],
+                channel_labels = self.instance_problem.get_channel_labels('{} {}')
+                viz = visualization_utils.visualize_heatmaps(scores=sp,
                                                              lbl_true=lt_combined,
                                                              lbl_pred=lp,
                                                              n_class=self.n_combined_class,
-                                                             score_vis_normalizer=sp.max())
+                                                             score_vis_normalizer=sp.max(),
+                                                             channel_labels=channel_labels,
+                                                             channels_to_visualize=channels_to_visualize)
                 score_visualizations.append(viz)
         return true_labels, pred_labels, val_loss, segmentation_visualizations, score_visualizations
 

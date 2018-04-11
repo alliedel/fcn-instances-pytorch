@@ -422,9 +422,10 @@ def log_images(writer, tag, images, step, numbers=None, bgr=False):
 
 
 def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255), n_class=None,
-                       score_vis_normalizer=None):
+                       score_vis_normalizer=None, channel_labels=None, channels_to_visualize=None):
     """
     n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to make sense.
+    channels_to_visualize: None == 'all'
     """
     n_channels = scores.shape[0]
     if n_class is None:
@@ -438,7 +439,8 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255),
     colormaps = []
     scores_min_max = (scores.min(), scores.max())
     score_vis_normalizer = score_vis_normalizer or scores.max()
-    for channel in range(n_channels):
+    channels_to_visualize = channels_to_visualize or range(n_channels)
+    for channel in channels_to_visualize:
         single_channel_scores = scores[channel, :, :]
         color = cmap[channel, :]
         pred_label_mask = np.repeat((lbl_pred == channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
@@ -446,11 +448,15 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255),
         heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), color=(255, 255, 255)).astype(np.uint8)
         heatmap_normalized = scores2d2heatmap(single_channel_scores, clims=(0, score_vis_normalizer),
                                               color=(255, 255, 255)).astype(np.uint8)
+        colormap = np.ones_like(heatmap) * color
+        if channel_labels is not None:
+            write_word_in_img_center(colormap, channel_labels[channel])
+
         pred_label_masks.append(pred_label_mask)
         true_label_masks.append(true_label_mask)
         heatmaps.append(heatmap)
         heatmaps_normalized.append(heatmap_normalized)
-        colormaps.append(np.ones_like(heatmap) * color)
+        colormaps.append(colormap)
     true_label_mask_row = get_tile_image(true_label_masks, (1, n_channels), margin_color=margin_color,
                                          margin_size=2)
     pred_label_mask_row = get_tile_image(pred_label_masks, (1, n_channels), margin_color=margin_color,
@@ -475,3 +481,25 @@ def scores2d2heatmap(scores_single_channel, clims=None, color=(255, 255, 255)):
     heatmap = (heatmap - clims[0]) / (clims[1] - clims[0])
     heatmap = heatmap * np.array(color).squeeze()[np.newaxis, np.newaxis, :]
     return heatmap
+
+
+def write_word_in_img_center(img, text, **kwargs):
+    r, c = (img.shape[0] // 2), (img.shape[1] // 2)
+    write_word_in_location(img, text, r, c, **kwargs)
+
+
+def write_word_in_location(img, text, r, c, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=0.7, thickness=2):
+    y, x = r, c
+    y, x = map(int, [y, x])
+    text_size, baseline = cv2.getTextSize(text, font_face, font_scale, thickness)
+    color = get_text_color(img[y, x])
+    cv2.putText(img, text, (x - text_size[0] // 2, y), font_face, font_scale, color, thickness)
+
+
+def get_text_color(bg_color):
+    """
+    Decides whether to write on background in white or black based on background color
+    """
+    if bg_color[0] * 0.299 + bg_color[1] * 0.587 + bg_color[2] * 0.114 > 170:
+        return (0, 0, 0)
+    return (255, 255, 255)

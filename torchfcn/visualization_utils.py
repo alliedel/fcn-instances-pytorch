@@ -483,7 +483,8 @@ def write_word_in_img_center(img, text, **kwargs):
 
 
 def write_word_in_location(img, text, r, c, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=0.7, thickness=None):
-    thickness = thickness or font_scale * 2.0 / 0.7  # make bolder as it gets larger (scale=0.7 <-> thickness=2)
+    thickness = int(round(thickness or font_scale * 2.0 / 0.7))  # make bolder as it gets larger (scale=0.7 <->
+    # thickness=2)
     y, x = r, c
     y, x = map(int, [y, x])
     text_size, baseline = cv2.getTextSize(text, font_face, font_scale, thickness)

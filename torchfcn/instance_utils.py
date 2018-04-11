@@ -15,9 +15,11 @@ class InstanceProblemConfig(object):
     (training) dataset.
     """
 
-    def __init__(self, n_instances_by_semantic_id, semantic_vals=None, void_value=-1, include_instance_channel0=False):
+    def __init__(self, n_instances_by_semantic_id, class_names=None, semantic_vals=None, void_value=-1,
+                 include_instance_channel0=False):
         if semantic_vals is not None:
             assert len(semantic_vals) == len(n_instances_by_semantic_id)
+        self.class_names = class_names
         self.semantic_vals = semantic_vals or range(len(n_instances_by_semantic_id))
         self.void_value = void_value
         self.n_instances_by_semantic_id = n_instances_by_semantic_id
@@ -41,9 +43,17 @@ class InstanceProblemConfig(object):
                                                       kernel_size=1, bias=False)
 
     def get_channel_labels(self, sem_inst_format='{} {}'):
-        channel_labels = [sem_inst_format.format(sem_cls, inst_id) for inst_id, sem_cls in zip(
+        if self.class_names is None:
+            semantic_instance_labels = self.semantic_instance_class_list
+        else:
+            semantic_instance_labels = [self.class_names[c] for c in self.semantic_instance_class_list]
+        channel_labels = [sem_inst_format.format(sem_cls, int(inst_id)) for inst_id, sem_cls in zip(
             self.semantic_instance_class_list, self.instance_count_id_list)]
         return channel_labels
+
+    def set_class_names(self, class_names):
+        assert class_names is None or (len(class_names) == self.n_semantic_classes)
+        self.class_names = class_names
 
     def decouple_instance_result(self, instance_scores):
         assert torch.is_tensor(instance_scores)

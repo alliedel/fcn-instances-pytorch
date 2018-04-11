@@ -372,6 +372,10 @@ def visualize_segmentation(**kwargs):
             viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
         vizs.append(viz)
 
+    if 1:
+        ex_viz = vizs[0][0]
+        print('segmentation min, max: {}, {}, {}'.format(type(ex_viz), ex_viz.min(), ex_viz.max()))
+
     if len(vizs) == 1:
         return vizs[0]
     elif len(vizs) == 2:
@@ -417,35 +421,66 @@ def log_images(writer, tag, images, step, numbers=None, bgr=False):
                              global_step=step)
 
 
-def visualize_heatmaps(scores, margin_color=(255, 255, 255), are_log=True, n_class=None):
+def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255), n_class=None):
     """
-    n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to work.
+    n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to make sense.
     """
     n_channels = scores.shape[0]
     if n_class is None:
         cmap = np.repeat(np.ones((1, 3)) * 255, [n_channels, 1])
     else:
-        cmap = label_colormap(n_class)
+        cmap = label_colormap(n_class) * 255
+    try:
+        assert np.all(scores.argmax(axis=0) == lbl_pred)
+    except:
+        import ipdb; ipdb.set_trace()
+        raise
+    try:
+        assert np.allclose(scores.sum(axis=0), 1)
+    except:
+        import ipdb; ipdb.set_trace()
+        raise
+
     heatmaps = []
+    heatmaps_normalized = []
+    pred_label_masks, true_label_masks = [], []
+    colormaps = []
+    scores_min_max = (scores.min(), scores.max())
     for channel in range(n_channels):
         single_channel_scores = scores[channel, :, :]
         color = cmap[channel, :]
-        heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), are_log=are_log, color=color)
+        pred_label_mask = np.repeat((lbl_pred == channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        true_label_mask = np.repeat((lbl_true == channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), color=(255, 255, 255)).astype(np.uint8)
+        heatmap_normalized = scores2d2heatmap(single_channel_scores, clims=(0, scores.max()),
+                                              color=(255, 255, 255)).astype(
+            np.uint8)
+        pred_label_masks.append(pred_label_mask)
+        true_label_masks.append(true_label_mask)
         heatmaps.append(heatmap)
+        heatmaps_normalized.append(heatmap_normalized)
+        colormaps.append(np.ones_like(heatmap) * color)
+    true_label_mask_row = get_tile_image(true_label_masks, (1, n_channels), margin_color=margin_color,
+                                         margin_size=2)
+    pred_label_mask_row = get_tile_image(pred_label_masks, (1, n_channels), margin_color=margin_color,
+                                         margin_size=2)
+    heatmap_row = get_tile_image(heatmaps, (1, n_channels), margin_color=margin_color,
+                                 margin_size=2)
+    heatmap_row_normalized = get_tile_image(heatmaps_normalized, (1, n_channels), margin_color=margin_color,
+                                            margin_size=2)
+    colormaps_row = get_tile_image(colormaps, (1, n_channels), margin_color=margin_color, margin_size=2)
 
-    return get_tile_image(heatmaps, (1, len(heatmaps)), margin_color=margin_color,
-                          margin_size=2)
+    all_rows = [heatmap_row, heatmap_row_normalized, pred_label_mask_row, colormaps_row, true_label_mask_row]
+    return get_tile_image(all_rows, (len(all_rows), 1), margin_color=margin_color, margin_size=2)
 
 
-def scores2d2heatmap(scores_single_channel, clims=None, are_log=True, color=(255, 255, 255)):
+def scores2d2heatmap(scores_single_channel, clims=None, color=(255, 255, 255)):
     M, N = scores_single_channel.shape
     heatmap = np.repeat(scores_single_channel[:, :, np.newaxis], 3, axis=2).astype(np.float32)  # / 255
-    if are_log:
-        heatmap = np.exp(heatmap)
     if clims is None:
         clims = (heatmap.min(), heatmap.max())
     else:
         clims = (float(clims[0]), float(clims[1]))
     heatmap = (heatmap - clims[0]) / (clims[1] - clims[0])
-    heatmap = np.repeat(np.ones((1, 1, 3)) * color, M, axis=0).repeat(N, axis=1) * heatmap
+    heatmap = heatmap * np.array(color).squeeze()[np.newaxis, np.newaxis, :]
     return heatmap

@@ -10,6 +10,7 @@ import scipy.misc
 import torch
 from torch.autograd import Variable
 import tqdm
+import torch.nn.functional as F
 
 import torchfcn
 from torchfcn import losses
@@ -236,16 +237,12 @@ class Trainer(object):
         val_loss += float(loss.data[0]) / len(data)
 
         imgs = data.data.cpu()
-        # numpy_score = score.data.numpy()
+        softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
         inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
-        # Collapse to semantic
-        # sem_lbl_pred =
-        # confidence = numpy_score[numpy_score == numpy_score.max(dim=1)[0]]
 
         # TODO(allie): convert to sem, inst visualizations.
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
-        scores_np = score.data.cpu().numpy()[:, :, :, :]
-        for img, sem_lbl, inst_lbl, lp, sp in zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred, scores_np):
+        for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
             img = data_loader.dataset.untransform_img(img)
             try:
                 (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
@@ -259,12 +256,23 @@ class Trainer(object):
             pred_labels.append(lp)
             if should_visualize:
                 # Segmentations
+                print('visualizing segmentations')
                 viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
                     overlay=False)
+                print('viz stuff: {} {} {}'.format(type(viz[0]), viz[0].min(), viz[0].max()))
+                print('visualizing heatmaps')
                 segmentation_visualizations.append(viz)
                 # Scores
-                viz = visualization_utils.visualize_heatmaps(scores=sp, are_log=True,
+                sp = softmax_scores[idx, :, :, :]
+
+                # TODO(allie): Fix this bug!!!!!
+                lp = np.argmax(sp, axis=0)
+                # try:
+                #     assert np.all(np.argmax(sp, axis=0) == lp)
+                # except:
+                #     import ipdb; ipdb.set_trace()
+                viz = visualization_utils.visualize_heatmaps(scores=sp, lbl_true=lt_combined, lbl_pred=lp,
                                                              n_class=self.n_combined_class)
                 score_visualizations.append(viz)
         return true_labels, pred_labels, val_loss, segmentation_visualizations, score_visualizations

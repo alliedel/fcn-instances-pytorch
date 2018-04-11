@@ -94,6 +94,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
+    problem_config.set_class_names(val_dataset.class_names)
 
     # 2. model
 

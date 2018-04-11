@@ -372,10 +372,6 @@ def visualize_segmentation(**kwargs):
             viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
         vizs.append(viz)
 
-    if 1:
-        ex_viz = vizs[0][0]
-        print('segmentation min, max: {}, {}, {}'.format(type(ex_viz), ex_viz.min(), ex_viz.max()))
-
     if len(vizs) == 1:
         return vizs[0]
     elif len(vizs) == 2:
@@ -450,7 +446,7 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255),
                                               color=(255, 255, 255)).astype(np.uint8)
         colormap = np.ones_like(heatmap) * color
         if channel_labels is not None:
-            write_word_in_img_center(colormap, channel_labels[channel], font_scale=3.0)
+            write_word_in_img_center(colormap, channel_labels[channel], font_scale=2.5)
         pred_label_masks.append(pred_label_mask)
         true_label_masks.append(true_label_mask)
         heatmaps.append(heatmap)
@@ -486,7 +482,8 @@ def write_word_in_img_center(img, text, **kwargs):
     write_word_in_location(img, text, r, c, **kwargs)
 
 
-def write_word_in_location(img, text, r, c, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=0.7, thickness=2):
+def write_word_in_location(img, text, r, c, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=0.7, thickness=None):
+    thickness = thickness or font_scale * 2.0 / 0.7  # make bolder as it gets larger (scale=0.7 <-> thickness=2)
     y, x = r, c
     y, x = map(int, [y, x])
     text_size, baseline = cv2.getTextSize(text, font_face, font_scale, thickness)

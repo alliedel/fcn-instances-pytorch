@@ -147,8 +147,8 @@ class Trainer(object):
             score_visualizations += score_visualizations_single_batch
         val_loss /= len(data_loader)
         if should_export_visualizations:
-            self.export_visualizations(segmentation_visualizations, split)
-            self.export_visualizations(score_visualizations, split)
+            self.export_visualizations(segmentation_visualizations, 'seg_' + split)
+            self.export_visualizations(score_visualizations, 'score_' + split)
 
         if compute_metrics:
             metrics = torchfcn.utils.label_accuracy_score(
@@ -228,7 +228,7 @@ class Trainer(object):
         # TODO(allie): Don't turn target into variables yet here? (Not yet sure if this works
         # before we've actually combined the semantic and instance labels...)
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
-                                  Variable(sem_lbl), Variable(inst_lbl)
+                                      Variable(sem_lbl), Variable(inst_lbl)
         score = self.model(data)
         pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
         if np.isnan(float(loss.data[0])):
@@ -244,7 +244,8 @@ class Trainer(object):
 
         # TODO(allie): convert to sem, inst visualizations.
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
-        for img, sem_lbl, inst_lbl, lp in zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred):
+        scores_np = score.data.cpu().numpy()[:, :, :, :]
+        for img, sem_lbl, inst_lbl, lp, sp in zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred, scores_np):
             img = data_loader.dataset.untransform_img(img)
             try:
                 (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
@@ -263,7 +264,8 @@ class Trainer(object):
                     overlay=False)
                 segmentation_visualizations.append(viz)
                 # Scores
-                viz = visualization_utils.visualize_heatmaps(scores=score, are_log=True, n_class=self.n_combined_class)
+                viz = visualization_utils.visualize_heatmaps(scores=sp, are_log=True,
+                                                             n_class=self.n_combined_class)
                 score_visualizations.append(viz)
         return true_labels, pred_labels, val_loss, segmentation_visualizations, score_visualizations
 

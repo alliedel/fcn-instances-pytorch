@@ -149,8 +149,8 @@ class Trainer(object):
             score_visualizations += score_visualizations_single_batch
         val_loss /= len(data_loader)
         if should_export_visualizations:
-            self.export_visualizations(segmentation_visualizations, 'seg_' + split)
-            self.export_visualizations(score_visualizations, 'score_' + split)
+            self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
+            self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
 
         if compute_metrics:
             metrics = torchfcn.utils.label_accuracy_score(
@@ -174,17 +174,24 @@ class Trainer(object):
             self.model.train()
         return metrics, visualizations
 
-    def export_visualizations(self, visualizations, basename='val_'):
+    def export_visualizations(self, visualizations, basename='val_', tile=True):
         out = osp.join(self.out, 'visualization_viz')
         if not osp.exists(out):
             os.makedirs(out)
         out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
-        out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
-                                                     margin_size=50)
-        scipy.misc.imsave(out_file, out_img)
-        if self.tensorboard_writer is not None:
-            tag = '{}images'.format(basename, 0)
-            log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
+        if tile:
+            out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
+                                                         margin_size=50)
+            scipy.misc.imsave(out_file, out_img)
+            if self.tensorboard_writer is not None:
+                tag = '{}images'.format(basename)
+                log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
+        else:
+            for img_idx, out_img in enumerate(visualizations):
+                scipy.misc.imsave(out_file, out_img)
+                if self.tensorboard_writer is not None:
+                    tag = '{}images'.format(basename)
+                    log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[img_idx])
 
     def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
@@ -257,7 +264,6 @@ class Trainer(object):
             pred_labels.append(lp)
             if should_visualize:
                 # Segmentations
-                print('visualizing segmentations')
                 viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
                     overlay=False)
@@ -271,7 +277,6 @@ class Trainer(object):
                 #     assert np.all(np.argmax(sp, axis=0) == lp)
                 # except:
                 #     import ipdb; ipdb.set_trace()
-                print('visualizing heatmaps')
                 if self.which_heatmaps_to_visualize == 'same semantic':
                     inst_sem_classes_present = torch.np.unique(true_labels)
                     inst_sem_classes_present = inst_sem_classes_present[inst_sem_classes_present != -1]

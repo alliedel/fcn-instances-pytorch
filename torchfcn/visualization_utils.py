@@ -450,7 +450,7 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255),
                                               color=(255, 255, 255)).astype(np.uint8)
         colormap = np.ones_like(heatmap) * color
         if channel_labels is not None:
-            write_word_in_img_center(colormap, channel_labels[channel], font_scale=1.0)
+            write_word_in_img_center(colormap, channel_labels[channel], font_scale=3.0)
         pred_label_masks.append(pred_label_mask)
         true_label_masks.append(true_label_mask)
         heatmaps.append(heatmap)

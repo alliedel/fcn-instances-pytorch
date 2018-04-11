@@ -199,7 +199,7 @@ class Trainer(object):
                                                              margin_size=50)
                 if self.tensorboard_writer is not None:
                     log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[img_idx])
-                out_subsubdir = osp.join(out_subdir, str(i,g_idx))
+                out_subsubdir = osp.join(out_subdir, str(img_idx))
                 if not osp.exists(out_subsubdir):
                     os.makedirs(out_subsubdir)
                 out_file = osp.join(out_subsubdir, 'iter-%012d.jpg' % self.iteration)

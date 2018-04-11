@@ -118,11 +118,11 @@ class Trainer(object):
         training = self.model.training
         self.model.eval()
 
-        # n_class = self.model.n_classes
-
         val_loss = 0
         segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds = [], []
+        visualizations_need_to_be_exported = True if should_export_visualizations else False
+        num_images_to_visualize = 9
         for batch_idx, (data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
@@ -134,7 +134,7 @@ class Trainer(object):
                 sem_lbl = lbls
                 inst_lbl = torch.zeros_like(sem_lbl)
                 inst_lbl[sem_lbl == -1] = -1
-            should_visualize = len(segmentation_visualizations) < 9
+            should_visualize = len(segmentation_visualizations) < num_images_to_visualize
             if not (compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
@@ -142,15 +142,23 @@ class Trainer(object):
                 segmentation_visualizations_single_batch, score_visualizations_single_batch = \
                 self.validate_single_batch(data, sem_lbl, inst_lbl, data_loader=data_loader,
                                            should_visualize=should_visualize)
+            if visualizations_need_to_be_exported and len(segmentation_visualizations) == 9:
+                self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
+                self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
+                visualizations_need_to_be_exported = False
+
             label_trues += true_labels_single_batch
             label_preds += pred_labels_single_batch
             val_loss += val_loss_single_batch
             segmentation_visualizations += segmentation_visualizations_single_batch
             score_visualizations += score_visualizations_single_batch
+
+        if visualizations_need_to_be_exported and len(segmentation_visualizations) == 9:
+            if should_export_visualizations:
+                self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
+                self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
+
         val_loss /= len(data_loader)
-        if should_export_visualizations:
-            self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
-            self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
 
         if compute_metrics:
             metrics = torchfcn.utils.label_accuracy_score(

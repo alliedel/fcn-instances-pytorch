@@ -195,8 +195,6 @@ class Trainer(object):
             if not osp.exists(out_subdir):
                 os.makedirs(out_subdir)
             for img_idx, out_img in enumerate(visualizations):
-                out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
-                                                             margin_size=50)
                 if self.tensorboard_writer is not None:
                     log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[img_idx])
                 out_subsubdir = osp.join(out_subdir, str(img_idx))

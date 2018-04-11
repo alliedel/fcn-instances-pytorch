@@ -44,6 +44,7 @@ class Trainer(object):
         self.train_loader_for_val = train_loader_for_val
         self.loader_semantic_lbl_only = loader_semantic_lbl_only
         self.instance_problem = instance_problem
+        self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -260,20 +261,35 @@ class Trainer(object):
                 viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
                     overlay=False)
-                print('viz stuff: {} {} {}'.format(type(viz[0]), viz[0].min(), viz[0].max()))
-                print('visualizing heatmaps')
                 segmentation_visualizations.append(viz)
                 # Scores
                 sp = softmax_scores[idx, :, :, :]
 
-                # TODO(allie): Fix this bug!!!!!
+                # TODO(allie): Fix this -- bug(?!)
                 lp = np.argmax(sp, axis=0)
                 # try:
                 #     assert np.all(np.argmax(sp, axis=0) == lp)
                 # except:
                 #     import ipdb; ipdb.set_trace()
-                viz = visualization_utils.visualize_heatmaps(scores=sp, lbl_true=lt_combined, lbl_pred=lp,
-                                                             n_class=self.n_combined_class)
+                print('visualizing heatmaps')
+                if self.which_heatmaps_to_visualize == 'same semantic':
+                    inst_sem_classes_present = torch.np.unique(true_labels)
+                    inst_sem_classes_present = inst_sem_classes_present[inst_sem_classes_present != -1]
+                    sem_classes_present = np.unique([self.instance_problem.semantic_instance_class_list[c]
+                                                     for c in inst_sem_classes_present])
+                    channels_for_these_semantic_classes = [inst_idx for inst_idx, sem_cls in enumerate(
+                        self.instance_problem.semantic_instance_class_list) if sem_cls in sem_classes_present]
+                    channels_to_visualize = channels_for_these_semantic_classes
+                elif self.which_heatmaps_to_visualize == 'all':
+                    channels_to_visualize = list(range(sp.shape[0]))
+                else:
+                    raise ValueError('which heatmaps to visualize is not recognized: {}'.format(
+                        self.which_heatmaps_to_visualize))
+                viz = visualization_utils.visualize_heatmaps(scores=sp[channels_to_visualize, :, :],
+                                                             lbl_true=lt_combined,
+                                                             lbl_pred=lp,
+                                                             n_class=self.n_combined_class,
+                                                             score_vis_normalizer=sp.max())
                 score_visualizations.append(viz)
         return true_labels, pred_labels, val_loss, segmentation_visualizations, score_visualizations
 

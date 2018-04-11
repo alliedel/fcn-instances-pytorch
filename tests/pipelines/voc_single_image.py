@@ -47,6 +47,13 @@ configurations = {
     ),
     2: dict(
         interval_validate=10,
+        max_iteration=200,
+        image_index=7,
+        n_instances_per_class=2,
+        lr=1e-6
+    ),
+    3: dict(
+        interval_validate=10,
         max_iteration=500,
         image_index=7,
         n_instances_per_class=2,

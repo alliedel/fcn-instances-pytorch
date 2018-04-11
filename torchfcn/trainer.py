@@ -178,20 +178,32 @@ class Trainer(object):
         out = osp.join(self.out, 'visualization_viz')
         if not osp.exists(out):
             os.makedirs(out)
-        out_file = osp.join(out, 'iter%012d.jpg' % self.iteration)
         if tile:
             out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
                                                          margin_size=50)
-            scipy.misc.imsave(out_file, out_img)
+            tag = '{}images'.format(basename)
             if self.tensorboard_writer is not None:
-                tag = '{}images'.format(basename)
                 log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
+            out_subdir = osp.join([out, tag])
+            if not osp.exists(out_subdir):
+                os.makedirs(out_subdir)
+            out_file = osp.join([out_subdir, 'iter-%012d.jpg' % self.iteration])
+            scipy.misc.imsave(out_file, out_img)
         else:
+            tag = '{}images'.format(basename)
+            out_subdir = osp.join([out, tag])
+            if not osp.exists(out_subdir):
+                os.makedirs(out_subdir)
             for img_idx, out_img in enumerate(visualizations):
-                scipy.misc.imsave(out_file, out_img)
+                out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
+                                                             margin_size=50)
                 if self.tensorboard_writer is not None:
-                    tag = '{}images'.format(basename)
                     log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[img_idx])
+                out_subsubdir = osp.join([out_subdir, img_idx])
+                if not osp.exists(out_subsubdir):
+                    os.makedirs(out_subsubdir)
+                out_file = osp.join([out_subsubdir, 'iter-%012d.jpg' % self.iteration])
+                scipy.misc.imsave(out_file, out_img)
 
     def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:

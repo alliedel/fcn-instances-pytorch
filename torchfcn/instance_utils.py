@@ -48,7 +48,7 @@ class InstanceProblemConfig(object):
         else:
             semantic_instance_labels = [self.class_names[c] for c in self.semantic_instance_class_list]
         channel_labels = [sem_inst_format.format(sem_cls, int(inst_id)) for inst_id, sem_cls in zip(
-            self.semantic_instance_class_list, self.instance_count_id_list)]
+            semantic_instance_labels, self.instance_count_id_list)]
         return channel_labels
 
     def set_class_names(self, class_names):

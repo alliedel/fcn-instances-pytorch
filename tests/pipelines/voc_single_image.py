@@ -42,7 +42,16 @@ configurations = {
         interval_validate=10,
         max_iteration=500,
         image_index=7,
-        n_instances_per_class=2
+        n_instances_per_class=2,
+        lr=1e-6
+    ),
+    2: dict(
+        interval_validate=10,
+        max_iteration=500,
+        image_index=7,
+        n_instances_per_class=2,
+        lr=1e-6,
+        semantic_only_labels=True,
     )
 }
 
@@ -86,7 +95,8 @@ def main():
 
     # 1. dataset
     root = osp.expanduser('~/data/datasets')
-    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
+    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
+                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
                           modified_indices=[cfg['image_index']])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)

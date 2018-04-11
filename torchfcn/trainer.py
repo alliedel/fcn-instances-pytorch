@@ -119,7 +119,7 @@ class Trainer(object):
         # n_class = self.model.n_classes
 
         val_loss = 0
-        visualizations = []
+        segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds = [], []
         for batch_idx, (data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
@@ -132,20 +132,23 @@ class Trainer(object):
                 sem_lbl = lbls
                 inst_lbl = torch.zeros_like(sem_lbl)
                 inst_lbl[sem_lbl == -1] = -1
-            should_visualize = len(visualizations) < 9
+            should_visualize = len(segmentation_visualizations) < 9
             if not (compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
             true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
-            visualizations_single_batch = self.validate_single_batch(
-                data, sem_lbl, inst_lbl, data_loader=data_loader, should_visualize=should_visualize)
+                segmentation_visualizations_single_batch, score_visualizations_single_batch = \
+                self.validate_single_batch(data, sem_lbl, inst_lbl, data_loader=data_loader,
+                                           should_visualize=should_visualize)
             label_trues += true_labels_single_batch
             label_preds += pred_labels_single_batch
             val_loss += val_loss_single_batch
-            visualizations += visualizations_single_batch
+            segmentation_visualizations += segmentation_visualizations_single_batch
+            score_visualizations += score_visualizations_single_batch
         val_loss /= len(data_loader)
         if should_export_visualizations:
-            self.export_visualizations(visualizations, split)
+            self.export_visualizations(segmentation_visualizations, split)
+            self.export_visualizations(score_visualizations, split)
 
         if compute_metrics:
             metrics = torchfcn.utils.label_accuracy_score(
@@ -169,7 +172,7 @@ class Trainer(object):
             self.model.train()
         return metrics, visualizations
 
-    def export_visualizations(self, visualizations, split='val_'):
+    def export_visualizations(self, visualizations, basename='val_'):
         out = osp.join(self.out, 'visualization_viz')
         if not osp.exists(out):
             os.makedirs(out)
@@ -178,7 +181,6 @@ class Trainer(object):
                                                      margin_size=50)
         scipy.misc.imsave(out_file, out_img)
         if self.tensorboard_writer is not None:
-            basename = split
             tag = '{}images'.format(basename, 0)
             log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
 
@@ -218,7 +220,8 @@ class Trainer(object):
     def validate_single_batch(self, data, sem_lbl, inst_lbl, data_loader, should_visualize):
         true_labels = []
         pred_labels = []
-        visualizations = []
+        segmentation_visualizations = []
+        score_visualizations = []
         val_loss = 0
         if self.cuda:
             data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
@@ -247,19 +250,22 @@ class Trainer(object):
                 (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
                                        data_loader.dataset.untransform_lbl(inst_lbl))
             except:
-                import ipdb;
-                ipdb.set_trace()
+                import ipdb; ipdb.set_trace()
                 raise
 
             lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
             true_labels.append(lt_combined)
             pred_labels.append(lp)
             if should_visualize:
+                # Segmentations
                 viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
                     overlay=False)
-                visualizations.append(viz)
-        return true_labels, pred_labels, val_loss, visualizations
+                segmentation_visualizations.append(viz)
+                # Scores
+                viz = visualization_utils.visualize_heatmaps(scores=score, are_log=True, n_class=self.n_combined_class)
+                score_visualizations.append(viz)
+        return true_labels, pred_labels, val_loss, segmentation_visualizations, score_visualizations
 
     def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
         semantic_instance_class_list = self.instance_problem.semantic_instance_class_list

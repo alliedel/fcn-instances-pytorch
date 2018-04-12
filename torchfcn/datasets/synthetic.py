@@ -47,7 +47,7 @@ class BlobExampleGenerator(object):
         self._transform = transform
         self.semantic_subset = None
         # TODO(allie): change the line below to allow dif. blob types
-        self.semantic_classes = Defaults.blob_types
+        self.semantic_classes = ALL_BLOB_CLASS_NAMES
         self.class_names, self.idxs_into_all_blobs = self.get_semantic_names_and_idxs(
             self.semantic_subset)
 
@@ -133,12 +133,17 @@ class BlobExampleGenerator(object):
                 instance_label = semantic_idx * self.n_max_per_class + instance_number + 1
                 r, c = self.get_blob_coordinates(image_index, instance_label)
                 if semantic_idx == 0:
-                    assert semantic_class == 'background'
+                    try:
+                        assert semantic_class == 'background'
+                    except:
+                        print('semantic class: {}'.format(semantic_class))
                     instance_id = instance_number
                 else:
                     instance_id = instance_number + 1
 
-                if semantic_class == 'square':
+                if semantic_class == 'background':
+                    pass
+                elif semantic_class == 'square':
                     img = self.paint_my_square_in_img(img, r, c, self.clrs[semantic_idx])
                     sem_lbl = self.paint_my_square_in_lbl(sem_lbl, r, c, semantic_idx)
                     inst_lbl = self.paint_my_square_in_lbl(sem_lbl, r, c, instance_id)

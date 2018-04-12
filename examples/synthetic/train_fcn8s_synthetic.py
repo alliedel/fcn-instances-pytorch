@@ -74,11 +74,6 @@ def main():
     if cuda:
         torch.cuda.manual_seed(1337)
 
-    # 0. Problem setup (instance segmentation definition)
-    n_semantic_classes = 21
-    n_instances_by_semantic_id = [1] + [cfg['n_instances_per_class'] for sem_cls in range(1, n_semantic_classes)]
-    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
-
     # 1. dataset
     # root = osp.expanduser('~/data/datasets')
     # dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
@@ -93,7 +88,12 @@ def main():
     train_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, **loader_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kwargs)
 
-    problem_config.set_class_names(val_dataset.class_names)
+    # 0. Problem setup (instance segmentation definition)
+    class_names = val_dataset.class_names
+    n_semantic_classes = len(class_names)
+    n_instances_by_semantic_id = [1] + [cfg['n_instances_per_class'] for sem_cls in range(1, n_semantic_classes)]
+    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
+    problem_config.set_class_names(class_names)
 
     # 2. model
 

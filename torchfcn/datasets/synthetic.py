@@ -126,23 +126,29 @@ class BlobExampleGenerator(object):
 
     def generate_img_lbl_pair(self, image_index):
         img = np.zeros(self.img_size + (3,), dtype=float)
-        lbl = np.zeros(self.img_size, dtype=int)
+        sem_lbl = np.zeros(self.img_size, dtype=int)
+        inst_lbl = np.zeros(self.img_size, dtype=int)
         for semantic_idx, semantic_class in enumerate(self.semantic_classes):
             for instance_number in range(self.n_instances_per_img):
                 instance_label = semantic_idx * self.n_max_per_class + instance_number + 1
                 r, c = self.get_blob_coordinates(image_index, instance_label)
+                if semantic_idx == 0:
+                    assert semantic_class == 'background'
+                    instance_id = instance_number
+                else:
+                    instance_id = instance_number + 1
+
                 if semantic_class == 'square':
                     img = self.paint_my_square_in_img(img, r, c, self.clrs[semantic_idx])
-                    lbl = self.paint_my_square_in_lbl(lbl, r, c, instance_label)
+                    sem_lbl = self.paint_my_square_in_lbl(sem_lbl, r, c, semantic_idx)
+                    inst_lbl = self.paint_my_square_in_lbl(sem_lbl, r, c, instance_id)
                 elif semantic_class == 'circle':
                     img = self.paint_my_circle_in_img(img, r, c, self.clrs[semantic_idx])
-                    lbl = self.paint_my_circle_in_lbl(lbl, r, c, instance_label)
+                    sem_lbl = self.paint_my_circle_in_lbl(sem_lbl, r, c, semantic_idx)
+                    inst_lbl = self.paint_my_circle_in_lbl(sem_lbl, r, c, instance_id)
                 else:
                     ValueError('I don\'t know how to draw {}'.format(semantic_class))
-        if not lbl.max() < self.n_max_per_class * len(self.semantic_classes) + 1:
-            import ipdb;
-            ipdb.set_trace()
-        return img, lbl
+        return img, (sem_lbl, inst_lbl)
 
     def paint_my_circle_in_img(self, img, r, c, clr):
         # noinspection PyTypeChecker

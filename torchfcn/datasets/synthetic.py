@@ -81,10 +81,11 @@ class BlobExampleGenerator(object):
             self.max_index = max_index
 
     def __getitem__(self, image_index):
-        img, instance_lbl = self.generate_img_lbl_pair(image_index)
+        img, (sem_lbl, inst_lbl) = self.generate_img_lbl_pair(image_index)
         if self._transform:
-            img, instance_lbl = self.transform(img, instance_lbl)
-        return img, instance_lbl
+            img, (sem_lbl, inst_lbl) = self.transform_img(img), (self.transform_lbl(sem_lbl), self.transform_lbl(
+                inst_lbl))
+        return img, (sem_lbl, inst_lbl)
 
     def __len__(self):
         return self.max_index + 1
@@ -181,10 +182,22 @@ class BlobExampleGenerator(object):
         lbl = dataset_utils.transform_lbl(lbl)
         return img, lbl
 
+    def transform_img(self, img):
+        return dataset_utils.transform_img(img, self.mean_bgr)
+
+    def transform_lbl(self, lbl):
+        return dataset_utils.transform_lbl(lbl)
+
     def untransform(self, img, lbl):
         img = dataset_utils.untransform_img(img, self.mean_bgr)
         lbl = dataset_utils.untransform_lbl(lbl)
         return img, lbl
+
+    def untransform_img(self, img):
+        return dataset_utils.untransform_img(img, self.mean_bgr)
+
+    def untransform_lbl(self, lbl):
+        return dataset_utils.untransform_lbl(lbl)
 
     @staticmethod
     def get_semantic_names_and_idxs(semantic_subset):

@@ -20,7 +20,7 @@ class Defaults(object):
     return_torch_type = False
     location_generation_type = 'random'  # 'moving'
     velocity_r_c = [[0, 1], [0, -1]]
-    max_index = 100
+    n_images = 100
     mean_bgr = np.array([10.0, 10.0, 10.0])
     transform = True
 
@@ -31,7 +31,7 @@ class BlobExampleGenerator(object):
                  n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
-                 max_index=Defaults.max_index, mean_bgr=Defaults.mean_bgr,
+                 n_images=Defaults.n_images, mean_bgr=Defaults.mean_bgr,
                  transform=Defaults.transform, velocity_r_c=None,
                  initial_rows=None, initial_cols=None, _im_a_copy=False):
         self.img_size = img_size
@@ -42,7 +42,7 @@ class BlobExampleGenerator(object):
         self.n_instances_per_img = n_instances_per_img
         self.n_max_per_class = n_max_per_class
         self.return_torch_type = return_torch_type
-        self.max_index = max_index
+        self.n_images = n_images
         self.mean_bgr = mean_bgr
         self._transform = transform
         self.semantic_subset = None
@@ -51,34 +51,25 @@ class BlobExampleGenerator(object):
         self.class_names, self.idxs_into_all_blobs = self.get_semantic_names_and_idxs(
             self.semantic_subset)
 
+        self.n_instances_per_sem_cls = [0] + [n_max_per_class for _ in range(len(self.semantic_classes) - 1)]
+
         # Blob dynamics
         self.location_generation_type = Defaults.location_generation_type
-        if self.location_generation_type == 'moving':
-            self.velocity_r_c = Defaults.velocity_r_c if velocity_r_c is None else velocity_r_c
-            if self.n_instances_per_img != 2:
-                assert NotImplementedError('Gotta pick initial conditions (random?)')
-            else:
-                self.initial_rows = initial_rows if initial_rows is not None else \
-                    [0, self.img_size[0] - self.blob_size[0]]
-                self.initial_cols = initial_cols if initial_cols is not None else \
-                    [0, self.img_size[1] - self.blob_size[1]]
-            assert len(self.velocity_r_c) == self.n_instances_per_img, ValueError
-            assert len(self.velocity_r_c[0]) == 2, ValueError
-            max_index_r_c = [max_index if abs(self.velocity_r_c[0][j]) == 0 else
-                             np.floor((self.img_size[j] - self.blob_size[j]) /
-                                      abs(self.velocity_r_c[0][j])) for j in [0, 1]]
-            self.max_index = np.min(max_index_r_c)
-        elif self.location_generation_type == 'random':
-            self.max_index = max_index
-            n_instance_classes = self.n_max_per_class * len(self.semantic_classes)
-            self.random_rows = np.random.randint(0, self.img_size[0] - self.blob_size[
-                0], (max_index + 1, n_instance_classes))
-            self.random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[
-                1], (max_index + 1, n_instance_classes))
-            # TODO(allie): check for overlap and get rid of it.
+        if self.location_generation_type == 'random':
+            self.n_images = n_images
+            self.random_rows = np.nan * np.ones((self.n_images, len(self.semantic_classes), self.n_max_per_class))
+            self.random_cols = np.nan * np.ones((self.n_images, len(self.semantic_classes), self.n_max_per_class))
+            for sem_idx, _ in enumerate(self.semantic_classes):
+                n_inst_this_sem_cls = self.n_instances_per_sem_cls[sem_idx]
+                if n_inst_this_sem_cls > 0:
+                    self.random_rows[:, sem_idx, :n_inst_this_sem_cls] = \
+                        np.random.randint(0, self.img_size[0] - self.blob_size[0], (n_images, n_inst_this_sem_cls))
 
+                    self.random_cols[:, sem_idx, :n_inst_this_sem_cls] = \
+                        np.random.randint(0, self.img_size[1] - self.blob_size[1], (n_images, n_inst_this_sem_cls))
+                    # TODO(allie): check for overlap and get rid of it.
         else:
-            self.max_index = max_index
+            self.n_images = n_images
 
     def __getitem__(self, image_index):
         img, (sem_lbl, inst_lbl) = self.generate_img_lbl_pair(image_index)
@@ -88,7 +79,7 @@ class BlobExampleGenerator(object):
         return img, (sem_lbl, inst_lbl)
 
     def __len__(self):
-        return self.max_index + 1
+        return self.n_images
 
     def copy(self, modified_length=10):
         my_copy = BlobExampleGenerator(_im_a_copy=True)
@@ -99,29 +90,22 @@ class BlobExampleGenerator(object):
         my_copy.max_index = modified_length - 1
         return my_copy
 
-    def get_blob_coordinates(self, image_index, instance_idx=None):
-        if self.location_generation_type == 'moving':
-            if instance_idx is not None:
-                r = self.initial_rows[instance_idx] + self.velocity_r_c[instance_idx][
-                                                          0] * image_index
-                c = self.initial_cols[instance_idx] + self.velocity_r_c[instance_idx][
-                                                          1] * image_index
+    def get_blob_coordinates(self, image_index, semantic_idx, instance_id=None):
+        n_instances_in_this_sem_cls = self.n_instances_per_sem_cls[semantic_idx]
+        assert instance_id is None or n_instances_in_this_sem_cls > instance_id, \
+            ValueError('semantic class {} only has {} instances allocated'.format(
+                semantic_idx, n_instances_in_this_sem_cls))
+        if self.location_generation_type == 'random':
+            if instance_id is None:
+                instance_rows = [self.random_rows[image_index, semantic_idx, i]
+                                 for i in range(n_instances_in_this_sem_cls)]
+                instance_cols = [self.random_cols[image_index, semantic_idx, i]
+                                 for i in range(n_instances_in_this_sem_cls)]
+                return instance_rows, instance_cols
+            else:
+                r = self.random_rows[image_index, semantic_idx, instance_id - 1]  # instance_id = 1 for first object
+                c = self.random_cols[image_index, semantic_idx, instance_id - 1]
                 return r, c
-            instance_rows = [self.initial_rows[i] + self.velocity_r_c[i][0] * image_index
-                             for i, start_row in enumerate(self.initial_rows)]
-            instance_cols = [start_col + self.velocity_r_c[i][1] * image_index
-                             for i, start_col in enumerate(self.initial_cols)]
-            return instance_rows, instance_cols
-        elif self.location_generation_type == 'random':
-            if instance_idx is not None:
-                r = self.random_rows[image_index, instance_idx]
-                c = self.random_cols[image_index, instance_idx]
-                return r, c
-            instance_rows = [self.random_rows[image_index, i] for i in range(
-                self.n_instances_per_img)]
-            instance_cols = [self.random_cols[image_index, i] for i in range(
-                self.n_instances_per_img)]
-            return instance_rows, instance_cols
         else:
             raise ValueError
 
@@ -130,21 +114,12 @@ class BlobExampleGenerator(object):
         sem_lbl = np.zeros(self.img_size, dtype=int)
         inst_lbl = np.zeros(self.img_size, dtype=int)
         for semantic_idx, semantic_class in enumerate(self.semantic_classes):
-            for instance_number in range(self.n_instances_per_img):
-                instance_label = semantic_idx * self.n_max_per_class + instance_number + 1
-                r, c = self.get_blob_coordinates(image_index, instance_label)
-                if semantic_idx == 0:
-                    try:
-                        assert semantic_class == 'background'
-                    except:
-                        print('semantic class: {}'.format(semantic_class))
-                    instance_id = instance_number
-                else:
-                    instance_id = instance_number + 1
+            for instance_idx in range(self.n_instances_per_sem_cls[semantic_idx]):
+                instance_label = semantic_idx * self.n_max_per_class + instance_idx + 1
+                r, c = self.get_blob_coordinates(image_index, semantic_idx, instance_id=instance_idx)
+                instance_id = instance_idx + 1
 
-                if semantic_class == 'background':
-                    pass
-                elif semantic_class == 'square':
+                if semantic_class == 'square':
                     img = self.paint_my_square_in_img(img, r, c, self.clrs[semantic_idx])
                     sem_lbl = self.paint_my_square_in_lbl(sem_lbl, r, c, semantic_idx)
                     inst_lbl = self.paint_my_square_in_lbl(sem_lbl, r, c, instance_id)

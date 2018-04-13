@@ -24,7 +24,7 @@ default_config = dict(
     interval_validate=4000,
     matching=True,
     semantic_only_labels=False,
-    n_instances_per_class=1,
+    n_instances_per_class=None,
     set_extras_to_void=True,
     semantic_subset=None,
     filter_images_by_semantic_subset=False,
@@ -36,7 +36,7 @@ configurations = {
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     0: dict(
         max_iteration=10000,
-        interval_validate=10,
+        interval_validate=100,
         lr=1.0e-10
     ),
 }
@@ -56,6 +56,8 @@ def main():
     gpu = args.gpu
     config_idx = args.config
 
+    synthetic_generator_n_instances_per_semantic_id = 2
+    dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id)
     cfg = script_utils.create_config_from_default(configurations[config_idx], default_config)
     if args.image_index is not None:
         cfg['image_index'] = args.image_index
@@ -75,17 +77,13 @@ def main():
         torch.cuda.manual_seed(1337)
 
     # 1. dataset
-    # root = osp.expanduser('~/data/datasets')
-    # dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
-    #                       set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
-    #                       modified_indices=[cfg['image_index']])
-    # val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
-
-    train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator()
-    val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator()
-    img, (sl, il) = train_dataset[0]
-    import ipdb; ipdb.set_trace()
-
+    train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
+    val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
+    try:
+        img, (sl, il) = train_dataset[0]
+    except:
+        import ipdb; ipdb.set_trace()
+        raise Exception('Cannot load an image from your dataset')
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **loader_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kwargs)
@@ -93,7 +91,12 @@ def main():
     # 0. Problem setup (instance segmentation definition)
     class_names = val_dataset.class_names
     n_semantic_classes = len(class_names)
-    n_instances_by_semantic_id = [1] + [cfg['n_instances_per_class'] for sem_cls in range(1, n_semantic_classes)]
+    if cfg['n_instances_per_class'] is None:
+        n_instances_per_class = synthetic_generator_n_instances_per_semantic_id
+    else:
+        n_instances_per_class = cfg['n_instances_per_class']
+
+    n_instances_by_semantic_id = [1] + [n_instances_per_class for sem_cls in range(1, n_semantic_classes)]
     problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
     problem_config.set_class_names(class_names)
 

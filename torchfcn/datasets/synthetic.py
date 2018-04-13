@@ -7,7 +7,7 @@ PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
 BLUE_RGB = (0, 0, 224)
 GREEN_RGB = (0, 225, 0)
 
-ALL_BLOB_CLASS_NAMES = np.array(['background', 'pink_square', 'blue_square'])
+ALL_BLOB_CLASS_NAMES = np.array(['background', 'square', 'circle'])
 
 
 class Defaults(object):
@@ -115,20 +115,19 @@ class BlobExampleGenerator(object):
         inst_lbl = np.zeros(self.img_size, dtype=int)
         for semantic_idx, semantic_class in enumerate(self.semantic_classes):
             for instance_idx in range(self.n_instances_per_sem_cls[semantic_idx]):
-                instance_label = semantic_idx * self.n_max_per_class + instance_idx + 1
                 r, c = self.get_blob_coordinates(image_index, semantic_idx, instance_id=instance_idx)
                 instance_id = instance_idx + 1
 
                 if semantic_class == 'square':
                     img = self.paint_my_square_in_img(img, r, c, self.clrs[semantic_idx])
                     sem_lbl = self.paint_my_square_in_lbl(sem_lbl, r, c, semantic_idx)
-                    inst_lbl = self.paint_my_square_in_lbl(sem_lbl, r, c, instance_id)
+                    inst_lbl = self.paint_my_square_in_lbl(inst_lbl, r, c, instance_id)
                 elif semantic_class == 'circle':
                     img = self.paint_my_circle_in_img(img, r, c, self.clrs[semantic_idx])
                     sem_lbl = self.paint_my_circle_in_lbl(sem_lbl, r, c, semantic_idx)
-                    inst_lbl = self.paint_my_circle_in_lbl(sem_lbl, r, c, instance_id)
+                    inst_lbl = self.paint_my_circle_in_lbl(inst_lbl, r, c, instance_id)
                 else:
-                    ValueError('I don\'t know how to draw {}'.format(semantic_class))
+                    raise ValueError('I don\'t know how to draw {}'.format(semantic_class))
         return img, (sem_lbl, inst_lbl)
 
     def paint_my_circle_in_img(self, img, r, c, clr):
@@ -144,11 +143,13 @@ class BlobExampleGenerator(object):
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 
     def paint_my_square_in_img(self, img, r, c, clr):
+        r, c = int(r), int(c)
         return paint_square(img, r, c, self.blob_size[0], self.blob_size[1], clr,
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=2)
 
     def paint_my_square_in_lbl(self, lbl_img, r, c, instance_label):
         # noinspection PyTypeChecker
+        r, c = int(r), int(c)
         return paint_square(lbl_img, r, c, self.blob_size[0], self.blob_size[0], instance_label,
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 

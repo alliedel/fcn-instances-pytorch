@@ -122,7 +122,6 @@ class Trainer(object):
         segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds = [], []
         visualizations_need_to_be_exported = True if should_export_visualizations else False
-        import ipdb; ipdb.set_trace()
         num_images_to_visualize = min(len(data_loader), 9)
         for batch_idx, (data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
@@ -288,8 +287,8 @@ class Trainer(object):
             if should_visualize:
                 # Segmentations
                 viz = visualization_utils.visualize_segmentation(
-                    lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
-                    overlay=False, permutations=pp)
+                    lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img, n_class=self.n_combined_class,
+                    overlay=False)
                 segmentation_visualizations.append(viz)
                 # Scores
                 sp = softmax_scores[idx, :, :, :]
@@ -317,6 +316,7 @@ class Trainer(object):
                 viz = visualization_utils.visualize_heatmaps(scores=sp,
                                                              lbl_true=lt_combined,
                                                              lbl_pred=lp,
+                                                             pred_permutations=pp,
                                                              n_class=self.n_combined_class,
                                                              score_vis_normalizer=sp.max(),
                                                              channel_labels=channel_labels,

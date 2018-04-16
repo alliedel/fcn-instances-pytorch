@@ -361,7 +361,7 @@ def visualize_segmentation(**kwargs):
         if permutation is not None:
             permute_labels = np.vectorize(lambda x: pred_permutations[x])
         else:
-            permute_labels = lamba x: x  # identity
+            permute_labels = lambda x: x  # identity
         lbl_permuted = permute_labels(lbl)
         label_names_permuted = permute_labels(label_names)
         if overlay:

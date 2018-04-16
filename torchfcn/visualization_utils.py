@@ -319,6 +319,7 @@ def visualize_segmentation(**kwargs):
         Key or index is label_value and value is its name.
     margin_color: RGB list or None
     overlay: True or False
+    pred_permutations
 
     Returns
     -------
@@ -332,6 +333,7 @@ def visualize_segmentation(**kwargs):
     label_names = kwargs.pop('label_names', None)
     margin_color = kwargs.pop('margin_color', [255, 255, 255])
     overlay = kwargs.pop('overlay', True)
+    pred_permutations = kwargs.pop('pred_permutations', None)
 
     if kwargs:
         raise RuntimeError(
@@ -353,14 +355,20 @@ def visualize_segmentation(**kwargs):
             lbl_pred[mask_unlabeled] = 0
 
     vizs = []
-    for lbl in [lbl_true, lbl_pred]:
+    for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
         if lbl is None:
             continue
+        if permutation is not None:
+            permute_labels = np.vectorize(lambda x: pred_permutations[x])
+        else:
+            permute_labels = lamba x: x  # identity
+        lbl_permuted = permute_labels(lbl)
+        label_names_permuted = permute_labels(label_names)
         if overlay:
             viz = [
                 img,
-                label2rgb(lbl, label_names=label_names, n_labels=n_class),
-                label2rgb(lbl, img, label_names=label_names,
+                label2rgb(lbl_permuted, label_names=label_names_permuted, n_labels=n_class),
+                label2rgb(lbl_permuted, img, label_names=label_names_permuted,
                           n_labels=n_class) if overlay else None
             ]
             viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
@@ -368,7 +376,7 @@ def visualize_segmentation(**kwargs):
         else:
             viz = [
                 img,
-                label2rgb(lbl, label_names=label_names, n_labels=n_class)]
+                label2rgb(lbl_permuted, label_names=label_names_permuted, n_labels=n_class)]
             viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
         vizs.append(viz)
 
@@ -417,7 +425,7 @@ def log_images(writer, tag, images, step, numbers=None, bgr=False):
                              global_step=step)
 
 
-def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255), n_class=None,
+def visualize_heatmaps(scores, lbl_pred, lbl_true, pred_permutations=None, margin_color=(255, 255, 255), n_class=None,
                        score_vis_normalizer=None, channel_labels=None, channels_to_visualize=None):
     """
     n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to make sense.
@@ -435,11 +443,21 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, margin_color=(255, 255, 255),
     colormaps = []
     scores_min_max = (scores.min(), scores.max())
     score_vis_normalizer = score_vis_normalizer or scores.max()
+#    for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
+#        if lbl is None:
+#            continue
+#        if permutation is not None:
+#            permute_labels = np.vectorize(lambda x: pred_permutations[x])
+#        else:
+#            permute_labels = lamba x: x  # identity
+#        lbl_permuted = permute_labels(lbl)
+#        label_names_permuted = permute_labels(label_names)
     channels_to_visualize = channels_to_visualize or range(n_channels)
-    for channel in channels_to_visualize:
-        single_channel_scores = scores[channel, :, :]
+    for gt_channel in channels_to_visualize:
+        matched_channel = pred_permutations[channel]
+        single_channel_scores = scores[matched_channel, :, :]
         color = cmap[channel, :]
-        pred_label_mask = np.repeat((lbl_pred == channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        pred_label_mask = np.repeat((lbl_pred == matched_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
         true_label_mask = np.repeat((lbl_true == channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
         heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), color=(255, 255, 255)).astype(np.uint8)
         heatmap_normalized = scores2d2heatmap(single_channel_scores, clims=(0, score_vis_normalizer),

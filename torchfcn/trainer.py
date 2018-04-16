@@ -139,8 +139,8 @@ class Trainer(object):
             if not (compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
-            true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
-                segmentation_visualizations_single_batch, score_visualizations_single_batch = \
+            true_labels_sb, pred_labels_sb, pred_permutations_sb, val_loss_sb, \
+                segmentation_visualizations_sb, score_visualizations_sb = \
                 self.validate_single_batch(data, sem_lbl, inst_lbl, data_loader=data_loader,
                                            should_visualize=should_visualize)
             if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
@@ -148,11 +148,11 @@ class Trainer(object):
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
                 visualizations_need_to_be_exported = False
 
-            label_trues += true_labels_single_batch
-            label_preds += pred_labels_single_batch
-            val_loss += val_loss_single_batch
-            segmentation_visualizations += segmentation_visualizations_single_batch
-            score_visualizations += score_visualizations_single_batch
+            label_trues += true_labels_sb
+            label_preds += pred_labels_sb
+            val_loss += val_loss_sb
+            segmentation_visualizations += segmentation_visualizations_sb
+            score_visualizations += score_visualizations_sb
 
         if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
             if should_export_visualizations:
@@ -250,6 +250,7 @@ class Trainer(object):
     def validate_single_batch(self, data, sem_lbl, inst_lbl, data_loader, should_visualize):
         true_labels = []
         pred_labels = []
+        pred_permutations = []
         segmentation_visualizations = []
         score_visualizations = []
         val_loss = 0
@@ -273,6 +274,7 @@ class Trainer(object):
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
         for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
             img = data_loader.dataset.untransform_img(img)
+            pp = pred_permutations[idx, :]
             try:
                 (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
                                        data_loader.dataset.untransform_lbl(inst_lbl))
@@ -287,7 +289,7 @@ class Trainer(object):
                 # Segmentations
                 viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
-                    overlay=False)
+                    overlay=False, permutations=pp)
                 segmentation_visualizations.append(viz)
                 # Scores
                 sp = softmax_scores[idx, :, :, :]

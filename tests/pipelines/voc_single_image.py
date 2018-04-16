@@ -107,7 +107,8 @@ def main():
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
                           modified_indices=[cfg['image_index']])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
+    val_split = 'seg11valid'
+    val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split=val_split, **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
     train_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, **kwargs)
 
@@ -178,8 +179,9 @@ def main():
     print('Evaluating final model')
 
     metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(should_export_visualizations=False)
-    trainer.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True, outdir='./tmp/')
-    trainer.export_visualizations(score_visualizations, 'score_' + split, tile=False, outdir='./tmp/')
+    
+    trainer.export_visualizations(segmentation_visualizations, 'seg_' + val_split, tile=True, outdir='./tmp/')
+    trainer.export_visualizations(score_visualizations, 'score_' + val_split, tile=False, outdir='./tmp/')
     # viz = visualization_utils.get_tile_image(visualizations)
     # skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     metrics = np.array(metrics)

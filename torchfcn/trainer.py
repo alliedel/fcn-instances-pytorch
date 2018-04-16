@@ -122,7 +122,8 @@ class Trainer(object):
         segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds = [], []
         visualizations_need_to_be_exported = True if should_export_visualizations else False
-        num_images_to_visualize = 9
+        import ipdb; ipdb.set_trace()
+        num_images_to_visualize = min(len(data_loader), 9)
         for batch_idx, (data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
@@ -142,7 +143,7 @@ class Trainer(object):
                 segmentation_visualizations_single_batch, score_visualizations_single_batch = \
                 self.validate_single_batch(data, sem_lbl, inst_lbl, data_loader=data_loader,
                                            should_visualize=should_visualize)
-            if visualizations_need_to_be_exported and len(segmentation_visualizations) == 9:
+            if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
                 self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
                 visualizations_need_to_be_exported = False
@@ -153,7 +154,7 @@ class Trainer(object):
             segmentation_visualizations += segmentation_visualizations_single_batch
             score_visualizations += score_visualizations_single_batch
 
-        if visualizations_need_to_be_exported and len(segmentation_visualizations) == 9:
+        if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
             if should_export_visualizations:
                 self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)

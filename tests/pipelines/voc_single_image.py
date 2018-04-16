@@ -40,7 +40,7 @@ configurations = {
         image_index=3
     ),
     1: dict(
-        interval_validate=10,
+        interval_validate=100,
         max_iteration=500,
         image_index=7,
         n_instances_per_class=2,

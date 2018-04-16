@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 
 import argparse
@@ -175,9 +176,12 @@ def main():
     trainer.train()
 
     print('Evaluating final model')
+
     metrics, visualizations = trainer.validate(should_export_visualizations=False)
-    viz = visualization_utils.get_tile_image(visualizations)
-    skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
+    self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True, outdir='./tmp/')
+    self.export_visualizations(score_visualizations, 'score_' + split, tile=False, outdir='./tmp/')
+    # viz = visualization_utils.get_tile_image(visualizations)
+    # skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     metrics = np.array(metrics)
     metrics *= 100
     print('''\

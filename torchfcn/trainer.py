@@ -180,26 +180,28 @@ class Trainer(object):
         # Restore training settings set prior to function call
         if training:
             self.model.train()
+
+        visualizations = (segmentation_visualizations, score_visualizations)
         return metrics, visualizations
 
-    def export_visualizations(self, visualizations, basename='val_', tile=True):
-        out = osp.join(self.out, 'visualization_viz')
-        if not osp.exists(out):
-            os.makedirs(out)
+    def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
+        outdir = outdir or osp.join(self.out, 'visualization_viz')
+        if not osp.exists(outdir):
+            os.makedirs(outdir)
         if tile:
             out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
                                                          margin_size=50)
             tag = '{}images'.format(basename)
             if self.tensorboard_writer is not None:
                 log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
-            out_subdir = osp.join(out, tag)
+            out_subdir = osp.join(outdir, tag)
             if not osp.exists(out_subdir):
                 os.makedirs(out_subdir)
             out_file = osp.join(out_subdir, 'iter-%012d.jpg' % self.iteration)
             scipy.misc.imsave(out_file, out_img)
         else:
             tag = '{}images'.format(basename)
-            out_subdir = osp.join(out, tag)
+            out_subdir = osp.join(outdir, tag)
             if not osp.exists(out_subdir):
                 os.makedirs(out_subdir)
             for img_idx, out_img in enumerate(visualizations):

@@ -18,7 +18,7 @@ import skimage.io
 
 default_config = dict(
     max_iteration=100000,
-    lr=1.0e-12,
+    lr=1.0e-6,
     momentum=0.99,
     weight_decay=0.0005,
     interval_validate=4000,
@@ -36,7 +36,7 @@ configurations = {
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     0: dict(
         interval_validate=10,
-        max_iteration=11,
+        max_iteration=101,
         image_index=3
     ),
     1: dict(
@@ -174,6 +174,8 @@ def main():
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
+
+    print('Starting test by training {} images'.format(len(train_loader.dataset)))
     trainer.train()
 
     print('Evaluating final model')

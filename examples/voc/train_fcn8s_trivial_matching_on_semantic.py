@@ -48,7 +48,13 @@ configurations = {
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,
         filter_images_by_semantic_subset=True
-    )
+    ),
+    5: dict(
+        semantic_only_labels=False,
+        n_instances_per_class=3,
+        set_extras_to_void=True,
+        max_iteration=1000000
+    ),
 }
 
 here = osp.dirname(osp.abspath(__file__))

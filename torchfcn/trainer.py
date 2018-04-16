@@ -322,7 +322,7 @@ class Trainer(object):
                                                              channel_labels=channel_labels,
                                                              channels_to_visualize=channels_to_visualize)
                 score_visualizations.append(viz)
-        return true_labels, pred_labels, val_loss, segmentation_visualizations, score_visualizations
+        return true_labels, pred_labels, pred_permutations, val_loss, segmentation_visualizations, score_visualizations
 
     def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
         semantic_instance_class_list = self.instance_problem.semantic_instance_class_list

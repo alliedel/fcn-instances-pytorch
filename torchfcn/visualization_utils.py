@@ -240,7 +240,7 @@ def label2rgb(lbl, img=None, label_names=None, n_labels=None,
         if n_labels is None:
             n_labels = len(label_names)
         else:
-            assert n_labels == len(label_names)
+            assert n_labels == len(label_names), 'n_labels: {}, len(label_names): {}'.format(n_labels, len(label_names))
     cmap = label_colormap(n_labels)
     cmap = (cmap * 255).astype(np.uint8)
 
@@ -363,7 +363,10 @@ def visualize_segmentation(**kwargs):
         else:
             permute_labels = lambda x: x  # identity
         lbl_permuted = permute_labels(lbl)
-        label_names_permuted = permute_labels(label_names)
+        if label_names is not None:
+            label_names_permuted = [label_names[pred_permutations[x]] for x in range(len(label_names))]
+        else:
+            label_names_permuted = None
         if overlay:
             viz = [
                 img,
@@ -454,17 +457,17 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, pred_permutations=None, margi
 #        label_names_permuted = permute_labels(label_names)
     channels_to_visualize = channels_to_visualize or range(n_channels)
     for gt_channel in channels_to_visualize:
-        matched_channel = pred_permutations[channel]
+        matched_channel = pred_permutations[gt_channel]
         single_channel_scores = scores[matched_channel, :, :]
-        color = cmap[channel, :]
+        color = cmap[gt_channel, :]
         pred_label_mask = np.repeat((lbl_pred == matched_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
-        true_label_mask = np.repeat((lbl_true == channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        true_label_mask = np.repeat((lbl_true == gt_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
         heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), color=(255, 255, 255)).astype(np.uint8)
         heatmap_normalized = scores2d2heatmap(single_channel_scores, clims=(0, score_vis_normalizer),
                                               color=(255, 255, 255)).astype(np.uint8)
         colormap = np.ones_like(heatmap) * color
         if channel_labels is not None:
-            write_word_in_img_center(colormap, channel_labels[channel], font_scale=2.0)
+            write_word_in_img_center(colormap, channel_labels[gt_channel], font_scale=2.0)
         pred_label_masks.append(pred_label_mask)
         true_label_masks.append(true_label_mask)
         heatmaps.append(heatmap)

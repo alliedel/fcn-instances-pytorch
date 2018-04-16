@@ -34,7 +34,7 @@ default_config = dict(
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
-    0: dict(
+    0: dict(  # single train image; enough iterations it should largely cover the train
         interval_validate=10,
         max_iteration=101,
         image_index=3
@@ -193,7 +193,7 @@ def main():
         Accuracy Class: {1}
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
-    if metrics[2] < 85:
+    if metrics[2] < 80:
         print(script_utils.bcolors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + script_utils.bcolors.ENDC)
     else:
         print(script_utils.bcolors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + script_utils.bcolors.ENDC)

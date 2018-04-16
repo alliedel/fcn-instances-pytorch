@@ -178,8 +178,8 @@ def main():
     print('Evaluating final model')
 
     metrics, visualizations = trainer.validate(should_export_visualizations=False)
-    self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True, outdir='./tmp/')
-    self.export_visualizations(score_visualizations, 'score_' + split, tile=False, outdir='./tmp/')
+    trainer.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True, outdir='./tmp/')
+    trainer.export_visualizations(score_visualizations, 'score_' + split, tile=False, outdir='./tmp/')
     # viz = visualization_utils.get_tile_image(visualizations)
     # skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     metrics = np.array(metrics)

@@ -177,7 +177,7 @@ def main():
 
     print('Evaluating final model')
 
-    metrics, visualizations = trainer.validate(should_export_visualizations=False)
+    metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(should_export_visualizations=False)
     trainer.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True, outdir='./tmp/')
     trainer.export_visualizations(score_visualizations, 'score_' + split, tile=False, outdir='./tmp/')
     # viz = visualization_utils.get_tile_image(visualizations)

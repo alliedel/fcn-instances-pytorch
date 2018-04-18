@@ -48,7 +48,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         self.instance_to_semantic_mapping_matrix = \
             instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
                 self.semantic_instance_class_list, as_numpy=False)
-        self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
+        self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(1)
 
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)

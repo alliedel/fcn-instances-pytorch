@@ -277,7 +277,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     assert my_p.size() == p_to_copy.size()
-                    p_to_copy.data.copy_(my_p)
+                    p_to_copy.data.copy_(my_p.data)
                     # l2.weight.data.copy_(l1.weight.data)
             elif isinstance(my_module, nn.ConvTranspose2d):
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)

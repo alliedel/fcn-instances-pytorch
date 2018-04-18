@@ -276,7 +276,7 @@ class VOCClassSegBase(data.Dataset):
         return valid_indices
 
     def copy(self, modified_length=10):
-        my_copy = self.__class__(_im_a_copy=True)
+        my_copy = self.__class__(root=self.root, _im_a_copy=True)
         for attr, val in self.__dict__.items():
             setattr(my_copy, attr, val)
         assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \

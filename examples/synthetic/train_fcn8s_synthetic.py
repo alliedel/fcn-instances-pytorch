@@ -28,7 +28,8 @@ default_config = dict(
     set_extras_to_void=True,
     semantic_subset=None,
     filter_images_by_semantic_subset=False,
-    optim='adam'
+    optim='adam',
+    use_semantic_loss=False,
 )
 
 configurations = {
@@ -38,6 +39,12 @@ configurations = {
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10
+    ),
+    1: dict(
+        max_iteration=10000,
+        interval_validate=100,
+        lr=1.0e-10,
+        use_semantic_loss=True
     ),
 }
 

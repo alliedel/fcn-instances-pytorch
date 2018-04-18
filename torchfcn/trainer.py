@@ -27,7 +27,8 @@ class Trainer(object):
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter, instance_problem,
                  size_average=False, interval_validate=None, matching_loss=True,
-                 tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False):
+                 tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
+                 use_semantic_loss=False):
         self.cuda = cuda
 
         self.model = model
@@ -45,6 +46,7 @@ class Trainer(object):
         self.loader_semantic_lbl_only = loader_semantic_lbl_only
         self.instance_problem = instance_problem
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
+        self.use_semantic_loss = use_semantic_loss
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -129,11 +131,17 @@ class Trainer(object):
                 leave=False):
             if not self.loader_semantic_lbl_only:
                 (sem_lbl, inst_lbl) = lbls
+                if self.use_semantic_loss:
+                    inst_lbl = torch.zeros_like(sem_lbl)
+                    inst_lbl[sem_lbl == -1] = -1
             else:
+                assert self.use_semantic_loss, 'Can''t run instance loss if loader is semantic labels only.  Set ' \
+                                               'use_semantic_loss to True'
                 assert type(lbls) is not tuple
                 sem_lbl = lbls
                 inst_lbl = torch.zeros_like(sem_lbl)
                 inst_lbl[sem_lbl == -1] = -1
+
             should_visualize = len(segmentation_visualizations) < num_images_to_visualize
             if not (compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images

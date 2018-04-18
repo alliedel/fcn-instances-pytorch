@@ -150,6 +150,7 @@ def main():
         optimizer=optim,
         train_loader=train_loader,
         val_loader=val_loader,
+        train_loader_for_val=train_loader,
         instance_problem=problem_config,
         out=out,
         max_iter=cfg['max_iteration'],

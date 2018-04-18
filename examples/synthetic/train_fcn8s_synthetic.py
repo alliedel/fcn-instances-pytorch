@@ -96,7 +96,7 @@ def main():
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **loader_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kwargs)
-    train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=10), batch_size=1,
+    train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=3), batch_size=1,
                                                        shuffle=True, **loader_kwargs)
 
     # 0. Problem setup (instance segmentation definition)

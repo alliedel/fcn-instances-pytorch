@@ -31,7 +31,8 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'filter_images_by_semantic_subset': 'filter_sem',
                                         'set_extras_to_void': 'void',
                                         'momentum': 'm',
-                                        'n_instances_per_class': 'n_inst_cls'}
+                                        'n_instances_per_class': 'n_inst_cls',
+                                        'semantic_only_labels': 'sem_ls'}
 
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 

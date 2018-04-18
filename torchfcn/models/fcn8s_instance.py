@@ -256,6 +256,63 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             l2.weight.data.copy_(l1.weight.data.view(l2.weight.size()))
             l2.bias.data.copy_(l1.bias.data.view(l2.bias.size()))
 
+    def copy_params_from_semantic_equivalent_of_me(self, semantic_model):
+
+        # check whether this has the right number of channels to be the semantic version of me
+        assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
+                                                                         'my instance channels map to in order to '
+                                                                         'copy weights.')
+        n_semantic_classes = len(self.semantic_instance_class_list)
+        import ipdb; ipdb.set_trace()
+        last_layer_name = 'upscore8'
+        last_features = getattr(semantic_model, last_layer_name)
+        if last_features.size(1) != n_semantic_classes:
+            raise ValueError('The semantic model I tried to copy from has {} output channels, but I need {} channels '
+                             'for each of my semantic classes'.format(last_features.size(1), n_semantic_classes))
+
+        features = [
+            self.conv1_1, self.relu1_1,
+            self.conv1_2, self.relu1_2,
+            self.pool1,
+            self.conv2_1, self.relu2_1,
+            self.conv2_2, self.relu2_2,
+            self.pool2,
+            self.conv3_1, self.relu3_1,
+            self.conv3_2, self.relu3_2,
+            self.conv3_3, self.relu3_3,
+            self.pool3,
+            self.conv4_1, self.relu4_1,
+            self.conv4_2, self.relu4_2,
+            self.conv4_3, self.relu4_3,
+            self.pool4,
+            self.conv5_1, self.relu5_1,
+            self.conv5_2, self.relu5_2,
+            self.conv5_3, self.relu5_3,
+            self.pool5,
+        ]
+        for l1, l2 in zip(semantic_model.features, features):
+            if isinstance(l1, nn.Conv2d) and isinstance(l2, nn.Conv2d):
+                assert l1.weight.size() == l2.weight.size()
+                assert l1.bias.size() == l2.bias.size()
+                l2.weight.data.copy_(l1.weight.data)
+                l2.bias.data.copy_(l1.bias.data)
+            elif isinstance(l1, nn.ConvTranspose2d) and isinstance(l2, nn.ConvTranspose2d):
+                # assert l1.weight.size() == l2.weight.size()
+                # assert l1.bias.size() == l2.bias.size()
+                import ipdb; ipdb.set_trace()
+                l2.weight.data.copy_(l1.weight.data)
+
+        for i, name in zip([0, 3], ['fc6', 'fc7']):
+            l1 = semantic_model.classifier[i]
+            l2 = getattr(self, name)
+            l2.weight.data.copy_(l1.weight.data.view(l2.weight.size()))
+            l2.bias.data.copy_(l1.bias.data.view(l2.bias.size()))
+
+        if self.map_to_semantic:
+            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
+                                                          out_channels=self.n_semantic_classes,
+                                                          kernel_size=1, bias=False)
+
 
 def FCN8sInstanceNotAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, **kwargs):
     model = FCN8sInstanceNotAtOnce(**kwargs)
@@ -348,3 +405,5 @@ def FCN8sInstanceAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH,
         'model_state_dict']
     model.load_state_dict(state_dict)
     return model
+
+

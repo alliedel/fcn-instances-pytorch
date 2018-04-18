@@ -30,6 +30,7 @@ default_config = dict(
     filter_images_by_semantic_subset=False,
     optim='sgd',
     single_instance=False,  # map_to_single_instance_problem
+    initialize_from_semantic=False,
 )
 
 configurations = {
@@ -59,6 +60,8 @@ def main():
                         choices=configurations.keys())
     parser.add_argument('--resume', help='Checkpoint path')
     parser.add_argument('--image_index', type=int, help='Image index to use for train/validation set', default=None)
+    parser.add_argument('--semantic-init', help='Checkpoint path of semantic model',
+                        default='~/data/models/pytorch/vgg16_from_caffe.pth')
     args = parser.parse_args()
     gpu = args.gpu
     config_idx = args.config
@@ -121,6 +124,15 @@ def main():
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
+    elif cfg['initialize_from_semantic']:
+        semantic_init_path = os.path.expanduser(args.semantic_init)
+        semantic_model = torchfcn.models.FCN8sInstanceAtOnce(
+            semantic_instance_class_list=[1 for _ in problem_config.semantic_instance_class_list],
+            map_to_semantic=False, include_instance_channel0=False)
+        print('Copying params from preinitialized semantic model')
+        checkpoint = torch.load(semantic_init_path)
+        semantic_model.load_state_dict(checkpoint['model_state_dict'])
+        model.copy_params_from_semantic_equivalent_of_me(semantic_model)
     else:
         print('Copying params from vgg16')
         vgg16 = torchfcn.models.VGG16(pretrained=True)

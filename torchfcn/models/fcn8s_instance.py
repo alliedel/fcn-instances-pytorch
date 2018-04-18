@@ -264,44 +264,29 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                                                                          'my instance channels map to in order to '
                                                                          'copy weights.')
         n_semantic_classes = self.n_semantic_classes
-        import ipdb; ipdb.set_trace()
         last_layer_name = 'upscore8'
         last_features = getattr(semantic_model, last_layer_name)
         if last_features.weight.size(1) != n_semantic_classes:
             raise ValueError('The semantic model I tried to copy from has {} output channels, but I need {} channels '
                              'for each of my semantic classes'.format(last_features.weight.size(1), n_semantic_classes))
 
-        features = [
-            self.conv1_1, self.relu1_1,
-            self.conv1_2, self.relu1_2,
-            self.pool1,
-            self.conv2_1, self.relu2_1,
-            self.conv2_2, self.relu2_2,
-            self.pool2,
-            self.conv3_1, self.relu3_1,
-            self.conv3_2, self.relu3_2,
-            self.conv3_3, self.relu3_3,
-            self.pool3,
-            self.conv4_1, self.relu4_1,
-            self.conv4_2, self.relu4_2,
-            self.conv4_3, self.relu4_3,
-            self.pool4,
-            self.conv5_1, self.relu5_1,
-            self.conv5_2, self.relu5_2,
-            self.conv5_3, self.relu5_3,
-            self.pool5,
-        ]
-        for l1, l2 in zip(semantic_model.features, features):
-            if isinstance(l1, nn.Conv2d) and isinstance(l2, nn.Conv2d):
-                assert l1.weight.size() == l2.weight.size()
-                assert l1.bias.size() == l2.bias.size()
-                l2.weight.data.copy_(l1.weight.data)
-                l2.bias.data.copy_(l1.bias.data)
-            elif isinstance(l1, nn.ConvTranspose2d) and isinstance(l2, nn.ConvTranspose2d):
+        for module_name, my_module in self.named_children():
+            module_to_copy = getattr(semantic_model, module_name)
+            if isinstance(my_module, nn.Conv2d):
+                assert isinstance(module_to_copy, nn.Conv2d)
+                for p_name, my_p in my_module.named_parameters():
+                    p_to_copy = getattr(module_to_copy, p_name)
+                    assert my_p.size() == p_to_copy.size()
+                    p_to_copy.data.copy_(my_p)
+                    # l2.weight.data.copy_(l1.weight.data)
+            elif isinstance(my_module, nn.ConvTranspose2d):
+                assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
                 # assert l1.bias.size() == l2.bias.size()
                 import ipdb; ipdb.set_trace()
-                l2.weight.data.copy_(l1.weight.data)
+                for p_name, my_p in my_module.named_parameters():
+                    p_to_copy = getattr(module_to_copy, p_name)
+                    # assert my_p.size() == p_to_copy.size()
 
         for i, name in zip([0, 3], ['fc6', 'fc7']):
             l1 = semantic_model.classifier[i]

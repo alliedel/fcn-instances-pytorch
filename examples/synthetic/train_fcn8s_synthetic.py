@@ -29,7 +29,7 @@ default_config = dict(
     semantic_subset=None,
     filter_images_by_semantic_subset=False,
     optim='adam',
-    use_semantic_loss=False,
+    single_instance=False,  # map_to_single_instance_problem
 )
 
 configurations = {
@@ -44,7 +44,7 @@ configurations = {
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
-        use_semantic_loss=True
+        single_instance=True
     ),
 }
 
@@ -64,7 +64,9 @@ def main():
     config_idx = args.config
 
     synthetic_generator_n_instances_per_semantic_id = 2
-    dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id)
+
+    dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id,
+                          map_to_single_instance_problem=map_to_single_instance_problem)
     cfg = script_utils.create_config_from_default(configurations[config_idx], default_config)
     if args.image_index is not None:
         cfg['image_index'] = args.image_index

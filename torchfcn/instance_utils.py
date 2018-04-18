@@ -17,6 +17,10 @@ class InstanceProblemConfig(object):
 
     def __init__(self, n_instances_by_semantic_id, class_names=None, semantic_vals=None, void_value=-1,
                  include_instance_channel0=False):
+        """
+        For semantic, include_instance_channel0=True
+        n_instances_by_semantic_id = [0, 0, ..]
+        """
         if semantic_vals is not None:
             assert len(semantic_vals) == len(n_instances_by_semantic_id)
         self.class_names = class_names
@@ -56,9 +60,7 @@ class InstanceProblemConfig(object):
         self.class_names = class_names
 
     def decouple_instance_result(self, instance_scores):
-        assert torch.is_tensor(instance_scores)
-        semantic_only_result = instance_scores.clone()
-        # instance_only_result =
+        # TODO(allie): implement.
         raise NotImplementedError
 
 

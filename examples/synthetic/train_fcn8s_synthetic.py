@@ -136,7 +136,7 @@ def main():
             raise ValueError('I could not find the path {}.  Did you set the path using the semantic-init '
                              'flag?'.format(semantic_init_path))
         semantic_model = torchfcn.models.FCN8sInstanceAtOnce(
-            semantic_instance_class_list=[1 for _ in problem_config.semantic_instance_class_list],
+            semantic_instance_class_list=[1 for _ in range(problem_config.n_semantic_classes)],
             map_to_semantic=False, include_instance_channel0=False)
         print('Copying params from preinitialized semantic model')
         checkpoint = torch.load(semantic_init_path)

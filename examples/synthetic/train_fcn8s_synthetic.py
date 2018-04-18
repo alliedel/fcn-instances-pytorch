@@ -65,8 +65,6 @@ def main():
 
     synthetic_generator_n_instances_per_semantic_id = 2
 
-    dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id,
-                          map_to_single_instance_problem=map_to_single_instance_problem)
     cfg = script_utils.create_config_from_default(configurations[config_idx], default_config)
     if args.image_index is not None:
         cfg['image_index'] = args.image_index
@@ -86,6 +84,8 @@ def main():
         torch.cuda.manual_seed(1337)
 
     # 1. dataset
+    dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id,
+                          map_to_single_instance_problem=cfg['single_instance'])
     train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
     val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
     try:
@@ -100,10 +100,8 @@ def main():
     # 0. Problem setup (instance segmentation definition)
     class_names = val_dataset.class_names
     n_semantic_classes = len(class_names)
-    if cfg['n_instances_per_class'] is None:
-        n_instances_per_class = synthetic_generator_n_instances_per_semantic_id
-    else:
-        n_instances_per_class = cfg['n_instances_per_class']
+    n_instances_per_class = cfg['n_instances_per_class'] or \
+                            1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id
 
     n_instances_by_semantic_id = [1] + [n_instances_per_class for sem_cls in range(1, n_semantic_classes)]
     problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)

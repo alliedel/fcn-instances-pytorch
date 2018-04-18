@@ -35,6 +35,7 @@ class BlobExampleGenerator(object):
                  transform=Defaults.transform, velocity_r_c=None,
                  initial_rows=None, initial_cols=None, _im_a_copy=False,
                  map_to_single_instance_problem=False):
+        self.map_to_single_instance_problem = map_to_single_instance_problem
         self.img_size = img_size
         assert len(self.img_size) == 2
         self.blob_size = blob_size
@@ -51,8 +52,6 @@ class BlobExampleGenerator(object):
         self.semantic_classes = ALL_BLOB_CLASS_NAMES
         self.class_names, self.idxs_into_all_blobs = self.get_semantic_names_and_idxs(
             self.semantic_subset)
-        self.map_to_single_instance_problem = map_to_single_instance_problem
-
         self.n_instances_per_sem_cls = [0] + [n_max_per_class for _ in range(len(self.semantic_classes) - 1)]
 
         # Blob dynamics

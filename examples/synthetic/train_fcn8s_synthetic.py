@@ -97,7 +97,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **loader_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kwargs)
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=3), batch_size=1,
-                                                       shuffle=True, **loader_kwargs)
+                                                       shuffle=False, **loader_kwargs)
 
     # 0. Problem setup (instance segmentation definition)
     class_names = val_dataset.class_names
@@ -159,7 +159,7 @@ def main():
         optimizer=optim,
         train_loader=train_loader,
         val_loader=val_loader,
-        train_loader_for_val=train_loader,
+        train_loader_for_val=train_loader_for_val,
         instance_problem=problem_config,
         out=out,
         max_iter=cfg['max_iteration'],

@@ -122,7 +122,7 @@ class Trainer(object):
         segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds = [], []
         visualizations_need_to_be_exported = True if should_export_visualizations else False
-        num_images_to_visualize = 9
+        num_images_to_visualize = min(len(data_loader), 9)
         for batch_idx, (data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
@@ -138,22 +138,22 @@ class Trainer(object):
             if not (compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
-            true_labels_single_batch, pred_labels_single_batch, val_loss_single_batch, \
-                segmentation_visualizations_single_batch, score_visualizations_single_batch = \
+            true_labels_sb, pred_labels_sb, pred_permutations_sb, val_loss_sb, \
+                segmentation_visualizations_sb, score_visualizations_sb = \
                 self.validate_single_batch(data, sem_lbl, inst_lbl, data_loader=data_loader,
                                            should_visualize=should_visualize)
-            if visualizations_need_to_be_exported and len(segmentation_visualizations) == 9:
+            if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
                 self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
                 visualizations_need_to_be_exported = False
 
-            label_trues += true_labels_single_batch
-            label_preds += pred_labels_single_batch
-            val_loss += val_loss_single_batch
-            segmentation_visualizations += segmentation_visualizations_single_batch
-            score_visualizations += score_visualizations_single_batch
+            label_trues += true_labels_sb
+            label_preds += pred_labels_sb
+            val_loss += val_loss_sb
+            segmentation_visualizations += segmentation_visualizations_sb
+            score_visualizations += score_visualizations_sb
 
-        if visualizations_need_to_be_exported and len(segmentation_visualizations) == 9:
+        if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
             if should_export_visualizations:
                 self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
@@ -180,26 +180,28 @@ class Trainer(object):
         # Restore training settings set prior to function call
         if training:
             self.model.train()
+
+        visualizations = (segmentation_visualizations, score_visualizations)
         return metrics, visualizations
 
-    def export_visualizations(self, visualizations, basename='val_', tile=True):
-        out = osp.join(self.out, 'visualization_viz')
-        if not osp.exists(out):
-            os.makedirs(out)
+    def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
+        outdir = outdir or osp.join(self.out, 'visualization_viz')
+        if not osp.exists(outdir):
+            os.makedirs(outdir)
         if tile:
             out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
                                                          margin_size=50)
             tag = '{}images'.format(basename)
             if self.tensorboard_writer is not None:
                 log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
-            out_subdir = osp.join(out, tag)
+            out_subdir = osp.join(outdir, tag)
             if not osp.exists(out_subdir):
                 os.makedirs(out_subdir)
             out_file = osp.join(out_subdir, 'iter-%012d.jpg' % self.iteration)
             scipy.misc.imsave(out_file, out_img)
         else:
             tag = '{}images'.format(basename)
-            out_subdir = osp.join(out, tag)
+            out_subdir = osp.join(outdir, tag)
             if not osp.exists(out_subdir):
                 os.makedirs(out_subdir)
             for img_idx, out_img in enumerate(visualizations):
@@ -247,6 +249,7 @@ class Trainer(object):
     def validate_single_batch(self, data, sem_lbl, inst_lbl, data_loader, should_visualize):
         true_labels = []
         pred_labels = []
+        pred_permutations = []
         segmentation_visualizations = []
         score_visualizations = []
         val_loss = 0
@@ -270,6 +273,7 @@ class Trainer(object):
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
         for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
             img = data_loader.dataset.untransform_img(img)
+            pp = pred_permutations[idx, :]
             try:
                 (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
                                        data_loader.dataset.untransform_lbl(inst_lbl))
@@ -283,7 +287,7 @@ class Trainer(object):
             if should_visualize:
                 # Segmentations
                 viz = visualization_utils.visualize_segmentation(
-                    lbl_pred=lp, lbl_true=lt_combined, img=img, n_class=self.n_combined_class,
+                    lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img, n_class=self.n_combined_class,
                     overlay=False)
                 segmentation_visualizations.append(viz)
                 # Scores
@@ -312,12 +316,13 @@ class Trainer(object):
                 viz = visualization_utils.visualize_heatmaps(scores=sp,
                                                              lbl_true=lt_combined,
                                                              lbl_pred=lp,
+                                                             pred_permutations=pp,
                                                              n_class=self.n_combined_class,
                                                              score_vis_normalizer=sp.max(),
                                                              channel_labels=channel_labels,
                                                              channels_to_visualize=channels_to_visualize)
                 score_visualizations.append(viz)
-        return true_labels, pred_labels, val_loss, segmentation_visualizations, score_visualizations
+        return true_labels, pred_labels, pred_permutations, val_loss, segmentation_visualizations, score_visualizations
 
     def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
         semantic_instance_class_list = self.instance_problem.semantic_instance_class_list

@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 
 import argparse
@@ -17,7 +18,7 @@ import skimage.io
 
 default_config = dict(
     max_iteration=100000,
-    lr=1.0e-12,
+    lr=1.0e-6,
     momentum=0.99,
     weight_decay=0.0005,
     interval_validate=4000,
@@ -33,13 +34,13 @@ default_config = dict(
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
-    0: dict(
+    0: dict(  # single train image; enough iterations it should largely cover the train
         interval_validate=10,
-        max_iteration=11,
+        max_iteration=101,
         image_index=3
     ),
     1: dict(
-        interval_validate=10,
+        interval_validate=100,
         max_iteration=500,
         image_index=7,
         n_instances_per_class=2,
@@ -106,7 +107,8 @@ def main():
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
                           modified_indices=[cfg['image_index']])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
+    val_split = 'seg11valid'
+    val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split=val_split, **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
     train_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, **kwargs)
 
@@ -172,12 +174,18 @@ def main():
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
+
+    print('Starting test by training {} images'.format(len(train_loader.dataset)))
     trainer.train()
 
     print('Evaluating final model')
-    metrics, visualizations = trainer.validate(should_export_visualizations=False)
-    viz = visualization_utils.get_tile_image(visualizations)
-    skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
+
+    metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(should_export_visualizations=False)
+    
+    trainer.export_visualizations(segmentation_visualizations, 'seg_' + val_split, tile=True, outdir='./tmp/')
+    trainer.export_visualizations(score_visualizations, 'score_' + val_split, tile=False, outdir='./tmp/')
+    # viz = visualization_utils.get_tile_image(visualizations)
+    # skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     metrics = np.array(metrics)
     metrics *= 100
     print('''\
@@ -185,7 +193,7 @@ def main():
         Accuracy Class: {1}
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
-    if metrics[2] < 85:
+    if metrics[2] < 80:
         print(script_utils.bcolors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + script_utils.bcolors.ENDC)
     else:
         print(script_utils.bcolors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + script_utils.bcolors.ENDC)

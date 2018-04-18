@@ -430,6 +430,8 @@ class Trainer(object):
                 continue  # for resuming
             self.iteration = iteration
             if self.iteration % self.interval_validate == 0:
+                if self.train_loader_for_val is not None:
+                    self.validate('train')
                 self.validate()
 
             assert self.model.training

@@ -48,6 +48,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         self.instance_to_semantic_mapping_matrix = \
             instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
                 self.semantic_instance_class_list, as_numpy=False)
+        self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
 
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
@@ -262,13 +263,13 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
                                                                          'my instance channels map to in order to '
                                                                          'copy weights.')
-        n_semantic_classes = len(self.semantic_instance_class_list)
+        n_semantic_classes = self.n_semantic_classes
         import ipdb; ipdb.set_trace()
         last_layer_name = 'upscore8'
         last_features = getattr(semantic_model, last_layer_name)
-        if last_features.size(1) != n_semantic_classes:
+        if last_features.weight.size(1) != n_semantic_classes:
             raise ValueError('The semantic model I tried to copy from has {} output channels, but I need {} channels '
-                             'for each of my semantic classes'.format(last_features.size(1), n_semantic_classes))
+                             'for each of my semantic classes'.format(last_features.weight.size(1), n_semantic_classes))
 
         features = [
             self.conv1_1, self.relu1_1,

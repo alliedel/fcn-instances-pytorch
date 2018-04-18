@@ -56,7 +56,7 @@ class VOCClassSegBase(data.Dataset):
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
                  n_instances_per_class=None, filter_images_by_semantic_subset=False,
-                 modified_indices=None, _im_a_copy=False):
+                 modified_indices=None, _im_a_copy=False, map_to_single_instance_problem=False):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -68,6 +68,7 @@ class VOCClassSegBase(data.Dataset):
         assert (modified_indices is None) or (not filter_images_by_semantic_subset), \
             ValueError('Cannot specify modified indices and image filtering method')
 
+        self.map_to_single_instance_problem = map_to_single_instance_problem
         if return_semantic_instance_tuple is None:
             return_semantic_instance_tuple = True if not semantic_only_labels else False
         if semantic_only_labels is None:
@@ -243,6 +244,8 @@ class VOCClassSegBase(data.Dataset):
         else:
             inst_lbl = self.load_img_as_dtype(inst_lbl_file, np.int32)
             inst_lbl[inst_lbl == 255] = -1
+            if self.map_to_single_instance_problem:
+                inst_lbl[sem_lbl != -1] = 1
             inst_lbl = self.transform_lbl(inst_lbl)
             # if 1:
             #     import torch

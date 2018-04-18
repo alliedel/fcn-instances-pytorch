@@ -23,7 +23,9 @@ default_config = dict(
     n_instances_per_class=1,
     set_extras_to_void=True,
     semantic_subset=None,
-    filter_images_by_semantic_subset=False
+    filter_images_by_semantic_subset=False,
+    single_instance=False,  # map_to_single_instance_problem
+    optim='sgd'
 )
 
 configurations = {
@@ -54,6 +56,12 @@ configurations = {
         n_instances_per_class=3,
         set_extras_to_void=True,
         max_iteration=1000000
+    ),
+    6: dict(  # semantic, single-instance problem
+        n_instances_per_class=3,
+        set_extras_to_void=True,
+        max_iteration=1000000,
+        single_instance=True
     ),
 }
 
@@ -86,27 +94,33 @@ def main():
     if cuda:
         torch.cuda.manual_seed(1337)
 
-    # 0. Problem setup (instance segmentation definition)
-    n_semantic_classes = 21
-    n_instances_by_semantic_id = [1] + [cfg['n_instances_per_class'] for sem_cls in range(1, n_semantic_classes)]
-    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
-
     # 1. dataset
     root = osp.expanduser('~/data/datasets')
+
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
-                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'])
+                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
+                          map_to_single_instance_problem=cfg['single_instance'])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
-    train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=15), batch_size=1, shuffle=False, **kwargs)
+    train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=15), batch_size=1,
+                                                       shuffle=False, **kwargs)
+
+    # 0. Problem setup (instance segmentation definition)
+
+    class_names = val_dataset.class_names
+    n_semantic_classes = len(class_names)
+    n_instances_per_class = cfg['n_instances_per_class'] or 1 if cfg['single_instance'] else None
+    n_instances_by_semantic_id = [1] + [n_instances_per_class for sem_cls in range(1, n_semantic_classes)]
+    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
     problem_config.set_class_names(val_dataset.class_names)
 
     # 2. model
 
-    model = torchfcn.models.FCN8sInstanceAtOnce(semantic_instance_class_list=problem_config.semantic_instance_class_list,
-                                                map_to_semantic=False)
+    model = torchfcn.models.FCN8sInstanceAtOnce(
+        semantic_instance_class_list=problem_config.semantic_instance_class_list, map_to_semantic=False)
     print('Number of classes in model: {}'.format(model.n_classes))
     start_epoch = 0
     start_iteration = 0
@@ -124,20 +138,27 @@ def main():
 
     # 3. optimizer
 
-    optim = torch.optim.SGD(
-        [
-            {'params': script_utils.get_parameters(model, bias=False)},
-            {'params': script_utils.get_parameters(model, bias=True),
-#            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
-#                model, bias=False))},
-#            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
-#                model, bias=True)),
+    # 3. optimizer
+    # TODO(allie): something is wrong with adam... fix it.
+    if cfg['optim'] == 'adam':
+        optim = torch.optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
+    elif cfg['optim'] == 'sgd':
+        optim = torch.optim.SGD(
+            [
+                {'params': script_utils.get_parameters(model, bias=False)},
+                {'params': script_utils.get_parameters(model, bias=True),
+                 #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+                 #                model, bias=False))},
+                 #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+                 #                model, bias=True)),
 
-             'lr': cfg['lr'] * 2, 'weight_decay': 0},
-        ],
-        lr=cfg['lr'],
-        momentum=cfg['momentum'],
-        weight_decay=cfg['weight_decay'])
+                 'lr': cfg['lr'] * 2, 'weight_decay': 0},
+            ],
+            lr=cfg['lr'],
+            momentum=cfg['momentum'],
+            weight_decay=cfg['weight_decay'])
+    else:
+        raise Exception('optimizer {} not recognized.'.format(cfg['optim']))
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 

@@ -56,7 +56,7 @@ class VOCClassSegBase(data.Dataset):
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
                  n_instances_per_class=None, filter_images_by_semantic_subset=False,
-                 modified_indices=None):
+                 modified_indices=None, _im_a_copy=False):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -274,6 +274,16 @@ class VOCClassSegBase(data.Dataset):
                 valid_indices.append(index)
 
         return valid_indices
+
+    def copy(self, modified_length=10):
+        my_copy = self.__class__(_im_a_copy=True)
+        for attr, val in self.__dict__.items():
+            setattr(my_copy, attr, val)
+        assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
+                                                "the initial dataset"
+        my_copy.n_images = modified_length
+        return my_copy
+
 
 
 class VOC2011ClassSeg(VOCClassSegBase):

@@ -45,7 +45,13 @@ configurations = {
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
-        single_instance=True
+        single_instance=True,
+    ),
+    2: dict(  # semantic weights
+        max_iteration=10000,
+        interval_validate=100,
+        lr=1.0e-10,
+        initialize_from_semantic=True
     )
 }
 
@@ -126,6 +132,9 @@ def main():
         start_iteration = checkpoint['iteration']
     elif cfg['initialize_from_semantic']:
         semantic_init_path = os.path.expanduser(args.semantic_init)
+        if not os.path.exists(semantic_init_path):
+            raise ValueError('I could not find the path {}.  Did you set the path using the semantic-init '
+                             'flag?'.format(semantic_init_path))
         semantic_model = torchfcn.models.FCN8sInstanceAtOnce(
             semantic_instance_class_list=[1 for _ in problem_config.semantic_instance_class_list],
             map_to_semantic=False, include_instance_channel0=False)

@@ -46,7 +46,7 @@ configurations = {
         interval_validate=100,
         lr=1.0e-10,
         single_instance=True
-    ),
+    )
 }
 
 here = osp.dirname(osp.abspath(__file__))

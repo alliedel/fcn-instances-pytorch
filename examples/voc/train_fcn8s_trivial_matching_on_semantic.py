@@ -58,7 +58,7 @@ configurations = {
         max_iteration=1000000
     ),
     6: dict(  # semantic, single-instance problem
-        n_instances_per_class=3,
+        n_instances_per_class=1,
         set_extras_to_void=True,
         max_iteration=1000000,
         single_instance=True

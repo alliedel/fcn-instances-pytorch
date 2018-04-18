@@ -98,7 +98,6 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kwargs)
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=3), batch_size=1,
                                                        shuffle=False, **loader_kwargs)
-
     # 0. Problem setup (instance segmentation definition)
     class_names = val_dataset.class_names
     n_semantic_classes = len(class_names)

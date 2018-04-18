@@ -28,7 +28,7 @@ default_config = dict(
     set_extras_to_void=True,
     semantic_subset=None,
     filter_images_by_semantic_subset=False,
-    optim='adam',
+    optim='sgd',
     single_instance=False,  # map_to_single_instance_problem
 )
 
@@ -44,8 +44,7 @@ configurations = {
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
-        single_instance=True,
-        optim='sgd'
+        single_instance=True
     ),
 }
 
@@ -131,6 +130,7 @@ def main():
         model = model.cuda()
 
     # 3. optimizer
+    # TODO(allie): something is wrong with adam... fix it.
     if cfg['optim'] == 'adam':
         optim = torch.optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     elif cfg['optim'] == 'sgd':

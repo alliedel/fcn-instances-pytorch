@@ -100,6 +100,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
+    train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=15), batch_size=1, shuffle=False, **kwargs)
     problem_config.set_class_names(val_dataset.class_names)
 
     # 2. model
@@ -153,7 +154,8 @@ def main():
         interval_validate=cfg.get('interval_validate', len(train_loader)),
         tensorboard_writer=writer,
         matching_loss=cfg['matching'],
-        loader_semantic_lbl_only=cfg['semantic_only_labels']
+        loader_semantic_lbl_only=cfg['semantic_only_labels'],
+        train_loader_for_val=train_loader_for_val,
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

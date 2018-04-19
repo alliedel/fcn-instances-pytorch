@@ -313,14 +313,11 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
                 # assert l1.bias.size() == l2.bias.size()
-                import ipdb;
-                ipdb.set_trace()
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not all(my_p.size()[c] == p_to_copy.size()[c]
                                for c in [0] + list(range(2, len(p_to_copy.size())))):
-                        import ipdb;
-                        ipdb.set_trace()
+                        import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model formatted incorrectly for repeating params.')
 
                     for sem_cls in range(n_semantic_classes):
@@ -338,12 +335,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         ipdb.set_trace()
                         raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
                     p_to_copy.data.copy_(my_p.data)
-
-        for i, name in zip([0, 3], ['fc6', 'fc7']):
-            l1 = semantic_model.classifier[i]
-            l2 = getattr(self, name)
-            l2.weight.data.copy_(l1.weight.data.view(l2.weight.size()))
-            l2.bias.data.copy_(l1.bias.data.view(l2.bias.size()))
+            else:
+                raise Exception('Haven''t handled copying of {}, of type {}'.format(module_name, type(my_module)))
 
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,

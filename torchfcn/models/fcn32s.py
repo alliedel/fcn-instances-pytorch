@@ -17,9 +17,14 @@ def get_upsampling_weight(in_channels, out_channels, kernel_size):
     og = np.ogrid[:kernel_size, :kernel_size]
     filt = (1 - abs(og[0] - center) / factor) * \
            (1 - abs(og[1] - center) / factor)
-    weight = np.zeros((in_channels, out_channels, kernel_size, kernel_size),
-                      dtype=np.float64)
-    weight[range(in_channels), range(out_channels), :, :] = filt
+    if in_channels == out_channels:
+        weight = np.zeros((in_channels, out_channels, kernel_size, kernel_size),
+                          dtype=np.float64)
+        weight[range(in_channels), range(out_channels), :, :] = filt
+    else:
+        weight = \
+            (filt[np.newaxis, np.newaxis, :, :]).repeat(in_channels, axis=0).repeat(out_channels, axis=1).astype(
+                np.float64)
     return torch.from_numpy(weight).float()
 
 

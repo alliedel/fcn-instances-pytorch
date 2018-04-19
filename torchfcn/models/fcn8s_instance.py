@@ -275,7 +275,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             if module_name in ['score_fr', 'score_poo3', 'score_pool4']:
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
-                    if not all(my_p.size()[c] == p_to_copy.size()[c] for c in [1, 2, 3]):
+                    if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model must be formatted incorrectly.')
 

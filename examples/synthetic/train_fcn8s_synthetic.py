@@ -54,6 +54,12 @@ configurations = {
         lr=1.0e-10,
         initialize_from_semantic=True,
         bottleneck_channel_capacity='semantic',
+    ),
+    3: dict(  # semantic weights
+        max_iteration=10000,
+        interval_validate=100,
+        lr=1.0e-10,
+        bottleneck_channel_capacity='semantic',
     )
 }
 

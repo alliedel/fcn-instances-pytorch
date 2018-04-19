@@ -285,7 +285,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     for sem_cls in range(n_semantic_classes):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]
-                        p_to_copy[sem_cls:(sem_cls+1), ...].data.copy_(my_p.data[inst_classes_for_this_sem_cls, ...])
+                        for inst_cls in inst_classes_for_this_sem_cls:
+                            p_to_copy[sem_cls, ...].data.copy_(my_p.data[inst_cls, ...])
                         # A.repeat(N,1,1) # specifies number of copies
 
             elif isinstance(my_module, nn.Conv2d):

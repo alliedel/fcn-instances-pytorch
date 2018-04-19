@@ -272,13 +272,32 @@ class FCN8sInstanceNotAtOnce(nn.Module):
 
         for module_name, my_module in self.named_children():
             module_to_copy = getattr(semantic_model, module_name)
-            if isinstance(my_module, nn.Conv2d):
+            if module_name in ['score_fr', 'score_poo3', 'score_pool4']:
+                for p_name, my_p in my_module.named_parameters():
+                    p_to_copy = getattr(module_to_copy, p_name)
+                    assert all(my_p.size()[c] == p_to_copy.size()[c] for c in [0, 2, 3])
+                    import ipdb; ipdb.set_trace()
+
+                    # self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
+                    # self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)
+                    # self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)
+                    if not my_p.size() == p_to_copy.size():
+                        import ipdb; ipdb.set_trace()
+                        raise ValueError('semantic model must be formatted incorrectly.')
+                    for sem_cls in range(n_semantic_classes):
+                        inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
+                                                         if s == sem_cls]
+                        p_to_copy[:, sem_cls, ...].data.copy_(my_p.data[:, inst_classes_for_this_sem_cls, ...])
+                        # A.repeat(N,1,1) # specifies number of copies
+
+            elif isinstance(my_module, nn.Conv2d):
                 assert isinstance(module_to_copy, nn.Conv2d)
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
-                    assert my_p.size() == p_to_copy.size()
+                    if not my_p.size() == p_to_copy.size():
+                        import ipdb; ipdb.set_trace()
+                        raise ValueError('semantic model must be formatted incorrectly.')
                     p_to_copy.data.copy_(my_p.data)
-                    # l2.weight.data.copy_(l1.weight.data)
             elif isinstance(my_module, nn.ConvTranspose2d):
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()

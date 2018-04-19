@@ -275,8 +275,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             if module_name in ['score_fr', 'score_poo3', 'score_pool4']:
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
-                    assert all(my_p.size()[c] == p_to_copy.size()[c] for c in [0, 2, 3])
-                    import ipdb; ipdb.set_trace()
+                    if not all(my_p.size()[c] == p_to_copy.size()[c] for c in [0, 2, 3]):
+                        import ipdb; ipdb.set_trace()
 
                     # self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
                     # self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)

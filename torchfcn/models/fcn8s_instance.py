@@ -272,7 +272,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
 
         for module_name, my_module in self.named_children():
             module_to_copy = getattr(semantic_model, module_name)
-            if module_name in ['score_fr', 'score_poo3', 'score_pool4']:
+            if module_name in ['score_fr', 'score_pool3', 'score_pool4']:
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
@@ -286,9 +286,9 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]
                         for inst_cls in inst_classes_for_this_sem_cls:
-                            p_to_copy[sem_cls, ...].data.copy_(my_p.data[inst_cls, ...])
-                        # A.repeat(N,1,1) # specifies number of copies
-
+                            # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
+                            # so we use slicing)
+                            p_to_copy[sem_cls:(sem_cls + 1), ...].data.copy_(my_p.data[inst_cls:(inst_cls + 1), ...])
             elif isinstance(my_module, nn.Conv2d):
                 assert isinstance(module_to_copy, nn.Conv2d)
                 for p_name, my_p in my_module.named_parameters():

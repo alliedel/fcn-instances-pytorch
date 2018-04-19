@@ -277,13 +277,11 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not all(my_p.size()[c] == p_to_copy.size()[c] for c in [1, 2, 3]):
                         import ipdb; ipdb.set_trace()
+                        raise ValueError('semantic model must be formatted incorrectly.')
 
                     # self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
                     # self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)
                     # self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)
-                    if not my_p.size() == p_to_copy.size():
-                        import ipdb; ipdb.set_trace()
-                        raise ValueError('semantic model must be formatted incorrectly.')
                     for sem_cls in range(n_semantic_classes):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]

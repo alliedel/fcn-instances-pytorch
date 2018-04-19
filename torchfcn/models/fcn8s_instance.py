@@ -275,7 +275,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             if module_name in ['score_fr', 'score_poo3', 'score_pool4']:
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
-                    if not all(my_p.size()[c] == p_to_copy.size()[c] for c in [0, 2, 3]):
+                    if not all(my_p.size()[c] == p_to_copy.size()[c] for c in [1, 2, 3]):
                         import ipdb; ipdb.set_trace()
 
                     # self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
@@ -287,7 +287,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     for sem_cls in range(n_semantic_classes):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]
-                        p_to_copy[:, sem_cls, ...].data.copy_(my_p.data[:, inst_classes_for_this_sem_cls, ...])
+                        p_to_copy[sem_cls, ...].data.copy_(my_p.data[inst_classes_for_this_sem_cls, ...])
                         # A.repeat(N,1,1) # specifies number of copies
 
             elif isinstance(my_module, nn.Conv2d):

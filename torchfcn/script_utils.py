@@ -33,7 +33,9 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'momentum': 'm',
                                         'n_instances_per_class': 'n_inst_cls',
                                         'semantic_only_labels': 'sem_ls',
-                                        'initialize_from_semantic': 'init_sem'}
+                                        'initialize_from_semantic': 'init_sem',
+                                        'bottleneck_channel_capacity': 'bcc',
+                                        'single_instance': '1inst'}
 
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 

@@ -31,6 +31,7 @@ default_config = dict(
     optim='sgd',
     single_instance=False,  # map_to_single_instance_problem
     initialize_from_semantic=False,
+    bottleneck_channel_capacity=None,
 )
 
 configurations = {
@@ -51,7 +52,8 @@ configurations = {
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
-        initialize_from_semantic=True
+        initialize_from_semantic=True,
+        bottleneck_channel_capacity='semantic',
     )
 }
 
@@ -121,7 +123,8 @@ def main():
 
     model = torchfcn.models.FCN8sInstanceAtOnce(
         semantic_instance_class_list=problem_config.semantic_instance_class_list,
-        map_to_semantic=False, include_instance_channel0=False)
+        map_to_semantic=False, include_instance_channel0=False, bottleneck_channel_capacity=cfg[
+            'bottleneck_channel_capacity'])
     print('Number of classes in model: {}'.format(model.n_classes))
     start_epoch = 0
     start_iteration = 0

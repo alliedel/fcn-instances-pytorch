@@ -18,12 +18,13 @@ DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.
 class FCN8sInstanceNotAtOnce(nn.Module):
 
     def __init__(self, n_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
-                 include_instance_channel0=False):
+                 include_instance_channel0=False, bottleneck_channel_capacity=None):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
         include_instance_channel0: If True, extras are placed in instance channel 0 for each semantic class (otherwise
         we don't allocate space for a channel like this)
+        bottleneck_channel_capacity: n_classes (default); 'semantic': n_semantic_classes', some number
         """
         if include_instance_channel0:
             raise NotImplementedError
@@ -49,6 +50,17 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
                 self.semantic_instance_class_list, as_numpy=False)
         self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(1)
+
+        if bottleneck_channel_capacity is None:
+            self.bottleneck_channel_capacity = self.n_classes
+        elif isinstance(bottleneck_channel_capacity, str):
+            assert bottleneck_channel_capacity == 'semantic', ValueError('Did not recognize '
+                                                                         'bottleneck_channel_capacity {}')
+            self.bottleneck_channel_capacity = self.n_semantic_classes
+        else:
+            assert bottleneck_channel_capacity == int(bottleneck_channel_capacity), ValueError(
+                'bottleneck_channel_capacity must be an int')
+            self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
 
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
@@ -108,18 +120,18 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         self.drop7 = nn.Dropout2d()
 
         # H/32 x W/32 x n_semantic_cls
-        self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
+        self.score_fr = nn.Conv2d(4096, self.bottleneck_channel_capacity, 1)
         # H/32 x W/32 x n_semantic_cls
-        self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)
+        self.score_pool3 = nn.Conv2d(256, self.bottleneck_channel_capacity, 1)
         # H/32 x W/32 x n_semantic_cls
-        self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)
+        self.score_pool4 = nn.Conv2d(512, self.bottleneck_channel_capacity, 1)
 
         self.upscore2 = nn.ConvTranspose2d(   # H/16 x W/16 x n_semantic_cls
-            self.n_classes, self.n_classes, kernel_size=4, stride=2, bias=False)
+            self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
         self.upscore8 = nn.ConvTranspose2d(   # H/2 x W/2 x n_semantic_cls
-            self.n_classes, self.n_classes, kernel_size=16, stride=8, bias=False)
+            self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=16, stride=8, bias=False)
         self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
-            self.n_classes, self.n_classes, kernel_size=4, stride=2, bias=False)
+            self.bottleneck_channel_capacity, self.n_classes, kernel_size=4, stride=2, bias=False)
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
                                                           out_channels=self.n_semantic_classes,
@@ -258,7 +270,13 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             l2.bias.data.copy_(l1.bias.data.view(l2.bias.size()))
 
     def copy_params_from_semantic_equivalent_of_me(self, semantic_model):
-
+        if self.bottleneck_channel_capacity != self.n_semantic_classes:
+            need_to_repeat_intermediates = True
+            raise Warning('set bottleneck_channel_capacity to ''semantic'' -- intermediate # of channels is different '
+                          'by default when running instance segmentation to increase capacity.')
+            # TODO(allie): implement this version (almost done)
+        else:
+            need_to_repeat_intermediates = False
         # check whether this has the right number of channels to be the semantic version of me
         assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
                                                                          'my instance channels map to in order to '
@@ -272,16 +290,16 @@ class FCN8sInstanceNotAtOnce(nn.Module):
 
         for module_name, my_module in self.named_children():
             module_to_copy = getattr(semantic_model, module_name)
-            if module_name in ['score_fr', 'score_pool3', 'score_pool4']:
+            if need_to_repeat_intermediates and (module_name in ['score_fr', 'score_pool3', 'score_pool4']) or not \
+                    need_to_repeat_intermediates and (module_name in ['score_pool4']):
+                # self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
+                # self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)
+                # self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model must be formatted incorrectly.')
-
-                    # self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
-                    # self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)
-                    # self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)
                     for sem_cls in range(n_semantic_classes):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]
@@ -299,12 +317,12 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model must be formatted incorrectly.')
+
                     for sem_cls in range(n_semantic_classes):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]
                         for inst_cls in inst_classes_for_this_sem_cls:
                             p_to_copy[sem_cls:(sem_cls + 1), ...].data.copy_(my_p.data[inst_cls:(inst_cls + 1), ...])
-
             elif isinstance(my_module, nn.Conv2d):
                 assert isinstance(module_to_copy, nn.Conv2d)
                 for p_name, my_p in my_module.named_parameters():

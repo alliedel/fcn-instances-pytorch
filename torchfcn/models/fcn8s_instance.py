@@ -280,6 +280,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         else:
             conv2d_with_repeated_channels = []
             conv2dT_with_repeated_channels = ['upscore8']
+        module_types_to_ignore = [nn.ReLU]
         # check whether this has the right number of channels to be the semantic version of me
         assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
                                                                          'my instance channels map to in order to '
@@ -331,17 +332,34 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not my_p.size() == p_to_copy.size():
-                        import ipdb;
-                        ipdb.set_trace()
+                        import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
                     p_to_copy.data.copy_(my_p.data)
+            elif any([isinstance(my_module, type) for type in module_types_to_ignore]):
+                continue
             else:
-                raise Exception('Haven''t handled copying of {}, of type {}'.format(module_name, type(my_module)))
+                if not module_has_params(my_module):
+                    print('Skipping module of type {} (name: {}) because it has no params.  But please place it in '
+                          'list of module types to not copy.'.format(type(my_module), my_module))
+                    continue
+                else:
+                    raise Exception('Haven''t handled copying of {}, of type {}'.format(module_name, type(my_module)))
 
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
                                                           out_channels=self.n_semantic_classes,
                                                           kernel_size=1, bias=False)
+
+
+def module_has_params(module):
+    module_params = module.named_parameters()
+    try:
+        next(module_params)
+        has_params = True
+    except StopIteration:
+        has_params = False
+    return has_params
+
 
 
 def FCN8sInstanceNotAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, **kwargs):

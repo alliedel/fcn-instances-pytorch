@@ -280,7 +280,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         else:
             conv2d_with_repeated_channels = []
             conv2dT_with_repeated_channels = ['upscore8']
-        module_types_to_ignore = [nn.ReLU]
+        module_types_to_ignore = [nn.ReLU, nn.MaxPool2d, nn.Dropout2d]
         # check whether this has the right number of channels to be the semantic version of me
         assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
                                                                          'my instance channels map to in order to '

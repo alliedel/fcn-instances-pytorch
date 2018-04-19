@@ -59,8 +59,8 @@ configurations = {
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
-        bottleneck_channel_capacity='semantic',
-    )
+        bottleneck_channel_capacity=3
+    ),
 }
 
 here = osp.dirname(osp.abspath(__file__))
@@ -74,8 +74,8 @@ def main():
                         choices=configurations.keys())
     parser.add_argument('--resume', help='Checkpoint path')
     parser.add_argument('--image_index', type=int, help='Image index to use for train/validation set', default=None)
-    parser.add_argument('--semantic-init', help='Checkpoint path of semantic model',
-                        default='~/data/models/pytorch/vgg16_from_caffe.pth')
+    parser.add_argument('--semantic-init', help='Checkpoint path of semantic model (e.g. - '
+                                                '\'~/data/models/pytorch/semantic_synthetic.pth\'', default=None)
     args = parser.parse_args()
     gpu = args.gpu
     config_idx = args.config

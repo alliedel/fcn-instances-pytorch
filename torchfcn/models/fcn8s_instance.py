@@ -289,6 +289,22 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                             # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
                             # so we use slicing)
                             p_to_copy[sem_cls:(sem_cls + 1), ...].data.copy_(my_p.data[inst_cls:(inst_cls + 1), ...])
+            elif isinstance(my_module, nn.ConvTranspose2d):
+                assert isinstance(module_to_copy, nn.ConvTranspose2d)
+                # assert l1.weight.size() == l2.weight.size()
+                # assert l1.bias.size() == l2.bias.size()
+                import ipdb; ipdb.set_trace()
+                for p_name, my_p in my_module.named_parameters():
+                    p_to_copy = getattr(module_to_copy, p_name)
+                    if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
+                        import ipdb; ipdb.set_trace()
+                        raise ValueError('semantic model must be formatted incorrectly.')
+                    for sem_cls in range(n_semantic_classes):
+                        inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
+                                                         if s == sem_cls]
+                        for inst_cls in inst_classes_for_this_sem_cls:
+                            p_to_copy[sem_cls:(sem_cls + 1), ...].data.copy_(my_p.data[inst_cls:(inst_cls + 1), ...])
+
             elif isinstance(my_module, nn.Conv2d):
                 assert isinstance(module_to_copy, nn.Conv2d)
                 for p_name, my_p in my_module.named_parameters():
@@ -297,14 +313,6 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model must be formatted incorrectly.')
                     p_to_copy.data.copy_(my_p.data)
-            elif isinstance(my_module, nn.ConvTranspose2d):
-                assert isinstance(module_to_copy, nn.ConvTranspose2d)
-                # assert l1.weight.size() == l2.weight.size()
-                # assert l1.bias.size() == l2.bias.size()
-                import ipdb; ipdb.set_trace()
-                for p_name, my_p in my_module.named_parameters():
-                    p_to_copy = getattr(module_to_copy, p_name)
-                    # assert my_p.size() == p_to_copy.size()
 
         for i, name in zip([0, 3], ['fc6', 'fc7']):
             l1 = semantic_model.classifier[i]

@@ -309,7 +309,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                             import ipdb;
                             ipdb.set_trace()
                             p_to_copy[sem_cls:(sem_cls + 1), ...].data.copy_(my_p.data[inst_cls:(inst_cls + 1), ...])
-            elif my_module in conv2dT_with_repeated_channels:
+            elif module_name in conv2dT_with_repeated_channels:
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
                 # assert l1.bias.size() == l2.bias.size()

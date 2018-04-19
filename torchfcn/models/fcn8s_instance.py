@@ -279,7 +279,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             # TODO(allie): implement this version (almost done)
         else:
             conv2d_with_repeated_channels = []
-            conv2dT_with_repeated_channels = ['upscore2', 'upscore8', 'upscore_pool4']
+            conv2dT_with_repeated_channels = ['upscore8']
         # check whether this has the right number of channels to be the semantic version of me
         assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
                                                                          'my instance channels map to in order to '
@@ -317,10 +317,11 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                 ipdb.set_trace()
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
-                    if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
+                    if not all(my_p.size()[c] == p_to_copy.size()[c]
+                               for c in [0] + list(range(2, len(p_to_copy.size())))):
                         import ipdb;
                         ipdb.set_trace()
-                        raise ValueError('semantic model must be formatted incorrectly.')
+                        raise ValueError('semantic model formatted incorrectly for repeating params.')
 
                     for sem_cls in range(n_semantic_classes):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)

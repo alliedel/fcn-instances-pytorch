@@ -128,10 +128,10 @@ class FCN8sInstanceNotAtOnce(nn.Module):
 
         self.upscore2 = nn.ConvTranspose2d(  # H/16 x W/16 x n_semantic_cls
             self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
-        self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
-            self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=16, stride=8, bias=False)
         self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
-            self.bottleneck_channel_capacity, self.n_classes, kernel_size=4, stride=2, bias=False)
+            self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
+        self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
+            self.bottleneck_channel_capacity, self.n_classes, kernel_size=16, stride=8, bias=False)
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
                                                           out_channels=self.n_semantic_classes,
@@ -299,7 +299,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
                         import ipdb;
                         ipdb.set_trace()
-                        raise ValueError('semantic model must be formatted incorrectly.')
+                        raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
                     for sem_cls in range(n_semantic_classes):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]
@@ -334,7 +334,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     if not my_p.size() == p_to_copy.size():
                         import ipdb;
                         ipdb.set_trace()
-                        raise ValueError('semantic model must be formatted incorrectly.')
+                        raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
                     p_to_copy.data.copy_(my_p.data)
 
         for i, name in zip([0, 3], ['fc6', 'fc7']):

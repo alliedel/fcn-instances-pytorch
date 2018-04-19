@@ -7,8 +7,8 @@ from torchfcn import instance_utils
 
 from .fcn32s import get_upsampling_weight
 
-
 DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
+
 
 # TODO(allie): print out flops so you know how long things should take
 
@@ -126,9 +126,9 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         # H/32 x W/32 x n_semantic_cls
         self.score_pool4 = nn.Conv2d(512, self.bottleneck_channel_capacity, 1)
 
-        self.upscore2 = nn.ConvTranspose2d(   # H/16 x W/16 x n_semantic_cls
+        self.upscore2 = nn.ConvTranspose2d(  # H/16 x W/16 x n_semantic_cls
             self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
-        self.upscore8 = nn.ConvTranspose2d(   # H/2 x W/2 x n_semantic_cls
+        self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
             self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=16, stride=8, bias=False)
         self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
             self.bottleneck_channel_capacity, self.n_classes, kernel_size=4, stride=2, bias=False)
@@ -271,12 +271,15 @@ class FCN8sInstanceNotAtOnce(nn.Module):
 
     def copy_params_from_semantic_equivalent_of_me(self, semantic_model):
         if self.bottleneck_channel_capacity != self.n_semantic_classes:
-            need_to_repeat_intermediates = True
+            conv2d_with_repeated_channels = ['score_fr', 'score_pool3', 'score_pool4']
+            conv2dT_with_repeated_channels = ['upscore2', 'upscore8', 'upscore_pool4']
+
             raise Warning('set bottleneck_channel_capacity to ''semantic'' -- intermediate # of channels is different '
                           'by default when running instance segmentation to increase capacity.')
             # TODO(allie): implement this version (almost done)
         else:
-            need_to_repeat_intermediates = False
+            conv2d_with_repeated_channels = []
+            conv2dT_with_repeated_channels = ['upscore2', 'upscore8', 'upscore_pool4']
         # check whether this has the right number of channels to be the semantic version of me
         assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
                                                                          'my instance channels map to in order to '
@@ -290,15 +293,12 @@ class FCN8sInstanceNotAtOnce(nn.Module):
 
         for module_name, my_module in self.named_children():
             module_to_copy = getattr(semantic_model, module_name)
-            if need_to_repeat_intermediates and (module_name in ['score_fr', 'score_pool3', 'score_pool4']) or not \
-                    need_to_repeat_intermediates and (module_name in ['score_pool4']):
-                # self.score_fr = nn.Conv2d(4096, self.n_classes, 1)
-                # self.score_pool3 = nn.Conv2d(256, self.n_classes, 1)
-                # self.score_pool4 = nn.Conv2d(512, self.n_classes, 1)
+            if module_name in conv2d_with_repeated_channels:
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
-                        import ipdb; ipdb.set_trace()
+                        import ipdb;
+                        ipdb.set_trace()
                         raise ValueError('semantic model must be formatted incorrectly.')
                     for sem_cls in range(n_semantic_classes):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
@@ -306,16 +306,20 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         for inst_cls in inst_classes_for_this_sem_cls:
                             # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
                             # so we use slicing)
+                            import ipdb;
+                            ipdb.set_trace()
                             p_to_copy[sem_cls:(sem_cls + 1), ...].data.copy_(my_p.data[inst_cls:(inst_cls + 1), ...])
-            elif isinstance(my_module, nn.ConvTranspose2d):
+            elif my_module in conv2dT_with_repeated_channels:
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
                 # assert l1.bias.size() == l2.bias.size()
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
-                        import ipdb; ipdb.set_trace()
+                        import ipdb;
+                        ipdb.set_trace()
                         raise ValueError('semantic model must be formatted incorrectly.')
 
                     for sem_cls in range(n_semantic_classes):
@@ -323,12 +327,13 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                                                          if s == sem_cls]
                         for inst_cls in inst_classes_for_this_sem_cls:
                             p_to_copy[sem_cls:(sem_cls + 1), ...].data.copy_(my_p.data[inst_cls:(inst_cls + 1), ...])
-            elif isinstance(my_module, nn.Conv2d):
-                assert isinstance(module_to_copy, nn.Conv2d)
+            elif isinstance(my_module, nn.Conv2d) or isinstance(my_module, nn.ConvTranspose2d):
+                assert type(module_to_copy) == type(my_module)
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not my_p.size() == p_to_copy.size():
-                        import ipdb; ipdb.set_trace()
+                        import ipdb;
+                        ipdb.set_trace()
                         raise ValueError('semantic model must be formatted incorrectly.')
                     p_to_copy.data.copy_(my_p.data)
 
@@ -354,7 +359,6 @@ def FCN8sInstanceNotAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, **kwar
 
 
 class FCN8sInstanceAtOnce(FCN8sInstanceNotAtOnce):
-
     pretrained_model = \
         osp.expanduser('~/data/models/pytorch/fcn8s-atonce_from_caffe.pth')
 
@@ -435,5 +439,3 @@ def FCN8sInstanceAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH,
         'model_state_dict']
     model.load_state_dict(state_dict)
     return model
-
-

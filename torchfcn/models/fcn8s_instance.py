@@ -237,7 +237,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         m.in_channels, m.out_channels, m.kernel_size[0])
                 else:
                     initial_weight = model_utils.get_non_symmetric_upsampling_weight(
-                        m.in_channels, m.out_channels, m.kernel_size[0], semantic_instance_class_list=None)
+                        m.in_channels, m.out_channels, m.kernel_size[0],
+                        semantic_instance_class_list=self.semantic_instance_class_list)
                 m.weight.data.copy_(initial_weight)
 
     def copy_params_from_vgg16(self, vgg16):

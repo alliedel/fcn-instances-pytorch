@@ -4,7 +4,7 @@ import os.path as osp
 import fcn
 import torch.nn as nn
 
-from .fcn32s import get_upsampling_weight
+from torchfcn.models.model_utils import get_upsampling_weight
 
 
 class FCN8s(nn.Module):

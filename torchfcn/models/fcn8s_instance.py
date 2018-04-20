@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torchfcn import instance_utils
 
-from .fcn32s import get_upsampling_weight
+from torchfcn.models import model_utils
 
 DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
@@ -232,8 +232,12 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     m.bias.data.zero_()
             elif isinstance(m, nn.ConvTranspose2d):
                 assert m.kernel_size[0] == m.kernel_size[1]
-                initial_weight = get_upsampling_weight(
-                    m.in_channels, m.out_channels, m.kernel_size[0])
+                if m.in_channels == m.out_channels:
+                    initial_weight = model_utils.get_upsampling_weight(
+                        m.in_channels, m.out_channels, m.kernel_size[0])
+                else:
+                    initial_weight = model_utils.get_non_symmetric_upsampling_weight(
+                        m.in_channels, m.out_channels, m.kernel_size[0], semantic_instance_class_list=None)
                 m.weight.data.copy_(initial_weight)
 
     def copy_params_from_vgg16(self, vgg16):

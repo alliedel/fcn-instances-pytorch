@@ -14,6 +14,8 @@ DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.
 
 # TODO(allie): Handle case when extra instances (or semantic segmentation) lands in channel 0
 
+DEBUG = True
+
 
 class FCN8sInstanceNotAtOnce(nn.Module):
 
@@ -314,7 +316,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                             # so we use slicing)
                             import ipdb;
                             ipdb.set_trace()
-                            my_p.data[inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[sem_cls:(sem_cls + 1), ...])
+                            my_p.data[:, inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[:, sem_cls:(sem_cls + 1),
+                                                                             ...])
             elif module_name in conv2dT_with_repeated_channels:
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
@@ -340,6 +343,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
                     my_p.data.copy_(p_to_copy.data)
+                    assert torch.equal(my_p.data, p_to_copy.data)
             elif any([isinstance(my_module, type) for type in module_types_to_ignore]):
                 continue
             else:
@@ -351,15 +355,32 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     raise Exception('Haven''t handled copying of {}, of type {}'.format(module_name, type(my_module)))
 
         # Assert that all the weights equal each other
-        for module_name, my_module in self.named_children():
-            module_to_copy = getattr(semantic_model, module_name)
-            for i, (my_p, p_to_copy) in enumerate(zip(my_module.named_parameters(), module_to_copy.named_parameters())):
-                assert my_p[0] == p_to_copy[0]
-                if torch.equal(my_p[1], p_to_copy[1]):
-                    print('BAD: parameter {} in {} not equal'.format(i, module_name))
-                else:
-                    print('GOOD: parameter {} in {} equal'.format(i, module_name))
-        import ipdb; ipdb.set_trace()
+        if DEBUG:
+            successfully_copied_modules = []
+            unsuccessfully_copied_modules = []
+            for module_name, my_module in self.named_children():
+                module_to_copy = getattr(semantic_model, module_name)
+                for i, (my_p, p_to_copy) in enumerate(zip(my_module.named_parameters(), module_to_copy.named_parameters())):
+                    assert my_p[0] == p_to_copy[0]
+                    if torch.equal(my_p[1].data, p_to_copy[1].data):
+                        successfully_copied_modules.append(module_name + ' ' + str(i))
+                        continue
+                    else:
+                        if module_name in (conv2d_with_repeated_channels + conv2dT_with_repeated_channels):
+                            are_equal = True
+                            for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
+                                are_equal = torch.equal(my_p[1].data[:, inst_cls, :, :],
+                                                        p_to_copy[1].data[:, sem_cls, :, :])
+                                if not are_equal:
+                                    break
+                            if are_equal:
+                                successfully_copied_modules.append(module_name + ' ' + str(i))
+                            else:
+                                unsuccessfully_copied_modules.append(module_name + ' ' + str(i))
+            if len(unsuccessfully_copied_modules) > 0:
+                raise Exception('modules were not copied correctly: {}'.format(unsuccessfully_copied_modules))
+            else:
+                print('All modules copied correctly: {}'.format(successfully_copied_modules))
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
                                                           out_channels=self.n_semantic_classes,
@@ -374,7 +395,6 @@ def module_has_params(module):
     except StopIteration:
         has_params = False
     return has_params
-
 
 
 def FCN8sInstanceNotAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, **kwargs):

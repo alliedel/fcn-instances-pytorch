@@ -428,12 +428,14 @@ def log_images(writer, tag, images, step, numbers=None, bgr=False):
                              global_step=step)
 
 
-def visualize_heatmaps(scores, lbl_pred, lbl_true, pred_permutations=None, margin_color=(255, 255, 255), n_class=None,
-                       score_vis_normalizer=None, channel_labels=None, channels_to_visualize=None):
+def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permutations=None,
+                       margin_color=(255, 255, 255), n_class=None, score_vis_normalizer=None, channel_labels=None,
+                       channels_to_visualize=None, margin_size_small=2, margin_size_large=3):
     """
     n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to make sense.
     channels_to_visualize: None == 'all'
     """
+
     n_channels = scores.shape[0]
     if n_class is None:
         cmap = np.repeat(np.ones((1, 3)) * 255, [n_channels, 1])
@@ -474,16 +476,22 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, pred_permutations=None, margi
         heatmaps_normalized.append(heatmap_normalized)
         colormaps.append(colormap)
     true_label_mask_row = get_tile_image(true_label_masks, (1, len(channels_to_visualize)), margin_color=margin_color,
-                                         margin_size=2)
+                                         margin_size=margin_size_small)
     pred_label_mask_row = get_tile_image(pred_label_masks, (1, len(channels_to_visualize)), margin_color=margin_color,
-                                         margin_size=2)
+                                         margin_size=margin_size_small)
     heatmap_row = get_tile_image(heatmaps, (1, len(channels_to_visualize)), margin_color=margin_color,
-                                 margin_size=2)
-    heatmap_row_normalized = get_tile_image(heatmaps_normalized, (1, len(channels_to_visualize)), margin_color=margin_color,
-                                            margin_size=2)
-    colormaps_row = get_tile_image(colormaps, (1, len(channels_to_visualize)), margin_color=margin_color, margin_size=2)
+                                 margin_size=margin_size_small)
+    heatmap_row_normalized = get_tile_image(heatmaps_normalized, (1, len(channels_to_visualize)),
+                                            margin_color=margin_color, margin_size=margin_size_small)
+    colormaps_row = get_tile_image(colormaps, (1, len(channels_to_visualize)), margin_color=margin_color,
+                                   margin_size=margin_size_small)
+    if input_image is not None:
+        get_tile_image(input_image, (1, len(channels_to_visualize)), margin_color=margin_color,
+                       margin_size=margin_size_small)
+
     all_rows = [heatmap_row, heatmap_row_normalized, pred_label_mask_row, colormaps_row, true_label_mask_row]
-    return get_tile_image(all_rows, (len(all_rows), 1), margin_color=margin_color, margin_size=2)
+
+    return get_tile_image(all_rows, (len(all_rows), 1), margin_color=margin_color, margin_size=margin_size_large)
 
 
 def scores2d2heatmap(scores_single_channel, clims=None, color=(255, 255, 255)):

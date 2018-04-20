@@ -37,35 +37,35 @@ default_config = dict(
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
-    0: dict(
+    0: dict(  # vanilla
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10
     ),
-    1: dict(  # semantic weights
+    1: dict(  # 'semantic': mapping all semantic into a single instance
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
         single_instance=True,
     ),
-    2: dict(  # semantic weights
+    2: dict(  # instance seg. with initialization from semantic
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
         initialize_from_semantic=True,
         bottleneck_channel_capacity='semantic',
     ),
-    3: dict(  # semantic weights
+    3: dict(  # instance seg. with S channels in the bottleneck layers
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
         bottleneck_channel_capacity='semantic',
     ),
-    4: dict(  # semantic weights
+    4: dict(  # instance seg. with semantic init. and N channels in the bottleneck layers
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
-        bottleneck_channel_capacity='semantic',
+        bottleneck_channel_capacity=None,
         initialize_from_semantic=True,
     ),
 }

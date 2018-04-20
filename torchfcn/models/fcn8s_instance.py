@@ -280,10 +280,6 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         if self.bottleneck_channel_capacity != self.n_semantic_classes:
             conv2d_with_repeated_channels = ['score_fr', 'score_pool3', 'score_pool4']
             conv2dT_with_repeated_channels = ['upscore2', 'upscore8', 'upscore_pool4']
-
-            raise Warning('set bottleneck_channel_capacity to ''semantic'' -- intermediate # of channels is different '
-                          'by default when running instance segmentation to increase capacity.')
-            # TODO(allie): implement this version (almost done)
         else:
             conv2d_with_repeated_channels = []
             conv2dT_with_repeated_channels = ['upscore8']
@@ -308,16 +304,13 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         import ipdb;
                         ipdb.set_trace()
                         raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
-                    for sem_cls in range(n_semantic_classes):
-                        inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
-                                                         if s == sem_cls]
-                        for inst_cls in inst_classes_for_this_sem_cls:
-                            # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
-                            # so we use slicing)
-                            import ipdb;
-                            ipdb.set_trace()
-                            my_p.data[:, inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[:, sem_cls:(sem_cls + 1),
-                                                                             ...])
+                    if DEBUG:
+                        assert my_p.data.size(0) == len(self.semantic_instance_class_list) \
+                               and p_to_copy.data.size(0) == n_semantic_classes
+                    for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
+                        # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
+                        # so we use slicing)
+                        my_p.data[inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[sem_cls:(sem_cls + 1), ...])
             elif module_name in conv2dT_with_repeated_channels:
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
@@ -329,12 +322,10 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model formatted incorrectly for repeating params.')
 
-                    for sem_cls in range(n_semantic_classes):
-                        inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
-                                                         if s == sem_cls]
-                        for inst_cls in inst_classes_for_this_sem_cls:
-                            my_p.data[:, inst_cls:(inst_cls + 1), ...].copy_(
-                                p_to_copy.data[:, sem_cls:(sem_cls + 1), ...])
+                    for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
+                        # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
+                        # so we use slicing)
+                        my_p.data[:, inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[:, sem_cls:(sem_cls + 1), ...])
             elif isinstance(my_module, nn.Conv2d) or isinstance(my_module, nn.ConvTranspose2d):
                 assert type(module_to_copy) == type(my_module)
                 for p_name, my_p in my_module.named_parameters():

@@ -275,7 +275,6 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             l2.bias.data.copy_(l1.bias.data.view(l2.bias.size()))
 
     def copy_params_from_semantic_equivalent_of_me(self, semantic_model):
-        import ipdb; ipdb.set_trace()
         if self.bottleneck_channel_capacity != self.n_semantic_classes:
             conv2d_with_repeated_channels = ['score_fr', 'score_pool3', 'score_pool4']
             conv2dT_with_repeated_channels = ['upscore2', 'upscore8', 'upscore_pool4']
@@ -340,7 +339,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     if not my_p.size() == p_to_copy.size():
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
-                    my_p.data.data.copy_(p_to_copy)
+                    my_p.data.copy_(p_to_copy.data)
             elif any([isinstance(my_module, type) for type in module_types_to_ignore]):
                 continue
             else:

@@ -17,10 +17,6 @@ def get_upsampling_weight(in_channels, out_channels, kernel_size):
         weight = np.zeros((in_channels, out_channels, kernel_size, kernel_size),
                           dtype=np.float64)
         weight[range(in_channels), range(out_channels), :, :] = filt
-        weight2 = (filt[np.newaxis, np.newaxis, :, :]).repeat(in_channels, axis=0).repeat(out_channels, axis=1).astype(
-            np.float64)
-        import ipdb; ipdb.set_trace()
-        assert np.allclose(weight, weight2)
     else:
         weight = \
         (filt[np.newaxis, np.newaxis, :, :]).repeat(in_channels, axis=0).repeat(out_channels, axis=1).astype(

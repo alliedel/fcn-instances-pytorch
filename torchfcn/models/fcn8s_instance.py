@@ -275,6 +275,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             l2.bias.data.copy_(l1.bias.data.view(l2.bias.size()))
 
     def copy_params_from_semantic_equivalent_of_me(self, semantic_model):
+        import ipdb; ipdb.set_trace()
         if self.bottleneck_channel_capacity != self.n_semantic_classes:
             conv2d_with_repeated_channels = ['score_fr', 'score_pool3', 'score_pool4']
             conv2dT_with_repeated_channels = ['upscore2', 'upscore8', 'upscore_pool4']
@@ -314,7 +315,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                             # so we use slicing)
                             import ipdb;
                             ipdb.set_trace()
-                            p_to_copy[sem_cls:(sem_cls + 1), ...].data.copy_(my_p.data[inst_cls:(inst_cls + 1), ...])
+                            my_p.data[inst_cls:(inst_cls + 1), ...].data.copy_(p_to_copy[sem_cls:(sem_cls + 1), ...])
             elif module_name in conv2dT_with_repeated_channels:
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
@@ -330,8 +331,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]
                         for inst_cls in inst_classes_for_this_sem_cls:
-                            p_to_copy[:, sem_cls:(sem_cls + 1), ...].data.copy_(
-                                my_p.data[:, inst_cls:(inst_cls + 1), ...])
+                            my_p.data[:, inst_cls:(inst_cls + 1), ...].data.copy_(
+                                p_to_copy[:, sem_cls:(sem_cls + 1), ...])
             elif isinstance(my_module, nn.Conv2d) or isinstance(my_module, nn.ConvTranspose2d):
                 assert type(module_to_copy) == type(my_module)
                 for p_name, my_p in my_module.named_parameters():
@@ -339,7 +340,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     if not my_p.size() == p_to_copy.size():
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
-                    p_to_copy.data.copy_(my_p.data)
+                    my_p.data.data.copy_(p_to_copy)
             elif any([isinstance(my_module, type) for type in module_types_to_ignore]):
                 continue
             else:
@@ -350,6 +351,16 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                 else:
                     raise Exception('Haven''t handled copying of {}, of type {}'.format(module_name, type(my_module)))
 
+        # Assert that all the weights equal each other
+        for module_name, my_module in self.named_children():
+            module_to_copy = getattr(semantic_model, module_name)
+            for i, (my_p, p_to_copy) in enumerate(zip(my_module.named_parameters(), module_to_copy.named_parameters())):
+                assert my_p[0] == p_to_copy[0]
+                if torch.equal(my_p[1], p_to_copy[1]):
+                    print('BAD: parameter {} in {} not equal'.format(i, module_name))
+                else:
+                    print('GOOD: parameter {} in {} equal'.format(i, module_name))
+        import ipdb; ipdb.set_trace()
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
                                                           out_channels=self.n_semantic_classes,

@@ -314,7 +314,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                             # so we use slicing)
                             import ipdb;
                             ipdb.set_trace()
-                            my_p.data[inst_cls:(inst_cls + 1), ...].data.copy_(p_to_copy[sem_cls:(sem_cls + 1), ...])
+                            my_p.data[inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[sem_cls:(sem_cls + 1), ...])
             elif module_name in conv2dT_with_repeated_channels:
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
@@ -330,8 +330,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         inst_classes_for_this_sem_cls = [i for i, s in enumerate(self.semantic_instance_class_list)
                                                          if s == sem_cls]
                         for inst_cls in inst_classes_for_this_sem_cls:
-                            my_p.data[:, inst_cls:(inst_cls + 1), ...].data.copy_(
-                                p_to_copy[:, sem_cls:(sem_cls + 1), ...])
+                            my_p.data[:, inst_cls:(inst_cls + 1), ...].copy_(
+                                p_to_copy.data[:, sem_cls:(sem_cls + 1), ...])
             elif isinstance(my_module, nn.Conv2d) or isinstance(my_module, nn.ConvTranspose2d):
                 assert type(module_to_copy) == type(my_module)
                 for p_name, my_p in my_module.named_parameters():

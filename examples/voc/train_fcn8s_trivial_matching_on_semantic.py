@@ -58,7 +58,7 @@ configurations = {
         max_iteration=1000000
     ),
     6: dict(  # semantic, single-instance problem
-        n_instances_per_class=1,
+        n_instances_per_class=None,
         set_extras_to_void=True,
         max_iteration=1000000,
         single_instance=True
@@ -94,7 +94,7 @@ def main():
     if cuda:
         torch.cuda.manual_seed(1337)
 
-    # 1. dataset
+    # 0. dataset
     root = osp.expanduser('~/data/datasets')
 
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
@@ -108,7 +108,11 @@ def main():
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=15), batch_size=1,
                                                        shuffle=False, **kwargs)
 
-    # 0. Problem setup (instance segmentation definition)
+    for img, (sl, il) in train_dataset:
+        pass
+    import ipdb; ipdb.set_trace()
+
+    # 1. Problem setup (instance segmentation definition)
 
     class_names = val_dataset.class_names
     n_semantic_classes = len(class_names)

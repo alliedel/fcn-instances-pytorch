@@ -245,13 +245,9 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl = self.load_img_as_dtype(inst_lbl_file, np.int32)
             inst_lbl[inst_lbl == 255] = -1
             if self.map_to_single_instance_problem:
-                inst_lbl[sem_lbl != -1] = 1
+                inst_lbl[inst_lbl != -1] = 1
+            inst_lbl[sem_lbl == -1] = -1
             inst_lbl = self.transform_lbl(inst_lbl)
-            # if 1:
-            #     import torch
-            #     unique_sem_classes = torch.np.unique(sem_lbl)
-            #     if sum(unique_sem_classes > 0) > 1:
-            #         import ipdb; ipdb.set_trace()
             if self.return_semantic_instance_tuple:
                 lbl = [sem_lbl, inst_lbl]
             else:

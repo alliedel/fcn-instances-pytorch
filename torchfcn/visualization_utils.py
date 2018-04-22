@@ -430,7 +430,7 @@ def log_images(writer, tag, images, step, numbers=None, bgr=False):
 
 def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permutations=None,
                        margin_color=(255, 255, 255), n_class=None, score_vis_normalizer=None, channel_labels=None,
-                       channels_to_visualize=None, margin_size_small=2, margin_size_large=3):
+                       channels_to_visualize=None, margin_size_small=3, margin_size_large=6):
     """
     n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to make sense.
     channels_to_visualize: None == 'all'

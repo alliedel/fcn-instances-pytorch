@@ -217,8 +217,8 @@ def main():
     trainer.train()
 
     print('Evaluating final model')
-    metrics, visualizations = trainer.validate(should_export_visualizations=False)
-    viz = visualization_utils.get_tile_image(visualizations)
+    metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(should_export_visualizations=False)
+    viz = visualization_utils.get_tile_image(segmentation_visualizations)
     skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     metrics = np.array(metrics)
     metrics *= 100

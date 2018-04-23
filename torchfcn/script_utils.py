@@ -115,20 +115,23 @@ def git_hash():
     return hash
 
 
-def get_log_dir(model_name, config_id, cfg, parent_directory=None):
+def get_log_dir(model_name, config_id=None, cfg=None, parent_directory=None):
     bad_char_replacements = BAD_CHAR_REPLACEMENTS
     # load config
     now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
     name = 'TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
     name += '_VCS-{}'.format(git_hash().replace("'", ""))
-    name += '_MODEL-%s_CFG-%03d' % (model_name, config_id)
-    for k, v in cfg.items():
-        v = str(v)
-        if '/' in v:
-            continue
-        name += '_%s-%s' % (k.upper(), v)
-        for key, val in bad_char_replacements.items():
-            name = name.replace(key, val)
+    name += '_MODEL-%s' % model_name
+    if config_id is not None:
+        name += '_CFG-%03d' % config_id
+    if cfg is not None:
+        for k, v in cfg.items():
+            v = str(v)
+            if '/' in v:
+                continue
+            name += '_%s-%s' % (k.upper(), v)
+            for key, val in bad_char_replacements.items():
+                name = name.replace(key, val)
     # create out
     if parent_directory is None:
         parent_directory = here

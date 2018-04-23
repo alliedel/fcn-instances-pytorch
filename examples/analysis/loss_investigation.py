@@ -40,7 +40,7 @@ def semantic_label_gt_as_instance_prediction(sem_lbl, problem_config):
     semantic_instance_class_list = problem_config.semantic_instance_class_list
     # compute the semantic label score
     score_shape = (sem_lbl.size(0), n_instance_classes, sem_lbl.size(1), sem_lbl.size(2))
-    sem_lbl_score = np.zeros(score_shape)
+    sem_lbl_score = Variable(torch.zeros(score_shape))
     for inst_idx, sem_val in enumerate(semantic_instance_class_list):
         sem_lbl_score[:, inst_idx, ...] = sem_lbl == sem_val
     return sem_lbl_score
@@ -52,7 +52,7 @@ def semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, proble
     semantic_instance_class_list = problem_config.semantic_instance_class_list
     # compute the semantic label score
     score_shape = (sem_lbl.size(0), n_instance_classes, sem_lbl.size(1), sem_lbl.size(2))
-    inst_score = np.zeros(score_shape)
+    inst_score = Variable(torch.zeros(score_shape))
     for inst_idx, sem_val, inst_id in enumerate(zip(semantic_instance_class_list, instance_ids)):
         inst_score[:, inst_idx, ...] = (sem_lbl == sem_val) & (inst_lbl == inst_id)
     return inst_score
@@ -64,7 +64,7 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, quality=1.0):
     perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
     correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
     score = correct_instance_score
-    return torch.from_numpy(score)
+    return score
 
 
 def main():
@@ -75,9 +75,9 @@ def main():
     out = script_utils.get_log_dir(osp.basename(__file__).replace(
         '.py', ''), parent_directory=osp.dirname(osp.abspath(__file__)))
 
+    cuda = False  # torch.cuda.is_available()
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
-    cuda = torch.cuda.is_available()
 
     torch.manual_seed(1337)
     if cuda:
@@ -111,26 +111,26 @@ def main():
 
     writer = SummaryWriter(log_dir=out)
 
-    print('Evaluating final model')
-    data, (sem_lbl, inst_lbl) = next(train_loader)
-    if cuda:
-        data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
-    data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
-                              Variable(sem_lbl), Variable(inst_lbl)
-
-    for prediction_number, prediction_quality in enumerate(np.linspace(0, 1, 1000)):
-        semantic_quality = 1.0
-        instance_confidence = 1.0
-        instance_mixing = 0.0
-        score = compute_scores(data, sem_lbl, inst_lbl, problem_config, prediction_quality)
-        pred_permutations, loss = loss_function(score, sem_lbl, inst_lbl, problem_config)
-        if np.isnan(float(loss.data[0])):
-            raise ValueError('loss is nan while validating')
-        softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
-        inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
-        writer.add_scalar('instance_confidence', instance_confidence, prediction_number)
-        writer.add_scalar('instance_mixing', instance_mixing, prediction_number)
-        writer.add_scalar('semantic_quality', semantic_quality, prediction_number)
+    for data_idx, (data, (sem_lbl, inst_lbl)) in enumerate(train_loader):
+        if data_idx >= 1:
+            break
+        if cuda:
+            data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
+        data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
+                                  Variable(sem_lbl), Variable(inst_lbl)
+        for prediction_number, prediction_quality in enumerate(np.linspace(0, 1, 1000)):
+            semantic_quality = 1.0
+            instance_confidence = 1.0
+            instance_mixing = 0.0
+            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, prediction_quality)
+            pred_permutations, loss = loss_function(score, sem_lbl, inst_lbl, problem_config)
+            if np.isnan(float(loss.data[0])):
+                raise ValueError('loss is nan while validating')
+            softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
+            inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+            writer.add_scalar('instance_confidence', instance_confidence, prediction_number)
+            writer.add_scalar('instance_mixing', instance_mixing, prediction_number)
+            writer.add_scalar('semantic_quality', semantic_quality, prediction_number)
 
 
 if __name__ == '__main__':

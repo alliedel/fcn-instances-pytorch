@@ -32,10 +32,20 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=10000,
 
 
 def swap_channels(tensor_4d, channel0, channel1):
-    swp0 = tensor_4d[:, channel0, :, :]
-    tensor_4d[:, channel0, :, :] = tensor_4d[:, channel1, :, :]
-    tensor_4d[:, channel1, :, :] = swp0
-    return tensor_4d
+    """
+    Requires making a copy since we can't do in-place operations
+    """
+    permuted_channels = list(range(tensor_4d.size(1)))
+    permuted_channels[channel0] = channel1
+    permuted_channels[channel1] = channel0
+    return permute_channels(tensor_4d, permuted_channels)
+
+
+def permute_channels(tensor_4d, permuted_channels):
+    """
+    Requires making a copy since we can't do in-place operations
+    """
+    return torch.cat([tensor_4d[:, i:(i+1), :, :] for i in permuted_channels], dim=1)
 
 
 def semantic_label_gt_as_instance_prediction(sem_lbl, problem_config):

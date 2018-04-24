@@ -196,7 +196,7 @@ def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_inst
         debug_print_assignments(assignment, multiplier)
         gt_indices += idxs
         pred_permutations += [idxs[assignment.RightMate(i)] for i in range(len(idxs))]
-        costs += [cost_list_2d[i][assignment.RightMate(i)] for i in range(len(idxs))]
+        costs += [cost_list_2d[assignment.RightMate(i)][i] for i in range(len(idxs))]
     import ipdb; ipdb.set_trace()
     sorted_indices = np.argsort(gt_indices)
     gt_indices = np.array(gt_indices)[sorted_indices]

@@ -58,7 +58,7 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
         if DEBUG_ASSERTS or recompute_optimal_loss:
             ret = cross_entropy2d_without_matching(
                 log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
-                semantic_instance_labels, return_loss_components, **kwargs)
+                semantic_instance_labels, return_loss_components=return_loss_components, **kwargs)
             if return_loss_components:
                 loss_recomputed, loss_components = ret
             else:

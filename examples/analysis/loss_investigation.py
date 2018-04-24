@@ -22,6 +22,18 @@ from torchfcn import losses
 here = osp.dirname(osp.abspath(__file__))
 
 
+def compute_scores(img, sem_lbl, inst_lbl, problem_config, quality=1.0, cuda=True):
+    assert sem_lbl.shape[0] == 1, NotImplementedError('Only handling the case of one image for now')
+    n_instance_classes = problem_config.n_classes
+    perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
+    correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
+    score = correct_instance_score
+    if cuda:
+        score = score.cuda()
+    confidence = 100000
+    return score * confidence
+
+
 def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True, size_average=True,
                   return_loss_components=False, **kwargs):
     if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
@@ -63,18 +75,6 @@ def semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, proble
     for inst_idx, (sem_val, inst_id) in enumerate(zip(semantic_instance_class_list, instance_ids)):
         inst_score[:, inst_idx, ...] = (sem_lbl == sem_val) & (inst_lbl == inst_id)
     return inst_score
-
-
-def compute_scores(img, sem_lbl, inst_lbl, problem_config, quality=1.0, cuda=True):
-    assert sem_lbl.shape[0] == 1, NotImplementedError('Only handling the case of one image for now')
-    n_instance_classes = problem_config.n_classes
-    perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
-    correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
-    score = correct_instance_score
-    if cuda:
-        score = score.cuda()
-
-    return score
 
 
 def main():
@@ -137,7 +137,7 @@ def main():
                                                                      return_loss_components=True)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while validating')
-            softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
+            softmax_scores = F.softmax(score, dim=1)
             inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
 
             # Write scalars
@@ -151,7 +151,7 @@ def main():
                 writer.add_scalar(tag, loss_components[i], prediction_number)
 
             # Write images
-            write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir=out,
+            write_visualizations(sem_lbl, inst_lbl, softmax_scores, pred_permutations, problem_config, outdir=out,
                                  writer=writer, iteration=prediction_number, basename='scores')
 
 
@@ -159,22 +159,23 @@ def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_co
                          basename):
     sem_lbl = sem_lbl.data.cpu()
     inst_lbl = inst_lbl.data.cpu()
+    if type(score) is Variable:
+        score = score.data.cpu()
     semantic_instance_class_list = problem_config.semantic_instance_class_list
     instance_count_id_list = problem_config.instance_count_id_list
     n_combined_class = problem_config.n_classes
 
-    softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
-    inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+    inst_lbl_pred = score.max(dim=1)[1].numpy()[:, :, :]
     lt_combined = instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
                                                                       instance_count_id_list).numpy()
     channel_labels = problem_config.get_channel_labels('{} {}')
-
-    viz = visualization_utils.visualize_heatmaps(scores=softmax_scores[0, ...],
+    import ipdb; ipdb.set_trace()
+    viz = visualization_utils.visualize_heatmaps(scores=score[0, ...],
                                                  lbl_true=lt_combined[0, ...],
                                                  lbl_pred=inst_lbl_pred[0, ...],
                                                  pred_permutations=pred_permutations[0, ...],
                                                  n_class=n_combined_class,
-                                                 score_vis_normalizer=softmax_scores.max(),
+                                                 score_vis_normalizer=score.max(),
                                                  channel_labels=channel_labels,
                                                  channels_to_visualize=None)
     trainer.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,

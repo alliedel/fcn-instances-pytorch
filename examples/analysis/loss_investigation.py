@@ -24,7 +24,7 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=100000
     n_instance_classes = problem_config.n_classes
     perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
     correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
-    score = correct_instance_score
+    score = perfect_semantic_score
 
     if cuda:
         score = score.cuda()

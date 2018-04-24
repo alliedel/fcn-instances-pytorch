@@ -126,7 +126,7 @@ def main():
             data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
                                   Variable(sem_lbl), Variable(inst_lbl)
-        prediction_qualities = np.linspace(0, 1, 1000)
+        prediction_qualities = np.linspace(0, 1, 10)
         for prediction_number, prediction_quality in enumerate(prediction_qualities):
             print('prediction {}/{}'.format(prediction_number, len(prediction_qualities)))
             semantic_quality = 1.0
@@ -147,7 +147,8 @@ def main():
             writer.add_scalar('loss', loss, prediction_number)
             channel_labels = problem_config.get_channel_labels('{} {}')
             for i, label in enumerate(channel_labels):
-                writer.add_scalar('loss_components/{}'.format(label.replace(' ', '_')), loss, prediction_number)
+                tag = 'loss_components/{}'.format(label.replace(' ', '_'))
+                writer.add_scalar(tag, loss_components[i], prediction_number)
 
             # Write images
             write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir=out,

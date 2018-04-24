@@ -155,6 +155,7 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
     if size_average:
         normalizer = (inst_lbl >= 0).data.sum()
         loss /= normalizer
+        losses = [l / normalizer for l in losses]
 
     if return_loss_components:
         return loss, losses
@@ -183,7 +184,6 @@ def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_inst
                                                                 semantic_instance_labels,
                                                                 instance_id_labels,
                                                                 sem_val, size_average=size_average)
-
         cost_matrix, multiplier = convert_pytorch_costs_to_ints(cost_list_2d)
         assignment = pywrapgraph.LinearSumAssignment()
 

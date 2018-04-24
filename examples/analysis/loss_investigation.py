@@ -156,6 +156,8 @@ def main():
 
 def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir, writer, iteration,
                          basename):
+    sem_lbl = sem_lbl.data.cpu()
+    inst_lbl = inst_lbl.data.cpu()
     semantic_instance_class_list = problem_config.semantic_instance_class_list
     instance_count_id_list = problem_config.instance_count_id_list
     n_combined_class = problem_config.n_classes
@@ -163,12 +165,13 @@ def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_co
     softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
     inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
     lt_combined = instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
-                                                                      instance_count_id_list)
+                                                                      instance_count_id_list).numpy()
     channel_labels = problem_config.get_channel_labels('{} {}')
-    viz = visualization_utils.visualize_heatmaps(scores=softmax_scores,
-                                                 lbl_true=lt_combined,
-                                                 lbl_pred=inst_lbl_pred,
-                                                 pred_permutations=pred_permutations,
+
+    viz = visualization_utils.visualize_heatmaps(scores=softmax_scores[0, ...],
+                                                 lbl_true=lt_combined[0, ...],
+                                                 lbl_pred=inst_lbl_pred[0, ...],
+                                                 pred_permutations=pred_permutations[0, ...],
                                                  n_class=n_combined_class,
                                                  score_vis_normalizer=softmax_scores.max(),
                                                  channel_labels=channel_labels,

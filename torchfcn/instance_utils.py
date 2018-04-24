@@ -84,7 +84,7 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
         for sem_inst_idx in sem_inst_idxs:
             inst_val = instance_count_id_list[sem_inst_idx]
             try:
-                y[(sem_lbl == sem_val) * (inst_lbl == inst_val)] = sem_inst_idx
+                y[(sem_lbl == int(sem_val)) * (inst_lbl == int(inst_val))] = sem_inst_idx
             except:
                 import ipdb; ipdb.set_trace()
                 raise
@@ -124,7 +124,7 @@ def get_instance_count_id_list(semantic_instance_class_list, non_instance_sem_cl
             instance_count_id_arr[sem_cls_locs] = 0
         else:
             instance_count_id_arr[sem_cls_locs] = np.arange(sem_cls_locs.sum()) + (0 if include_channel0 else 1)
-    return instance_count_id_arr.tolist()
+    return instance_count_id_arr.astype(int).tolist()
 
 
 def get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_class_list,

@@ -80,8 +80,8 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, quality=1.0, cuda=Tru
 def main():
     script_utils.check_clean_work_tree()
     synthetic_generator_n_instances_per_semantic_id = 2
-    out = script_utils.get_log_dir(osp.basename(__file__).replace(
-        '.py', ''), parent_directory=osp.dirname(osp.abspath(__file__)))
+    out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''),
+                                   parent_directory=osp.dirname(osp.abspath(__file__)))
 
     cuda = True  # torch.cuda.is_available()
     gpu = 0
@@ -145,6 +145,9 @@ def main():
             writer.add_scalar('instance_mixing', instance_mixing, prediction_number)
             writer.add_scalar('semantic_quality', semantic_quality, prediction_number)
             writer.add_scalar('loss', loss, prediction_number)
+            channel_labels = problem_config.get_channel_labels('{} {}')
+            for i, label in enumerate(channel_labels):
+                writer.add_scalar('loss_components/{}'.format(label.replace(' ', '_')), loss, prediction_number)
 
             # Write images
             write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir=out,

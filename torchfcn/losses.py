@@ -46,29 +46,23 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
     log_predictions = F.log_softmax(scores, dim=1)
 
     if matching:
+        ret = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
+                                            instance_id_labels, return_loss_components, **kwargs)
         if return_loss_components:
-            pred_permutations, loss, loss_components = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl,
-                                                                                     semantic_instance_labels,
-                                                                                     instance_id_labels,
-                                                                                     return_loss_components,
-                                                                                     **kwargs)
+            pred_permutations, loss, loss_components = ret
         else:
-            pred_permutations, loss = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl,
-                                                                    semantic_instance_labels, instance_id_labels,
-                                                                    return_loss_components,
-                                                                    **kwargs)
+            pred_permutations, loss = ret
         # assert pred_permutations.shape[0] == 1, NotImplementedError
         # Somehow the gradient is no longer getting backpropped through loss, so I just recompute
         #  it here with the permutation I computed.
         if DEBUG_ASSERTS or recompute_optimal_loss:
+            ret = cross_entropy2d_without_matching(
+                log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
+                semantic_instance_labels, return_loss_components, **kwargs)
             if return_loss_components:
-                loss_recomputed, loss_components = cross_entropy2d_without_matching(
-                    log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
-                    semantic_instance_labels, return_loss_components, **kwargs)
+                loss_recomputed, loss_components = ret
             else:
-                loss_recomputed = cross_entropy2d_without_matching(
-                    log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
-                    semantic_instance_labels, return_loss_components, **kwargs)
+                loss_recomputed = ret
             # if not tensors_are_close(loss.data, loss_recomputed.data):
             #     print(Warning('{} != {}'.format(
             #         loss.data.cpu().numpy(), loss_recomputed.data.cpu().numpy())))
@@ -76,14 +70,15 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
                 loss = loss_recomputed
     else:
         pred_permutations = None
+        ret = cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl,
+                                               semantic_instance_labels,
+                                               return_loss_components=return_loss_components,
+                                               **kwargs)
         if return_loss_components:
-            loss, loss_components = cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl,
-                                                                     semantic_instance_labels,
-                                                                     return_loss_components=return_loss_components,
-                                                                     **kwargs)
+            loss, loss_components = ret
         else:
-            loss = cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
-                                                    return_loss_components=return_loss_components, **kwargs)
+            loss = ret
+
     if return_loss_components:
         return pred_permutations, loss, loss_components
     else:

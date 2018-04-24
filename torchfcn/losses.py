@@ -78,7 +78,6 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
             loss, loss_components = ret
         else:
             loss = ret
-
     if return_loss_components:
         return pred_permutations, loss, loss_components
     else:
@@ -110,6 +109,7 @@ def cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_i
         all_prediction_indices[i, ...] = prediction_indices
         all_pred_permutations[i, ...] = pred_permutation
         all_costs.append(torch.cat(costs))
+    import ipdb; ipdb.set_trace()
     all_costs = torch.cat([c[torch.np.newaxis, :] for c in all_costs], dim=0).float()
     loss_train = all_costs.sum()
     if DEBUG_ASSERTS:
@@ -151,11 +151,12 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
             log_predictions_single_instance_cls = log_predictions[:, sem_inst_idx, :, :]
             losses.append(nll2d_single_class_term(log_predictions_single_instance_cls,
                                                   binary_target_single_instance_cls))
+    losses = torch.cat([c[torch.np.newaxis, :] for c in losses], dim=0).float()
     loss = sum(losses)
     if size_average:
         normalizer = (inst_lbl >= 0).data.sum()
         loss /= normalizer
-        losses = [l / normalizer for l in losses]
+        losses /= normalizer
 
     if return_loss_components:
         return loss, losses
@@ -196,6 +197,7 @@ def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_inst
         gt_indices += idxs
         pred_permutations += [idxs[assignment.RightMate(i)] for i in range(len(idxs))]
         costs += [cost_list_2d[i][assignment.RightMate(i)] for i in range(len(idxs))]
+    import ipdb; ipdb.set_trace()
     sorted_indices = np.argsort(gt_indices)
     gt_indices = np.array(gt_indices)[sorted_indices]
     pred_permutations = np.array(pred_permutations)[sorted_indices]
@@ -225,6 +227,7 @@ def nll2d_single_class_term(log_predictions_single_instance_cls, binary_target_s
 def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
                                              semantic_instance_labels, instance_id_labels,
                                              sem_val, size_average=True):
+    # cost_list_2d[prediction][ground_truth]
     # predictions: C,H,W
     # target: (sem_lbl, inst_lbl): (H,W, H,W)
     if DEBUG_ASSERTS:
@@ -250,7 +253,6 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
                                              (inst_lbl == inst_val).float())
                      / normalizer for inst_val in inst_id_lbls_for_this_class]
                     for sem_inst_idx in sem_inst_idxs_for_this_class]
-
     # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
     return cost_list_2d
 

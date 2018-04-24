@@ -24,31 +24,18 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=10000,
     n_instance_classes = problem_config.n_classes
     perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
     correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
-    score = perfect_semantic_score
-
+    correct_instance_score_swapped = swap_channels(correct_instance_score, 1, 3)
+    score = correct_instance_score_swapped
     if cuda:
         score = score.cuda()
     return score * max_confidence
 
 
-def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True, size_average=True,
-                  return_loss_components=False, **kwargs):
-    if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
-                                                  score.size(3))):
-        import ipdb; ipdb.set_trace()
-        raise Exception('Sizes of score, targets are incorrect')
-    rets = losses.cross_entropy2d(
-        score, sem_lbl, inst_lbl,
-        semantic_instance_labels=instance_problem.semantic_instance_class_list,
-        instance_id_labels=instance_problem.instance_count_id_list,
-        matching=matching_loss, size_average=size_average, break_here=False, recompute_optimal_loss=False,
-        return_loss_components=return_loss_components, **kwargs)
-    if return_loss_components:
-        permutations, loss, loss_components = rets
-        return permutations, loss, loss_components
-    else:
-        permutations, loss = rets
-        return permutations, loss
+def swap_channels(tensor_4d, channel0, channel1):
+    channel0 = tensor_4d[:, channel0, :, :]
+    tensor_4d[:, channel0, :, :] = tensor_4d[:, channel1, :, :]
+    tensor_4d[:, channel1, :, :] = channel0
+    return tensor_4d
 
 
 def semantic_label_gt_as_instance_prediction(sem_lbl, problem_config):
@@ -72,6 +59,26 @@ def semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, proble
     for inst_idx, (sem_val, inst_id) in enumerate(zip(semantic_instance_class_list, instance_ids)):
         inst_score[:, inst_idx, ...] = (sem_lbl == sem_val) & (inst_lbl == inst_id)
     return inst_score
+
+
+def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True, size_average=True,
+                  return_loss_components=False, **kwargs):
+    if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
+                                                  score.size(3))):
+        import ipdb; ipdb.set_trace()
+        raise Exception('Sizes of score, targets are incorrect')
+    rets = losses.cross_entropy2d(
+        score, sem_lbl, inst_lbl,
+        semantic_instance_labels=instance_problem.semantic_instance_class_list,
+        instance_id_labels=instance_problem.instance_count_id_list,
+        matching=matching_loss, size_average=size_average, break_here=False, recompute_optimal_loss=False,
+        return_loss_components=return_loss_components, **kwargs)
+    if return_loss_components:
+        permutations, loss, loss_components = rets
+        return permutations, loss, loss_components
+    else:
+        permutations, loss = rets
+        return permutations, loss
 
 
 def main():
@@ -123,7 +130,7 @@ def main():
             data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
                                   Variable(sem_lbl), Variable(inst_lbl)
-        max_confidences = [1, 10, 100, 1000, 10000]
+        max_confidences = [1, 2, 3, 4, 5, 10, 100, 1000, 10000]
         for prediction_number, max_confidence in enumerate(max_confidences):
             print('prediction {}/{}'.format(prediction_number+1, len(max_confidences)))
             semantic_quality = 1.0

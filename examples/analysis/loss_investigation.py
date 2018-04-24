@@ -24,7 +24,7 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=10000,
     n_instance_classes = problem_config.n_classes
     perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
     correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
-    correct_instance_score_swapped = swap_channels(correct_instance_score, 1, 3)
+    correct_instance_score_swapped = swap_channels(correct_instance_score, channel0=1, channel1=3)
     score = correct_instance_score_swapped
     if cuda:
         score = score.cuda()
@@ -32,9 +32,9 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=10000,
 
 
 def swap_channels(tensor_4d, channel0, channel1):
-    channel0 = tensor_4d[:, channel0, :, :]
+    swp0 = tensor_4d[:, channel0, :, :]
     tensor_4d[:, channel0, :, :] = tensor_4d[:, channel1, :, :]
-    tensor_4d[:, channel1, :, :] = channel0
+    tensor_4d[:, channel1, :, :] = swp0
     return tensor_4d
 
 

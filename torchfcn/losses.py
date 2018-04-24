@@ -9,6 +9,7 @@ logger = local_pyutils.get_logger()
 
 DEBUG_ASSERTS = True
 
+
 # TODO(allie): Enable exporting of cost matrices through tensorboard as images
 # TODO(allie): Compute other losses ('mixing', 'wrong identity', 'poor shape') along with some
 # image stats like between-instance distance
@@ -36,7 +37,7 @@ DEBUG_ASSERTS = True
 # TODO(allie): Handle
 
 def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instance_id_labels, matching=True,
-                    break_here=False, recompute_optimal_loss=False, **kwargs):
+                    break_here=False, recompute_optimal_loss=False, return_loss_components=False, **kwargs):
     # Convert scores to predictions
     # log_p: (n, c, h, w)
     if break_here:
@@ -45,20 +46,29 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
     log_predictions = F.log_softmax(scores, dim=1)
 
     if matching:
-        pred_permutations, loss = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl,
-                                                                semantic_instance_labels, instance_id_labels,
-                                                                **kwargs)
+        if return_loss_components:
+            pred_permutations, loss, loss_components = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl,
+                                                                                     semantic_instance_labels,
+                                                                                     instance_id_labels,
+                                                                                     return_loss_components,
+                                                                                     **kwargs)
+        else:
+            pred_permutations, loss = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl,
+                                                                    semantic_instance_labels, instance_id_labels,
+                                                                    return_loss_components,
+                                                                    **kwargs)
         # assert pred_permutations.shape[0] == 1, NotImplementedError
         # Somehow the gradient is no longer getting backpropped through loss, so I just recompute
         #  it here with the permutation I computed.
         if DEBUG_ASSERTS or recompute_optimal_loss:
-            try:
+            if return_loss_components:
+                loss_recomputed, loss_components = cross_entropy2d_without_matching(
+                    log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
+                    semantic_instance_labels, return_loss_components, **kwargs)
+            else:
                 loss_recomputed = cross_entropy2d_without_matching(
                     log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
-                    semantic_instance_labels, **kwargs)
-            except:
-                import ipdb; ipdb.set_trace()
-                raise
+                    semantic_instance_labels, return_loss_components, **kwargs)
             # if not tensors_are_close(loss.data, loss_recomputed.data):
             #     print(Warning('{} != {}'.format(
             #         loss.data.cpu().numpy(), loss_recomputed.data.cpu().numpy())))
@@ -66,9 +76,18 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
                 loss = loss_recomputed
     else:
         pred_permutations = None
-        loss = cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl,
-                                                semantic_instance_labels, **kwargs)
-    return pred_permutations, loss
+        if return_loss_components:
+            loss, loss_components = cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl,
+                                                                     semantic_instance_labels,
+                                                                     return_loss_components=return_loss_components,
+                                                                     **kwargs)
+        else:
+            loss = cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
+                                                    return_loss_components=return_loss_components, **kwargs)
+    if return_loss_components:
+        return pred_permutations, loss, loss_components
+    else:
+        return pred_permutations, loss
 
 
 def tensors_are_close(tensor_a, tensor_b, tol=None):
@@ -78,7 +97,7 @@ def tensors_are_close(tensor_a, tensor_b, tol=None):
 
 
 def cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
-                                  instance_id_labels, size_average=True):
+                                  instance_id_labels, size_average=True, return_loss_components=False):
     # target_onehot = dataset_utils.labels_to_one_hot(target, len(semantic_instance_labels))
     # Allocate memory
     n, c = log_predictions.size()[0:2]
@@ -103,11 +122,14 @@ def cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_i
             import ipdb;
             ipdb.set_trace()
             raise Exception
-    return all_pred_permutations, loss_train
+    if return_loss_components:
+        return all_pred_permutations, loss_train, all_costs
+    else:
+        return all_pred_permutations, loss_train
 
 
 def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
-                                     weight=None, size_average=True):
+                                     weight=None, size_average=True, return_loss_components=False):
     """
     Target should *not* be onehot.
     log_predictions: NxCxHxW
@@ -128,7 +150,8 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
             try:
                 binary_target_single_instance_cls = ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
             except:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 raise Exception
             log_predictions_single_instance_cls = log_predictions[:, sem_inst_idx, :, :]
             losses.append(nll2d_single_class_term(log_predictions_single_instance_cls,
@@ -137,7 +160,11 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
     if size_average:
         normalizer = (inst_lbl >= 0).data.sum()
         loss /= normalizer
-    return loss
+
+    if return_loss_components:
+        return loss, losses
+    else:
+        return loss
 
 
 def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels, instance_id_labels,
@@ -188,7 +215,8 @@ def nll2d_single_class_term(log_predictions_single_instance_cls, binary_target_s
         try:
             assert lp.size() == bt.size()
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
             raise
     try:
         res = -torch.sum(lp.view(-1, ) * bt.view(-1, ))
@@ -209,7 +237,8 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
             assert inst_lbl.size() == sem_lbl.size()
             assert log_predictions.size()[1:] == inst_lbl.size()
         except:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
             raise
     if size_average:
         # TODO(allie): Verify this is correct (and not sem_lbl >=0, or some combo)
@@ -267,48 +296,3 @@ def debug_print_assignments(assignment, multiplier):
     for i in range(0, assignment.NumNodes()):
         logger.debug('ground truth %d assigned to prediction %d.  Cost = %f' % (
             i, assignment.RightMate(i), float(assignment.AssignmentCost(i)) / multiplier))
-
-
-# def nll2d_single_class_term(log_predictions_single_instance_cls, binary_target_single_instance_cls):
-#     lp = log_predictions_single_instance_cls
-#     bt = binary_target_single_instance_cls
-#     if DEBUG_ASSERTS:
-#         assert lp.size() == bt.size()
-#     try:
-#         res = -torch.sum(lp.view(-1, ) * bt.view(-1, ))
-#     except:
-#         import ipdb;
-#         ipdb.set_trace()
-#         raise
-#     return res
-#
-#
-# def cross_entropy2d(input, target, weight=None, size_average=True):
-#     # input: (n, c, h, w), target: (n, h, w)
-#     n, c, h, w = input.size()
-#     # log_p: (n, c, h, w)
-#     log_p = F.log_softmax(input, dim=1)
-#     # log_p: (n*h*w, c)
-#
-#     # target: (n*h*w,)
-#     if (target < -1).data.sum() > 0:
-#         raise Exception
-#
-#     mask = target >= 0
-#
-#     loss = None
-#     for lp_cls in range(c):
-#         if loss is None:
-#             loss = nll2d_single_class_term(log_p[:, lp_cls, :, :],
-#                                            (target == lp_cls).float())
-#         else:
-#             loss += nll2d_single_class_term(log_p[:, lp_cls, :, :],
-#                                             (target == lp_cls).float())
-#
-#     loss2 = F.nll_loss(log_p, target, weight=weight, size_average=False, ignore_index=-1)
-#     if not torch.np.isclose(loss.data.cpu().numpy(), loss2.data.cpu().numpy()):
-#         import ipdb;
-#         ipdb.set_trace()
-#     if size_average:
-#         loss /= mask.data.sum()
-#     return loss

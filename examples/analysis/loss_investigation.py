@@ -22,17 +22,24 @@ from torchfcn import losses
 here = osp.dirname(osp.abspath(__file__))
 
 
-def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True, size_average=True, **kwargs):
+def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True, size_average=True,
+                  return_loss_components=False, **kwargs):
     if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                   score.size(3))):
         import ipdb; ipdb.set_trace()
         raise Exception('Sizes of score, targets are incorrect')
-    permutations, loss = losses.cross_entropy2d(
+    rets = losses.cross_entropy2d(
         score, sem_lbl, inst_lbl,
         semantic_instance_labels=instance_problem.semantic_instance_class_list,
         instance_id_labels=instance_problem.instance_count_id_list,
-        matching=matching_loss, size_average=size_average, break_here=False, recompute_optimal_loss=False, **kwargs)
-    return permutations, loss
+        matching=matching_loss, size_average=size_average, break_here=False, recompute_optimal_loss=False,
+        return_loss_components=return_loss_components, **kwargs)
+    if return_loss_components:
+        permutations, loss, loss_components = rets
+        return permutations, loss, loss_components
+    else:
+        permutations, loss = rets
+        return permutations, loss
 
 
 def semantic_label_gt_as_instance_prediction(sem_lbl, problem_config):
@@ -53,29 +60,30 @@ def semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, proble
     # compute the semantic label score
     score_shape = (sem_lbl.size(0), n_instance_classes, sem_lbl.size(1), sem_lbl.size(2))
     inst_score = Variable(torch.zeros(score_shape))
-    for inst_idx, sem_val, inst_id in enumerate(zip(semantic_instance_class_list, instance_ids)):
+    for inst_idx, (sem_val, inst_id) in enumerate(zip(semantic_instance_class_list, instance_ids)):
         inst_score[:, inst_idx, ...] = (sem_lbl == sem_val) & (inst_lbl == inst_id)
     return inst_score
 
 
-def compute_scores(img, sem_lbl, inst_lbl, problem_config, quality=1.0):
+def compute_scores(img, sem_lbl, inst_lbl, problem_config, quality=1.0, cuda=True):
     assert sem_lbl.shape[0] == 1, NotImplementedError('Only handling the case of one image for now')
     n_instance_classes = problem_config.n_classes
     perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
     correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
     score = correct_instance_score
+    if cuda:
+        score = score.cuda()
+
     return score
 
 
 def main():
     script_utils.check_clean_work_tree()
-
     synthetic_generator_n_instances_per_semantic_id = 2
-
     out = script_utils.get_log_dir(osp.basename(__file__).replace(
         '.py', ''), parent_directory=osp.dirname(osp.abspath(__file__)))
 
-    cuda = False  # torch.cuda.is_available()
+    cuda = True  # torch.cuda.is_available()
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
@@ -118,19 +126,52 @@ def main():
             data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
                                   Variable(sem_lbl), Variable(inst_lbl)
-        for prediction_number, prediction_quality in enumerate(np.linspace(0, 1, 1000)):
+        prediction_qualities = np.linspace(0, 1, 1000)
+        for prediction_number, prediction_quality in enumerate(prediction_qualities):
+            print('prediction {}/{}'.format(prediction_number, len(prediction_qualities)))
             semantic_quality = 1.0
             instance_confidence = 1.0
             instance_mixing = 0.0
-            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, prediction_quality)
-            pred_permutations, loss = loss_function(score, sem_lbl, inst_lbl, problem_config)
+            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, prediction_quality, cuda)
+            pred_permutations, loss, loss_components = loss_function(score, sem_lbl, inst_lbl, problem_config,
+                                                                     return_loss_components=True)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while validating')
             softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
             inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+
+            # Write scalars
             writer.add_scalar('instance_confidence', instance_confidence, prediction_number)
             writer.add_scalar('instance_mixing', instance_mixing, prediction_number)
             writer.add_scalar('semantic_quality', semantic_quality, prediction_number)
+            writer.add_scalar('loss', loss, prediction_number)
+
+            # Write images
+            write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir=out,
+                                 writer=writer, iteration=prediction_number, basename='scores')
+
+
+def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir, writer, iteration,
+                         basename):
+    semantic_instance_class_list = problem_config.semantic_instance_class_list
+    instance_count_id_list = problem_config.instance_count_id_list
+    n_combined_class = problem_config.n_classes
+
+    softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
+    inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+    lt_combined = instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
+                                                                      instance_count_id_list)
+    channel_labels = problem_config.get_channel_labels('{} {}')
+    viz = visualization_utils.visualize_heatmaps(scores=softmax_scores,
+                                                 lbl_true=lt_combined,
+                                                 lbl_pred=inst_lbl_pred,
+                                                 pred_permutations=pred_permutations,
+                                                 n_class=n_combined_class,
+                                                 score_vis_normalizer=softmax_scores.max(),
+                                                 channel_labels=channel_labels,
+                                                 channels_to_visualize=None)
+    trainer.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
+                                  basename=basename, tile=True)
 
 
 if __name__ == '__main__':

@@ -194,32 +194,8 @@ class Trainer(object):
 
     def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
         outdir = outdir or osp.join(self.out, 'visualization_viz')
-        if not osp.exists(outdir):
-            os.makedirs(outdir)
-        if tile:
-            out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
-                                                         margin_size=50)
-            tag = '{}images'.format(basename)
-            if self.tensorboard_writer is not None:
-                log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[0])
-            out_subdir = osp.join(outdir, tag)
-            if not osp.exists(out_subdir):
-                os.makedirs(out_subdir)
-            out_file = osp.join(out_subdir, 'iter-%012d.jpg' % self.iteration)
-            scipy.misc.imsave(out_file, out_img)
-        else:
-            tag = '{}images'.format(basename)
-            out_subdir = osp.join(outdir, tag)
-            if not osp.exists(out_subdir):
-                os.makedirs(out_subdir)
-            for img_idx, out_img in enumerate(visualizations):
-                if self.tensorboard_writer is not None:
-                    log_images(self.tensorboard_writer, tag, [out_img], self.iteration, numbers=[img_idx])
-                out_subsubdir = osp.join(out_subdir, str(img_idx))
-                if not osp.exists(out_subsubdir):
-                    os.makedirs(out_subsubdir)
-                out_file = osp.join(out_subsubdir, 'iter-%012d.jpg' % self.iteration)
-                scipy.misc.imsave(out_file, out_img)
+        export_visualizations(visualizations, outdir, self.tensorboard_writer, self.iteration, basename=basename,
+                              tile=tile)
 
     def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
@@ -412,3 +388,33 @@ class Trainer(object):
             self.train_epoch()
             if self.iteration >= self.max_iter:
                 break
+
+
+def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):
+    if not osp.exists(outdir):
+        os.makedirs(outdir)
+    if tile:
+        out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
+                                                     margin_size=50)
+        tag = '{}images'.format(basename)
+        if tensorboard_writer is not None:
+            log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
+        out_subdir = osp.join(outdir, tag)
+        if not osp.exists(out_subdir):
+            os.makedirs(out_subdir)
+        out_file = osp.join(out_subdir, 'iter-%012d.jpg' % iteration)
+        scipy.misc.imsave(out_file, out_img)
+    else:
+        tag = '{}images'.format(basename)
+        out_subdir = osp.join(outdir, tag)
+        if not osp.exists(out_subdir):
+            os.makedirs(out_subdir)
+        for img_idx, out_img in enumerate(visualizations):
+            if tensorboard_writer is not None:
+                log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
+            out_subsubdir = osp.join(out_subdir, str(img_idx))
+            if not osp.exists(out_subsubdir):
+                os.makedirs(out_subsubdir)
+            out_file = osp.join(out_subsubdir, 'iter-%012d.jpg' % iteration)
+            scipy.misc.imsave(out_file, out_img)
+

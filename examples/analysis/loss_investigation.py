@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
-import argparse
 import numpy as np
 import os
 import os.path as osp
-import tqdm
 
 import torch
 import torch.nn.functional as F
@@ -15,23 +13,22 @@ import torchfcn
 import torchfcn.datasets.voc
 import torchfcn.datasets.synthetic
 from torchfcn import script_utils, instance_utils, visualization_utils, trainer
-import skimage.io
 from torchfcn import losses
 
 
 here = osp.dirname(osp.abspath(__file__))
 
 
-def compute_scores(img, sem_lbl, inst_lbl, problem_config, quality=1.0, cuda=True):
+def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=100000, cuda=True):
     assert sem_lbl.shape[0] == 1, NotImplementedError('Only handling the case of one image for now')
     n_instance_classes = problem_config.n_classes
     perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
     correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
     score = correct_instance_score
+
     if cuda:
         score = score.cuda()
-    confidence = 100000
-    return score * confidence
+    return score * max_confidence
 
 
 def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True, size_average=True,
@@ -157,19 +154,17 @@ def main():
 
 def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir, writer, iteration,
                          basename):
-    sem_lbl = sem_lbl.data.cpu()
-    inst_lbl = inst_lbl.data.cpu()
-    if type(score) is Variable:
-        score = score.data.cpu()
+    inst_lbl_pred = score.max(dim=1)[1].data.cpu().numpy()[:, :, :]
+    sem_lbl = sem_lbl.data.cpu().numpy()
+    inst_lbl = inst_lbl.data.cpu().numpy()
+    score = score.data.cpu().numpy()
     semantic_instance_class_list = problem_config.semantic_instance_class_list
     instance_count_id_list = problem_config.instance_count_id_list
     n_combined_class = problem_config.n_classes
 
-    inst_lbl_pred = score.max(dim=1)[1].numpy()[:, :, :]
     lt_combined = instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
-                                                                      instance_count_id_list).numpy()
+                                                                      instance_count_id_list)
     channel_labels = problem_config.get_channel_labels('{} {}')
-    import ipdb; ipdb.set_trace()
     viz = visualization_utils.visualize_heatmaps(scores=score[0, ...],
                                                  lbl_true=lt_combined[0, ...],
                                                  lbl_pred=inst_lbl_pred[0, ...],

@@ -19,7 +19,7 @@ from torchfcn import losses
 here = osp.dirname(osp.abspath(__file__))
 
 
-def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=100000, cuda=True):
+def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=10000, cuda=True):
     assert sem_lbl.shape[0] == 1, NotImplementedError('Only handling the case of one image for now')
     n_instance_classes = problem_config.n_classes
     perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
@@ -123,13 +123,12 @@ def main():
             data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
                                   Variable(sem_lbl), Variable(inst_lbl)
-        prediction_qualities = np.linspace(0, 1, 10)
-        for prediction_number, prediction_quality in enumerate(prediction_qualities):
-            print('prediction {}/{}'.format(prediction_number, len(prediction_qualities)))
+        max_confidences = [1, 10, 100, 1000, 10000]
+        for prediction_number, max_confidence in enumerate(max_confidences):
+            print('prediction {}/{}'.format(prediction_number+1, len(max_confidences)))
             semantic_quality = 1.0
-            instance_confidence = 1.0
             instance_mixing = 0.0
-            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, prediction_quality, cuda)
+            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, max_confidence=max_confidence, cuda=True)
             pred_permutations, loss, loss_components = loss_function(score, sem_lbl, inst_lbl, problem_config,
                                                                      return_loss_components=True)
             if np.isnan(float(loss.data[0])):
@@ -138,8 +137,8 @@ def main():
             inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
 
             # Write scalars
-            writer.add_scalar('instance_confidence', instance_confidence, prediction_number)
-            writer.add_scalar('instance_mixing', instance_mixing, prediction_number)
+            writer.add_scalar('max_confidence', max_confidence, prediction_number)
+            # writer.add_scalar('instance_mixing', instance_mixing, prediction_number)
             writer.add_scalar('semantic_quality', semantic_quality, prediction_number)
             writer.add_scalar('loss', loss, prediction_number)
             channel_labels = problem_config.get_channel_labels('{} {}')

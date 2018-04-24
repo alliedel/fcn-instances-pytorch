@@ -47,7 +47,7 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
 
     if matching:
         ret = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
-                                            instance_id_labels, return_loss_components, **kwargs)
+                                            instance_id_labels, return_loss_components=return_loss_components, **kwargs)
         if return_loss_components:
             pred_permutations, loss, loss_components = ret
         else:

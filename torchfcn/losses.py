@@ -59,7 +59,6 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
             ret = cross_entropy2d_without_matching(
                 log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
                 semantic_instance_labels, instance_id_labels, return_loss_components=return_loss_components, **kwargs)
-            import ipdb; ipdb.set_trace()
             if return_loss_components:
                 loss_recomputed, loss_components = ret
             else:
@@ -137,7 +136,6 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
     assert weight is None, NotImplementedError
     unique_semantic_vals, inst_counts = np.unique(semantic_instance_labels, return_counts=True)
     losses = []
-    import ipdb; ipdb.set_trace()
     for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(semantic_instance_labels, instance_id_labels)):
         try:
             binary_target_single_instance_cls = ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()

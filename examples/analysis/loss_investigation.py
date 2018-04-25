@@ -107,7 +107,7 @@ def parse_args():
     parser.add_argument('-g', '--gpu', type=int, default=0)
     parser.add_argument('--resume', help='Checkpoint path')
     parser.add_argument('--scoring_method', help='scoring method', default='instance')
-    parser.add_argument('--smearing', type=int, default=0)
+    parser.add_argument('--smearing', type=float, default=0)
     parser.add_argument('--assignment_mixing', type=int, default=0)
     args = parser.parse_args()
     return args

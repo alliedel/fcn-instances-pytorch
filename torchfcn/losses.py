@@ -55,11 +55,11 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
         # assert pred_permutations.shape[0] == 1, NotImplementedError
         # Somehow the gradient is no longer getting backpropped through loss, so I just recompute
         #  it here with the permutation I computed.
-        import ipdb; ipdb.set_trace()
         if DEBUG_ASSERTS or recompute_optimal_loss:
             ret = cross_entropy2d_without_matching(
                 log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
-                semantic_instance_labels, return_loss_components=return_loss_components, **kwargs)
+                semantic_instance_labels, instance_id_labels, return_loss_components=return_loss_components, **kwargs)
+            import ipdb; ipdb.set_trace()
             if return_loss_components:
                 loss_recomputed, loss_components = ret
             else:
@@ -131,16 +131,14 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
     log_predictions: NxCxHxW
     sem_lbl, inst_lbl: NxHxW
     """
-    import ipdb; ipdb.set_trace()
     assert sem_lbl.size() == inst_lbl.size()
     assert (log_predictions.size(0), log_predictions.size(2), log_predictions.size(3)) == \
            sem_lbl.size()
     assert weight is None, NotImplementedError
     unique_semantic_vals, inst_counts = np.unique(semantic_instance_labels, return_counts=True)
     losses = []
-    for sem_val, inst_val in zip(semantic_instance_labels, instance_id_labels):
-        sem_inst_idx = local_pyutils.nth_item(n=inst_val, item=sem_val,
-                                              iterable=semantic_instance_labels)
+    import ipdb; ipdb.set_trace()
+    for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(semantic_instance_labels, instance_id_labels)):
         try:
             binary_target_single_instance_cls = ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
         except:

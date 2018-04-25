@@ -287,3 +287,9 @@ def debug_print_assignments(assignment, multiplier):
     for i in range(0, assignment.NumNodes()):
         logger.debug('ground truth %d assigned to prediction %d.  Cost = %f' % (
             i, assignment.RightMate(i), float(assignment.AssignmentCost(i)) / multiplier))
+
+
+def compute_instance_mixing_metric(scores):
+    """
+    Computes 'mixing' metric as the ratio of the assigned
+    """

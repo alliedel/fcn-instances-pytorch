@@ -19,7 +19,8 @@ from torchfcn import losses
 here = osp.dirname(osp.abspath(__file__))
 
 
-def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=10000, cuda=True):
+def compute_scores(img, sem_lbl, inst_lbl, problem_config, scoring_method='instance', smearing=0,
+                   assignment_mixing=0, max_confidence=10000, cuda=True):
     assert sem_lbl.shape[0] == 1, NotImplementedError('Only handling the case of one image for now')
     n_instance_classes = problem_config.n_classes
     correct_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
@@ -27,12 +28,14 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=10000,
     correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
     correct_instance_score_swapped = swap_channels(correct_instance_score, channel0=1, channel1=3)
 
-    # Method 1: check that 'perfect' instance score leads to 0 loss
-    score = correct_instance_score_swapped
-
-    # Method 2: check that correct semantic score leads to correct loss
-    score = correct_semantic_score
-
+    if scoring_method == 'semantic':
+        score = correct_semantic_score
+    elif scoring_method == 'instance':
+        correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
+        correct_instance_score_swapped = swap_channels(correct_instance_score, channel0=1, channel1=3)
+        score = (1 * correct_instance_score + smearing * correct_instance_score_swapped) / (1 + smearing)
+    else:
+        raise ValueError("Didn't recognize the scoring method {}".format(scoring_method))
     if cuda:
         score = score.cuda()
     return score * max_confidence
@@ -101,7 +104,13 @@ def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True
 def main():
     script_utils.check_clean_work_tree()
     synthetic_generator_n_instances_per_semantic_id = 2
-    out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''),
+    scoring_cfg = {
+        'scoring_method': 'instance',
+        'smearing': 0,
+        'assignment_mixing': 0,
+    }
+
+    out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), cfg=scoring_cfg,
                                    parent_directory=osp.dirname(osp.abspath(__file__)))
 
     cuda = True  # torch.cuda.is_available()
@@ -152,7 +161,8 @@ def main():
             print('prediction {}/{}'.format(prediction_number+1, len(max_confidences)))
             semantic_quality = 1.0
             instance_mixing = 0.0
-            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, max_confidence=max_confidence, cuda=True)
+            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, max_confidence=max_confidence, cuda=True,
+                                   **scoring_cfg)
             pred_permutations, loss, loss_components = loss_function(score, sem_lbl, inst_lbl, problem_config,
                                                                      return_loss_components=True)
             if np.isnan(float(loss.data[0])):

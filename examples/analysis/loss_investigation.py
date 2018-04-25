@@ -22,10 +22,17 @@ here = osp.dirname(osp.abspath(__file__))
 def compute_scores(img, sem_lbl, inst_lbl, problem_config, max_confidence=10000, cuda=True):
     assert sem_lbl.shape[0] == 1, NotImplementedError('Only handling the case of one image for now')
     n_instance_classes = problem_config.n_classes
-    perfect_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
+    correct_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
+
     correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
     correct_instance_score_swapped = swap_channels(correct_instance_score, channel0=1, channel1=3)
+
+    # Method 1: check that 'perfect' instance score leads to 0 loss
     score = correct_instance_score_swapped
+
+    # Method 2: check that correct semantic score leads to correct loss
+    score = correct_semantic_score
+
     if cuda:
         score = score.cuda()
     return score * max_confidence

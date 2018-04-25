@@ -109,6 +109,8 @@ def parse_args():
     parser.add_argument('--scoring_method', help='scoring method', default='instance')
     parser.add_argument('--smearing', type=float, default=0)
     parser.add_argument('--assignment_mixing', type=int, default=0)
+    parser.add_argument('--max_confidence', type=float, default=1)
+    parser.add_argument('--xaxis', default='max_confidence')
     args = parser.parse_args()
     return args
 
@@ -117,13 +119,15 @@ def main():
     script_utils.check_clean_work_tree()
     synthetic_generator_n_instances_per_semantic_id = 2
     args = parse_args()
-    scoring_cfg = {
+    cfg = {
+        'max_confidence': args.max_confidence,
         'scoring_method': args.scoring_method,
         'smearing': args.smearing,
         'assignment_mixing': args.assignment_mixing,
+        'xaxis': args.xaxis,
     }
 
-    out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), cfg=scoring_cfg,
+    out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), cfg=cfg,
                                    parent_directory=osp.dirname(osp.abspath(__file__)))
 
     cuda = True  # torch.cuda.is_available()
@@ -169,13 +173,27 @@ def main():
             data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
                                   Variable(sem_lbl), Variable(inst_lbl)
-        max_confidences = [1, 2, 3, 4, 5, 10, 100, 1000, 10000]
-        for prediction_number, max_confidence in enumerate(max_confidences):
+        if args.xaxis == 'max_confidence':
+            max_confidences = [1, 2, 3, 4, 5, 10, 100, 1000, 10000]
+            smearings = [args.smearing for _ in max_confidences]
+            assignment_mixings = [args.assignment_mixing for _ in max_confidences]
+        elif args.xaxis == 'smearing':
+            smearings = list(range(0, 1, 10))
+            max_confidences = [args.max_confidence for _ in smearings]
+            assignment_mixings = [args.assignment_mixing for _ in smearings]
+        else:
+            raise ValueError('xaxis == {} unrecognized.'.format(args.xaxis))
+        for prediction_number, (max_confidence, smearing, assignment_mixing) in enumerate(zip(max_confidences,
+                                                                                              smearings,
+                                                                                              assignment_mixings)):
+            scoring_cfg = {
+                'max_confidence': max_confidence,
+                'scoring_method': args.scoring_method,
+                'smearing': smearing,
+                'assignment_mixing': assignment_mixing,
+            }
             print('prediction {}/{}'.format(prediction_number+1, len(max_confidences)))
-            semantic_quality = 1.0
-            instance_mixing = 0.0
-            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, max_confidence=max_confidence, cuda=True,
-                                   **scoring_cfg)
+            score = compute_scores(data, sem_lbl, inst_lbl, problem_config, cuda=True, **scoring_cfg)
             pred_permutations, loss, loss_components = loss_function(score, sem_lbl, inst_lbl, problem_config,
                                                                      return_loss_components=True)
             if np.isnan(float(loss.data[0])):
@@ -185,8 +203,8 @@ def main():
 
             # Write scalars
             writer.add_scalar('max_confidence', max_confidence, prediction_number)
+            writer.add_scalar('smearing', smearing, prediction_number)
             # writer.add_scalar('instance_mixing', instance_mixing, prediction_number)
-            writer.add_scalar('semantic_quality', semantic_quality, prediction_number)
             writer.add_scalar('loss', loss, prediction_number)
             channel_labels = problem_config.get_channel_labels('{} {}')
             for i, label in enumerate(channel_labels):

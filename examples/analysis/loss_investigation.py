@@ -178,7 +178,7 @@ def main():
             smearings = [args.smearing for _ in max_confidences]
             assignment_mixings = [args.assignment_mixing for _ in max_confidences]
         elif args.xaxis == 'smearing':
-            smearings = list(range(0, 1, 10))
+            smearings = list(np.linspace(0, 1, 10))
             max_confidences = [args.max_confidence for _ in smearings]
             assignment_mixings = [args.assignment_mixing for _ in smearings]
         else:

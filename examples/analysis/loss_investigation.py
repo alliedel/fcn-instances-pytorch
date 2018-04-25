@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import numpy as np
 import os
 import os.path as osp
@@ -101,13 +102,25 @@ def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True
         return permutations, loss
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-g', '--gpu', type=int, default=0)
+    parser.add_argument('--resume', help='Checkpoint path')
+    parser.add_argument('--scoring_method', help='scoring method', default='instance')
+    parser.add_argument('--smearing', type=int, default=0)
+    parser.add_argument('--assignment_mixing', type=int, default=0)
+    args = parser.parse_args()
+    return args
+
+
 def main():
     script_utils.check_clean_work_tree()
     synthetic_generator_n_instances_per_semantic_id = 2
+    args = parse_args()
     scoring_cfg = {
-        'scoring_method': 'instance',
-        'smearing': 0,
-        'assignment_mixing': 0,
+        'scoring_method': args.scoring_method,
+        'smearing': args.smearing,
+        'assignment_mixing': args.assignment_mixing,
     }
 
     out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), cfg=scoring_cfg,

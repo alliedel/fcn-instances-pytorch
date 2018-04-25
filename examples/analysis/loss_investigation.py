@@ -34,7 +34,7 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, scoring_method='insta
     elif scoring_method == 'instance':
         correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
         correct_instance_score_swapped = swap_channels(correct_instance_score, channel0=1, channel1=3)
-        score = (1 * correct_instance_score + smearing * correct_instance_score_swapped) / (1 + smearing)
+        score = (1 * correct_instance_score + smearing * correct_instance_score_swapped) / (1.0 + smearing)
     else:
         raise ValueError("Didn't recognize the scoring method {}".format(scoring_method))
     if cuda:
@@ -189,7 +189,7 @@ def main():
             scoring_cfg = {
                 'max_confidence': max_confidence,
                 'scoring_method': args.scoring_method,
-                'smearing': smearing,
+                'smearing': float(smearing),
                 'assignment_mixing': assignment_mixing,
             }
             print('prediction {}/{}'.format(prediction_number+1, len(max_confidences)))

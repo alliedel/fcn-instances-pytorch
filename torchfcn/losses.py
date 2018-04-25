@@ -55,6 +55,7 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
         # assert pred_permutations.shape[0] == 1, NotImplementedError
         # Somehow the gradient is no longer getting backpropped through loss, so I just recompute
         #  it here with the permutation I computed.
+        import ipdb; ipdb.set_trace()
         if DEBUG_ASSERTS or recompute_optimal_loss:
             ret = cross_entropy2d_without_matching(
                 log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
@@ -72,6 +73,7 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
         pred_permutations = None
         ret = cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl,
                                                semantic_instance_labels,
+                                               instance_id_labels,
                                                return_loss_components=return_loss_components,
                                                **kwargs)
         if return_loss_components:
@@ -109,7 +111,6 @@ def cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_i
         all_prediction_indices[i, ...] = prediction_indices
         all_pred_permutations[i, ...] = pred_permutation
         all_costs.append(torch.cat(costs))
-    import ipdb; ipdb.set_trace()
     all_costs = torch.cat([c[torch.np.newaxis, :] for c in all_costs], dim=0).float()
     loss_train = all_costs.sum()
     if DEBUG_ASSERTS:
@@ -124,33 +125,31 @@ def cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_i
 
 
 def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
-                                     weight=None, size_average=True, return_loss_components=False):
+                                     instance_id_labels, weight=None, size_average=True, return_loss_components=False):
     """
     Target should *not* be onehot.
     log_predictions: NxCxHxW
     sem_lbl, inst_lbl: NxHxW
     """
+    import ipdb; ipdb.set_trace()
     assert sem_lbl.size() == inst_lbl.size()
     assert (log_predictions.size(0), log_predictions.size(2), log_predictions.size(3)) == \
            sem_lbl.size()
     assert weight is None, NotImplementedError
     unique_semantic_vals, inst_counts = np.unique(semantic_instance_labels, return_counts=True)
-    unique_semantic_vals = unique_semantic_vals.tolist()
-    inst_counts = inst_counts.tolist()
     losses = []
-    for sem_val, n_instances_for_this_sem_cls in zip(unique_semantic_vals, inst_counts):
-        for inst_val in range(n_instances_for_this_sem_cls):
-            sem_inst_idx = local_pyutils.nth_item(n=inst_val, item=sem_val,
-                                                  iterable=semantic_instance_labels)
-            try:
-                binary_target_single_instance_cls = ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
-            except:
-                import ipdb;
-                ipdb.set_trace()
-                raise Exception
-            log_predictions_single_instance_cls = log_predictions[:, sem_inst_idx, :, :]
-            losses.append(nll2d_single_class_term(log_predictions_single_instance_cls,
-                                                  binary_target_single_instance_cls))
+    for sem_val, inst_val in zip(semantic_instance_labels, instance_id_labels):
+        sem_inst_idx = local_pyutils.nth_item(n=inst_val, item=sem_val,
+                                              iterable=semantic_instance_labels)
+        try:
+            binary_target_single_instance_cls = ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
+        except:
+            import ipdb;
+            ipdb.set_trace()
+            raise Exception
+        log_predictions_single_instance_cls = log_predictions[:, sem_inst_idx, :, :]
+        losses.append(nll2d_single_class_term(log_predictions_single_instance_cls,
+                                              binary_target_single_instance_cls))
     losses = torch.cat([c[torch.np.newaxis, :] for c in losses], dim=0).float()
     loss = sum(losses)
     if size_average:
@@ -197,7 +196,6 @@ def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_inst
         gt_indices += idxs
         pred_permutations += [idxs[assignment.RightMate(i)] for i in range(len(idxs))]
         costs += [cost_list_2d[assignment.RightMate(i)][i] for i in range(len(idxs))]
-    import ipdb; ipdb.set_trace()
     sorted_indices = np.argsort(gt_indices)
     gt_indices = np.array(gt_indices)[sorted_indices]
     pred_permutations = np.array(pred_permutations)[sorted_indices]

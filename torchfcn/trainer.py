@@ -177,9 +177,9 @@ class Trainer(object):
             if write_metrics:
                 self.write_metrics(metrics, val_loss, split)
                 if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar('data/{}_loss'.format(split),
+                    self.tensorboard_writer.add_scalar('metrics/{}/loss'.format(split),
                                                        val_loss, self.iteration)
-                    self.tensorboard_writer.add_scalar('data/{}_mIOU'.format(split), metrics[2],
+                    self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), metrics[2],
                                                        self.iteration)
 
         if write_analytics:
@@ -187,7 +187,7 @@ class Trainer(object):
             if self.tensorboard_writer is not None:
                 flattened_analytics = flatten(analytics, sep='/')
                 for key, val in flattened_analytics.items():
-                    self.tensorboard_writer.add_scalar('data/analytics/{}/{}'.format(split, key),
+                    self.tensorboard_writer.add_scalar('analytics/{}/{}'.format(split, key),
                                                        val, self.iteration)
 
         # Restore training settings set prior to function call
@@ -196,6 +196,13 @@ class Trainer(object):
 
         visualizations = (segmentation_visualizations, score_visualizations)
         return metrics, visualizations
+
+    def permute_scores(self, score, pred_permutations):
+        score_permuted_to_match = score.clone()
+        for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
+            # batch size?
+            score_permuted_to_match[:, ch, :, :] = score[:, pred_permutations[:, ch], :, :]
+        return score_permuted_to_match
 
     def permute_labels(self, label_preds, permutations):
         if torch.is_tensor(label_preds):
@@ -220,12 +227,20 @@ class Trainer(object):
         return metrics
 
     def compute_analytics(self, label_trues, label_preds, pred_scores, pred_permutations):
-        pred_scores_stacked = torch.stack(pred_scores, dim=0)
+        if type(pred_scores) is list:
+            pred_scores_stacked = torch.stack(pred_scores, dim=0)
+            abs_scores_stacked = torch.abs(pred_scores_stacked)
+        else:
+            pred_scores_stacked = pred_scores
+            abs_scores_stacked = np.abs(pred_scores_stacked)
         analytics = {
             'scores': {
                 'max': pred_scores_stacked.max(),
                 'mean': pred_scores_stacked.mean(),
-                'min': pred_scores_stacked.min()
+                'mean': pred_scores_stacked.median(),
+                'min': pred_scores_stacked.min(),
+                'abs_mean': abs_scores_stacked.mean(),
+                'abs_median': abs_scores_stacked.median(),
             }
         }
         return analytics
@@ -370,7 +385,7 @@ class Trainer(object):
             if self.iteration % self.interval_validate == 0:
                 if self.train_loader_for_val is not None:
                     self.validate('train')
-                self.validate()
+            self.validate()
 
             assert self.model.training
             if not self.loader_semantic_lbl_only:
@@ -393,24 +408,20 @@ class Trainer(object):
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
             if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('data/training_loss', loss.data[0],
+                self.tensorboard_writer.add_scalar('metrics/training_loss', loss.data[0],
                                                    self.iteration)
             loss.backward()
             self.optim.step()
 
             inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-            score_permuted_to_match = score.clone()
-            for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
-                # batch size?
-                score_permuted_to_match[:, ch, :, :] = score[:, pred_permutations[:, ch], :, :]
-            inst_lbl_pred_matched = score_permuted_to_match.data.max(1)[1].cpu().numpy()[:, :, :]
+            # score_permuted_to_match = self.permute_scores(score, pred_permutations)
+            # inst_lbl_pred_matched = score_permuted_to_match.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
             metrics = []
-            for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred_matched):
+            for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
                 lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
                 acc, acc_cls, mean_iu, fwavacc = \
-                    torchfcn.utils.label_accuracy_score(
-                        [lt_combined], [lp], n_class=self.n_combined_class)
+                    self.compute_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[pred_permutations])
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))
             metrics = np.mean(metrics, axis=0)
 

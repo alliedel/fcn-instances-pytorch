@@ -198,7 +198,10 @@ class Trainer(object):
         return metrics, visualizations
 
     def permute_labels(self, label_preds, permutations):
-        label_preds_permuted = label_preds.clone()
+        if torch.is_tensor(label_preds):
+            label_preds_permuted = label_preds.clone()
+        else:
+            label_preds_permuted = label_preds.copy()
         for idx in range(permutations.shape[0]):
             permutation = permutations[idx, :]
             for old_channel, new_channel in enumerate(permutation):

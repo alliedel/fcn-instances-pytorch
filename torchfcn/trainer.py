@@ -210,7 +210,10 @@ class Trainer(object):
 
     def compute_metrics(self, label_trues, label_preds, permutations=None):
         if permutations is not None:
-            label_preds_permuted = [self.permute_labels(label_pred, permutations) for label_pred in label_preds]
+            assert type(permutations) == list, NotImplementedError('I''m assuming permutations are a list of ndarrays '
+                                                                   'from multiple batches')
+            label_preds_permuted = [self.permute_labels(label_pred, permutations)
+                                    for label_pred, perms in zip(label_preds, permutations)]
         else:
             label_preds_permuted = label_preds
         metrics = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted, n_class=self.n_combined_class)

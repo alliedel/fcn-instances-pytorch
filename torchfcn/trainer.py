@@ -212,7 +212,7 @@ class Trainer(object):
         if permutations is not None:
             assert type(permutations) == list, NotImplementedError('I''m assuming permutations are a list of ndarrays '
                                                                    'from multiple batches')
-            label_preds_permuted = [self.permute_labels(label_pred, permutations)
+            label_preds_permuted = [self.permute_labels(label_pred, perms)
                                     for label_pred, perms in zip(label_preds, permutations)]
         else:
             label_preds_permuted = label_preds

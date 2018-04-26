@@ -26,15 +26,12 @@ def compute_scores(img, sem_lbl, inst_lbl, problem_config, scoring_method='insta
     n_instance_classes = problem_config.n_classes
     correct_semantic_score = semantic_label_gt_as_instance_prediction(sem_lbl, problem_config)
 
-    correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
-    correct_instance_score_swapped = swap_channels(correct_instance_score, channel0=1, channel1=3)
-
     if scoring_method == 'semantic':
         score = correct_semantic_score
     elif scoring_method == 'instance':
         correct_instance_score = semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config)
         correct_instance_score_swapped = swap_channels(correct_instance_score, channel0=1, channel1=3)
-        score = (1 * correct_instance_score + smearing * correct_instance_score_swapped) / (1.0 + smearing)
+        score = (1.0 * correct_instance_score + smearing * correct_instance_score_swapped) / (1.0 + smearing)
     else:
         raise ValueError("Didn't recognize the scoring method {}".format(scoring_method))
     if cuda:

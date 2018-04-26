@@ -1,3 +1,4 @@
+import collections
 import datetime
 import math
 import os
@@ -16,6 +17,8 @@ import torchfcn
 from torchfcn import losses
 from torchfcn import visualization_utils, instance_utils
 from torchfcn.visualization_utils import log_images
+
+from local_pyutils import flatten_dict
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -96,7 +99,7 @@ class Trainer(object):
             size_average=self.size_average, break_here=False, recompute_optimal_loss=False, **kwargs)
         return permutations, loss
 
-    def validate(self, split='val', write_metrics=None, save_checkpoint=None,
+    def validate(self, split='val', write_metrics=None, write_analytics=True, save_checkpoint=None,
                  update_best_checkpoint=None, should_export_visualizations=True):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
@@ -104,6 +107,7 @@ class Trainer(object):
             False.
         """
         metrics, visualizations = None, None
+        analytics = None
         write_metrics = (split == 'val') if write_metrics is None else write_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -122,7 +126,7 @@ class Trainer(object):
 
         val_loss = 0
         segmentation_visualizations, score_visualizations = [], []
-        label_trues, label_preds = [], []
+        label_trues, label_preds, scores, pred_permutations = [], [], [], []
         visualizations_need_to_be_exported = True if should_export_visualizations else False
         num_images_to_visualize = min(len(data_loader), 9)
         for batch_idx, (data, lbls) in tqdm.tqdm(
@@ -146,7 +150,7 @@ class Trainer(object):
             if not (compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
-            true_labels_sb, pred_labels_sb, pred_permutations_sb, val_loss_sb, \
+            true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
                 segmentation_visualizations_sb, score_visualizations_sb = \
                 self.validate_single_batch(data, sem_lbl, inst_lbl, data_loader=data_loader,
                                            should_visualize=should_visualize)
@@ -158,6 +162,8 @@ class Trainer(object):
             label_trues += true_labels_sb
             label_preds += pred_labels_sb
             val_loss += val_loss_sb
+            scores += [score_sb]
+            pred_permutations += pred_permutations_sb
             segmentation_visualizations += segmentation_visualizations_sb
             score_visualizations += score_visualizations_sb
 
@@ -169,21 +175,22 @@ class Trainer(object):
         val_loss /= len(data_loader)
 
         if compute_metrics:
-            metrics = torchfcn.utils.label_accuracy_score(
-                label_trues, label_preds, n_class=self.n_combined_class)
+            metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
             if write_metrics:
                 self.write_metrics(metrics, val_loss, split)
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('data/{}_loss'.format(split),
                                                        val_loss, self.iteration)
-                if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar('data/val_mIOU', metrics[2],
+                    self.tensorboard_writer.add_scalar('data/{}_mIOU'.format(split), metrics[2],
                                                        self.iteration)
 
-            if save_checkpoint:
-                self.save_checkpoint()
-            if update_best_checkpoint:
-                self.update_best_checkpoint_if_best(mean_iu=metrics[2])
+        if write_analytics:
+            analytics = self.compute_analytics(label_trues, label_preds, scores, pred_permutations)
+            if self.tensorboard_writer is not None:
+                flattened_analytics = flatten(analytics, sep='/')
+                for key, val in flattened_analytics.items():
+                    self.tensorboard_writer.add_scalar('data/analytics/{}/{}'.format(split, key),
+                                                       val, self.iteration)
 
         # Restore training settings set prior to function call
         if training:
@@ -192,10 +199,33 @@ class Trainer(object):
         visualizations = (segmentation_visualizations, score_visualizations)
         return metrics, visualizations
 
-    def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
-        outdir = outdir or osp.join(self.out, 'visualization_viz')
-        export_visualizations(visualizations, outdir, self.tensorboard_writer, self.iteration, basename=basename,
-                              tile=tile)
+    def permute_labels(self, label_preds, permutations):
+        assert (permutations[0])
+        import ipdb; ipdb.set_trace()
+        label_preds_permuted = label_preds.clone()
+        for idx, permutation in enumerate(permutations):
+            for old_channel, new_channel in enumerate(permutation):
+                label_preds_permuted[label_preds == old_channel] = new_channel
+        return label_preds_permuted
+
+    def compute_metrics(self, label_trues, label_preds, permutations=None):
+        if permutations is not None:
+            label_preds_permuted = self.permute_labels(label_preds, permutations)
+        else:
+            label_preds_permuted = label_preds
+        metrics = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted, n_class=self.n_combined_class)
+        return metrics
+
+    def compute_analytics(self, label_trues, label_preds, pred_scores, pred_permutations):
+        import ipdb; ipdb.set_trace()
+        analytics = {
+            'scores': {
+                'max': pred_scores.max(),
+                'mean': pred_scores.mean(),
+                'min': pred_scores.min()
+            }
+        }
+        return analytics
 
     def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
@@ -212,6 +242,11 @@ class Trainer(object):
                 raise ValueError('split not recognized')
             log = map(str, log)
             f.write(','.join(log) + '\n')
+
+    def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
+        outdir = outdir or osp.join(self.out, 'visualization_viz')
+        export_visualizations(visualizations, outdir, self.tensorboard_writer, self.iteration, basename=basename,
+                              tile=tile)
 
     def save_checkpoint(self):
         torch.save({
@@ -306,7 +341,8 @@ class Trainer(object):
                                                              channel_labels=channel_labels,
                                                              channels_to_visualize=channels_to_visualize)
                 score_visualizations.append(viz)
-        return true_labels, pred_labels, pred_permutations, val_loss, segmentation_visualizations, score_visualizations
+        return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
+               score_visualizations
 
     def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
         semantic_instance_class_list = self.instance_problem.semantic_instance_class_list
@@ -418,3 +454,13 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
             out_file = osp.join(out_subsubdir, 'iter-%012d.jpg' % iteration)
             scipy.misc.imsave(out_file, out_img)
 
+
+def flatten(d, parent_key='', sep='.'):
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)

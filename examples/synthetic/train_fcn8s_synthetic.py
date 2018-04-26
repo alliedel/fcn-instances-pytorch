@@ -59,7 +59,7 @@ configurations = {
         initialize_from_semantic=True,
         bottleneck_channel_capacity='semantic',
         size_average=False,
-        score_multiplier=1e-6,
+        score_multiplier=1e-1,
     ),
     3: dict(  # instance seg. with S channels in the bottleneck layers
         max_iteration=10000,

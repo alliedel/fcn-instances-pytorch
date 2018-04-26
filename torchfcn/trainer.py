@@ -18,8 +18,6 @@ from torchfcn import losses
 from torchfcn import visualization_utils, instance_utils
 from torchfcn.visualization_utils import log_images
 
-from local_pyutils import flatten_dict
-
 MY_TIMEZONE = 'America/New_York'
 
 DEBUG_ASSERTS = True

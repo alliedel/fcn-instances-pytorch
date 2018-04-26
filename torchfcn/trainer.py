@@ -110,7 +110,7 @@ class Trainer(object):
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
             else update_best_checkpoint
-        compute_metrics = write_metrics or save_checkpoint or update_best_checkpoint
+        should_compute_metrics = write_metrics or save_checkpoint or update_best_checkpoint
 
         assert split in ['train', 'val']
         if split == 'train':
@@ -145,7 +145,7 @@ class Trainer(object):
                 inst_lbl[sem_lbl == -1] = -1
 
             should_visualize = len(segmentation_visualizations) < num_images_to_visualize
-            if not (compute_metrics or should_visualize):
+            if not (should_compute_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
             true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
@@ -172,7 +172,7 @@ class Trainer(object):
 
         val_loss /= len(data_loader)
 
-        if compute_metrics:
+        if should_compute_metrics:
             metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
             if write_metrics:
                 self.write_metrics(metrics, val_loss, split)
@@ -181,6 +181,12 @@ class Trainer(object):
                                                        val_loss, self.iteration)
                     self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), metrics[2],
                                                        self.iteration)
+
+            if save_checkpoint:
+                self.save_checkpoint()
+            if update_best_checkpoint:
+                self.update_best_checkpoint_if_best(mean_iu=metrics[2])
+
 
         if write_analytics:
             analytics = self.compute_analytics(label_trues, label_preds, scores, pred_permutations)
@@ -392,7 +398,7 @@ class Trainer(object):
             if self.iteration % self.interval_validate == 0:
                 if self.train_loader_for_val is not None:
                     self.validate('train')
-            self.validate()
+                self.validate()
 
             assert self.model.training
             if not self.loader_semantic_lbl_only:
@@ -421,8 +427,6 @@ class Trainer(object):
             self.optim.step()
 
             inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-            # score_permuted_to_match = self.permute_scores(score, pred_permutations)
-            # inst_lbl_pred_matched = score_permuted_to_match.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
             metrics = []
             for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):

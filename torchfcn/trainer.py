@@ -198,7 +198,6 @@ class Trainer(object):
         return metrics, visualizations
 
     def permute_labels(self, label_preds, permutations):
-        import ipdb; ipdb.set_trace()
         label_preds_permuted = label_preds.clone()
         for idx in range(permutations.shape[0]):
             permutation = permutations[idx, :]
@@ -215,7 +214,6 @@ class Trainer(object):
         return metrics
 
     def compute_analytics(self, label_trues, label_preds, pred_scores, pred_permutations):
-        import ipdb; ipdb.set_trace()
         pred_scores_stacked = torch.stack(pred_scores, dim=0)
         analytics = {
             'scores': {

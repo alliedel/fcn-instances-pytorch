@@ -246,7 +246,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         semantic_instance_class_list=self.semantic_instance_class_list)
                 m.weight.data.copy_(initial_weight)
         if self.score_multiplier_init:
-            self.score_multiplier1x1.weight.data = self.score_multiplier_init
+            self.score_multiplier1x1.weight.data.fill_(self.score_multiplier_init)
             self.score_multiplier1x1.bias.zero_()
 
     def copy_params_from_vgg16(self, vgg16):

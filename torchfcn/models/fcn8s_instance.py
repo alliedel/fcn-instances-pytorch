@@ -475,6 +475,10 @@ class FCN8sInstanceAtOnce(FCN8sInstanceNotAtOnce):
         h = upscore_pool4 + score_pool3c  # 1/8
 
         h = self.upscore8(h)
+
+        if self.score_multiplier_init:
+            h = self.score_multiplier1x1(h)
+
         h = h[:, :, 31:31 + x.size()[2], 31:31 + x.size()[3]].contiguous()
 
         return h

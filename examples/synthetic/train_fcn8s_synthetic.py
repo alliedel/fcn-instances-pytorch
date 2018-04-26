@@ -32,7 +32,8 @@ default_config = dict(
     single_instance=False,  # map_to_single_instance_problem
     initialize_from_semantic=False,
     bottleneck_channel_capacity=None,
-    size_average=True
+    size_average=True,
+    score_multiplier=None,
 )
 
 configurations = {
@@ -57,7 +58,8 @@ configurations = {
         lr=1.0e-10,
         initialize_from_semantic=True,
         bottleneck_channel_capacity='semantic',
-        size_average=False
+        size_average=False,
+        score_multiplier=1e-6,
     ),
     3: dict(  # instance seg. with S channels in the bottleneck layers
         max_iteration=10000,
@@ -151,7 +153,7 @@ def main():
     model = torchfcn.models.FCN8sInstanceAtOnce(
         semantic_instance_class_list=problem_config.semantic_instance_class_list,
         map_to_semantic=False, include_instance_channel0=False,
-        bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'])
+        bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'])
     print('Number of classes in model: {}'.format(model.n_classes))
     start_epoch = 0
     start_iteration = 0

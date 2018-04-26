@@ -20,7 +20,7 @@ DEBUG = True
 class FCN8sInstanceNotAtOnce(nn.Module):
 
     def __init__(self, n_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
-                 include_instance_channel0=False, bottleneck_channel_capacity=None):
+                 include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -37,6 +37,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         else:
             self.n_classes = n_classes
         self.map_to_semantic = map_to_semantic
+        self.score_multiplier_init = score_multiplier_init
         if semantic_instance_class_list is None:
             assert not map_to_semantic, ValueError('need semantic_instance_class_list to map to semantic')
             # self.semantic_instance_class_list = np.arange(n_classes, dtype=int)
@@ -134,6 +135,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
         self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
             self.bottleneck_channel_capacity, self.n_classes, kernel_size=16, stride=8, bias=False)
+        if self.score_multiplier_init is not None:
+            self.score_multiplier1x1 = nn.Conv2d(self.n_classes, self.n_classes, kernel_size=1, stride=1, bias=True)
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
                                                           out_channels=self.n_semantic_classes,
@@ -242,6 +245,9 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         m.in_channels, m.out_channels, m.kernel_size[0],
                         semantic_instance_class_list=self.semantic_instance_class_list)
                 m.weight.data.copy_(initial_weight)
+        if self.score_multiplier_init:
+            self.score_multiplier1x1.weight.data = self.score_multiplier_init
+            self.score_multiplier1x1.bias.zero_()
 
     def copy_params_from_vgg16(self, vgg16):
         features = [
@@ -284,6 +290,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             conv2d_with_repeated_channels = []
             conv2dT_with_repeated_channels = ['upscore8']
         module_types_to_ignore = [nn.ReLU, nn.MaxPool2d, nn.Dropout2d]
+        module_names_to_ignore = ['score_multiplier1x1']
         # check whether this has the right number of channels to be the semantic version of me
         assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
                                                                          'my instance channels map to in order to '
@@ -296,6 +303,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                              'for each of my semantic classes'.format(last_features.weight.size(1), n_semantic_classes))
 
         for module_name, my_module in self.named_children():
+            if module_name in module_names_to_ignore:
+                continue
             module_to_copy = getattr(semantic_model, module_name)
             if module_name in conv2d_with_repeated_channels:
                 for p_name, my_p in my_module.named_parameters():
@@ -350,6 +359,8 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             successfully_copied_modules = []
             unsuccessfully_copied_modules = []
             for module_name, my_module in self.named_children():
+                if module_name in module_names_to_ignore:
+                    continue
                 module_to_copy = getattr(semantic_model, module_name)
                 for i, (my_p, p_to_copy) in enumerate(zip(my_module.named_parameters(), module_to_copy.named_parameters())):
                     assert my_p[0] == p_to_copy[0]

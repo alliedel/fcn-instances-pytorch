@@ -20,7 +20,7 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'n_training_imgs': 'n_train',
                                         'n_validation_imgs': 'n_val',
                                         'recompute_optimal_loss': 'recomp',
-                                        'size_average': 'size_avg',
+                                        'size_average': 'sa',
                                         'map_to_semantic': 'mts',
                                         'interval_validate': 'int_val',
                                         'resize_size': 'sz',
@@ -35,7 +35,8 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'semantic_only_labels': 'sem_ls',
                                         'initialize_from_semantic': 'init_sem',
                                         'bottleneck_channel_capacity': 'bcc',
-                                        'single_instance': '1inst'}
+                                        'single_instance': '1inst',
+                                        }
 
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 

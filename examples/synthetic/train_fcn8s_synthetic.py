@@ -212,7 +212,8 @@ def main():
         interval_validate=cfg.get('interval_validate', len(train_loader)),
         tensorboard_writer=writer,
         matching_loss=cfg['matching'],
-        loader_semantic_lbl_only=cfg['semantic_only_labels']
+        loader_semantic_lbl_only=cfg['semantic_only_labels'],
+        size_average=cfg['size_average']
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

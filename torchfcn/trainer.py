@@ -161,7 +161,7 @@ class Trainer(object):
             label_preds += pred_labels_sb
             val_loss += val_loss_sb
             scores += [score_sb]
-            pred_permutations += pred_permutations_sb
+            pred_permutations += [pred_permutations_sb]
             segmentation_visualizations += segmentation_visualizations_sb
             score_visualizations += score_visualizations_sb
 
@@ -198,10 +198,10 @@ class Trainer(object):
         return metrics, visualizations
 
     def permute_labels(self, label_preds, permutations):
-        assert (permutations[0])
         import ipdb; ipdb.set_trace()
         label_preds_permuted = label_preds.clone()
-        for idx, permutation in enumerate(permutations):
+        for idx in range(permutations.shape[0]):
+            permutation = permutations[idx, :]
             for old_channel, new_channel in enumerate(permutation):
                 label_preds_permuted[label_preds == old_channel] = new_channel
         return label_preds_permuted
@@ -216,11 +216,12 @@ class Trainer(object):
 
     def compute_analytics(self, label_trues, label_preds, pred_scores, pred_permutations):
         import ipdb; ipdb.set_trace()
+        pred_scores_stacked = torch.stack(pred_scores, dim=0)
         analytics = {
             'scores': {
-                'max': pred_scores.max(),
-                'mean': pred_scores.mean(),
-                'min': pred_scores.min()
+                'max': pred_scores_stacked.max(),
+                'mean': pred_scores_stacked.mean(),
+                'min': pred_scores_stacked.min()
             }
         }
         return analytics

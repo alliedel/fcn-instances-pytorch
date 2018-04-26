@@ -256,6 +256,18 @@ class Trainer(object):
                 'abs_median': abs_scores_stacked.median(),
             }
         }
+
+        for channel in range(pred_scores_stacked.size(1)):
+            channel_scores = pred_scores_stacked[:, channel, :, :]
+            abs_channel_scores = abs_scores_stacked[:, channel, :, :]
+            analytics['channel_scores/{}'.format(channel)] = {
+                    'max': channel_scores.max(),
+                    'mean': channel_scores.mean(),
+                    'median': channel_scores.median(),
+                    'min': channel_scores.min(),
+                    'abs_mean': abs_channel_scores.mean(),
+                    'abs_median': abs_channel_scores.median(),
+                }
         return analytics
 
     def write_metrics(self, metrics, loss, split):

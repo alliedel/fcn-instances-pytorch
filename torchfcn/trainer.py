@@ -249,10 +249,10 @@ class Trainer(object):
         analytics = {
             'scores': {
                 'max': pred_scores_stacked.max(),
-                'mean': pred_scores_stacked.mean(),
-                'median': pred_scores_stacked.median(),
+                # 'mean': pred_scores_stacked.mean(),
+                # 'median': pred_scores_stacked.median(),
                 'min': pred_scores_stacked.min(),
-                'abs_mean': abs_scores_stacked.mean(),
+                # 'abs_mean': abs_scores_stacked.mean(),
                 'abs_median': abs_scores_stacked.median(),
             }
         }
@@ -260,12 +260,12 @@ class Trainer(object):
         for channel in range(pred_scores_stacked.size(1)):
             channel_scores = pred_scores_stacked[:, channel, :, :]
             abs_channel_scores = abs_scores_stacked[:, channel, :, :]
-            analytics['channel_scores/{}'.format(channel)] = {
+            analytics['per_channel_scores/{}'.format(channel)] = {
                     'max': channel_scores.max(),
-                    'mean': channel_scores.mean(),
-                    'median': channel_scores.median(),
+                    # 'mean': channel_scores.mean(),
+                    # 'median': channel_scores.median(),
                     'min': channel_scores.min(),
-                    'abs_mean': abs_channel_scores.mean(),
+                    # 'abs_mean': abs_channel_scores.mean(),
                     'abs_median': abs_channel_scores.median(),
                 }
         return analytics

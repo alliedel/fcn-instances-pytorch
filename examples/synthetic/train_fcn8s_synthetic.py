@@ -57,12 +57,14 @@ configurations = {
         lr=1.0e-10,
         initialize_from_semantic=True,
         bottleneck_channel_capacity='semantic',
+        size_average=False
     ),
     3: dict(  # instance seg. with S channels in the bottleneck layers
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
         bottleneck_channel_capacity='semantic',
+        size_average=False
     ),
     4: dict(  # instance seg. with semantic init. and N channels in the bottleneck layers
         max_iteration=10000,
@@ -70,6 +72,7 @@ configurations = {
         lr=1.0e-10,
         bottleneck_channel_capacity=None,
         initialize_from_semantic=True,
+        size_average=False
     ),
     5: dict(  # instance seg. with an extra instance channel and semantic init.
         max_iteration=10000,
@@ -78,6 +81,7 @@ configurations = {
         bottleneck_channel_capacity='semantic',
         initialize_from_semantic=True,
         n_instances_per_class=3,
+        size_average=False
     ),
 }
 

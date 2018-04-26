@@ -228,17 +228,17 @@ class Trainer(object):
 
     def compute_analytics(self, label_trues, label_preds, pred_scores, pred_permutations):
         if type(pred_scores) is list:
-            if torch.is_tensor(pred_scores[0]):
+            try:
                 pred_scores_stacked = torch.stack(pred_scores, dim=0)
                 abs_scores_stacked = torch.abs(pred_scores_stacked)
-            else:
+            except:
                 pred_scores_stacked = np.stack(pred_scores, axis=0)
                 abs_scores_stacked = np.abs(pred_scores_stacked)
         else:
             pred_scores_stacked = pred_scores
-            if torch.is_tensor(pred_scores):
+            try:  # if tensor
                 abs_scores_stacked = torch.abs(pred_scores_stacked)
-            else:
+            except:
                 abs_scores_stacked = np.abs(pred_scores_stacked)
         analytics = {
             'scores': {
@@ -434,14 +434,12 @@ class Trainer(object):
 
             self.write_metrics(metrics, loss, split='train')
             lt_combined = self.gt_tuple_to_combined(lbl_true_sem, lbl_true_inst)
-            import ipdb; ipdb.set_trace()
             analytics = self.compute_analytics(lt_combined, inst_lbl_pred, score, pred_permutations)
             if self.tensorboard_writer is not None:
                 flattened_analytics = flatten(analytics, sep='/')
                 for key, val in flattened_analytics.items():
                     self.tensorboard_writer.add_scalar('analytics/{}/{}'.format('train', key),
                                                        val, self.iteration)
-
             if self.iteration >= self.max_iter:
                 break
 

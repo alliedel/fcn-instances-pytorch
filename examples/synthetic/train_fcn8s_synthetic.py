@@ -91,6 +91,7 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
+    raise NotImplementedError('TODO: figure out why score_multiplier=None works, but score_multiplier=0.1 does not')
     script_utils.check_clean_work_tree()
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)

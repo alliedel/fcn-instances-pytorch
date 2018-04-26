@@ -32,6 +32,7 @@ default_config = dict(
     single_instance=False,  # map_to_single_instance_problem
     initialize_from_semantic=False,
     bottleneck_channel_capacity=None,
+    size_average=True
 )
 
 configurations = {
@@ -40,7 +41,8 @@ configurations = {
     0: dict(  # vanilla
         max_iteration=10000,
         interval_validate=100,
-        lr=1.0e-10
+        lr=1.0e-10,
+        size_average=False
     ),
     1: dict(  # 'semantic': mapping all semantic into a single instance
         max_iteration=10000,

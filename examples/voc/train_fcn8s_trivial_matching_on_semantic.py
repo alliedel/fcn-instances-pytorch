@@ -135,9 +135,6 @@ def main():
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=15), batch_size=1,
                                                        shuffle=False, **kwargs)
 
-    for img, (sl, il) in train_dataset:
-        pass
-    
     # 1. Problem setup (instance segmentation definition)
 
     class_names = val_dataset.class_names

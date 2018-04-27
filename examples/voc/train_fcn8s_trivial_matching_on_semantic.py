@@ -117,7 +117,8 @@ def main():
         print('No precomputed instance counts')
         instance_precomputed = False
         instance_counts = None
-    train_dataset_kwargs = dict(weight_by_instance=cfg['weight_by_instance'], instance_counts=instance_counts)
+    train_dataset_kwargs = dict(weight_by_instance=cfg['weight_by_instance'],
+                                instance_counts_precomputed=instance_counts)
     if not instance_precomputed:
         try:
             np.save(instance_counts_file, instance_counts)

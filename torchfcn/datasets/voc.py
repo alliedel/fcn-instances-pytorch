@@ -118,7 +118,6 @@ class VOCClassSegBase(data.Dataset):
             self.modify_image_set(self.filter_by_semantic_subset(self.files[self.split], non_bground_idxs),
                                   index_from_originals=True)
         if self.collect_image_details:
-            import ipdb; ipdb.set_trace()
             if instance_counts_precomputed is not None:
                 semantic_classes = semantic_subset or range(self.n_semantic_classes)
                 assert instance_counts_precomputed.shape == (len(self.files[split]), len(semantic_classes))
@@ -143,7 +142,7 @@ class VOCClassSegBase(data.Dataset):
         file_index_list = self.get_file_index_list()
         if self.weights is None:
             raise Exception('Debug error: self.weights was not set')
-        elif self.weights == 1:
+        elif self.weights is 1:
             weighted_file_list = file_index_list
         else:
             weighted_file_list = []

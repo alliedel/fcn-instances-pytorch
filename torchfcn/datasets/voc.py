@@ -124,6 +124,9 @@ class VOCClassSegBase(data.Dataset):
                 assert instance_counts_precomputed.shape == (len(self.files[split]), len(semantic_classes))
             else:
                 self.instance_counts = self.collect_instance_counts(self.files[self.split], semantic_subset)
+                np.save('/home/adelgior/data/datasets/VOC/instance_counts_semantic_subset-None.npy',
+                        self.instance_counts)
+                import ipdb; ipdb.set_trace()
         else:
             self.instance_counts = None
         if self.weight_by_instance:

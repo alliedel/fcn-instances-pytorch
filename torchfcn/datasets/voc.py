@@ -121,8 +121,8 @@ class VOCClassSegBase(data.Dataset):
             if instance_counts_precomputed:
                 semantic_classes = semantic_subset or range(self.n_semantic_classes)
                 assert instance_counts_precomputed.shape == (len(self.files[split]), len(semantic_classes))
-            self.instance_counts = self.collect_instance_counts(self.files[self.split], semantic_subset)
-            import ipdb; ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
+            else:
+                self.instance_counts = self.collect_instance_counts(self.files[self.split], semantic_subset)
         else:
             self.instance_counts = None
         if self.weight_by_instance:

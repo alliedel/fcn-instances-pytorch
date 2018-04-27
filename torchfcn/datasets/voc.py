@@ -70,7 +70,7 @@ class VOCClassSegBase(data.Dataset):
         assert (file_index_subset is None) or (not filter_images_by_semantic_subset), \
             ValueError('Cannot specify modified indices and image filtering method')
         assert not (weight_by_instance and collect_image_details is False), ValueError
-        self.collect_image_details = collect_image_details if collect_image_details is not None else False
+        self.collect_image_details = collect_image_details if collect_image_details is not None else weight_by_instance
         self.weight_by_instance = weight_by_instance
         self.map_to_single_instance_problem = map_to_single_instance_problem
         if return_semantic_instance_tuple is None:
@@ -118,6 +118,8 @@ class VOCClassSegBase(data.Dataset):
                                   index_from_originals=True)
         if self.collect_image_details:
             self.instance_counts = self.collect_instance_counts(self.files[self.split])
+        else:
+            self.instance_counts = None
         if self.weight_by_instance:
             self.weights = self.instance_counts.sum(axis=1)
         else:

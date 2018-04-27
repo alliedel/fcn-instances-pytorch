@@ -8,6 +8,7 @@ import shutil
 
 import torch
 from torch.utils import data
+import tqdm
 
 from . import dataset_utils
 from torchfcn import instance_utils
@@ -58,7 +59,7 @@ class VOCClassSegBase(data.Dataset):
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
                  n_instances_per_class=None, filter_images_by_semantic_subset=False,
                  file_index_subset=None, _im_a_copy=False, map_to_single_instance_problem=False,
-                 collect_image_details=None, weight_by_instance=False):
+                 collect_image_details=None, weight_by_instance=False, instance_counts_precomputed=None):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -117,7 +118,10 @@ class VOCClassSegBase(data.Dataset):
             self.modify_image_set(self.filter_by_semantic_subset(self.files[self.split], non_bground_idxs),
                                   index_from_originals=True)
         if self.collect_image_details:
-            self.instance_counts = self.collect_instance_counts(self.files[self.split])
+            if instance_counts_precomputed:
+                semantic_classes = semantic_subset or range(self.n_semantic_classes)
+                assert instance_counts_precomputed.shape == (len(self.files[split]), len(semantic_classes))
+            self.instance_counts = self.collect_instance_counts(self.files[self.split], semantic_subset)
         else:
             self.instance_counts = None
         if self.weight_by_instance:
@@ -324,7 +328,9 @@ class VOCClassSegBase(data.Dataset):
     def collect_instance_counts(self, files, semantic_classes=None):
         semantic_classes = semantic_classes or range(self.n_semantic_classes)
         instance_counts = np.ones((len(files), len(semantic_classes))) * np.nan
-        for file_idx in self.get_file_index_list():
+        file_index_list = self.get_file_index_list()
+        for file_idx in tqdm.tqdm(file_index_list, total=len(file_index_list), desc='Analyzing VOC files', ncols=80,
+                                  leave=False):
             for sem_idx, sem_val in enumerate(semantic_classes):
                 data_file = self.files[self.split][file_idx]
                 img, (sem_lbl, inst_lbl) = self.load_and_process_voc_files(img_file=data_file['img'],

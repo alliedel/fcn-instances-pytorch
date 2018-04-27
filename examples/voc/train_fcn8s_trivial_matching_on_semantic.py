@@ -63,6 +63,12 @@ configurations = {
         max_iteration=1000000,
         single_instance=True
     ),
+    7: dict(
+        semantic_only_labels=False,
+        n_instances_per_class=3,
+        set_extras_to_void=True,
+        weight_by_instance=True
+    )
 }
 
 here = osp.dirname(osp.abspath(__file__))
@@ -100,8 +106,9 @@ def main():
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
                           map_to_single_instance_problem=cfg['single_instance'])
+    train_dataset_kwargs = dict(weight_by_instance=cfg['weight_by_instance'])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs)
+    train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs, **train_dataset_kwargs)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)

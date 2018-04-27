@@ -6,6 +6,7 @@ import os.path as osp
 import PIL.Image
 import shutil
 
+import torch
 from torch.utils import data
 
 from . import dataset_utils
@@ -56,7 +57,8 @@ class VOCClassSegBase(data.Dataset):
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
                  n_instances_per_class=None, filter_images_by_semantic_subset=False,
-                 modified_indices=None, _im_a_copy=False, map_to_single_instance_problem=False):
+                 file_index_subset=None, _im_a_copy=False, map_to_single_instance_problem=False,
+                 collect_image_details=None, weight_by_instance=False):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -65,15 +67,17 @@ class VOCClassSegBase(data.Dataset):
         the instance number: [0, n_instances_per_class[sem_idx])
         """
 
-        assert (modified_indices is None) or (not filter_images_by_semantic_subset), \
+        assert (file_index_subset is None) or (not filter_images_by_semantic_subset), \
             ValueError('Cannot specify modified indices and image filtering method')
-
+        assert not (weight_by_instance and collect_image_details is False), ValueError
+        self.collect_image_details = collect_image_details if collect_image_details is not None else False
+        self.weight_by_instance = weight_by_instance
         self.map_to_single_instance_problem = map_to_single_instance_problem
         if return_semantic_instance_tuple is None:
             return_semantic_instance_tuple = True if not semantic_only_labels else False
         if semantic_only_labels is None:
             semantic_only_labels = False
-        self.modified_indices = modified_indices
+        self.file_index_subset = file_index_subset  # None: all files.
         self.permute_instance_order = permute_instance_order
         if permute_instance_order:
             raise NotImplementedError
@@ -102,8 +106,39 @@ class VOCClassSegBase(data.Dataset):
         # VOC2011 and others are subset of VOC2012
         year = 2012
         dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC{}'.format(year))
+
+        # Get files
         self.files = self.get_files(dataset_dir)
+
+        # Get file subset
+        if self.filter_images_by_semantic_subset and self.semantic_subset is not None:
+            non_bground_idxs = [idx for idx, nm in zip(self.idxs_into_all_voc, self.class_names)
+                                if nm is not 'background']
+            self.modify_image_set(self.filter_by_semantic_subset(self.files[self.split], non_bground_idxs),
+                                  index_from_originals=True)
+        if self.collect_image_details:
+            self.instance_counts = self.collect_instance_counts(self.files[self.split])
+        if self.weight_by_instance:
+            self.weights = self.instance_counts.sum(axis=1)
+        else:
+            self.weights = 1
+        self.weighted_file_index_list = self.get_weighted_file_index_list()
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
+
+    def get_file_index_list(self):
+        return self.file_index_subset or range(len(self.files[self.split]))
+
+    def get_weighted_file_index_list(self):
+        file_index_list = self.get_file_index_list()
+        if self.weights is None:
+            raise Exception('Debug error: self.weights was not set')
+        elif self.weights == 1:
+            weighted_file_list = file_index_list
+        else:
+            weighted_file_list = []
+            for file_index in file_index_list:
+                weighted_file_list += [file_index for _ in range(self.weights[file_index])]
+        return weighted_file_list
 
     def get_files(self, dataset_dir):
         files = collections.defaultdict(list)
@@ -146,27 +181,27 @@ class VOCClassSegBase(data.Dataset):
                 })
 
             assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
-        if self.filter_images_by_semantic_subset and self.semantic_subset is not None:
-            non_bground_idxs = [idx for idx, nm in zip(self.idxs_into_all_voc, self.class_names)
-                                if nm is not 'background']
-            files = [files[valid_index] for valid_index in self.filter_by_semantic_subset(files, non_bground_idxs)]
-
         return files
 
     def __len__(self):
-        return len(self.files[self.split]) if self.modified_indices is None else len(self.modified_indices)
+        return len(self.weighted_file_index_list)
 
     def __getitem__(self, index):
-        data_file = self.files[self.split][index] if self.modified_indices is None \
-            else self.files[self.split][self.modified_indices[index]]
+        file_indices = self.weighted_file_index_list
+        data_file = self.files[self.split][file_indices[index]]
         img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
                                                    sem_lbl_file=data_file['sem_lbl'],
                                                    inst_lbl_file=data_file['inst_lbl'])
         return img, lbl
 
-    def modify_image_set(self, index_list):
+    def modify_image_set(self, index_list, index_from_originals=False):
+        if index_from_originals and self.file_index_subset is not None:
+            raise NotImplementedError
         if max(index_list) >= self.__len__():
-            self.modified_indices = index_list
+            if self.file_index_subset is not None:
+                self.file_index_subset = [self.file_index_subset[index] for index in index_list]
+            else:
+                self.file_index_subset = index_list
         else:
             raise ValueError('index list must be within 0 and {}, not {}'.format(self.__len__() - 1, max(index_list)))
 
@@ -224,9 +259,11 @@ class VOCClassSegBase(data.Dataset):
         return self._instance_to_semantic_mapping_matrix
 
     def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
-        return instance_utils.combine_semantic_and_instance_labels(
-            sem_lbl, inst_lbl, semantic_instance_class_list=self.n_inst_per_class,
-            set_extras_to_void=self.set_extras_to_void)
+        raise NotImplementedError('we need to pass or create the instance config class to make this work properly')
+        # return instance_utils.combine_semantic_and_instance_labels(
+        #     sem_lbl, inst_lbl, semantic_instance_class_list=self.n_inst_per_class,
+        #     instance_count_id_list=instance_utils.get_instance_count_id_list(self.semantic ... )
+        #     set_extras_to_void=self.set_extras_to_void)
 
     def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file):
         img = self.load_img_as_dtype(img_file, np.uint8)
@@ -271,7 +308,6 @@ class VOCClassSegBase(data.Dataset):
                     break
             if is_valid:
                 valid_indices.append(index)
-
         return valid_indices
 
     def copy(self, modified_length=10):
@@ -283,6 +319,22 @@ class VOCClassSegBase(data.Dataset):
         my_copy.n_images = modified_length
         return my_copy
 
+    def collect_instance_counts(self, files, semantic_classes=None):
+        semantic_classes = semantic_classes or range(self.n_semantic_classes)
+        instance_counts = np.ones((len(files), len(semantic_classes))) * np.nan
+        for index_num in range(len(self)):
+            for sem_idx, sem_val in enumerate(semantic_classes):
+                file_idx = index_num if self.file_index_subset is None else self.file_index_subset[index_num]
+                data_file = self.files[self.split][file_idx]
+                img, (sem_lbl, inst_lbl) = self.load_and_process_voc_files(img_file=data_file['img'],
+                                                                           sem_lbl_file=data_file['sem_lbl'],
+                                                                           inst_lbl_file=data_file['inst_lbl'])
+                sem_locations_bool = sem_lbl == sem_val
+                if torch.np.any(sem_locations_bool):
+                    instance_counts[index_num, sem_idx] = inst_lbl[sem_locations_bool].max()
+                else:
+                    instance_counts[file_idx, sem_idx] = 0
+        return instance_counts
 
 
 class VOC2011ClassSeg(VOCClassSegBase):
@@ -300,7 +352,11 @@ class VOC2012ClassSeg(VOCClassSegBase):
             root, split=split, transform=transform, **kwargs)
 
 
-# class SBDClassSeg(VOCClassSegBase):
+def xor(a, b):
+    return (a and not b) or (not a and b)
+
+
+    # class SBDClassSeg(VOCClassSegBase):
 #
 #     # XXX: It must be renamed to benchmark.tar to be extracted.
 #     url = 'http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/semantic_contours/benchmark.tgz'  # NOQA
@@ -340,8 +396,5 @@ class VOC2012ClassSeg(VOCClassSegBase):
 #             return self.transform(img, lbl)
 #         else:
 #             return img, lbl
-
-def xor(a, b):
-    return (a and not b) or (not a and b)
 
 

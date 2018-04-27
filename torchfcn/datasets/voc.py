@@ -119,14 +119,14 @@ class VOCClassSegBase(data.Dataset):
                                   index_from_originals=True)
         if self.collect_image_details:
             import ipdb; ipdb.set_trace()
-            if instance_counts_precomputed:
+            if instance_counts_precomputed is not None:
                 semantic_classes = semantic_subset or range(self.n_semantic_classes)
                 assert instance_counts_precomputed.shape == (len(self.files[split]), len(semantic_classes))
+                self.instance_counts = instance_counts_precomputed
             else:
                 self.instance_counts = self.collect_instance_counts(self.files[self.split], semantic_subset)
                 np.save('/home/adelgior/data/datasets/VOC/instance_counts_semantic_subset-None.npy',
                         self.instance_counts)
-                import ipdb; ipdb.set_trace()
         else:
             self.instance_counts = None
         if self.weight_by_instance:

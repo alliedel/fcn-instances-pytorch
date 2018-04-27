@@ -128,7 +128,6 @@ def main():
             import ipdb; ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
             raise
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    import ipdb; ipdb.set_trace()
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs, **train_dataset_kwargs)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
@@ -138,8 +137,7 @@ def main():
 
     for img, (sl, il) in train_dataset:
         pass
-    import ipdb; ipdb.set_trace()
-
+    
     # 1. Problem setup (instance segmentation definition)
 
     class_names = val_dataset.class_names

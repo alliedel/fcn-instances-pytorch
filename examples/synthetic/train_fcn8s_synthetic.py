@@ -103,6 +103,15 @@ configurations = {
         size_average=False,
         score_multiplier=None,
     ),
+    8: dict(  # instance seg. with initialization from semantic
+        max_iteration=10000,
+        interval_validate=100,
+        lr=1.0e-10,
+        initialize_from_semantic=True,
+        bottleneck_channel_capacity=None,
+        size_average=False,
+        score_multiplier=None,
+    ),
 }
 
 here = osp.dirname(osp.abspath(__file__))

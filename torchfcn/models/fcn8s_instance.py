@@ -304,6 +304,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
 
         for module_name, my_module in self.named_children():
             if module_name in module_names_to_ignore:
+                import ipdb; ipdb.set_trace()
                 continue
             module_to_copy = getattr(semantic_model, module_name)
             if module_name in conv2d_with_repeated_channels:

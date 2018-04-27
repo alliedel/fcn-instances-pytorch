@@ -365,7 +365,6 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             unsuccessfully_copied_modules = []
             for module_name, my_module in self.named_children():
                 if module_name in module_names_to_ignore:
-                    import ipdb; ipdb.set_trace()
                     continue
                 module_to_copy = getattr(semantic_model, module_name)
                 for i, (my_p, p_to_copy) in enumerate(zip(my_module.named_parameters(), module_to_copy.named_parameters())):

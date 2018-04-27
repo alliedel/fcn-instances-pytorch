@@ -118,6 +118,7 @@ class VOCClassSegBase(data.Dataset):
             self.modify_image_set(self.filter_by_semantic_subset(self.files[self.split], non_bground_idxs),
                                   index_from_originals=True)
         if self.collect_image_details:
+            import ipdb; ipdb.set_trace()
             if instance_counts_precomputed:
                 semantic_classes = semantic_subset or range(self.n_semantic_classes)
                 assert instance_counts_precomputed.shape == (len(self.files[split]), len(semantic_classes))

@@ -113,6 +113,8 @@ def main():
         print('Loading precomputed instance counts from {}'.format(instance_counts_file))
         instance_precomputed = True
         instance_counts = np.load(instance_counts_file)
+        if len(instance_counts.shape) == 0:
+            raise Exception('instance counts file contained empty array. Delete it: {}'.format(instance_counts_file))
     else:
         print('No precomputed instance counts (checked in {})'.format(instance_counts_file))
         instance_precomputed = False
@@ -126,6 +128,7 @@ def main():
             import ipdb; ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
             raise
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
+    import ipdb; ipdb.set_trace()
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs, **train_dataset_kwargs)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)

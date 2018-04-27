@@ -141,8 +141,12 @@ def main():
     n_semantic_classes = len(class_names)
     if cfg['single_instance'] and cfg['n_instances_per_class'] is not None and cfg['n_instances_per_class'] != 1:
         raise ValueError('n_instances_per_class should be 1 (or None) when running semantic loss')
-    n_instances_per_class = cfg['n_instances_per_class'] or 1 if cfg['single_instance'] else None
+    if cfg['n_instances_per_class'] is None:
+        n_instances_per_class = 1 if cfg['single_instance'] else None
+    else:
+        n_instances_per_class = cfg['n_instances_per_class']
     n_instances_by_semantic_id = [1] + [n_instances_per_class for sem_cls in range(1, n_semantic_classes)]
+    import ipdb; ipdb.set_trace()
     problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
     problem_config.set_class_names(val_dataset.class_names)
 

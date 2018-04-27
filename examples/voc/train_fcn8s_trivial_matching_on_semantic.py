@@ -111,14 +111,21 @@ def main():
     instance_counts_file = osp.expanduser('~/data/datasets/VOC/instance_counts{}.txt'.format(instance_counts_cfg_str))
     if os.path.exists(instance_counts_file):
         print('Loading precomputed instance counts from {}'.format(instance_counts_file))
+        instance_precomputed = True
         instance_counts = np.load(instance_counts_file)
     else:
         print('No precomputed instance counts')
+        instance_precomputed = False
         instance_counts = None
     train_dataset_kwargs = dict(weight_by_instance=cfg['weight_by_instance'], instance_counts=instance_counts)
+    if not instance_precomputed:
+        try:
+            np.save(instance_counts_file, instance_counts)
+        except:
+            import ipdb; ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
+            raise
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs, **train_dataset_kwargs)
-
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)

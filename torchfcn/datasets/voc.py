@@ -324,16 +324,15 @@ class VOCClassSegBase(data.Dataset):
     def collect_instance_counts(self, files, semantic_classes=None):
         semantic_classes = semantic_classes or range(self.n_semantic_classes)
         instance_counts = np.ones((len(files), len(semantic_classes))) * np.nan
-        for index_num in range(len(self)):
+        for file_idx in self.get_file_index_list():
             for sem_idx, sem_val in enumerate(semantic_classes):
-                file_idx = index_num if self.file_index_subset is None else self.file_index_subset[index_num]
                 data_file = self.files[self.split][file_idx]
                 img, (sem_lbl, inst_lbl) = self.load_and_process_voc_files(img_file=data_file['img'],
                                                                            sem_lbl_file=data_file['sem_lbl'],
                                                                            inst_lbl_file=data_file['inst_lbl'])
                 sem_locations_bool = sem_lbl == sem_val
                 if torch.np.any(sem_locations_bool):
-                    instance_counts[index_num, sem_idx] = inst_lbl[sem_locations_bool].max()
+                    instance_counts[file_idx, sem_idx] = inst_lbl[sem_locations_bool].max()
                 else:
                     instance_counts[file_idx, sem_idx] = 0
         return instance_counts

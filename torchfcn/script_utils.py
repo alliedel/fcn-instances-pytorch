@@ -36,7 +36,8 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'initialize_from_semantic': 'init_sem',
                                         'bottleneck_channel_capacity': 'bcc',
                                         'single_instance': '1inst',
-                                        'score_multiplier': 'sm'
+                                        'score_multiplier': 'sm',
+                                        'weight_by_instance': 'wt',
                                         }
 
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}

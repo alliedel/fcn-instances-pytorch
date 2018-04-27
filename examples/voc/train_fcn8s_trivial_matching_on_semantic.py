@@ -11,6 +11,7 @@ import torchfcn
 import torchfcn.datasets.voc
 from torchfcn import script_utils
 from torchfcn import instance_utils
+import numpy as np
 
 default_config = dict(
     max_iteration=100000,
@@ -106,9 +107,18 @@ def main():
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
                           map_to_single_instance_problem=cfg['single_instance'])
-    train_dataset_kwargs = dict(weight_by_instance=cfg['weight_by_instance'])
+    instance_counts_cfg_str = '_semantic_subset-{}'.format(cfg['semantic_subset'])
+    instance_counts_file = osp.expanduser('~/data/datasets/VOC/instance_counts{}.txt'.format(instance_counts_cfg_str))
+    if os.path.exists(instance_counts_file):
+        print('Loading precomputed instance counts from {}'.format(instance_counts_file))
+        instance_counts = np.load(instance_counts_file)
+    else:
+        print('No precomputed instance counts')
+        instance_counts = None
+    train_dataset_kwargs = dict(weight_by_instance=cfg['weight_by_instance'], instance_counts=instance_counts)
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs, **train_dataset_kwargs)
+
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)

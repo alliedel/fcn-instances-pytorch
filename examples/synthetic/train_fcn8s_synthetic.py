@@ -126,8 +126,9 @@ configurations = {
         lr=1.0e-10,
         single_instance=False,
         size_average=False,
-        n_instances_per_class=3,
-        score_multiplier=None
+        n_instances_per_class=None,
+        score_multiplier=None,
+        initialize_from_semantic=False,
     ),
 }
 

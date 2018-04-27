@@ -246,7 +246,9 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                         semantic_instance_class_list=self.semantic_instance_class_list)
                 m.weight.data.copy_(initial_weight)
         if self.score_multiplier_init:
-            self.score_multiplier1x1.weight.data.fill_(self.score_multiplier_init)
+            self.score_multiplier1x1.weight.data.zero_()
+            for ch in self.score_multiplier1x1.weight.size(1):
+                self.score_multiplier1x1.weight.data[ch, ch] = self.score_multiplier_init
             self.score_multiplier1x1.bias.data.zero_()
 
     def copy_params_from_vgg16(self, vgg16):
@@ -319,7 +321,10 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                     for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
                         # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
                         # so we use slicing)
-                        my_p.data[inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[sem_cls:(sem_cls + 1), ...])
+                        n_instances_this_class = float(sum(
+                            [1 if sic == sem_cls else 0 for sic in self.semantic_instance_class_list]))
+                        my_p.data[inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[sem_cls:(sem_cls + 1),
+                                                                      ...] / n_instances_this_class)
             elif module_name in conv2dT_with_repeated_channels:
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()

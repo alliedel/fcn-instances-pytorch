@@ -25,7 +25,7 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'interval_validate': 'int_val',
                                         'resize_size': 'sz',
                                         'n_max_per_class': 'n_per',
-                                        'semantic_subset': 'sem_set',
+                                        'semantic_subset': 'sset',
                                         'val_on_train': 'vot',
                                         'matching': 'match',
                                         'filter_images_by_semantic_subset': 'f_sem',
@@ -75,8 +75,12 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME):
     cfg_print = config_dict.copy()
     for key, replacement_key in config_key_replacements.items():
+        if key == 'semantic_subset':
+            if config_dict['semantic_subset'] is not None:
+                cfg_print['semantic_subset'] = ''.join([cls[0] for cls in config_dict['semantic_subset']])
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
+
     return cfg_print
 
 

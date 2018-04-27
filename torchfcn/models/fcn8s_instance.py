@@ -247,7 +247,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
                 m.weight.data.copy_(initial_weight)
         if self.score_multiplier_init:
             self.score_multiplier1x1.weight.data.zero_()
-            for ch in self.score_multiplier1x1.weight.size(1):
+            for ch in range(self.score_multiplier1x1.weight.size(1)):
                 self.score_multiplier1x1.weight.data[ch, ch] = self.score_multiplier_init
             self.score_multiplier1x1.bias.data.zero_()
 

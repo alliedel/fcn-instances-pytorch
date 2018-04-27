@@ -30,7 +30,6 @@ class InstanceProblemConfig(object):
         self.include_instance_channel0 = include_instance_channel0
 
         # Compute derivative stuff
-        import ipdb; ipdb.set_trace()
         self.sem_ids_by_instance_id = [id_into_sem_vals for
                                        id_into_sem_vals, n_inst in
                                        enumerate(self.n_instances_by_semantic_id)

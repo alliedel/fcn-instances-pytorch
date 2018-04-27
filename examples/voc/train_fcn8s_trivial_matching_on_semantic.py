@@ -146,7 +146,6 @@ def main():
     else:
         n_instances_per_class = cfg['n_instances_per_class']
     n_instances_by_semantic_id = [1] + [n_instances_per_class for sem_cls in range(1, n_semantic_classes)]
-    import ipdb; ipdb.set_trace()
     problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
     problem_config.set_class_names(val_dataset.class_names)
 

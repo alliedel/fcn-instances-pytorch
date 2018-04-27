@@ -108,7 +108,7 @@ def main():
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
                           map_to_single_instance_problem=cfg['single_instance'])
     instance_counts_cfg_str = '_semantic_subset-{}'.format(cfg['semantic_subset'])
-    instance_counts_file = osp.expanduser('~/data/datasets/VOC/instance_counts{}.txt'.format(instance_counts_cfg_str))
+    instance_counts_file = osp.expanduser('~/data/datasets/VOC/instance_counts{}.npy'.format(instance_counts_cfg_str))
     if os.path.exists(instance_counts_file):
         print('Loading precomputed instance counts from {}'.format(instance_counts_file))
         instance_precomputed = True

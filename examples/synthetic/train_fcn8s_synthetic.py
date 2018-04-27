@@ -120,6 +120,15 @@ configurations = {
         size_average=False,
         bottleneck_channel_capacity=7,
     ),
+    10: dict(  # 'semantic': mapping all semantic into a single instance
+        max_iteration=10000,
+        interval_validate=100,
+        lr=1.0e-10,
+        single_instance=False,
+        size_average=False,
+        n_instances_per_class=3,
+        score_multiplier=None
+    ),
 }
 
 here = osp.dirname(osp.abspath(__file__))

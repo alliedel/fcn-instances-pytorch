@@ -114,7 +114,7 @@ def main():
         instance_precomputed = True
         instance_counts = np.load(instance_counts_file)
     else:
-        print('No precomputed instance counts')
+        print('No precomputed instance counts (checked in {})'.format(instance_counts_file))
         instance_precomputed = False
         instance_counts = None
     train_dataset_kwargs = dict(weight_by_instance=cfg['weight_by_instance'],

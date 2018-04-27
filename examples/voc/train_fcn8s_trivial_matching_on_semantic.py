@@ -222,6 +222,7 @@ def main():
         matching_loss=cfg['matching'],
         loader_semantic_lbl_only=cfg['semantic_only_labels'],
         train_loader_for_val=train_loader_for_val,
+        export_analytics_every=1000,
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

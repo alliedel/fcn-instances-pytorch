@@ -29,7 +29,7 @@ class Trainer(object):
                  train_loader, val_loader, out, max_iter, instance_problem,
                  size_average=False, interval_validate=None, matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
-                 use_semantic_loss=False):
+                 use_semantic_loss=False, export_analytics_every=1):
         self.cuda = cuda
 
         self.model = model
@@ -83,6 +83,7 @@ class Trainer(object):
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
+        self.export_analytics_every = export_analytics_every
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
@@ -447,15 +448,15 @@ class Trainer(object):
                     self.compute_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[pred_permutations])
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))
             metrics = np.mean(metrics, axis=0)
-
             self.write_metrics(metrics, loss, split='train')
-            lt_combined = self.gt_tuple_to_combined(lbl_true_sem, lbl_true_inst)
-            analytics = self.compute_analytics(lt_combined, inst_lbl_pred, score, pred_permutations)
-            if self.tensorboard_writer is not None:
-                flattened_analytics = flatten(analytics, sep='/')
-                for key, val in flattened_analytics.items():
-                    self.tensorboard_writer.add_scalar('analytics/{}/{}'.format('train', key),
-                                                       val, self.iteration)
+            if np.mod(batch_idx, self.export_analytics_every) == 0:
+                lt_combined = self.gt_tuple_to_combined(lbl_true_sem, lbl_true_inst)
+                analytics = self.compute_analytics(lt_combined, inst_lbl_pred, score, pred_permutations)
+                if self.tensorboard_writer is not None:
+                    flattened_analytics = flatten(analytics, sep='/')
+                    for key, val in flattened_analytics.items():
+                        self.tensorboard_writer.add_scalar('analytics/{}/{}'.format('train', key),
+                                                           val, self.iteration)
             if self.iteration >= self.max_iter:
                 break
 

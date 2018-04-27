@@ -136,7 +136,8 @@ class VOCClassSegBase(data.Dataset):
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
 
     def get_file_index_list(self):
-        return self.file_index_subset or range(len(self.files[self.split]))
+        file_index_list = self.file_index_subset or range(len(self.files[self.split]))
+        return [int(f) for f in file_index_list]
 
     def get_weighted_file_index_list(self):
         file_index_list = self.get_file_index_list()

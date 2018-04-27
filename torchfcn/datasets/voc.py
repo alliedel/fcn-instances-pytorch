@@ -119,7 +119,10 @@ class VOCClassSegBase(data.Dataset):
                                   index_from_originals=True)
         if self.collect_image_details:
             if instance_counts_precomputed is not None:
-                semantic_classes = semantic_subset or range(self.n_semantic_classes)
+                if self.semantic_subset:
+                    semantic_classes = range(self.n_semantic_classes)
+                else:
+                    semantic_classes = self.idxs_into_all_voc
                 assert instance_counts_precomputed.shape == (len(self.files[split]), len(semantic_classes))
                 self.instance_counts = instance_counts_precomputed
             else:

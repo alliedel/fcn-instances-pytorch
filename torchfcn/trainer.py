@@ -88,7 +88,8 @@ class Trainer(object):
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                       score.size(3))):
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
             raise Exception('Sizes of score, targets are incorrect')
         permutations, loss = losses.cross_entropy2d(
             score, sem_lbl, inst_lbl,
@@ -150,7 +151,7 @@ class Trainer(object):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
             true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
-                segmentation_visualizations_sb, score_visualizations_sb = \
+            segmentation_visualizations_sb, score_visualizations_sb = \
                 self.validate_single_batch(data, sem_lbl, inst_lbl, data_loader=data_loader,
                                            should_visualize=should_visualize)
             if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
@@ -187,7 +188,6 @@ class Trainer(object):
                 self.save_checkpoint()
             if update_best_checkpoint:
                 self.update_best_checkpoint_if_best(mean_iu=metrics[2])
-
 
         if write_analytics:
             analytics = self.compute_analytics(label_trues, label_preds, scores, pred_permutations)
@@ -233,7 +233,7 @@ class Trainer(object):
         metrics = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted, n_class=self.n_combined_class)
         return metrics
 
-    def compute_analytics(self, label_trues, label_preds, pred_scores, pred_permutations):
+    def compute_analytics(self, sem_label, inst_label, label_preds, pred_scores, pred_permutations):
         if type(pred_scores) is list:
             try:
                 pred_scores_stacked = torch.stack(pred_scores, dim=0)
@@ -247,6 +247,10 @@ class Trainer(object):
                 abs_scores_stacked = torch.abs(pred_scores_stacked)
             except:
                 abs_scores_stacked = np.abs(pred_scores_stacked)
+        try:
+            softmax_scores = F.softmax(pred_scores_stacked, dim=1)
+        except:
+            softmax_scores = F.softmax(torch.from_numpy(pred_scores_stacked), dim=1)
         analytics = {
             'scores': {
                 'max': pred_scores_stacked.max(),
@@ -255,20 +259,43 @@ class Trainer(object):
                 'min': pred_scores_stacked.min(),
                 # 'abs_mean': abs_scores_stacked.mean(),
                 'abs_median': abs_scores_stacked.median(),
-            }
+            },
         }
 
         for channel in range(pred_scores_stacked.size(1)):
             channel_scores = pred_scores_stacked[:, channel, :, :]
             abs_channel_scores = abs_scores_stacked[:, channel, :, :]
             analytics['per_channel_scores/{}'.format(channel)] = {
-                    'max': channel_scores.max(),
-                    # 'mean': channel_scores.mean(),
-                    # 'median': channel_scores.median(),
-                    'min': channel_scores.min(),
-                    # 'abs_mean': abs_channel_scores.mean(),
-                    'abs_median': abs_channel_scores.median(),
-                }
+                'max': channel_scores.max(),
+                # 'mean': channel_scores.mean(),
+                # 'median': channel_scores.median(),
+                'min': channel_scores.min(),
+                # 'abs_mean': abs_channel_scores.mean(),
+                'abs_median': abs_channel_scores.median(),
+            }
+        channel_labels = self.instance_problem.get_channel_labels('{}_{}')
+        for inst_idx, sem_cls in enumerate(self.instance_problem.semantic_instance_class_list):
+            same_sem_cls_channels = [channel for channel, cls in enumerate(
+                self.instance_problem.semantic_instance_class_list) if cls == sem_cls]
+            all_maxes = softmax_scores[:, same_sem_cls_channels, :, :].max(dim=1)
+            all_sums = softmax_scores[:, same_sem_cls_channels, :, :].sum(dim=1)
+            # get 'smearing' level across all channels
+            sem_channel_keyname = 'instance_commitment/{}'.format(self.instance_problem.class_names[sem_cls])
+            if sem_channel_keyname not in analytics.keys():
+                # first of its sem class -- run semantic analytics here
+                relevant_pixels = sem_label == sem_cls
+                analytics[sem_channel_keyname] = \
+                    (all_maxes[relevant_pixels] / all_sums[relevant_pixels]).mean(),
+
+            # get 'commitment' level within each channel
+            pixels_assigned_to_me = (label_preds == inst_idx)
+            pixels_assigned_to_my_sem_cls = torch.sum([(label_preds == channel) for channel in
+                                                       same_sem_cls_channels])
+            # channel_usage_fraction: fraction of channels of same semantic class that are used
+            inst_channel_keyname = 'channel_usage_fraction/{}'.format(channel_labels[inst_idx])
+            analytics[inst_channel_keyname] = pixels_assigned_to_me.int().sum() / \
+                                              pixels_assigned_to_my_sem_cls.int().sum()
+
         return analytics
 
     def write_metrics(self, metrics, loss, split):
@@ -321,7 +348,7 @@ class Trainer(object):
         # TODO(allie): Don't turn target into variables yet here? (Not yet sure if this works
         # before we've actually combined the semantic and instance labels...)
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
-                                      Variable(sem_lbl), Variable(inst_lbl)
+                                  Variable(sem_lbl), Variable(inst_lbl)
         score = self.model(data)
         pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
         if np.isnan(float(loss.data[0])):
@@ -341,7 +368,8 @@ class Trainer(object):
                 (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
                                        data_loader.dataset.untransform_lbl(inst_lbl))
             except:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 raise
 
             lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
@@ -451,11 +479,11 @@ class Trainer(object):
             self.write_metrics(metrics, loss, split='train')
             if np.mod(batch_idx, self.export_analytics_every) == 0:
                 lt_combined = self.gt_tuple_to_combined(lbl_true_sem, lbl_true_inst)
-                analytics = self.compute_analytics(lt_combined, inst_lbl_pred, score, pred_permutations)
+                analytics = self.compute_analytics(sem_lbl, inst_lbl, inst_lbl_pred, score, pred_permutations)
                 if self.tensorboard_writer is not None:
                     flattened_analytics = flatten(analytics, sep='/')
                     for key, val in flattened_analytics.items():
-                        self.tensorboard_writer.add_scalar('analytics/{}/{}'.format('train', key),
+                        self.tensorboard_writer.add_scalar('{}/{}'.format('train', key),
                                                            val, self.iteration)
             if self.iteration >= self.max_iter:
                 break

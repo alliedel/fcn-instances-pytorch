@@ -236,7 +236,7 @@ class Trainer(object):
     def compute_analytics(self, sem_label, inst_label, label_preds, pred_scores, pred_permutations):
         if type(pred_scores) is list:
             try:
-                pred_scores_stacked = torch.concatenate(pred_scores, dim=0)
+                pred_scores_stacked = torch.cat(pred_scores, dim=0)
                 abs_scores_stacked = torch.abs(pred_scores_stacked)
             except:
                 pred_scores_stacked = np.concatenate(pred_scores, axis=0)

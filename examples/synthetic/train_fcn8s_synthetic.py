@@ -43,7 +43,7 @@ configurations = {
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,
-        size_average=False
+        size_average=False,
         n_instances_per_class=None,
     ),
     1: dict(  # 'semantic': mapping all semantic into a single instance
@@ -95,7 +95,7 @@ configurations = {
         size_average=False,
         score_multiplier=1.0,
     ),
-    7: dict(  # instance seg. with initialization from semantic
+    7: dict(  # instance seg. WITHOUT initialization from semantic
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-10,

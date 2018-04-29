@@ -190,7 +190,7 @@ class Trainer(object):
                 self.update_best_checkpoint_if_best(mean_iu=metrics[2])
 
         if write_analytics:
-            analytics = self.compute_analytics(label_trues, label_preds, scores, pred_permutations)
+            analytics = self.compute_analytics(sem_lbl, inst_lbl, label_preds, scores, pred_permutations)
             if self.tensorboard_writer is not None:
                 flattened_analytics = flatten(analytics, sep='/')
                 for key, val in flattened_analytics.items():

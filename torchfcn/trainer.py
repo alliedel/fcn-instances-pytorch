@@ -236,10 +236,10 @@ class Trainer(object):
     def compute_analytics(self, sem_label, inst_label, label_preds, pred_scores, pred_permutations):
         if type(pred_scores) is list:
             try:
-                pred_scores_stacked = torch.stack(pred_scores, dim=0)
+                pred_scores_stacked = torch.concatenate(pred_scores, dim=0)
                 abs_scores_stacked = torch.abs(pred_scores_stacked)
             except:
-                pred_scores_stacked = np.stack(pred_scores, axis=0)
+                pred_scores_stacked = np.concatenate(pred_scores, axis=0)
                 abs_scores_stacked = np.abs(pred_scores_stacked)
         else:
             pred_scores_stacked = pred_scores
@@ -277,13 +277,14 @@ class Trainer(object):
         for inst_idx, sem_cls in enumerate(self.instance_problem.semantic_instance_class_list):
             same_sem_cls_channels = [channel for channel, cls in enumerate(
                 self.instance_problem.semantic_instance_class_list) if cls == sem_cls]
-            all_maxes = softmax_scores[:, same_sem_cls_channels, :, :].max(dim=1)
+            all_maxes = softmax_scores[:, same_sem_cls_channels, :, :].max(dim=1)[0]
             all_sums = softmax_scores[:, same_sem_cls_channels, :, :].sum(dim=1)
             # get 'smearing' level across all channels
             sem_channel_keyname = 'instance_commitment/{}'.format(self.instance_problem.class_names[sem_cls])
             if sem_channel_keyname not in analytics.keys():
                 # first of its sem class -- run semantic analytics here
                 relevant_pixels = sem_label == sem_cls
+                import ipdb; ipdb.set_trace()
                 analytics[sem_channel_keyname] = \
                     (all_maxes[relevant_pixels] / all_sums[relevant_pixels]).mean(),
 

@@ -214,8 +214,7 @@ def main():
     print('logdir: {}'.format(out_dir))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
-    if args.cuda:
-        assert torch.cuda.is_available()
+    args.cuda = torch.cuda.is_available()
 
     torch.manual_seed(1337)
     if args.cuda:

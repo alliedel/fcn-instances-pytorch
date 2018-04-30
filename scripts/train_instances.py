@@ -205,6 +205,7 @@ def main():
                    'voc': voc_cfg.default_config}[args.dataset]
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[args.dataset]
+    import ipdb; ipdb.set_trace()
     cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)
     non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg_options)
     print('non-default cfg values: {}'.format(non_default_options))

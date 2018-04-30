@@ -1,8 +1,8 @@
 from . import generic_cfg
 
-default_config = generic_cfg.default_config.update(
+default_config = generic_cfg.default_config
+default_config.update(
     {
-
     }
 )
 

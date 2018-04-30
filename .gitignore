@@ -10,3 +10,6 @@ dist/
 */*/backup_logs*
 */*/useless_logs
 profile_backup/
+viz_evaluate*.png
+examples/voc/good_backup_logs
+cmake-build-debug

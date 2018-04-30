@@ -21,6 +21,9 @@ from torchfcn import instance_utils
 # the network shouldn't be able to understand that's going on (semantic classes are handled
 # separately)
 
+
+VOC_ROOT = osp.abspath(osp.expanduser('~/data/datasets'))
+
 DEBUG_ASSERT = True
 
 ALL_VOC_CLASS_NAMES = np.array([

@@ -29,7 +29,7 @@ class Trainer(object):
                  train_loader, val_loader, out, max_iter, instance_problem,
                  size_average=False, interval_validate=None, matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
-                 use_semantic_loss=False, export_analytics_every=1):
+                 use_semantic_loss=False):
         self.cuda = cuda
 
         self.model = model
@@ -83,7 +83,6 @@ class Trainer(object):
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
-        self.export_analytics_every = export_analytics_every
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
@@ -99,7 +98,7 @@ class Trainer(object):
             size_average=self.size_average, break_here=False, recompute_optimal_loss=False, **kwargs)
         return permutations, loss
 
-    def validate(self, split='val', write_metrics=None, write_analytics=True, save_checkpoint=None,
+    def validate(self, split='val', write_metrics=None, save_checkpoint=None,
                  update_best_checkpoint=None, should_export_visualizations=True):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
@@ -403,8 +402,6 @@ class Trainer(object):
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))
             metrics = np.mean(metrics, axis=0)
             self.write_metrics(metrics, loss, split='train')
-            if np.mod(batch_idx, self.export_analytics_every) == 0:
-                lt_combined = self.gt_tuple_to_combined(lbl_true_sem, lbl_true_inst)
             if self.iteration >= self.max_iter:
                 break
 

@@ -1,36 +1,17 @@
+from . import generic_cfg
 
-
-
-default_synthetic_config = dict(
-    max_iteration=100000,
-    lr=1.0e-12,
-    momentum=0.99,
-    weight_decay=0.0005,
-    interval_validate=4000,
-    matching=True,
-    semantic_only_labels=False,
+default_config = generic_cfg.default_config.update(
+    max_iteration=10000,
+    interval_validate=100,
+    lr=1.0e-10,
+    size_average=False,
     n_instances_per_class=None,
-    set_extras_to_void=True,
-    semantic_subset=None,
-    filter_images_by_semantic_subset=False,
-    optim='sgd',
-    single_instance=False,  # map_to_single_instance_problem
-    initialize_from_semantic=False,
-    bottleneck_channel_capacity=None,
-    size_average=True,
-    score_multiplier=None,
 )
 
-synthetic_configurations = {
+configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
-    0: dict(  # vanilla
-        max_iteration=10000,
-        interval_validate=100,
-        lr=1.0e-10,
-        size_average=False,
-        n_instances_per_class=None,
-    ),
+    0: dict(),
     1: dict(  # 'semantic': mapping all semantic into a single instance
         max_iteration=10000,
         interval_validate=100,

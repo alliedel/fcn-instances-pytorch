@@ -57,6 +57,12 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 
+def prune_defaults_from_dict(default_dict, update_dict):
+    for key in update_dict.keys():
+        if update_dict[key] == default_dict[key]:
+            update_dict.pop(key)
+
+
 def check_clean_work_tree(exit_on_error=False, interactive=True):
     child = subprocess.Popen(['git', 'diff', '--name-only', '--exit-code'], stdout=subprocess.PIPE)
     stdout = child.communicate()[0]

@@ -21,17 +21,21 @@ VOC_ROOT = osp.expanduser('~/data/datasets')
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', choices=['synthetic', 'voc'], required=True)
-    args, _ = parser.parse_known_args('--dataset')
-    cfg_options = {'synthetic': synthetic_cfg.configurations,
-                   'voc': voc_cfg.configurations}[args.dataset]
-    parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('--resume', help='Checkpoint path')
     parser.add_argument('--semantic-init', help='Checkpoint path of semantic model (e.g. - '
                                                 '\'~/data/models/pytorch/semantic_synthetic.pth\'', default=None)
-    parser.add_argument('-c', '--config', type=int, default=0, choices=cfg_options.keys())
-    parser.parse_args(namespace=args)
+
+    subparsers = parser.add_subparsers(help='dataset', dest='dataset: voc, synthetic')
+    dataset_parsers = {
+        'voc': subparsers.add_parser('voc', help='VOC dataset options'),
+        'synthetic': subparsers.add_parser('synthetic', help='synthetic dataset options')
+    }
+    for dataset_name, subparser in dataset_parsers.items():
+        subparser.add_argument('-c', '--config', type=int, default=0,
+                               choices={'synthetic': synthetic_cfg.configurations,
+                                        'voc': voc_cfg.configurations}[dataset_name].keys())
+    args = parser.parse_args()
     return args
 
 

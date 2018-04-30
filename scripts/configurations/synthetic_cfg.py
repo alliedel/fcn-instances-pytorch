@@ -17,6 +17,7 @@ configurations = {
         max_iteration=10000,
         interval_validate=100,
         single_instance=True,
+        lr=1.0e-10
     ),
     2: dict(  # instance seg. with initialization from semantic
         max_iteration=10000,

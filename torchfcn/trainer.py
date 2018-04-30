@@ -107,7 +107,6 @@ class Trainer(object):
             False.
         """
         metrics, visualizations = None, None
-        analytics = None
         write_metrics = (split == 'val') if write_metrics is None else write_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -224,6 +223,7 @@ class Trainer(object):
             label_preds_permuted = label_preds
         metrics = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted, n_class=self.n_combined_class)
         return metrics
+
     def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:
             elapsed_time = (

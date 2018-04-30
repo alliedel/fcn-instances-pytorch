@@ -210,7 +210,7 @@ def main():
     print('non-default cfg values: {}'.format(non_default_options))
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        script_utils.create_config_copy(cfg),
-                                       parent_directory=here)
+                                       parent_directory=os.path.join(here, args.dataset))
     print('logdir: {}'.format(out_dir))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)

@@ -4,7 +4,7 @@ default_config = generic_cfg.default_config
 default_config.update(
     max_iteration=10000,
     interval_validate=100,
-    lr=1.0e-10,
+    lr=1.0e-7,
     size_average=True,
     n_instances_per_class=None,
 )

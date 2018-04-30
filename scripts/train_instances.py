@@ -12,7 +12,7 @@ import torchfcn.datasets.synthetic
 from torchfcn import script_utils, instance_utils, visualization_utils
 import skimage.io
 
-from .configurations import synthetic_cfg, voc_cfg
+from scripts.configurations import synthetic_cfg, voc_cfg
 
 here = osp.dirname(osp.abspath(__file__))
 

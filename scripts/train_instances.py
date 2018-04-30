@@ -16,7 +16,7 @@ from scripts.configurations import synthetic_cfg, voc_cfg
 
 here = osp.dirname(osp.abspath(__file__))
 
-VOC_ROOT = osp.expanduser('~/data/datasets')
+VOC_ROOT = osp.abspath(osp.expanduser('~/data/datasets'))
 
 
 def parse_args():
@@ -210,7 +210,7 @@ def main():
     print('non-default cfg values: {}'.format(non_default_options))
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        script_utils.create_config_copy(cfg),
-                                       parent_directory=osp.dirname(osp.abspath(__file__)))
+                                       parent_directory=here)
     print('logdir: {}'.format(out_dir))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)

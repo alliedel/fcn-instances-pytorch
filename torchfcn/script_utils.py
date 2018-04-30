@@ -58,7 +58,8 @@ class bcolors:
 
 
 def prune_defaults_from_dict(default_dict, update_dict):
-    for key in update_dict.keys():
+    keys = update_dict.keys()
+    for key in keys:
         if update_dict[key] == default_dict[key]:
             update_dict.pop(key)
 

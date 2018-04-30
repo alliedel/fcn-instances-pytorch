@@ -205,9 +205,8 @@ def main():
                    'voc': voc_cfg.default_config}[args.dataset]
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[args.dataset]
-    import ipdb; ipdb.set_trace()
     cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)
-    non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg_options)
+    non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg_options[config_idx])
     print('non-default cfg values: {}'.format(non_default_options))
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        script_utils.create_config_copy(cfg),

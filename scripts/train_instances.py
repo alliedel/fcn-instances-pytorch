@@ -35,6 +35,7 @@ def parse_args():
         subparser.add_argument('-c', '--config', type=int, default=0,
                                choices={'synthetic': synthetic_cfg.configurations,
                                         'voc': voc_cfg.configurations}[dataset_name].keys())
+        subparser.set_defaults(dataset=dataset_name)
     args = parser.parse_args()
     return args
 

@@ -132,7 +132,7 @@ def git_hash():
     return hash
 
 
-def get_log_dir(model_name, config_id=None, cfg=None, parent_directory=None):
+def get_log_dir(model_name, config_id=None, cfg=None, parent_directory='logs'):
     bad_char_replacements = BAD_CHAR_REPLACEMENTS
     # load config
     now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
@@ -152,7 +152,7 @@ def get_log_dir(model_name, config_id=None, cfg=None, parent_directory=None):
     # create out
     if parent_directory is None:
         parent_directory = here
-    log_dir = osp.join(parent_directory, 'logs', name)
+    log_dir = osp.join(parent_directory, name)
     if not osp.exists(log_dir):
         os.makedirs(log_dir)
     with open(osp.join(log_dir, 'config.yaml'), 'w') as f:

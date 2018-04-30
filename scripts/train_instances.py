@@ -25,6 +25,7 @@ def parse_args():
     args, _ = parser.parse_known_args('--dataset')
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[args.dataset]
+    parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('--resume', help='Checkpoint path')
     parser.add_argument('--semantic-init', help='Checkpoint path of semantic model (e.g. - '

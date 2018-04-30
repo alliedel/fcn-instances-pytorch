@@ -405,11 +405,6 @@ class Trainer(object):
             self.write_metrics(metrics, loss, split='train')
             if np.mod(batch_idx, self.export_analytics_every) == 0:
                 lt_combined = self.gt_tuple_to_combined(lbl_true_sem, lbl_true_inst)
-                if self.tensorboard_writer is not None:
-                    flattened_analytics = flatten(analytics, sep='/')
-                    for key, val in flattened_analytics.items():
-                        self.tensorboard_writer.add_scalar('{}/{}'.format('train', key),
-                                                           val, self.iteration)
             if self.iteration >= self.max_iter:
                 break
 

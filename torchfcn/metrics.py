@@ -1,38 +1,157 @@
+import collections
 import tqdm
 from torch.autograd import Variable
 import torch
 import os.path
 import torch.nn.functional as F
-
-import yaml
+from torch.utils.data import sampler
 from torchfcn import script_utils
-from torchfcn import instance_utils
+from local_pyutils import flatten_dict
 
 
 class InstanceMetrics(object):
-    def __init__(self, problem_config, model, data_loader):
+    def __init__(self, problem_config, data_loader):
         self.problem_config = problem_config
-        self.model = model
         self.data_loader = data_loader
-
+        assert not isinstance(self.data_loader.sampler, sampler.RandomSampler),\
+            'Sampler is instance of RandomSampler. Please set shuffle to False on data_loader'
+        assert isinstance(self.data_loader.sampler, sampler.SequentialSampler), NotImplementedError
         self.scores = None
         self.assignments = None
         self.softmaxed_scores = None
+        self.n_pixels_assigned_per_channel = None
+        self.n_instances_assigned_per_sem_cls = None
+        self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = None, None, None
+        self.metrics_computed = False
 
-    def run(self):
-        self.scores = self._compile_scores()
-        self.assignments = argmax_scores(self.scores)
-        self.softmaxed_scores = softmax_scores(self.scores)
+    def clear(self, variables_to_preserve=('problem_config', 'data_loader')):
+        """
+        Clear to evaluate a new model
+        """
+        for attr_name in self.__dict__.keys():
+            if attr_name in variables_to_preserve:
+                continue
+            setattr(self, attr_name, None)
 
-    def _compile_scores(self):
-        return compile_scores(self.model, self.data_loader)
+    def compute_metrics(self, model):
+        scores = self.compute_scores(model)
+        assert scores is not None, 'Couldn\'t find stored score output from network: run compute_scores()'
+        self.assignments = argmax_scores(scores)
+        self.softmaxed_scores = softmax_scores(scores)
+        self.n_pixels_assigned_per_channel = self._compute_pixels_assigned_per_channel(self.assignments)
+        self.n_instances_assigned_per_sem_cls = \
+            self._compute_instances_assigned_per_sem_cls(self.n_pixels_assigned_per_channel)
+        self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = \
+            self._compute_majority_assignment_stats(self.assignments)
+        self.metrics_computed = True
 
-    def _compute_instances_found_per_sem_cls(self):
-        assignments = self.assignments
-        raise NotImplementedError
+    def compute_scores(self, model):
+        return self._compile_scores(model).data
+
+    def _compile_scores(self, model):
+        return compile_scores(model, self.data_loader)
+
+    def _compute_pixels_assigned_per_channel(self, assignments):
+        n_images = len(self.data_loader)
+        n_inst_classes = len(self.problem_config.semantic_instance_class_list)
+        n_pixels_assigned_per_channel = torch.IntTensor(n_images, n_inst_classes).zero_()
         for channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.semantic_instance_class_list,
                                                              self.problem_config.instance_count_id_list)):
-            assignments[channel_idx, ...]
+            n_pixels_assigned_per_channel[:, channel_idx] = \
+                (assignments[:, :, :] == channel_idx).int().sum(dim=2).sum(dim=1)
+        return n_pixels_assigned_per_channel
+
+    def _compute_instances_assigned_per_sem_cls(self, pixels_assigned_per_channel):
+        n_images = len(self.data_loader)
+        instances_found_per_channel = torch.IntTensor(n_images, self.problem_config.n_semantic_classes).zero_()
+        for channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.semantic_instance_class_list,
+                                                             self.problem_config.instance_count_id_list)):
+            instances_found_per_channel[:, sem_cls] += (pixels_assigned_per_channel[:, channel_idx] > 0).int()
+        return instances_found_per_channel
+
+    def _compute_majority_assignment_stats(self, assignments, majority_fraction=0.5):
+        n_images = len(self.data_loader)
+        n_found_per_sem_cls = torch.IntTensor(n_images, self.problem_config.n_semantic_classes).zero_()
+        n_missed_per_sem_cls = torch.IntTensor(n_images, self.problem_config.n_semantic_classes).zero_()
+        channels_of_majority_assignments = \
+            torch.IntTensor(n_images, len(self.problem_config.semantic_instance_class_list)).zero_()
+
+        already_matched_pred_channels = torch.ByteTensor(len(self.problem_config.semantic_instance_class_list))
+        for data_idx, (_, (sem_lbl, inst_lbl)) in enumerate(self.data_loader):
+            already_matched_pred_channels.zero_()
+            for gt_channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.semantic_instance_class_list,
+                                                                    self.problem_config.instance_count_id_list)):
+                instance_mask = (sem_lbl == sem_cls) * (inst_lbl == inst_id)
+                # Find majority assignment for this gt instance
+                instance_assignments = assignments[data_idx, :, :][instance_mask]
+                pred_channel_idx = torch.mode(instance_assignments)[0].numpy().item()  # mode returns (val, idx)
+                if already_matched_pred_channels[pred_channel_idx]:
+                    # We've already assigned this channel to an instance; can't double-count.
+                    n_missed_per_sem_cls[data_idx, sem_cls] += 1
+                else:
+                    # Check whether the majority assignment comprises over half of the pixels
+                    n_instance_pixels = instance_mask.float().sum()
+                    n_pixels_assigned = (instance_assignments == pred_channel_idx).float().sum()
+                    if n_pixels_assigned >= n_instance_pixels * majority_fraction:  # is_majority
+                        n_found_per_sem_cls[data_idx, sem_cls] += 1
+                        channels_of_majority_assignments[data_idx, pred_channel_idx] += 1
+                        already_matched_pred_channels[pred_channel_idx] = True
+                    else:
+                        n_missed_per_sem_cls[data_idx, sem_cls] += 1
+                        n_found_per_sem_cls[data_idx, sem_cls] += 1
+        return n_found_per_sem_cls, n_missed_per_sem_cls, channels_of_majority_assignments
+
+    def get_aggregated_metrics_as_nested_dict(self):
+        """
+        Aggregate metrics over images and return list of metrics to summarize the performance of the model.
+        """
+        assert self.metrics_computed, 'Run compute_metrics first'
+        channel_labels = self.problem_config.get_channel_labels('{}_{}')
+        sem_labels = self.problem_config.class_names
+        metrics_dict = {
+            'n_instances_assigned_per_sem_cls':
+                {
+                    self.problem_config.class_names[sem_cls] + '_sum': self.n_instances_assigned_per_sem_cls[:,
+                                                                       sem_cls].sum()
+                    for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
+                },
+            'n_images_with_more_than_one_instance_assigned':
+                {
+                    self.problem_config.class_names[sem_cls] + '_sum':
+                        (self.n_instances_assigned_per_sem_cls[:, sem_cls] > 0).sum()
+                    for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
+                },
+            'channel_utilization_by_pixel':
+                {
+                    channel_labels[channel_idx] + '_mean': torch.mean(
+                        (self.n_pixels_assigned_per_channel.float())[:, channel_idx])
+                    for channel_idx in range(self.n_pixels_assigned_per_channel.size(1))
+                },
+            'perc_found_per_sem_cls':
+                {
+                    sem_labels[sem_cls] + '_mean': torch.mean(self.n_found_per_sem_cls[:, sem_cls].float() / (
+                        self.n_found_per_sem_cls[:, sem_cls] + self.n_missed_per_sem_cls[:, sem_cls]).float())
+                    for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
+                },
+            'n_found_per_sem_cls':
+                {
+                    sem_labels[sem_cls] + '_mean': torch.mean(self.n_found_per_sem_cls[:, sem_cls].float())
+                    for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
+                },
+            'channel_utilization_by_instance':
+                {
+                    channel_labels[channel_idx] + '_sum': self.channels_of_majority_assignments[:, channel_idx].sum()
+                    for channel_idx in range(self.channels_of_majority_assignments.size(1))
+                }
+        }
+        return metrics_dict
+
+    def get_images_based_on_characteristics(self):
+        image_characteristics = {
+            'multiple_instances_detected':
+                [n_instances > 1 for n_instances in self.n_instances_assigned_per_sem_cls.max(dim=1)[0]],
+        }
+        return image_characteristics
 
 
 def compile_scores(model, data_loader):
@@ -42,8 +161,7 @@ def compile_scores(model, data_loader):
     n_images = data_loader.batch_size * len(data_loader)
     batch_size = data_loader.batch_size
     for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
-            enumerate(data_loader), total=len(data_loader),
-            desc='Running dataset through model', ncols=80,
+            enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
             leave=False):
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), Variable(sem_lbl), Variable(inst_lbl)
         if next(model.parameters()).is_cuda:
@@ -58,7 +176,7 @@ def compile_scores(model, data_loader):
 
 
 def softmax_scores(compiled_scores, dim=1):
-    return F.softmax(compiled_scores, dim=dim)
+    return F.softmax(Variable(compiled_scores), dim=dim).data
 
 
 def argmax_scores(compiled_scores, dim=1):
@@ -85,36 +203,19 @@ def _test():
     problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class)
     model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config, checkpoint,
                                                                  semantic_init=None, cuda=cuda)
-    compiled_scores = compile_scores(model, dataloaders['val'])
-    softmaxed_scores = softmax_scores(compiled_scores)
-    assignments = argmax_scores(compiled_scores)
-    assert torch.np.allclose(assignments.data.cpu().numpy(), argmax_scores(softmaxed_scores).data.cpu().numpy())
-
-    # test different metrics
+    instance_metrics = InstanceMetrics(problem_config, dataloaders['val'])
+    # not necessary, but we'll make sure it runs anyway
+    instance_metrics.clear()
+    instance_metrics.compute_metrics(model)
+    metrics_as_nested_dict = instance_metrics.get_aggregated_metrics_as_nested_dict()
+    metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
+    instance_metrics.get_images_based_on_characteristics()
+    instance_metrics.clear()
 
 
 if __name__ == '__main__':
     _test()
 
-#
-# def compute_analytics(self, sem_label, inst_label, label_preds, pred_scores, pred_permutations):
-#     if type(pred_scores) is list:
-#         try:
-#             pred_scores_stacked = torch.cat(pred_scores, dim=0)
-#             abs_scores_stacked = torch.abs(pred_scores_stacked)
-#         except:
-#             pred_scores_stacked = np.concatenate(pred_scores, axis=0)
-#             abs_scores_stacked = np.abs(pred_scores_stacked)
-#     else:
-#         pred_scores_stacked = pred_scores
-#         try:  # if tensor
-#             abs_scores_stacked = torch.abs(pred_scores_stacked)
-#         except:
-#             abs_scores_stacked = np.abs(pred_scores_stacked)
-#     try:
-#         softmax_scores = F.softmax(pred_scores_stacked, dim=1)
-#     except:
-#         softmax_scores = F.softmax(torch.from_numpy(pred_scores_stacked), dim=1)
 #     analytics = {
 #         'scores': {
 #             'max': pred_scores_stacked.max(),

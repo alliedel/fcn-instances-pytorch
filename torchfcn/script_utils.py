@@ -357,5 +357,3 @@ def get_dataloaders(cfg, dataset, cuda):
         'val': val_loader,
         'train_for_val': train_loader_for_val,
     }
-
-

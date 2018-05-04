@@ -129,7 +129,7 @@ class InstanceMetrics(object):
             'n_images_with_more_than_one_instance_assigned':
                 {
                     self.problem_config.class_names[sem_cls] + '_sum':
-                        (self.n_instances_assigned_per_sem_cls[:, sem_cls] > 0).sum()
+                        (self.n_instances_assigned_per_sem_cls[:, sem_cls] > 1).sum()
                     for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
                 },
             'channel_utilization_by_pixel':

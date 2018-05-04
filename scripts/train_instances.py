@@ -29,7 +29,7 @@ def parse_args():
         subparser.add_argument('--resume', help='Checkpoint path')
         subparser.add_argument('--semantic-init', help='Checkpoint path of semantic model (e.g. - '
                                                     '\'~/data/models/pytorch/semantic_synthetic.pth\'', default=None)
-        subparser.add_argument('--single_image_index', type=int, help='Image index to use for train/validation set',
+        subparser.add_argument('--single-image-index', type=int, help='Image index to use for train/validation set',
                                default=None)
 
     args = parser.parse_args()

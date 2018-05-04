@@ -341,6 +341,7 @@ def get_dataloaders(cfg, dataset, cuda, single_image_index=None):
         train_dataset, val_dataset = get_voc_datasets(cfg, VOC_ROOT)
     else:
         raise ValueError
+    import ipdb; ipdb.set_trace()
     if single_image_index is not None:
         train_dataset = train_dataset.copy(modified_length=1)
         val_dataset = train_dataset.copy(modified_length=1)

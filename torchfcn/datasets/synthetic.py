@@ -91,6 +91,7 @@ class BlobExampleGenerator(object):
         assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
                                                 "the initial dataset"
         my_copy.n_images = modified_length
+        assert len(my_copy) == modified_length
         return my_copy
 
     def get_blob_coordinates(self, image_index, semantic_idx, instance_id=None):

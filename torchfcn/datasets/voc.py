@@ -204,7 +204,7 @@ class VOCClassSegBase(data.Dataset):
     def modify_image_set(self, index_list, index_from_originals=False):
         if index_from_originals and self.file_index_subset is not None:
             raise NotImplementedError
-        if max(index_list) >= self.__len__():
+        if max(index_list) < self.__len__():
             if self.file_index_subset is not None:
                 self.file_index_subset = [self.file_index_subset[index] for index in index_list]
             else:
@@ -330,7 +330,9 @@ class VOCClassSegBase(data.Dataset):
             setattr(my_copy, attr, val)
         assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
                                                 "the initial dataset"
-        my_copy.n_images = modified_length
+
+        my_copy.modify_image_set(range(modified_length))
+        assert len(my_copy) == modified_length
         return my_copy
 
     def collect_instance_counts(self, files, semantic_classes=None):

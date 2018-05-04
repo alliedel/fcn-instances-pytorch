@@ -211,7 +211,7 @@ class Trainer(object):
                 metrics_as_nested_dict = metric_maker.get_aggregated_metrics_as_nested_dict()
                 metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
                 for name, metric in metrics_as_flattened_dict.items():
-                    self.tensorboard_writer.add_scalar('instance_metrics/{}/{}'.format(split, name), metric,
+                    self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric,
                                                        self.iteration)
 
     def permute_scores(self, score, pred_permutations):

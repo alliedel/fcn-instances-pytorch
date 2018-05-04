@@ -322,7 +322,7 @@ def get_voc_datasets(cfg, voc_root):
     train_dataset_kwargs = dict(instance_counts_precomputed=instance_counts)
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='train', **dataset_kwargs,
                                                           **train_dataset_kwargs)
-    if not instance_precomputed:
+    if cfg.get('weight_by_instance', None) and not instance_precomputed:
         try:
             assert train_dataset.instance_counts is not None
             np.save(instance_counts_file, train_dataset.instance_counts)

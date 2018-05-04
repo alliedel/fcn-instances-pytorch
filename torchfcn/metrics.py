@@ -119,7 +119,7 @@ class InstanceMetrics(object):
         assert self.metrics_computed, 'Run compute_metrics first'
         channel_labels = self.problem_config.get_channel_labels('{}_{}')
         sem_labels = self.problem_config.class_names
-        sz_score_by_sem = self.softmaxed_scores.size()
+        sz_score_by_sem = list(self.softmaxed_scores.size())
         sz_score_by_sem[1] = self.problem_config.n_semantic_classes
         softmax_scores_per_sem_cls = torch.zeros(sz_score_by_sem)
         for sem_cls in range(self.problem_config.n_semantic_classes):

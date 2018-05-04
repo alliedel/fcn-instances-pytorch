@@ -319,7 +319,8 @@ def get_voc_datasets(cfg, voc_root):
         print('No precomputed instance counts (checked in {})'.format(instance_counts_file))
         instance_precomputed = False
         instance_counts = None
-    train_dataset_kwargs = dict(instance_counts_precomputed=instance_counts)
+    train_dataset_kwargs = dict(instance_counts_precomputed=instance_counts,
+                                collect_image_details=True)
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='train', **dataset_kwargs,
                                                           **train_dataset_kwargs)
     if cfg.get('weight_by_instance', None) and not instance_precomputed:

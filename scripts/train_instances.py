@@ -61,6 +61,7 @@ def main():
         torch.cuda.manual_seed(1337)
 
     dataloaders = script_utils.get_dataloaders(cfg, args.dataset, args.cuda, args.single_image_index)
+    import ipdb; ipdb.set_trace()
 
     synthetic_generator_n_instances_per_semantic_id = 2
     n_instances_per_class = cfg['n_instances_per_class'] or \

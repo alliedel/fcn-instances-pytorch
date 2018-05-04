@@ -119,6 +119,13 @@ class InstanceMetrics(object):
         assert self.metrics_computed, 'Run compute_metrics first'
         channel_labels = self.problem_config.get_channel_labels('{}_{}')
         sem_labels = self.problem_config.class_names
+        sz_score_by_sem = self.softmaxed_scores.size()
+        sz_score_by_sem[1] = self.problem_config.n_semantic_classes
+        softmax_scores_per_sem_cls = torch.zeros(sz_score_by_sem)
+        for sem_cls in range(self.problem_config.n_semantic_classes):
+            chs = [ci for ci, sc in
+                   enumerate(self.problem_config.semantic_instance_class_list) if sc == sem_cls]
+            softmax_scores_per_sem_cls[:, sem_cls, ...] = self.softmaxed_scores[:, chs, ...].sum(dim=1)
         metrics_dict = {
             'n_instances_assigned_per_sem_cls':
                 {
@@ -132,11 +139,38 @@ class InstanceMetrics(object):
                         (self.n_instances_assigned_per_sem_cls[:, sem_cls] > 1).sum()
                     for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
                 },
-            'channel_utilization_by_pixel':
+            'channel_utilization':
                 {
-                    channel_labels[channel_idx] + '_mean': torch.mean(
-                        (self.n_pixels_assigned_per_channel.float())[:, channel_idx])
-                    for channel_idx in range(self.n_pixels_assigned_per_channel.size(1))
+                    'assignment': {
+                        'pixels':
+                            {
+                                channel_labels[channel_idx] + '_mean': torch.mean(
+                                    (self.n_pixels_assigned_per_channel.float())[:, channel_idx])
+                                for channel_idx in range(self.n_pixels_assigned_per_channel.size(1))
+                            },
+                        'instances':
+                            {
+                                channel_labels[channel_idx] + '_sum':
+                                    self.channels_of_majority_assignments[:, channel_idx].sum()
+                                for channel_idx in range(self.channels_of_majority_assignments.size(1))
+                            },
+                    },
+                    #         inst_channel_keyname = 'channel_usage_fraction/{}'.format(channel_labels[inst_idx])
+                    #         analytics[inst_channel_keyname] = pixels_assigned_to_me.int().sum() / \
+                    #                                           pixels_assigned_to_my_sem_cls.int().sum()
+                    'softmax_score': {
+                        'value_for_assigned_pixels': {
+                            channel_labels[channel_idx] + '_mean':
+                                (self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]).mean()
+                            for channel_idx in range(self.softmaxed_scores.size(1))
+                        },
+                        'fraction_of_sem_cls_for_assigned_pixels': {
+                            channel_labels[channel_idx] + '_mean':
+                                ((self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]) /
+                                 self.softmaxed_scores[:, sem_cls, :, :][self.assignments == channel_idx]).mean()
+                            for channel_idx, sem_cls in enumerate(self.problem_config.semantic_instance_class_list)
+                        },
+                    },
                 },
             'perc_found_per_sem_cls':
                 {
@@ -149,11 +183,6 @@ class InstanceMetrics(object):
                     sem_labels[sem_cls] + '_mean': torch.mean(self.n_found_per_sem_cls[:, sem_cls].float())
                     for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
                 },
-            'channel_utilization_by_instance':
-                {
-                    channel_labels[channel_idx] + '_sum': self.channels_of_majority_assignments[:, channel_idx].sum()
-                    for channel_idx in range(self.channels_of_majority_assignments.size(1))
-                }
         }
         return metrics_dict
 
@@ -163,6 +192,11 @@ class InstanceMetrics(object):
                 [n_instances > 1 for n_instances in self.n_instances_assigned_per_sem_cls.max(dim=1)[0]],
         }
         return image_characteristics
+
+
+def get_same_sem_cls_channels(channel_idx, semantic_instance_class_list):
+    return [ci for ci, sc in enumerate(semantic_instance_class_list)
+            if sc == semantic_instance_class_list[channel_idx]]
 
 
 def compile_scores(model, data_loader):
@@ -207,7 +241,8 @@ def compile_scores(model, data_loader):
                     assert cropped_scores.size() == \
                            compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...].size()
                 except:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb;
+                    ipdb.set_trace()
                     raise
                 compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = cropped_scores
     if training:
@@ -225,7 +260,9 @@ def crop_to_reduced_size23(tensor, cropped_size23):
                          start_coords[1]:(start_coords[1] + cropped_size23[1])]
         assert cropped_tensor.size()[2:] == cropped_size23
     except:
-        import ipdb; ipdb.set_trace(); raise
+        import ipdb;
+        ipdb.set_trace();
+        raise
     return cropped_tensor
 
 
@@ -238,7 +275,9 @@ def crop_to_reduced_size12(tensor, cropped_size12):
                          start_coords[0]:(start_coords[0] + cropped_size12[0]),
                          start_coords[1]:(start_coords[1] + cropped_size12[1])]
     except:
-        import ipdb; ipdb.set_trace(); raise
+        import ipdb;
+        ipdb.set_trace();
+        raise
     return cropped_tensor
 
 

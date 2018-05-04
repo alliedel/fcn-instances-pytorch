@@ -161,15 +161,15 @@ class InstanceMetrics(object):
                     'softmax_score': {
                         'value_for_assigned_pixels': {
                             channel_labels[channel_idx] + '_mean':
-                                [] if (self.assignments == channel_idx).sum() == 0
+                                0 if (self.assignments == channel_idx).sum() == 0
                                 else (self.softmaxed_scores[:, channel_idx, :, :][self.assignments ==
                                                                                   channel_idx]).mean()
                             for channel_idx in range(self.softmaxed_scores.size(1))
                         },
                         'fraction_of_sem_cls_for_assigned_pixels': {
-                            channel_labels[channel_idx] + '_mean':
-                                ((self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]) /
-                                 self.softmaxed_scores[:, sem_cls, :, :][self.assignments == channel_idx]).mean()
+                            channel_labels[channel_idx] + '_mean': 0 if (self.assignments == channel_idx).sum() == 0
+                            else ((self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]) /
+                                  self.softmaxed_scores[:, sem_cls, :, :][self.assignments == channel_idx]).mean()
                             for channel_idx, sem_cls in enumerate(self.problem_config.semantic_instance_class_list)
                         },
                     },

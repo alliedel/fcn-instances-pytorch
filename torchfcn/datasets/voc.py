@@ -62,7 +62,8 @@ class VOCClassSegBase(data.Dataset):
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
                  n_instances_per_class=None, filter_images_by_semantic_subset=False,
                  file_index_subset=None, _im_a_copy=False, map_to_single_instance_problem=False,
-                 collect_image_details=None, weight_by_instance=False, instance_counts_precomputed=None):
+                 collect_image_details=None, weight_by_instance=False, instance_counts_precomputed=None,
+                 remove_single_instance_images=False):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -106,6 +107,7 @@ class VOCClassSegBase(data.Dataset):
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
         self.filter_images_by_semantic_subset = filter_images_by_semantic_subset
+        self.remove_single_instance_images = remove_single_instance_images
 
         # VOC2011 and others are subset of VOC2012
         year = 2012
@@ -120,6 +122,8 @@ class VOCClassSegBase(data.Dataset):
                                 if nm is not 'background']
             self.modify_image_set(self.filter_by_semantic_subset(self.files[self.split], non_bground_idxs),
                                   index_from_originals=True)
+        if self.remove_single_instance_images:
+            self.filter_images_by_bool_of_original_set(self.instance_counts.max(axis=1) > 1)
         if self.collect_image_details:
             if self.semantic_subset:
                 semantic_classes = range(self.n_semantic_classes)
@@ -135,26 +139,13 @@ class VOCClassSegBase(data.Dataset):
         else:
             self.instance_counts = None
         if self.weight_by_instance:
-            self.weights = self.instance_counts.sum(axis=1)
+            self.weights = self.instance_counts.max(axis=1)
         else:
             self.weights = 1
-        self.weighted_file_index_list = self.get_weighted_file_index_list()
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
 
     def get_file_index_list(self):
         return self.file_index_subset or range(len(self.files[self.split]))
-
-    def get_weighted_file_index_list(self):
-        file_index_list = self.get_file_index_list()
-        if self.weights is None:
-            raise Exception('Debug error: self.weights was not set')
-        elif self.weights is 1:
-            weighted_file_list = file_index_list
-        else:
-            weighted_file_list = []
-            for file_index in file_index_list:
-                weighted_file_list += [file_index for _ in range(int(self.weights[file_index]))]
-        return weighted_file_list
 
     def get_files(self, dataset_dir):
         files = collections.defaultdict(list)
@@ -200,10 +191,10 @@ class VOCClassSegBase(data.Dataset):
         return files
 
     def __len__(self):
-        return len(self.weighted_file_index_list)
+        return len(self.file_index_subset)
 
     def __getitem__(self, index):
-        file_indices = self.weighted_file_index_list
+        file_indices = self.file_index_subset
         data_file = self.files[self.split][file_indices[index]]
         img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
                                                    sem_lbl_file=data_file['sem_lbl'],
@@ -220,6 +211,13 @@ class VOCClassSegBase(data.Dataset):
                 self.file_index_subset = index_list
         else:
             raise ValueError('index list must be within 0 and {}, not {}'.format(self.__len__() - 1, max(index_list)))
+
+    def filter_images_by_bool_of_original_set(self, bool_original_images):
+        """
+        Remove images from the image list if bool_original_images is False for that index
+        """
+        assert len(bool_original_images) == len(self.files)
+        self.file_index_subset = [idx for idx in self.file_index_subset if bool_original_images[idx]]
 
     def generate_per_sem_instance_file(self, inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
         print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
@@ -371,47 +369,4 @@ class VOC2012ClassSeg(VOCClassSegBase):
 
 def xor(a, b):
     return (a and not b) or (not a and b)
-
-
-    # class SBDClassSeg(VOCClassSegBase):
-#
-#     # XXX: It must be renamed to benchmark.tar to be extracted.
-#     url = 'http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/semantic_contours/benchmark.tgz'  # NOQA
-#
-#     def __init__(self, root, split='train', transform=False, **kwargs):
-#         super(SBDClassSeg, self).__init__(
-#             root, split=split, transform=transform, **kwargs)
-#         self.root = root
-#         self.split = split
-#         self._transform = transform
-#
-#         dataset_dir = osp.join(self.root, 'VOC/benchmark_RELEASE/dataset')
-#         self.files = collections.defaultdict(list)
-#         for split in ['train', 'val']:
-#             imgsets_file = osp.join(dataset_dir, '%s.txt' % split)
-#             for did in open(imgsets_file):
-#                 did = did.strip()
-#                 img_file = osp.join(dataset_dir, 'img/%s.jpg' % did)
-#                 sem_lbl_file = osp.join(dataset_dir, 'cls/%s.mat' % did)
-#                 self.files[split].append({
-#                     'img': img_file,
-#                     'sem_lbl': sem_lbl_file,
-#                 })
-#
-#     def __getitem__(self, index):
-#         data_file = self.files[self.split][index]
-#         # load image
-#         img_file = data_file['img']
-#         img = PIL.Image.open(img_file)
-#         img = np.array(img, dtype=np.uint8)
-#         # load label
-#         lbl_file = data_file['lbl']
-#         mat = scipy.io.loadmat(lbl_file)
-#         lbl = mat['GTcls'][0]['Segmentation'][0].astype(np.int32)
-#         lbl[lbl == 255] = -1
-#         if self._transform:
-#             return self.transform(img, lbl)
-#         else:
-#             return img, lbl
-
 

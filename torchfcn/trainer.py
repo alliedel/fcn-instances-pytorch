@@ -17,6 +17,9 @@ import torchfcn
 from torchfcn import losses
 from torchfcn import visualization_utils, instance_utils
 from torchfcn.visualization_utils import log_images
+from torchfcn import metrics
+
+from local_pyutils import flatten_dict
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -83,6 +86,10 @@ class Trainer(object):
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
+        self.metric_makers = {
+            'val': metrics.InstanceMetrics(self.instance_problem, self.val_loader),
+            'train': metrics.InstanceMetrics(self.instance_problem, self.train_loader_for_val)
+        }
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
@@ -193,6 +200,17 @@ class Trainer(object):
 
         visualizations = (segmentation_visualizations, score_visualizations)
         return metrics, visualizations
+
+    def compute_and_write_instance_metrics(self):
+        if self.tensorboard_writer is not None:
+            for split, metric_maker in self.metric_makers.items():
+                metric_maker.clear()
+                metric_maker.compute_metrics(self.model)
+                metrics_as_nested_dict = metric_maker.get_aggregated_metrics_as_nested_dict()
+                metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
+                for name, metric in metrics_as_flattened_dict.items():
+                    self.tensorboard_writer.add_scalar('instance_metrics/{}/{}'.format(split, name), metric,
+                                                       self.iteration)
 
     def permute_scores(self, score, pred_permutations):
         score_permuted_to_match = score.clone()

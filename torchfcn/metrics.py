@@ -35,7 +35,6 @@ class InstanceMetrics(object):
 
     def compute_metrics(self, model):
         scores = self.compute_scores(model)
-        assert scores is not None, 'Couldn\'t find stored score output from network: run compute_scores()'
         self.assignments = argmax_scores(scores)
         self.softmaxed_scores = softmax_scores(scores)
         self.n_pixels_assigned_per_channel = self._compute_pixels_assigned_per_channel(self.assignments)

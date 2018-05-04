@@ -57,7 +57,8 @@ configurations = {
         semantic_subset=['person', 'background'],
         filter_by_semantic=True,
     ),
-    9: dict( # created to reduce memory
-        n_instances_per_class=2
+    9: dict(  # created to reduce memory
+        n_instances_per_class=3,
+        semantic_subset=['person', 'background']
     )
 }

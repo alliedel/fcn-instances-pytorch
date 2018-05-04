@@ -204,6 +204,7 @@ class Trainer(object):
 
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:
+            print('Computing instance metrics')
             for split, metric_maker in self.metric_makers.items():
                 metric_maker.clear()
                 metric_maker.compute_metrics(self.model)

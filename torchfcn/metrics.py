@@ -83,7 +83,11 @@ class InstanceMetrics(object):
                 instance_mask = (sem_lbl == sem_cls) * (inst_lbl == inst_id)
                 # Find majority assignment for this gt instance
                 instance_assignments = assignments[data_idx, :, :][instance_mask]
-                pred_channel_idx = torch.mode(instance_assignments)[0].numpy().item()  # mode returns (val, idx)
+                try:
+                    mode_as_torch_tensor = torch.mode(instance_assignments)[0]
+                except:
+                    import ipdb; ipdb.set_trace()
+                pred_channel_idx = mode_as_torch_tensor.numpy().item()  # mode returns (val, idx)
                 if already_matched_pred_channels[pred_channel_idx]:
                     # We've already assigned this channel to an instance; can't double-count.
                     n_missed_per_sem_cls[data_idx, sem_cls] += 1

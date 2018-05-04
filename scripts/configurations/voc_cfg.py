@@ -2,10 +2,11 @@ from . import generic_cfg
 
 default_config = generic_cfg.default_config
 default_config.update(
-    {
-        'n_instances_per_class': 3,
-        'set_extras_to_void': True
-    }
+    dict(n_instances_per_class=3,
+         set_extras_to_void=True,
+         lr=1.0e-4,
+         size_average=True,
+         )
 )
 
 configurations = {

@@ -193,6 +193,7 @@ class Trainer(object):
                 self.save_checkpoint()
             if update_best_checkpoint:
                 self.update_best_checkpoint_if_best(mean_iu=metrics[2])
+            self.compute_and_write_instance_metrics()
 
         # Restore training settings set prior to function call
         if training:

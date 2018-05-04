@@ -343,7 +343,7 @@ def get_dataloaders(cfg, dataset, cuda, single_image_index=None):
         raise ValueError
     if single_image_index is not None:
         train_dataset = train_dataset.copy(modified_length=1)
-        val_dataset = train_dataset.copy(modified_length=1)
+        val_dataset = train_dataset
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **loader_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kwargs)

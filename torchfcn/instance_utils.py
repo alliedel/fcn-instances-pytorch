@@ -157,7 +157,5 @@ def get_instance_to_semantic_mapping(n_instances_by_semantic_id, as_numpy=False)
     and semantic_instance_mapping[inst_idx, sem_idx] = 1 iff that instance idx is an instance
     of that semantic class.
     """
-    semantic_instance_class_list = get_semantic_instance_class_list(
-        n_instances_by_semantic_id)
-    return get_instance_to_semantic_mapping_from_sem_inst_class_list(
-        semantic_instance_class_list, as_numpy)
+    semantic_instance_class_list = get_semantic_instance_class_list(n_instances_by_semantic_id)
+    return get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_class_list, as_numpy)

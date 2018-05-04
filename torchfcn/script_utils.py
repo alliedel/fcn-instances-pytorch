@@ -333,7 +333,7 @@ def get_voc_datasets(cfg, voc_root):
     return train_dataset, val_dataset
 
 
-def get_dataloaders(cfg, dataset, cuda):
+def get_dataloaders(cfg, dataset, cuda, single_image_index=None):
     # 1. dataset
     if dataset == 'synthetic':
         train_dataset, val_dataset = get_synthetic_datasets(cfg)
@@ -341,6 +341,9 @@ def get_dataloaders(cfg, dataset, cuda):
         train_dataset, val_dataset = get_voc_datasets(cfg, VOC_ROOT)
     else:
         raise ValueError
+    if single_image_index is not None:
+        train_dataset = train_dataset.copy(modified_length=1)
+        val_dataset = train_dataset.copy(modified_length=1)
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **loader_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kwargs)

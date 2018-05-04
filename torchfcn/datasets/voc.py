@@ -194,7 +194,7 @@ class VOCClassSegBase(data.Dataset):
         return len(self.get_file_index_list())
 
     def __getitem__(self, index):
-        file_indices = self.file_index_subset
+        file_indices = self.get_file_index_list()
         data_file = self.files[self.split][file_indices[index]]
         img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
                                                    sem_lbl_file=data_file['sem_lbl'],

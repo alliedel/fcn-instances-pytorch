@@ -121,7 +121,7 @@ class InstanceMetrics(object):
         sem_labels = self.problem_config.class_names
         sz_score_by_sem = list(self.softmaxed_scores.size())
         sz_score_by_sem[1] = self.problem_config.n_semantic_classes
-        softmax_scores_per_sem_cls = torch.zeros(sz_score_by_sem)
+        softmax_scores_per_sem_cls = torch.zeros(tuple(sz_score_by_sem))
         for sem_cls in range(self.problem_config.n_semantic_classes):
             chs = [ci for ci, sc in
                    enumerate(self.problem_config.semantic_instance_class_list) if sc == sem_cls]
@@ -161,7 +161,9 @@ class InstanceMetrics(object):
                     'softmax_score': {
                         'value_for_assigned_pixels': {
                             channel_labels[channel_idx] + '_mean':
-                                (self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]).mean()
+                                [] if (self.assignments == channel_idx).sum() == 0
+                                else (self.softmaxed_scores[:, channel_idx, :, :][self.assignments ==
+                                                                                  channel_idx]).mean()
                             for channel_idx in range(self.softmaxed_scores.size(1))
                         },
                         'fraction_of_sem_cls_for_assigned_pixels': {

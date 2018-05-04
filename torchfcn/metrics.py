@@ -13,7 +13,7 @@ class InstanceMetrics(object):
     def __init__(self, problem_config, data_loader):
         self.problem_config = problem_config
         self.data_loader = data_loader
-        assert not isinstance(self.data_loader.sampler, sampler.RandomSampler),\
+        assert not isinstance(self.data_loader.sampler, sampler.RandomSampler), \
             'Sampler is instance of RandomSampler. Please set shuffle to False on data_loader'
         assert isinstance(self.data_loader.sampler, sampler.SequentialSampler), NotImplementedError
         self.scores = None
@@ -43,6 +43,7 @@ class InstanceMetrics(object):
         self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = \
             self._compute_majority_assignment_stats(self.assignments)
         self.metrics_computed = True
+        self.scores = scores
 
     def compute_scores(self, model):
         return self._compile_scores(model).data
@@ -76,11 +77,15 @@ class InstanceMetrics(object):
             torch.IntTensor(n_images, len(self.problem_config.semantic_instance_class_list)).zero_()
 
         already_matched_pred_channels = torch.ByteTensor(len(self.problem_config.semantic_instance_class_list))
+        assumed_image_size = (assignments.size(1), assignments.size(2))
         for data_idx, (_, (sem_lbl, inst_lbl)) in enumerate(self.data_loader):
             already_matched_pred_channels.zero_()
             for gt_channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.semantic_instance_class_list,
                                                                     self.problem_config.instance_count_id_list)):
                 instance_mask = (sem_lbl == sem_cls) * (inst_lbl == inst_id)
+                if (instance_mask.size(1), instance_mask.size(2)) != assumed_image_size:
+                    instance_mask = crop_to_reduced_size12(instance_mask, assumed_image_size)
+
                 # Find majority assignment for this gt instance
                 if instance_mask.sum() == 0:
                     continue
@@ -88,7 +93,8 @@ class InstanceMetrics(object):
                 try:
                     mode_as_torch_tensor = torch.mode(instance_assignments)[0]
                 except:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb;
+                    ipdb.set_trace()
                 pred_channel_idx = mode_as_torch_tensor.numpy().item()  # mode returns (val, idx)
                 if already_matched_pred_channels[pred_channel_idx]:
                     # We've already assigned this channel to an instance; can't double-count.
@@ -135,7 +141,7 @@ class InstanceMetrics(object):
             'perc_found_per_sem_cls':
                 {
                     sem_labels[sem_cls] + '_mean': torch.mean(self.n_found_per_sem_cls[:, sem_cls].float() / (
-                        self.n_found_per_sem_cls[:, sem_cls] + self.n_missed_per_sem_cls[:, sem_cls]).float())
+                            self.n_found_per_sem_cls[:, sem_cls] + self.n_missed_per_sem_cls[:, sem_cls]).float())
                     for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
                 },
             'n_found_per_sem_cls':
@@ -164,7 +170,16 @@ def compile_scores(model, data_loader):
     model.eval()
     compiled_scores = None
     n_images = data_loader.batch_size * len(data_loader)
+    n_channels = model.n_classes
     batch_size = data_loader.batch_size
+    min_image_size, max_image_size = (torch.np.inf, torch.np.inf), (0, 0)
+    for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
+            enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
+            leave=False):
+        min_image_size = (min(min_image_size[0], data.size(2)), min(min_image_size[1], data.size(3)))
+        max_image_size = (max(max_image_size[0], data.size(2)), min(max_image_size[1], data.size(3)))
+
+    compiled_scores = Variable(torch.ones(n_images, n_channels, *list(min_image_size)))
     for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
             enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
             leave=False):
@@ -173,11 +188,58 @@ def compile_scores(model, data_loader):
             data, sem_lbl, inst_lbl = data.cuda(), sem_lbl.cuda(), inst_lbl.cuda()
         scores = model(data)
         if compiled_scores is None:
-            compiled_scores = Variable(torch.zeros(n_images, *list(scores.size())[1:]))
-        compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = model(data)
+            compiled_scores = Variable(torch.ones(n_images, *list(scores.size())[1:]))
+        try:
+            compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = scores
+        except:
+            if all([s1 > s2 for s1, s2 in zip(
+                    compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...].size(),
+                    scores.size())]):
+                import ipdb;
+                ipdb.set_trace()
+                raise
+            else:
+                # print(Warning('Cropping image from size {} to {} for easier analysis'.format(
+                #     scores.size(), compiled_scores.size())))
+                cropped_size = (compiled_scores.size(2), compiled_scores.size(3))
+                cropped_scores = crop_to_reduced_size23(scores, cropped_size)
+                try:
+                    assert cropped_scores.size() == \
+                           compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...].size()
+                except:
+                    import ipdb; ipdb.set_trace()
+                    raise
+                compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = cropped_scores
     if training:
         model.train()
     return compiled_scores
+
+
+def crop_to_reduced_size23(tensor, cropped_size23):
+    assert len(tensor.size()) == 4, NotImplementedError
+    try:
+        start_coords = (int((tensor.size(2) - cropped_size23[0]) / 2),
+                        int((tensor.size(3) - cropped_size23[1]) / 2))
+        cropped_tensor = tensor[:, :,
+                         start_coords[0]:(start_coords[0] + cropped_size23[0]),
+                         start_coords[1]:(start_coords[1] + cropped_size23[1])]
+        assert cropped_tensor.size()[2:] == cropped_size23
+    except:
+        import ipdb; ipdb.set_trace(); raise
+    return cropped_tensor
+
+
+def crop_to_reduced_size12(tensor, cropped_size12):
+    assert len(tensor.size()) == 3, NotImplementedError
+    try:
+        start_coords = (int((tensor.size(1) - cropped_size12[0]) / 2),
+                        int((tensor.size(2) - cropped_size12[1]) / 2))
+        cropped_tensor = tensor[:,
+                         start_coords[0]:(start_coords[0] + cropped_size12[0]),
+                         start_coords[1]:(start_coords[1] + cropped_size12[1])]
+    except:
+        import ipdb; ipdb.set_trace(); raise
+    return cropped_tensor
 
 
 def softmax_scores(compiled_scores, dim=1):

@@ -191,7 +191,7 @@ class VOCClassSegBase(data.Dataset):
         return files
 
     def __len__(self):
-        return len(self.file_index_subset)
+        return len(self.get_file_index_list())
 
     def __getitem__(self, index):
         file_indices = self.file_index_subset

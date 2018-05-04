@@ -62,5 +62,11 @@ configurations = {
         n_instances_per_class=3,
         semantic_subset=['person', 'car', 'background'],
         filter_by_semantic=True
+    ),
+    10: dict(
+        n_instances_per_class=3,
+        semantic_subset=['person', 'car', 'background'],
+        filter_by_semantic=True,
+        lr=1e-6
     )
 }

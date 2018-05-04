@@ -82,6 +82,8 @@ class InstanceMetrics(object):
                                                                     self.problem_config.instance_count_id_list)):
                 instance_mask = (sem_lbl == sem_cls) * (inst_lbl == inst_id)
                 # Find majority assignment for this gt instance
+                if instance_mask.sum() == 0:
+                    continue
                 instance_assignments = assignments[data_idx, :, :][instance_mask]
                 try:
                     mode_as_torch_tensor = torch.mode(instance_assignments)[0]

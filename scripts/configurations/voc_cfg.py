@@ -30,7 +30,6 @@ configurations = {
     4: dict(
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,
-        filter_images_by_semantic_subset=True
     ),
     5: dict(
         semantic_only_labels=False,
@@ -56,17 +55,14 @@ configurations = {
         set_extras_to_void=True,
         weight_by_instance=True,
         semantic_subset=['person', 'background'],
-        filter_by_semantic=True,
     ),
     9: dict(  # created to reduce memory
         n_instances_per_class=3,
         semantic_subset=['person', 'car', 'background'],
-        filter_by_semantic=True
     ),
     10: dict(
         n_instances_per_class=3,
         semantic_subset=['person', 'car', 'background'],
-        filter_by_semantic=True,
         lr=1e-6
     )
 }

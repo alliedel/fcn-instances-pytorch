@@ -301,7 +301,8 @@ def get_synthetic_datasets(cfg):
 def get_voc_datasets(cfg, voc_root):
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
-                          map_to_single_instance_problem=cfg['single_instance'])
+                          map_to_single_instance_problem=cfg['single_instance'],
+                          filter_bground_images=cfg['filter_bground_images'])
     semantic_subset_as_str = cfg['semantic_subset']
     if semantic_subset_as_str is not None:
         semantic_subset_as_str = '_'.join(cfg['semantic_subset'])
@@ -323,14 +324,17 @@ def get_voc_datasets(cfg, voc_root):
                                 collect_image_details=True)
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='train', **dataset_kwargs,
                                                           **train_dataset_kwargs)
-    if cfg.get('weight_by_instance', None) and not instance_precomputed:
+    if (cfg.get('weight_by_instance', None) or train_dataset_kwargs['collect_image_details'] is True) \
+            and not instance_precomputed:
         try:
             assert train_dataset.instance_counts is not None
             np.save(instance_counts_file, train_dataset.instance_counts)
         except:
-            import ipdb; ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
+            import ipdb;
+            ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
             raise
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='seg11valid', **dataset_kwargs)
+
     return train_dataset, val_dataset
 
 
@@ -354,7 +358,8 @@ def get_dataloaders(cfg, dataset, cuda, single_image_index=None):
     try:
         img, (sl, il) = train_dataset[0]
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         raise Exception('Cannot load an image from your dataset')
 
     return {

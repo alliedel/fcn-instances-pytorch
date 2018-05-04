@@ -13,7 +13,6 @@ import tqdm
 from . import dataset_utils
 from torchfcn import instance_utils
 
-
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
 #  multiple times with the assigned permutation.  That way you can train in batches that have
 # different permutations for the same image (may affect training if batched that way).
@@ -52,7 +51,6 @@ ALL_VOC_CLASS_NAMES = np.array([
 
 
 class VOCClassSegBase(data.Dataset):
-
     class_names = ALL_VOC_CLASS_NAMES
     mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
@@ -60,7 +58,7 @@ class VOCClassSegBase(data.Dataset):
                  semantic_subset=None, map_other_classes_to_bground=True,
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
-                 n_instances_per_class=None, filter_images_by_semantic_subset=False,
+                 n_instances_per_class=None, filter_bground_images=False,
                  file_index_subset=None, _im_a_copy=False, map_to_single_instance_problem=False,
                  collect_image_details=None, weight_by_instance=False, instance_counts_precomputed=None,
                  remove_single_instance_images=False):
@@ -70,9 +68,11 @@ class VOCClassSegBase(data.Dataset):
         return_semantic_instance_tuple : Generally only for debugging; instead of returning an
         instance index as the target values, it'll return two targets: the semantic target and
         the instance number: [0, n_instances_per_class[sem_idx])
+        filter_bground_images : most useful when you've run with semantic_subset != None -- will get rid of any
+        images that don't contain that semantic subset (which become just background images)
         """
 
-        assert (file_index_subset is None) or (not filter_images_by_semantic_subset), \
+        assert (file_index_subset is None) or (not filter_bground_images), \
             ValueError('Cannot specify modified indices and image filtering method')
         assert not (weight_by_instance and collect_image_details is False), ValueError
         self.collect_image_details = collect_image_details if collect_image_details is not None else weight_by_instance
@@ -106,7 +106,7 @@ class VOCClassSegBase(data.Dataset):
         self.set_extras_to_void = set_extras_to_void
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
-        self.filter_images_by_semantic_subset = filter_images_by_semantic_subset
+        self.filter_bground_images = filter_bground_images
         self.remove_single_instance_images = remove_single_instance_images
 
         # VOC2011 and others are subset of VOC2012
@@ -117,11 +117,8 @@ class VOCClassSegBase(data.Dataset):
         self.files = self.get_files(dataset_dir)
 
         # Get file subset
-        if self.filter_images_by_semantic_subset and self.semantic_subset is not None:
-            non_bground_idxs = [idx for idx, nm in zip(self.idxs_into_all_voc, self.class_names)
-                                if nm is not 'background']
-            self.modify_image_set(self.filter_by_semantic_subset(self.files[self.split], non_bground_idxs),
-                                  index_from_originals=True)
+        if self.filter_bground_images:
+            self.modify_image_set(self.index_non_bground_images(), index_from_originals=False)
         if self.remove_single_instance_images:
             self.filter_images_by_bool_of_original_set(self.instance_counts.max(axis=1) > 1)
         if self.collect_image_details:
@@ -134,8 +131,6 @@ class VOCClassSegBase(data.Dataset):
                 self.instance_counts = instance_counts_precomputed
             else:
                 self.instance_counts = self.collect_instance_counts(self.files[self.split], semantic_classes)
-                np.save('/home/adelgior/data/datasets/VOC/instance_counts_semantic_subset-None.npy',
-                        self.instance_counts)
         else:
             self.instance_counts = None
         if self.weight_by_instance:
@@ -297,8 +292,9 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl[inst_lbl == 255] = -1
             if self.map_to_single_instance_problem:
                 inst_lbl[inst_lbl != -1] = 1
-            inst_lbl[sem_lbl == -1] = -1
             inst_lbl = self.transform_lbl(inst_lbl)
+            inst_lbl[sem_lbl == -1] = -1
+            inst_lbl[sem_lbl == 0] = 0  # needed for when we map other semantic classes to background.
             if self.return_semantic_instance_tuple:
                 lbl = [sem_lbl, inst_lbl]
             else:
@@ -310,18 +306,21 @@ class VOCClassSegBase(data.Dataset):
             lbl, reduced_class_idxs=self.idxs_into_all_voc,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
 
-    def filter_by_semantic_subset(self, sem_lbl_files, semantic_subset_vals):
+    def index_non_bground_images(self, bground_val=0, void_val=-1):
+        assert self.class_names[bground_val] == 'background'
+        file_indices = self.get_file_index_list()
         valid_indices = []
-        for index, file in enumerate(sem_lbl_files):
-            sem_lbl = self.load_img_as_dtype(file, np.int32)
-            sem_lbl[sem_lbl == 255] = -1
-            is_valid = False
-            for semantic_val in semantic_subset_vals:
-                if np.any(sem_lbl == semantic_val):
-                    is_valid = True
-                    break
+        for index, absolute_index in enumerate(file_indices):
+            data_file = self.files[self.split][index]
+            img, (sem_lbl, _) = self.load_and_process_voc_files(img_file=data_file['img'],
+                                                                sem_lbl_file=data_file['sem_lbl'],
+                                                                inst_lbl_file=data_file['inst_lbl'])
+            is_valid = (torch.sum(sem_lbl == bground_val) + torch.sum(sem_lbl == void_val)) != torch.numel(sem_lbl)
             if is_valid:
                 valid_indices.append(index)
+        if len(valid_indices) == 0:
+            import ipdb; ipdb.set_trace()
+            raise Exception('Found no valid images')
         return valid_indices
 
     def copy(self, modified_length=10):
@@ -351,6 +350,10 @@ class VOCClassSegBase(data.Dataset):
                     instance_counts[file_idx, sem_idx] = inst_lbl[sem_locations_bool].max()
                 else:
                     instance_counts[file_idx, sem_idx] = 0
+                if sem_idx == 0 and instance_counts[file_idx, sem_idx] > 0:
+                    import ipdb;
+                    ipdb.set_trace()
+                    raise Exception('inst_lbl should be 0 wherever sem_lbl is 0')
         return instance_counts
 
 
@@ -371,4 +374,3 @@ class VOC2012ClassSeg(VOCClassSegBase):
 
 def xor(a, b):
     return (a and not b) or (not a and b)
-

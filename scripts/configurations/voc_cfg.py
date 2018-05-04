@@ -56,5 +56,8 @@ configurations = {
         weight_by_instance=True,
         semantic_subset=['person', 'background'],
         filter_by_semantic=True,
+    ),
+    9: dict( # created to reduce memory
+        n_instances_per_class=2
     )
 }

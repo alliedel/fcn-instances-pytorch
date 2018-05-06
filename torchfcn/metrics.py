@@ -155,9 +155,6 @@ class InstanceMetrics(object):
                                 for channel_idx in range(self.channels_of_majority_assignments.size(1))
                             },
                     },
-                    #         inst_channel_keyname = 'channel_usage_fraction/{}'.format(channel_labels[inst_idx])
-                    #         analytics[inst_channel_keyname] = pixels_assigned_to_me.int().sum() / \
-                    #                                           pixels_assigned_to_my_sem_cls.int().sum()
                     'softmax_score': {
                         'value_for_assigned_pixels': {
                             channel_labels[channel_idx] + '_mean':

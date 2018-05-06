@@ -17,3 +17,4 @@ default_config = dict(
     size_average=True,
     score_multiplier=None,
 )
+

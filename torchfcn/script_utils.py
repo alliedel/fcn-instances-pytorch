@@ -334,7 +334,6 @@ def get_voc_datasets(cfg, voc_root):
             ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
             raise
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='seg11valid', **dataset_kwargs)
-
     return train_dataset, val_dataset
 
 

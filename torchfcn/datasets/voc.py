@@ -269,10 +269,6 @@ class VOCClassSegBase(data.Dataset):
 
     def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
         raise NotImplementedError('we need to pass or create the instance config class to make this work properly')
-        # return instance_utils.combine_semantic_and_instance_labels(
-        #     sem_lbl, inst_lbl, semantic_instance_class_list=self.n_inst_per_class,
-        #     instance_count_id_list=instance_utils.get_instance_count_id_list(self.semantic ... )
-        #     set_extras_to_void=self.set_extras_to_void)
 
     def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file):
         img = self.load_img_as_dtype(img_file, np.uint8)

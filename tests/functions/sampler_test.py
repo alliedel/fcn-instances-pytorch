@@ -46,16 +46,18 @@ def test_single_image_sampler(train_dataset, loader_kwargs, image_index=0):
     # Apply sampler to dataloaders
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
                                                sampler=single_image_train_sampler, **loader_kwargs)
+    train_loader_shuffled = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
+                                                        sampler=shuffled_single_image_train_sampler, **loader_kwargs)
 
     for idx, (d, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(train_loader), desc='Iterating through new dataloader',
                                                    total=len(train_loader)):
         pass
     assert len(train_loader) == 1
-    image_from_train_loader = [d for d in train_loader][0][0][0, ...]
+    image_from_train_loader = [d for d in train_loader][0]
     assert all([torch.equal(data1[0], data2[0][0, ...]) for data1, data2 in zip(train_dataset[image_index],
                                                                                 image_from_train_loader)])
-    assert all([torch.equal(data1[0], data2[0]) for (data1, data2) in zip(single_image_train_sampler,
-                                                                          shuffled_single_image_train_sampler)])
+    assert all([torch.equal(data1[0], data2[0]) for (data1, data2) in zip(train_loader,
+                                                                          train_loader_shuffled)])
 
 
 def main():

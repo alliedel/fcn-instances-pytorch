@@ -139,8 +139,16 @@ class VOCClassSegBase(data.Dataset):
             self.weights = 1
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
 
-    def get_file_index_list(self):
-        return self.file_index_subset or range(len(self.files[self.split]))
+    def __len__(self):
+        return len(self.get_file_index_list())
+
+    def __getitem__(self, index):
+        file_indices = self.get_file_index_list()
+        data_file = self.files[self.split][file_indices[index]]
+        img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
+                                                   sem_lbl_file=data_file['sem_lbl'],
+                                                   inst_lbl_file=data_file['inst_lbl'])
+        return img, lbl
 
     def get_files(self, dataset_dir):
         files = collections.defaultdict(list)
@@ -185,16 +193,8 @@ class VOCClassSegBase(data.Dataset):
             assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
         return files
 
-    def __len__(self):
-        return len(self.get_file_index_list())
-
-    def __getitem__(self, index):
-        file_indices = self.get_file_index_list()
-        data_file = self.files[self.split][file_indices[index]]
-        img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
-                                                   sem_lbl_file=data_file['sem_lbl'],
-                                                   inst_lbl_file=data_file['inst_lbl'])
-        return img, lbl
+    def get_file_index_list(self):
+        return self.file_index_subset or range(len(self.files[self.split]))
 
     def modify_image_set(self, index_list, index_from_originals=False):
         if index_from_originals and self.file_index_subset is not None:

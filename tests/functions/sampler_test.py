@@ -9,7 +9,7 @@ from scripts.configurations import voc_cfg
 
 def main():
     # Setup
-    cfg = voc_cfg.default_config()
+    cfg = voc_cfg.default_config
     train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, '/home/adelgior/data/datasets/')
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -21,13 +21,14 @@ def main():
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
 
     # Get sampler
-    sampler = dataset_utils.sampler_factory(sequential=True)
+    train_sampler = dataset_utils.sampler_factory(sequential=True)(train_dataset)
 
     # Apply sampler to dataloaders
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, sampler=sampler,
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False, sampler=train_sampler,
                                                **loader_kwargs)
 
-    for idx, (d, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(train_loader), desc='Iterating through new dataloader'):
+    for idx, (d, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(train_loader), desc='Iterating through new dataloader',
+                                                   total=len(train_loader)):
         pass
 
 

@@ -65,13 +65,15 @@ class bcolors:
 
 
 def prune_defaults_from_dict(default_dict, update_dict):
+    non_defaults = update_dict.copy()
     keys = update_dict.keys()
     keys_to_pop = []
     for key in keys:
         if update_dict[key] == default_dict[key]:
             keys_to_pop.append(key)
     for key in keys_to_pop:
-        update_dict.pop(key)
+        non_defaults.pop(key)
+    return non_defaults
 
 
 def check_clean_work_tree(exit_on_error=False, interactive=True):

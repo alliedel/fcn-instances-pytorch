@@ -88,10 +88,10 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances=No
     return sampler
 
 
-def get_sampler(dataset, sequential, n_min_instances, n_images, sem_cls_filter, instance_count_file):
+def get_sampler(dataset_type, dataset, sequential, n_min_instances, n_images, sem_cls_filter, instance_count_file):
     if n_min_instances:
-        if dataset != 'voc':
-            raise NotImplementedError('Need to establish place to save instance counts')
+        if dataset_type != 'voc':
+            raise NotImplementedError('Need an established place to save instance counts')
         instance_counts = torch.from_numpy(np.load(instance_count_file)) \
             if os.path.isfile(instance_count_file) else None
         stats = dataset_statistics.InstanceDatasetStatistics(dataset, instance_counts)
@@ -129,7 +129,7 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
                 sem_cls_filter = [int(np.where(train_dataset.class_names == class_name)[0][0]) for class_name in \
                                   sem_cls_filter]
     train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
-    train_sampler = get_sampler(train_dataset, sequential=True,
+    train_sampler = get_sampler(dataset_type, train_dataset, sequential=True,
                                 n_min_instances=train_sampler_cfg.pop('n_min_instances', None),
                                 n_images=train_sampler_cfg.pop('n_images', None),
                                 sem_cls_filter=sem_cls_filter,

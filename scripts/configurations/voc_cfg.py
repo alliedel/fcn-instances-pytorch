@@ -50,7 +50,6 @@ configurations = {
         weight_by_instance=True
     ),
     8: dict(
-        semantic_only_labels=False,
         n_instances_per_class=3,
         set_extras_to_void=True,
         weight_by_instance=True,

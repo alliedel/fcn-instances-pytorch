@@ -31,7 +31,7 @@ def sampler_factory(sequential, index_weights=None, bool_index_subset=None):
             copy_of_self.indices = self.indices
             if cut_n_images:
                 copy_of_self.cut_sampler(cut_n_images)
-            return
+            return copy_of_self
 
         def cut_sampler(self, n_images):
             self.indices = [self.indices[i] for i in range(n_images)]

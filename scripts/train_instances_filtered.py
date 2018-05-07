@@ -40,7 +40,28 @@ sampler_cfgs = {
              'n_min_instances': 2,
              },
         'val': 'copy_train'
+    },
+    'person_2inst_allimg_sameval': {
+        'train':
+            {'n_images': None,
+             'sem_cls_filter': ['person'],
+             'n_min_instances': 2,
+             },
+        'val': 'copy_train'
+    },
+    'person_2inst_allimg_realval': {
+        'train':
+            {'n_images': None,
+             'sem_cls_filter': ['person'],
+             'n_min_instances': 2,
+             },
+        'val':
+            {'n_images': None,
+             'sem_cls_filter': ['person'],
+             'n_min_instances': 2,
+             },
     }
+
 }
 
 

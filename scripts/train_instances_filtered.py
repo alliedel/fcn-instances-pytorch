@@ -63,10 +63,10 @@ def parse_args():
 
 def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances=None, n_images=None):
     valid_indices = range(len(dataset_instance_stats.dataset))
-
+    import ipdb; ipdb.set_trace()
     if n_instances is not None:
-        valid_indices = pairwise_and(valid_indices, dataset_instance_stats.filter_images_by_n_instances(n_instances,
-                                                                                                        sem_cls))
+        valid_indices = pairwise_and(valid_indices,
+                                     dataset_instance_stats.filter_images_by_n_instances(n_instances, sem_cls))
     elif sem_cls is not None:
         valid_indices = pairwise_and(valid_indices, dataset_instance_stats.filter_images_by_semantic_classes(sem_cls))
     if n_images is not None:

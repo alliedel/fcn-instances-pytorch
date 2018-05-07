@@ -46,7 +46,7 @@ def max_or_default(tensor, default_val=0):
     return default_val if torch.numel(tensor) == 0 else torch.max(tensor)
 
 
-def filter_images_by_n_instances(dataset, n_instances, semantic_classes=None):
+def filter_images_by_n_instances_from_dataset(dataset, n_instances, semantic_classes=None):
     valid_indices = []
     for index, (img, (sem_lbl, inst_lbl)) in enumerate(dataset):
         if semantic_classes is None:
@@ -58,6 +58,19 @@ def filter_images_by_n_instances(dataset, n_instances, semantic_classes=None):
             valid_indices.append(index)
     if len(valid_indices) == 0:
         print(Warning('Found no valid images'))
+
+
+def filter_images_by_n_instances_from_counts(instance_counts, n_instances, semantic_classes=None):
+    has_at_least_n_instances = instance_counts >= n_instances
+    if semantic_classes is None:
+        valid_indices_as_tensor = has_at_least_n_instances.sum(dim=1)
+    else:
+        valid_indices_as_tensor = torch.sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes])
+    valid_indices = [x for x in valid_indices_as_tensor]
+    if len(valid_indices) == 0:
+        print(Warning('Found no valid images'))
+    assert len(valid_indices) == instance_counts.size(0)
+    return valid_indices
 
 
 def compute_instance_counts(dataset, semantic_classes):

@@ -53,12 +53,12 @@ sampler_cfgs = {
         'train':
             {'n_images': None,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 4,
+             'n_min_instances': 2,
              },
         'val':
             {'n_images': None,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 4,
+             'n_min_instances': 2,
              },
     }
 

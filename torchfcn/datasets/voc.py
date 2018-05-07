@@ -58,7 +58,7 @@ class VOCClassSegBase(data.Dataset):
                  map_other_classes_to_bground=True,
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
-                 n_instances_per_class=None, _im_a_copy=False, map_to_single_instance_problem=False):
+                 _im_a_copy=False, map_to_single_instance_problem=False):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -86,17 +86,12 @@ class VOCClassSegBase(data.Dataset):
             semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
         self.n_semantic_classes = len(self.class_names)
         self._instance_to_semantic_mapping_matrix = None
-        if n_instances_per_class is None:
-            self.n_inst_per_class = [1 if cls_nm == 'background' else 1  # default to 1 per class
-                                     for cls_idx, cls_nm in enumerate(self.class_names)]
-        else:
-            self.n_inst_per_class = n_instances_per_class
         assert xor(return_semantic_instance_tuple, semantic_only_labels)
-        self.get_instance_to_semantic_mapping()
         self.n_classes = len(self.class_names)
         self.set_extras_to_void = set_extras_to_void
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
+        self.n_inst_cap_per_class = None
 
         # VOC2011 and others are subset of VOC2012
         year = 2012
@@ -117,6 +112,14 @@ class VOCClassSegBase(data.Dataset):
                                                    sem_lbl_file=data_file['sem_lbl'],
                                                    inst_lbl_file=data_file['inst_lbl'])
         return img, lbl
+
+    def set_instance_cap(self, n_inst_cap_per_class=None):
+        if not isinstance(n_inst_cap_per_class, int):
+            raise NotImplementedError('Havent implemented dif cap per semantic class. Please use an int.')
+        self.n_inst_cap_per_class = n_inst_cap_per_class
+
+    def reset_instance_cap(self):
+        self.n_inst_cap_per_class = None
 
     def reduce_to_semantic_subset(self, semantic_subset):
         self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
@@ -213,14 +216,6 @@ class VOCClassSegBase(data.Dataset):
     def untransform_lbl(self, lbl):
         return dataset_utils.untransform_lbl(lbl)
 
-    def get_instance_to_semantic_mapping(self, recompute=False):
-        """ returns a binary matrix, where semantic_instance_mapping is N x S """
-        if recompute or self._instance_to_semantic_mapping_matrix is None:
-            self._instance_to_semantic_mapping_matrix = \
-                instance_utils.get_instance_to_semantic_mapping(self.n_inst_per_class,
-                                                                self.n_semantic_classes)
-        return self._instance_to_semantic_mapping_matrix
-
     def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
         raise NotImplementedError('we need to pass or create the instance config class to make this work properly')
 
@@ -252,9 +247,9 @@ class VOCClassSegBase(data.Dataset):
                 lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
         return img, lbl
 
-    def remap_to_reduced_semantic_classes(self, lbl):
+    def remap_to_reduced_semantic_classes(self, sem_lbl):
         return dataset_utils.remap_to_reduced_semantic_classes(
-            lbl, reduced_class_idxs=self.idxs_into_all_voc,
+            sem_lbl, reduced_class_idxs=self.idxs_into_all_voc,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
 
     # def copy(self, modified_length=10):

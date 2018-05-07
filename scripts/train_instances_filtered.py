@@ -130,7 +130,6 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
                 sem_cls_filter = [int(np.where(train_dataset.class_names == class_name)[0][0]) for class_name in \
                                   sem_cls_filter]
     train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
-    import ipdb; ipdb.set_trace()
     train_sampler = get_configured_sampler(dataset_type, train_dataset, sequential=True,
                                            n_min_instances=train_sampler_cfg.pop('n_min_instances', None),
                                            n_images=train_sampler_cfg.pop('n_images', None),

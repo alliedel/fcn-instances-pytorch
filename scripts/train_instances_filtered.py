@@ -109,8 +109,8 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
             try:
                 sem_cls_filter = [train_dataset.class_names.index(class_name) for class_name in sem_cls_filter]
             except:
-                sem_cls_filter = [np.where(train_dataset.class_names == class_name)[0][0] for class_name in \
-                        sem_cls_filter]
+                sem_cls_filter = [int(np.where(train_dataset.class_names == class_name)[0][0]) for class_name in \
+                                  sem_cls_filter]
     n_min_instances = train_sampler_cfg.pop('n_min_instances', None)
     n_images = train_sampler_cfg.pop('n_images', None)
     train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset)

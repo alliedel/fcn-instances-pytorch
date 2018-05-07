@@ -155,7 +155,7 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
         sem_cls_filter = val_sampler_cfg.pop('sem_cls_filter', None)
         n_min_instances = val_sampler_cfg.pop('n_min_instances', None)
         n_images = val_sampler_cfg.pop('n_images', None)
-        val_sampler = get_sampler(val_stats, sequential=True, n_instances=n_min_instances, sem_cls=sem_cls_filter,
+        val_sampler = get_sampler(val_stats, sequential=False, n_instances=n_min_instances, sem_cls=sem_cls_filter,
                                   n_images=n_images)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
 

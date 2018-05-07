@@ -23,7 +23,7 @@ class InstanceDatasetStatistics(object):
         return valid_indices
 
     def filter_images_by_n_instances(self, n_instances, semantic_classes=None):
-        if not self.instance_counts:
+        if self.instance_counts is None:
             self.compute_statistics()
         valid_indices = filter_images_by_n_instances_from_counts(self.instance_counts, n_instances, semantic_classes)
         return valid_indices

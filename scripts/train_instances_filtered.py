@@ -97,7 +97,7 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
         train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, script_utils.VOC_ROOT)
     else:
         raise ValueError
-    import ipdb; ipdb.set_trace()
+
     # Filter dataset and create dataloaders
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
 
@@ -112,15 +112,19 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
                                   sem_cls_filter]
     n_min_instances = train_sampler_cfg.pop('n_min_instances', None)
     n_images = train_sampler_cfg.pop('n_images', None)
-    train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
-    train_instance_counts = np.load(train_instance_count_file) if os.path.isfile(train_instance_count_file) else None
-    train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset, train_instance_counts)
-    if train_instance_counts is None:
+    if n_min_instances:
         if dataset != 'voc':
-            raise NotImplementedError
-        train_stats.compute_statistics()
-        train_instance_counts = train_stats.instance_counts
-        np.save(train_instance_count_file, train_instance_counts)
+            raise NotImplementedError('Need to establish place to save instance counts')
+        train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
+        train_instance_counts = np.load(train_instance_count_file) if os.path.isfile(train_instance_count_file) \
+            else None
+        train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset, train_instance_counts)
+        if train_instance_counts is None:
+            train_stats.compute_statistics()
+            train_instance_counts = train_stats.instance_counts
+            np.save(train_instance_count_file, train_instance_counts)
+    else:
+        train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset)
     train_sampler = get_sampler(train_stats, sequential=False, n_instances=n_min_instances, sem_cls=sem_cls_filter,
                                 n_images=n_images)
     train_for_val_sampler = get_sampler(train_stats, sequential=True, n_instances=min(n_min_instances, 3),
@@ -135,18 +139,20 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
         val_sampler = train_sampler
         val_loader = train_loader
     else:
-        if dataset != 'voc':
-            raise NotImplementedError
-        val_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'val_instance_counts.npy')
-        val_instance_counts = np.load(val_instance_count_file) if os.path.isfile(val_instance_count_file) else None
-        val_stats = dataset_statistics.InstanceDatasetStatistics(val_dataset, val_instance_counts)
-        val_stats.compute_statistics()
-        if val_instance_counts is None:
+        if n_min_instances:
             if dataset != 'voc':
-                raise NotImplementedError
-            val_stats.compute_statistics()
-            val_instance_counts = val_stats.instance_counts
-            np.save(val_instance_count_file, val_instance_counts)
+                raise NotImplementedError('Need to establish place to save instance counts')
+            val_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'val_instance_counts.npy')
+            val_instance_counts = np.load(val_instance_count_file) if os.path.isfile(val_instance_count_file) \
+                else None
+            val_stats = dataset_statistics.InstanceDatasetStatistics(val_dataset, val_instance_counts)
+            if val_instance_counts is None:
+                val_stats.compute_statistics()
+                val_instance_counts = val_stats.instance_counts
+                np.save(val_instance_count_file, val_instance_counts)
+        else:
+            val_stats = dataset_statistics.InstanceDatasetStatistics(val_dataset)
+
         sem_cls_filter = val_sampler_cfg.pop('sem_cls_filter', None)
         n_min_instances = val_sampler_cfg.pop('n_min_instances', None)
         n_images = val_sampler_cfg.pop('n_images', None)

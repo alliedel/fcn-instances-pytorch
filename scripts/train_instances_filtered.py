@@ -27,7 +27,7 @@ sampler_cfgs = {
     },
     'person_2inst_1img': {
         'train':
-            {'n_images': 1,
+            {'n_images': 2,
              'sem_cls_filter': ['person'],
              'n_min_instances': 2,
              },

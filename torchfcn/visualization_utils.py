@@ -471,7 +471,6 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permut
             viz_void = (
                     np.random.random((lbl_true.shape[0], lbl_true.shape[1], 3)) * 255
             ).astype(np.uint8)
-            import ipdb; ipdb.set_trace()
             true_label_mask[void_mask] = viz_void[void_mask]
 
         heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), color=(255, 255, 255)).astype(np.uint8)

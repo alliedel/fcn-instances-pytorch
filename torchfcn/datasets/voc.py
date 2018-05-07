@@ -109,7 +109,7 @@ class VOCClassSegBase(data.Dataset):
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
 
     def __len__(self):
-        return len(self.files)
+        return len(self.files[self.split])
 
     def __getitem__(self, index):
         data_file = self.files[self.split][index]
@@ -157,7 +157,6 @@ class VOCClassSegBase(data.Dataset):
                     'inst_absolute_lbl': inst_absolute_lbl_file,
                     'inst_lbl': inst_lbl_file,
                 })
-
             assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
         return files
     #

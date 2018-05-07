@@ -75,15 +75,17 @@ def filter_images_by_n_instances_from_counts(instance_counts, n_instances, seman
     return valid_indices
 
 
-def compute_instance_counts(dataset, semantic_classes):
+def compute_instance_counts(dataset, semantic_classes=None):
+    import ipdb; ipdb.set_trace()
     semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
-    instance_counts = np.ones((len(dataset), len(semantic_classes))) * np.nan
+    instance_counts = torch.ones(len(dataset), len(semantic_classes)) * torch.np.nan
     for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataset), total=len(dataset),
                                                      desc='Analyzing VOC files', ncols=80, leave=False):
         for sem_idx, sem_val in enumerate(semantic_classes):
             sem_locations_bool = sem_lbl == sem_val
-            if torch.np.any(sem_locations_bool):
-                instance_counts[idx, sem_idx] = inst_lbl[sem_locations_bool].max()
+            if torch.sum(sem_locations_bool) > 0:
+                my_max = inst_lbl[sem_locations_bool].max()
+                instance_counts[idx, sem_idx] = my_max
             else:
                 instance_counts[idx, sem_idx] = 0
             if sem_idx == 0 and instance_counts[idx, sem_idx] > 0:

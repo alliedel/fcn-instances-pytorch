@@ -63,7 +63,6 @@ def parse_args():
 
 def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances=None, n_images=None):
     valid_indices = range(len(dataset_instance_stats.dataset))
-    import ipdb; ipdb.set_trace()
     if n_instances is not None:
         valid_indices = pairwise_and(valid_indices,
                                      dataset_instance_stats.filter_images_by_n_instances(n_instances, sem_cls))
@@ -98,7 +97,7 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
         train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, script_utils.VOC_ROOT)
     else:
         raise ValueError
-
+    import ipdb; ipdb.set_trace()
     # Filter dataset and create dataloaders
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
 

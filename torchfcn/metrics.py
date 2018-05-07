@@ -7,6 +7,12 @@ import torch.nn.functional as F
 from torch.utils.data import sampler
 from torchfcn import script_utils
 from local_pyutils import flatten_dict
+from torchfcn.datasets import samplers
+
+
+def is_sequential(sampler):
+    return isinstance(sampler, sampler.SequentialSampler) or \
+           (isinstance(sampler, samplers.sampler_factory(sequential=True)) and sampler.sequential)
 
 
 class InstanceMetrics(object):
@@ -15,7 +21,7 @@ class InstanceMetrics(object):
         self.data_loader = data_loader
         assert not isinstance(self.data_loader.sampler, sampler.RandomSampler), \
             'Sampler is instance of RandomSampler. Please set shuffle to False on data_loader'
-        assert isinstance(self.data_loader.sampler, sampler.SequentialSampler), NotImplementedError
+        assert is_sequential(self.data_loader.sampler), NotImplementedError
         self.scores = None
         self.assignments = None
         self.softmaxed_scores = None

@@ -237,9 +237,10 @@ def main():
         torch.cuda.manual_seed(1337)
 
     dataloaders = get_dataloaders(cfg, args.dataset, args.cuda, args.sampler)
-    i, [sl, il] = [d for i, d in enumerate(dataloaders['train']) if i == 0][0]
-    import ipdb; ipdb.set_trace()
-
+    try:
+        i, [sl, il] = [d for i, d in enumerate(dataloaders['train']) if i == 0][0]
+    except:
+        raise
     synthetic_generator_n_instances_per_semantic_id = 2
     n_instances_per_class = cfg['n_instances_per_class'] or \
                             (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)

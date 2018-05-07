@@ -301,36 +301,9 @@ def get_voc_datasets(cfg, voc_root):
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
                           map_to_single_instance_problem=cfg['single_instance'])
-    semantic_subset_as_str = cfg['semantic_subset']
-    if semantic_subset_as_str is not None:
-        semantic_subset_as_str = '_'.join(cfg['semantic_subset'])
-    else:
-        semantic_subset_as_str = cfg['semantic_subset']
-    instance_counts_cfg_str = '_semantic_subset-{}'.format(semantic_subset_as_str)
-    instance_counts_file = osp.expanduser('~/data/datasets/VOC/instance_counts{}.npy'.format(instance_counts_cfg_str))
-    if os.path.exists(instance_counts_file):
-        print('Loading precomputed instance counts from {}'.format(instance_counts_file))
-        instance_precomputed = True
-        instance_counts = np.load(instance_counts_file)
-        if len(instance_counts.shape) == 0:
-            raise Exception('instance counts file contained empty array. Delete it: {}'.format(instance_counts_file))
-    else:
-        print('No precomputed instance counts (checked in {})'.format(instance_counts_file))
-        instance_precomputed = False
-        instance_counts = None
-    train_dataset_kwargs = dict(instance_counts_precomputed=instance_counts,
-                                collect_image_details=True)
+    train_dataset_kwargs = dict()
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='train', **dataset_kwargs,
                                                           **train_dataset_kwargs)
-    if (cfg.get('weight_by_instance', None) or train_dataset_kwargs['collect_image_details'] is True) \
-            and not instance_precomputed:
-        try:
-            assert train_dataset.instance_counts is not None
-            np.save(instance_counts_file, train_dataset.instance_counts)
-        except:
-            import ipdb;
-            ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
-            raise
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='seg11valid', **dataset_kwargs)
     return train_dataset, val_dataset
 

@@ -485,11 +485,13 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permut
                                             margin_color=margin_color, margin_size=margin_size_small)
     colormaps_row = get_tile_image(colormaps, (1, len(channels_to_visualize)), margin_color=margin_color,
                                    margin_size=margin_size_small)
-    if input_image is not None:
-        get_tile_image(input_image, (1, len(channels_to_visualize)), margin_color=margin_color,
-                       margin_size=margin_size_small)
 
     all_rows = [heatmap_row, heatmap_row_normalized, pred_label_mask_row, colormaps_row, true_label_mask_row]
+
+    if input_image is not None:
+        input_image_row = get_tile_image(input_image, (1, len(channels_to_visualize)), margin_color=margin_color,
+                                         margin_size=margin_size_small)
+        all_rows.append(input_image_row)
 
     return get_tile_image(all_rows, (len(all_rows), 1), margin_color=margin_color, margin_size=margin_size_large)
 

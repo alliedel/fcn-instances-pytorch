@@ -356,7 +356,8 @@ class Trainer(object):
                                                              n_class=self.n_combined_class,
                                                              score_vis_normalizer=sp.max(),
                                                              channel_labels=channel_labels,
-                                                             channels_to_visualize=channels_to_visualize)
+                                                             channels_to_visualize=channels_to_visualize,
+                                                             input_image=img)
                 score_visualizations.append(viz)
         return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
                score_visualizations

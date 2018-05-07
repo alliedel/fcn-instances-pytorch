@@ -116,20 +116,19 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
         if dataset != 'voc':
             raise NotImplementedError('Need to establish place to save instance counts')
         train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
-        train_instance_counts = np.load(train_instance_count_file) if os.path.isfile(train_instance_count_file) \
-            else None
+        train_instance_counts = torch.from_numpy(np.load(train_instance_count_file))\
+            if os.path.isfile(train_instance_count_file) else None
         train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset, train_instance_counts)
         if train_instance_counts is None:
             train_stats.compute_statistics()
             train_instance_counts = train_stats.instance_counts
-            np.save(train_instance_count_file, train_instance_counts)
+            np.save(train_instance_count_file, train_instance_counts.numpy())
     else:
         train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset)
     train_sampler = get_sampler(train_stats, sequential=False, n_instances=n_min_instances, sem_cls=sem_cls_filter,
                                 n_images=n_images)
     train_for_val_sampler = get_sampler(train_stats, sequential=True, n_instances=min(n_min_instances, 3),
-                                        sem_cls=sem_cls_filter,
-                                n_images=n_images)
+                                        sem_cls=sem_cls_filter, n_images=n_images)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_sampler, **loader_kwargs)
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_for_val_sampler,
                                                        **loader_kwargs)
@@ -143,13 +142,13 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
             if dataset != 'voc':
                 raise NotImplementedError('Need to establish place to save instance counts')
             val_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'val_instance_counts.npy')
-            val_instance_counts = np.load(val_instance_count_file) if os.path.isfile(val_instance_count_file) \
-                else None
+            val_instance_counts = torch.from_numpy(np.load(val_instance_count_file)) \
+                if os.path.isfile(val_instance_count_file) else None
             val_stats = dataset_statistics.InstanceDatasetStatistics(val_dataset, val_instance_counts)
             if val_instance_counts is None:
                 val_stats.compute_statistics()
                 val_instance_counts = val_stats.instance_counts
-                np.save(val_instance_count_file, val_instance_counts)
+                np.save(val_instance_count_file, val_instance_counts.numpy())
         else:
             val_stats = dataset_statistics.InstanceDatasetStatistics(val_dataset)
 

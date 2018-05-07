@@ -97,7 +97,6 @@ class VOCClassSegBase(data.Dataset):
         self.set_extras_to_void = set_extras_to_void
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
-        self.remap_semantic = False
 
         # VOC2011 and others are subset of VOC2012
         year = 2012
@@ -234,8 +233,7 @@ class VOCClassSegBase(data.Dataset):
         if self._transform:
             img, sem_lbl = self.transform(img, sem_lbl)
         # map to reduced class set
-        if self.remap_semantic:
-            sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
+        sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
 
         # load instance label
         if self.semantic_only_labels:

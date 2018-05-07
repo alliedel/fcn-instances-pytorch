@@ -1,13 +1,20 @@
 from . import generic_cfg
 
-default_config = generic_cfg.default_config
-default_config.update(
-    dict(n_instances_per_class=3,
-         set_extras_to_void=True,
-         lr=1.0e-4,
-         size_average=True,
-         )
-)
+
+def get_default_config():
+    default_cfg = generic_cfg.default_config
+    default_cfg.update(
+        dict(n_instances_per_class=3,
+             set_extras_to_void=True,
+             lr=1.0e-4,
+             size_average=True,
+             )
+    )
+    return default_cfg
+
+
+default_config = get_default_config()
+
 
 configurations = {
     # same configuration as original work

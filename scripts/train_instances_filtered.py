@@ -212,10 +212,11 @@ def main():
     gpu = args.gpu
     config_idx = args.config
     cfg_default = {'synthetic': synthetic_cfg.default_config,
-                   'voc': voc_cfg.default_config}[args.dataset]
+                   'voc': voc_cfg.default_config}
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[args.dataset]
     cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)
+    import ipdb; ipdb.set_trace()
     non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg_options[config_idx])
     print('non-default cfg values: {}'.format(non_default_options))
     cfg_to_print = non_default_options

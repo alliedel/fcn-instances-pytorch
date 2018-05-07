@@ -106,7 +106,7 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
 
 
 def create_config_from_default(config_args, default_config):
-    cfg = default_config
+    cfg = default_config.copy()
     cfg.update(config_args)
     return cfg
 

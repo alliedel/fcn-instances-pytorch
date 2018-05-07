@@ -104,6 +104,9 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
 
     train_sampler_cfg = sampler_cfgs[sampler_args]['train']
     sem_cls_filter = train_sampler_cfg.pop('sem_cls_filter', None)
+    if sem_cls_filter is not None:
+        if isinstance(sem_cls_filter[0], str):
+            sem_cls_filter = [train_dataset.class_names.index(class_name) for class_name in sem_cls_filter]
     n_min_instances = train_sampler_cfg.pop('n_min_instances', None)
     n_images = train_sampler_cfg.pop('n_images', None)
     train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset)

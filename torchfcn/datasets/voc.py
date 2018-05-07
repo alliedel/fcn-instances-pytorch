@@ -241,10 +241,10 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl = self.transform_lbl(inst_lbl)
             inst_lbl[sem_lbl == -1] = -1
             inst_lbl[sem_lbl == 0] = 0  # needed for when we map other semantic classes to background.
-            sem_lbl[inst_lbl > self.n_inst_cap_per_class] = -1
             inst_lbl[inst_lbl > self.n_inst_cap_per_class] = -1
             inst_lbl[inst_lbl == 0] = -1
             inst_lbl[sem_lbl == 0] = 0
+            sem_lbl[inst_lbl == -1] = -1
             if self.return_semantic_instance_tuple:
                 lbl = [sem_lbl, inst_lbl]
             else:

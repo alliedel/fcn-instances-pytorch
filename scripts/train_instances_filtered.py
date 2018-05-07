@@ -17,6 +17,14 @@ from numpy import random
 here = osp.dirname(osp.abspath(__file__))
 
 sampler_cfgs = {
+    'default': {
+        'train':
+            {'n_images': None,
+             'sem_cls_filter': None,
+             'n_min_instances': None,
+             },
+        'val': 'copy_train'
+    },
     'person_2inst_1img': {
         'train':
             {'n_images': 1,
@@ -46,7 +54,8 @@ def parse_args():
                                                        '\'~/data/models/pytorch/semantic_synthetic.pth\'', default=None)
         subparser.add_argument('--single-image-index', type=int, help='Image index to use for train/validation set',
                                default=None)
-        subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys())
+        subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default='default',
+                               help='Sampler for dataset')
 
     args = parser.parse_args()
     return args

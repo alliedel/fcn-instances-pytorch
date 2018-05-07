@@ -201,8 +201,9 @@ def main():
 
     dataloaders = get_dataloaders(cfg, args.dataset, args.cuda, args.sampler)
 
-    for k, v in dataloaders.items():
-        v.dataset.remap_semantic = True
+    # reduce dataloaders to semantic subset before running / generating problem config:
+    for key, dataloader in dataloaders.items():
+        dataloader.dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
 
     synthetic_generator_n_instances_per_semantic_id = 2
     n_instances_per_class = cfg['n_instances_per_class'] or \
@@ -221,10 +222,6 @@ def main():
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
     optim = script_utils.get_optimizer(cfg, model, checkpoint)
-
-    # reduce dataloaders to semantic subset before running:
-    for key, dataloader in dataloaders.items():
-        dataloader.dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
 
     trainer = script_utils.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
     trainer.epoch = start_epoch

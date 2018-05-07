@@ -42,13 +42,17 @@ def filter_images_by_semantic_classes(dataset, semantic_classes):
         print(Warning('Found no valid images'))
 
 
+def max_or_default(tensor, default_val=0):
+    return default_val if torch.numel(tensor) == 0 else torch.max(tensor)
+
+
 def filter_images_by_n_instances(dataset, n_instances, semantic_classes=None):
     valid_indices = []
     for index, (img, (sem_lbl, inst_lbl)) in enumerate(dataset):
         if semantic_classes is None:
             is_valid = inst_lbl.max()[0] >= n_instances
         else:
-            max_per_class = [inst_lbl[sem_lbl == sem_cls].max() for sem_cls in semantic_classes]
+            max_per_class = [max_or_default(inst_lbl[sem_lbl == sem_cls]) for sem_cls in semantic_classes]
             is_valid = any([m > n_instances for m in max_per_class])
         if is_valid:
             valid_indices.append(index)

@@ -97,6 +97,7 @@ class VOCClassSegBase(data.Dataset):
         self.set_extras_to_void = set_extras_to_void
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
+        self.remap_semantic = False
 
         # VOC2011 and others are subset of VOC2012
         year = 2012
@@ -159,17 +160,6 @@ class VOCClassSegBase(data.Dataset):
                 })
             assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
         return files
-    #
-    # def modify_image_set(self, index_list, index_from_originals=False):
-    #     if index_from_originals and self.file_index_subset is not None:
-    #         raise NotImplementedError
-    #     if max(index_list) < self.__len__():
-    #         if self.file_index_subset is not None:
-    #             self.file_index_subset = [self.file_index_subset[index] for index in index_list]
-    #         else:
-    #             self.file_index_subset = index_list
-    #     else:
-    #         raise ValueError('index list must be within 0 and {}, not {}'.format(self.__len__() - 1, max(index_list)))
 
     def generate_per_sem_instance_file(self, inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
         print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
@@ -236,7 +226,8 @@ class VOCClassSegBase(data.Dataset):
         if self._transform:
             img, sem_lbl = self.transform(img, sem_lbl)
         # map to reduced class set
-        sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
+        if self.remap_semantic:
+            sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
 
         # load instance label
         if self.semantic_only_labels:

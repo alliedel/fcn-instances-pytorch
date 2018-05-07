@@ -88,6 +88,25 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances=No
     return sampler
 
 
+def get_sampler(dataset, sequential, n_min_instances, n_images, sem_cls_filter, instance_count_file):
+    if n_min_instances:
+        if dataset != 'voc':
+            raise NotImplementedError('Need to establish place to save instance counts')
+        instance_counts = torch.from_numpy(np.load(instance_count_file)) \
+            if os.path.isfile(instance_count_file) else None
+        stats = dataset_statistics.InstanceDatasetStatistics(dataset, instance_counts)
+        if instance_counts is None:
+            stats.compute_statistics()
+            instance_counts = stats.instance_counts
+            np.save(instance_count_file, instance_counts.numpy())
+    else:
+        stats = dataset_statistics.InstanceDatasetStatistics(dataset)
+
+    my_sampler = get_sampler(stats, sequential=sequential, n_instances=n_min_instances, sem_cls=sem_cls_filter,
+                             n_images=n_images)
+    return my_sampler
+
+
 def get_dataloaders(cfg, dataset, cuda, sampler_args):
     # 1. dataset
     if dataset == 'synthetic':
@@ -109,56 +128,37 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
             except:
                 sem_cls_filter = [int(np.where(train_dataset.class_names == class_name)[0][0]) for class_name in \
                                   sem_cls_filter]
-    n_min_instances = train_sampler_cfg.pop('n_min_instances', None)
-    n_images = train_sampler_cfg.pop('n_images', None)
-    if n_min_instances:
-        if dataset != 'voc':
-            raise NotImplementedError('Need to establish place to save instance counts')
-        train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
-        train_instance_counts = torch.from_numpy(np.load(train_instance_count_file)) \
-            if os.path.isfile(train_instance_count_file) else None
-        train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset, train_instance_counts)
-        if train_instance_counts is None:
-            train_stats.compute_statistics()
-            train_instance_counts = train_stats.instance_counts
-            np.save(train_instance_count_file, train_instance_counts.numpy())
-    else:
-        train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset)
-    train_sampler = get_sampler(train_stats, sequential=False, n_instances=n_min_instances, sem_cls=sem_cls_filter,
-                                n_images=n_images)
-    train_for_val_sampler = get_sampler(train_stats, sequential=True, n_instances=min(n_min_instances, 3),
-                                        sem_cls=sem_cls_filter, n_images=n_images)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_sampler, **loader_kwargs)
-    train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_for_val_sampler,
-                                                       **loader_kwargs)
+    train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
+    train_sampler = get_sampler(train_dataset, sequential=True,
+                                n_min_instances=train_sampler_cfg.pop('n_min_instances', None),
+                                n_images=train_sampler_cfg.pop('n_images', None),
+                                sem_cls_filter=sem_cls_filter,
+                                instance_count_file=train_instance_count_file)
+    train_loader = torch.utils.data.DataLoader(dataset, batch_size=1, sampler=train_sampler, **loader_kwargs)
 
     val_sampler_cfg = sampler_cfgs[sampler_args]['val']
     if isinstance(val_sampler_cfg, str) and val_sampler_cfg == 'copy_train':
-        val_sampler = get_sampler(train_stats, sequential=True, n_instances=n_min_instances, sem_cls=sem_cls_filter,
-                                  n_images=n_images)
+        val_sampler = train_loader.sampler.copy(sequential_override=True)
         val_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
     else:
-        if n_min_instances:
-            if dataset != 'voc':
-                raise NotImplementedError('Need to establish place to save instance counts')
-            val_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'val_instance_counts.npy')
-            val_instance_counts = torch.from_numpy(np.load(val_instance_count_file)) \
-                if os.path.isfile(val_instance_count_file) else None
-            val_stats = dataset_statistics.InstanceDatasetStatistics(val_dataset, val_instance_counts)
-            if val_instance_counts is None:
-                val_stats.compute_statistics()
-                val_instance_counts = val_stats.instance_counts
-                np.save(val_instance_count_file, val_instance_counts.numpy())
-        else:
-            val_stats = dataset_statistics.InstanceDatasetStatistics(val_dataset)
-
         sem_cls_filter = val_sampler_cfg.pop('sem_cls_filter', None)
-        n_min_instances = val_sampler_cfg.pop('n_min_instances', None)
-        n_images = val_sampler_cfg.pop('n_images', None)
-        val_sampler = get_sampler(val_stats, sequential=False, n_instances=n_min_instances, sem_cls=sem_cls_filter,
-                                  n_images=n_images)
+        if sem_cls_filter is not None:
+            if isinstance(sem_cls_filter[0], str):
+                try:
+                    sem_cls_filter = [val_dataset.class_names.index(class_name) for class_name in sem_cls_filter]
+                except:
+                    sem_cls_filter = [int(np.where(val_dataset.class_names == class_name)[0][0]) for class_name in \
+                                      sem_cls_filter]
+        val_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'val_instance_counts.npy')
+        val_sampler = get_sampler(val_dataset, sequential=True,
+                                  n_min_instances=val_sampler_cfg.pop('n_min_instances', None),
+                                  n_images=val_sampler_cfg.pop('n_images', None),
+                                  sem_cls_filter=sem_cls_filter,
+                                  instance_count_file=val_instance_count_file)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
-
+    train_for_val_sampler = train_loader.sampler.copy(sequential_override=True, cut_n_images=min(3, len(train_loader)))
+    train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=1,
+                                                       sampler=train_for_val_sampler, **loader_kwargs)
     return {
         'train': train_loader,
         'val': val_loader,
@@ -199,6 +199,8 @@ def main():
         torch.cuda.manual_seed(1337)
 
     dataloaders = get_dataloaders(cfg, args.dataset, args.cuda, args.sampler)
+    for k, i in dataloaders.items():
+        i.dataset.remap_semantic = True
 
     synthetic_generator_n_instances_per_semantic_id = 2
     n_instances_per_class = cfg['n_instances_per_class'] or \

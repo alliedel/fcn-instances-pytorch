@@ -10,9 +10,9 @@ from local_pyutils import flatten_dict
 from torchfcn.datasets import samplers
 
 
-def is_sequential(sampler):
-    return isinstance(sampler, sampler.SequentialSampler) or \
-           (isinstance(sampler, samplers.sampler_factory(sequential=True)) and sampler.sequential)
+def is_sequential(my_sampler):
+    return isinstance(my_sampler, sampler.SequentialSampler) or \
+           (isinstance(my_sampler, samplers.sampler_factory(sequential=True)) and my_sampler.sequential)
 
 
 class InstanceMetrics(object):

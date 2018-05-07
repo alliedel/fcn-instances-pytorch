@@ -12,7 +12,6 @@ class InstanceDatasetStatistics(object):
     def compute_statistics(self):
         instance_counts = self.compute_instance_counts()
         self.instance_counts = instance_counts
-        self.non_bground_img_idxs = self.filter_images_by_non_bground(self.dataset)
 
     def compute_instance_counts(self, semantic_classes=None):
         dataset = self.dataset
@@ -24,7 +23,9 @@ class InstanceDatasetStatistics(object):
         return valid_indices
 
     def filter_images_by_n_instances(self, n_instances, semantic_classes=None):
-        valid_indices = filter_images_by_n_instances(self.dataset, n_instances, semantic_classes)
+        if not self.instance_counts:
+            self.compute_statistics()
+        valid_indices = filter_images_by_n_instances_from_counts(self.instance_counts, n_instances, semantic_classes)
         return valid_indices
 
     def filter_images_by_non_bground(self, bground_val=0, void_val=-1):
@@ -40,6 +41,7 @@ def filter_images_by_semantic_classes(dataset, semantic_classes):
             valid_indices.append(index)
     if len(valid_indices) == 0:
         print(Warning('Found no valid images'))
+    return valid_indices
 
 
 def max_or_default(tensor, default_val=0):

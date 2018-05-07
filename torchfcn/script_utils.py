@@ -299,7 +299,7 @@ def get_synthetic_datasets(cfg):
 
 def get_voc_datasets(cfg, voc_root):
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
-                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
+                          set_extras_to_void=cfg['set_extras_to_void'],
                           map_to_single_instance_problem=cfg['single_instance'])
     train_dataset_kwargs = dict()
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='train', **dataset_kwargs,

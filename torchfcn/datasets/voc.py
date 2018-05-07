@@ -55,7 +55,7 @@ class VOCClassSegBase(data.Dataset):
     mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
     def __init__(self, root, split='train', transform=False,
-                 semantic_subset=None, map_other_classes_to_bground=True,
+                 map_other_classes_to_bground=True,
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
                  n_instances_per_class=None, _im_a_copy=False, map_to_single_instance_problem=False):
@@ -81,9 +81,9 @@ class VOCClassSegBase(data.Dataset):
         self.root = root
         self.split = split
         self._transform = transform
-        self.semantic_subset = semantic_subset
+        self.semantic_subset = None
         self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
-            semantic_subset=semantic_subset, full_set=ALL_VOC_CLASS_NAMES)
+            semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
         self.n_semantic_classes = len(self.class_names)
         self._instance_to_semantic_mapping_matrix = None
         if n_instances_per_class is None:
@@ -118,6 +118,14 @@ class VOCClassSegBase(data.Dataset):
                                                    sem_lbl_file=data_file['sem_lbl'],
                                                    inst_lbl_file=data_file['inst_lbl'])
         return img, lbl
+
+    def reduce_to_semantic_subset(self, semantic_subset):
+        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+            semantic_subset=semantic_subset, full_set=ALL_VOC_CLASS_NAMES)
+
+    def clear_semantic_subset(self):
+        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+            semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
 
     def get_files(self, dataset_dir):
         files = collections.defaultdict(list)

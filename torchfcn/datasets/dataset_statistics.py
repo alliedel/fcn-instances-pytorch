@@ -4,9 +4,9 @@ import tqdm
 
 
 class InstanceDatasetStatistics(object):
-    def __init__(self, dataset):
+    def __init__(self, dataset, instance_counts=None):
         self.dataset = dataset
-        self.instance_counts = None
+        self.instance_counts = instance_counts
         self.non_bground_images = None
 
     def compute_statistics(self):
@@ -67,7 +67,7 @@ def filter_images_by_n_instances_from_counts(instance_counts, n_instances, seman
     if semantic_classes is None:
         valid_indices_as_tensor = has_at_least_n_instances.sum(dim=1)
     else:
-        valid_indices_as_tensor = torch.sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes])
+        valid_indices_as_tensor = sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes])
     valid_indices = [x for x in valid_indices_as_tensor]
     if len(valid_indices) == 0:
         print(Warning('Found no valid images'))
@@ -76,7 +76,6 @@ def filter_images_by_n_instances_from_counts(instance_counts, n_instances, seman
 
 
 def compute_instance_counts(dataset, semantic_classes=None):
-    import ipdb; ipdb.set_trace()
     semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
     instance_counts = torch.ones(len(dataset), len(semantic_classes)) * torch.np.nan
     for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataset), total=len(dataset),

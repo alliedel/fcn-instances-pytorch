@@ -35,7 +35,6 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'semantic_subset': 'sset',
                                         'val_on_train': 'VOT',
                                         'matching': 'ma',
-                                        'filter_images_by_semantic_subset': 'f_sem',
                                         'set_extras_to_void': 'void',
                                         'momentum': 'mo',
                                         'n_instances_per_class': 'nper',
@@ -301,8 +300,7 @@ def get_synthetic_datasets(cfg):
 def get_voc_datasets(cfg, voc_root):
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
-                          map_to_single_instance_problem=cfg['single_instance'],
-                          filter_bground_images=cfg['filter_bground_images'])
+                          map_to_single_instance_problem=cfg['single_instance'])
     semantic_subset_as_str = cfg['semantic_subset']
     if semantic_subset_as_str is not None:
         semantic_subset_as_str = '_'.join(cfg['semantic_subset'])

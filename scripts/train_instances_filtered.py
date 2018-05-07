@@ -60,7 +60,15 @@ sampler_cfgs = {
              'sem_cls_filter': ['person'],
              'n_min_instances': 2,
              },
-    }
+    },
+    'person_2inst_20img_sameval': {
+        'train':
+            {'n_images': 20,
+             'sem_cls_filter': ['person'],
+             'n_min_instances': 2,
+             },
+        'val': 'copy_train'
+    },
 
 }
 

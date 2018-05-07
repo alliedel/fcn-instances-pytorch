@@ -53,12 +53,12 @@ sampler_cfgs = {
         'train':
             {'n_images': None,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 2,
+             'n_min_instances': 4,
              },
         'val':
             {'n_images': None,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 2,
+             'n_min_instances': 4,
              },
     }
 
@@ -237,6 +237,8 @@ def main():
         torch.cuda.manual_seed(1337)
 
     dataloaders = get_dataloaders(cfg, args.dataset, args.cuda, args.sampler)
+    i, [sl, il] = dataloaders['train'].dataset[0]
+    import ipdb; ipdb.set_trace()
 
     synthetic_generator_n_instances_per_semantic_id = 2
     n_instances_per_class = cfg['n_instances_per_class'] or \

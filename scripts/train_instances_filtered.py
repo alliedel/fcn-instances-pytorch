@@ -27,7 +27,7 @@ sampler_cfgs = {
     },
     'person_2inst_1img': {
         'train':
-            {'n_images': 2,
+            {'n_images': 1,
              'sem_cls_filter': ['person'],
              'n_min_instances': 2,
              },
@@ -35,7 +35,7 @@ sampler_cfgs = {
     },
     'person_2inst_2img': {
         'train':
-            {'n_images': 1,
+            {'n_images': 2,
              'sem_cls_filter': ['person'],
              'n_min_instances': 2,
              },
@@ -89,7 +89,7 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances=No
                     valid_indices[idx] = False
                 else:
                     n_images_chosen += 1
-
+        assert sum(valid_indices) == n_images
     sampler = samplers.sampler_factory(sequential=sequential, bool_index_subset=valid_indices)(
         dataset_instance_stats.dataset)
 
@@ -113,6 +113,8 @@ def get_configured_sampler(dataset_type, dataset, sequential, n_min_instances, n
 
     my_sampler = get_sampler(stats, sequential=sequential, n_instances=n_min_instances, sem_cls=sem_cls_filter,
                              n_images=n_images)
+    if n_images:
+        assert len(my_sampler.indices) == n_images
     return my_sampler
 
 

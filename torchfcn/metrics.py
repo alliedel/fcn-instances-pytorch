@@ -7,11 +7,9 @@ import torch.nn.functional as F
 from torch.utils.data import sampler
 from torchfcn import script_utils
 from local_pyutils import flatten_dict
-from torchfcn.datasets import samplers
 
 
 def is_sequential(my_sampler):
-    import ipdb; ipdb.set_trace()
     return isinstance(my_sampler, sampler.SequentialSampler) or my_sampler.sequential
 
 

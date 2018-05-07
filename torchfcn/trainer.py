@@ -88,7 +88,7 @@ class Trainer(object):
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
         self.metric_makers = {
             'val': metrics.InstanceMetrics(self.instance_problem, self.val_loader),
-            'train': metrics.InstanceMetrics(self.instance_problem, self.train_loader_for_val)
+            'train_for_val': metrics.InstanceMetrics(self.instance_problem, self.train_loader_for_val)
         }
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):

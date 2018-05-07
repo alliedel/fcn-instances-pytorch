@@ -89,7 +89,6 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances=No
 
 
 def get_dataloaders(cfg, dataset, cuda, sampler_args):
-
     # 1. dataset
     if dataset == 'synthetic':
         train_dataset, val_dataset = script_utils.get_synthetic_datasets(cfg)
@@ -116,7 +115,7 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
         if dataset != 'voc':
             raise NotImplementedError('Need to establish place to save instance counts')
         train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
-        train_instance_counts = torch.from_numpy(np.load(train_instance_count_file))\
+        train_instance_counts = torch.from_numpy(np.load(train_instance_count_file)) \
             if os.path.isfile(train_instance_count_file) else None
         train_stats = dataset_statistics.InstanceDatasetStatistics(train_dataset, train_instance_counts)
         if train_instance_counts is None:
@@ -135,8 +134,9 @@ def get_dataloaders(cfg, dataset, cuda, sampler_args):
 
     val_sampler_cfg = sampler_cfgs[sampler_args]['val']
     if isinstance(val_sampler_cfg, str) and val_sampler_cfg == 'copy_train':
-        val_sampler = train_sampler
-        val_loader = train_loader
+        val_sampler = get_sampler(train_stats, sequential=True, n_instances=n_min_instances, sem_cls=sem_cls_filter,
+                                  n_images=n_images)
+        val_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
     else:
         if n_min_instances:
             if dataset != 'voc':

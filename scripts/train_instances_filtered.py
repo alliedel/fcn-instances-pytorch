@@ -32,6 +32,14 @@ sampler_cfgs = {
              'n_min_instances': 2,
              },
         'val': 'copy_train'
+    },
+    'person_2inst_2img': {
+        'train':
+            {'n_images': 1,
+             'sem_cls_filter': ['person'],
+             'n_min_instances': 2,
+             },
+        'val': 'copy_train'
     }
 }
 
@@ -195,6 +203,7 @@ def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     args.cuda = torch.cuda.is_available()
 
+    np.random.seed(1234)
     torch.manual_seed(1337)
     if args.cuda:
         torch.cuda.manual_seed(1337)

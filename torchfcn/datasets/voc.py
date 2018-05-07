@@ -109,11 +109,10 @@ class VOCClassSegBase(data.Dataset):
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
 
     def __len__(self):
-        return len(self.get_file_index_list())
+        return len(self.files)
 
     def __getitem__(self, index):
-        file_indices = self.get_file_index_list()
-        data_file = self.files[self.split][file_indices[index]]
+        data_file = self.files[self.split][index]
         img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
                                                    sem_lbl_file=data_file['sem_lbl'],
                                                    inst_lbl_file=data_file['inst_lbl'])
@@ -161,27 +160,17 @@ class VOCClassSegBase(data.Dataset):
 
             assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
         return files
-
-    def get_file_index_list(self):
-        return self.file_index_subset or range(len(self.files[self.split]))
-
-    def modify_image_set(self, index_list, index_from_originals=False):
-        if index_from_originals and self.file_index_subset is not None:
-            raise NotImplementedError
-        if max(index_list) < self.__len__():
-            if self.file_index_subset is not None:
-                self.file_index_subset = [self.file_index_subset[index] for index in index_list]
-            else:
-                self.file_index_subset = index_list
-        else:
-            raise ValueError('index list must be within 0 and {}, not {}'.format(self.__len__() - 1, max(index_list)))
-
-    def filter_images_by_bool_of_original_set(self, bool_original_images):
-        """
-        Remove images from the image list if bool_original_images is False for that index
-        """
-        assert len(bool_original_images) == len(self.files)
-        self.file_index_subset = [idx for idx in self.file_index_subset if bool_original_images[idx]]
+    #
+    # def modify_image_set(self, index_list, index_from_originals=False):
+    #     if index_from_originals and self.file_index_subset is not None:
+    #         raise NotImplementedError
+    #     if max(index_list) < self.__len__():
+    #         if self.file_index_subset is not None:
+    #             self.file_index_subset = [self.file_index_subset[index] for index in index_list]
+    #         else:
+    #             self.file_index_subset = index_list
+    #     else:
+    #         raise ValueError('index list must be within 0 and {}, not {}'.format(self.__len__() - 1, max(index_list)))
 
     def generate_per_sem_instance_file(self, inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
         print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
@@ -241,6 +230,7 @@ class VOCClassSegBase(data.Dataset):
 
     def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file):
         img = self.load_img_as_dtype(img_file, np.uint8)
+
         # load semantic label
         sem_lbl = self.load_img_as_dtype(sem_lbl_file, np.int32)
         sem_lbl[sem_lbl == 255] = -1
@@ -249,7 +239,7 @@ class VOCClassSegBase(data.Dataset):
         # map to reduced class set
         sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
 
-        # Handle instances
+        # load instance label
         if self.semantic_only_labels:
             lbl = sem_lbl
         else:
@@ -271,16 +261,16 @@ class VOCClassSegBase(data.Dataset):
             lbl, reduced_class_idxs=self.idxs_into_all_voc,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
 
-    def copy(self, modified_length=10):
-        my_copy = self.__class__(root=self.root, _im_a_copy=True)
-        for attr, val in self.__dict__.items():
-            setattr(my_copy, attr, val)
-        assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
-                                                "the initial dataset"
-
-        my_copy.modify_image_set(range(modified_length))
-        assert len(my_copy) == modified_length
-        return my_copy
+    # def copy(self, modified_length=10):
+    #     my_copy = self.__class__(root=self.root, _im_a_copy=True)
+    #     for attr, val in self.__dict__.items():
+    #         setattr(my_copy, attr, val)
+    #     assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
+    #                                             "the initial dataset"
+    #
+    #     my_copy.modify_image_set(range(modified_length))
+    #     assert len(my_copy) == modified_length
+    #     return my_copy
 
 
 class VOC2011ClassSeg(VOCClassSegBase):

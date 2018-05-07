@@ -11,8 +11,7 @@ from torchfcn.datasets import samplers
 
 
 def is_sequential(my_sampler):
-    return isinstance(my_sampler, sampler.SequentialSampler) or \
-           (isinstance(my_sampler, samplers.sampler_factory(sequential=True)) and my_sampler.sequential)
+    return isinstance(my_sampler, sampler.SequentialSampler) or my_sampler.sequential
 
 
 class InstanceMetrics(object):

@@ -118,7 +118,7 @@ def parse_args():
 
 
 def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_range=None, n_images=None):
-    valid_indices = range(len(dataset_instance_stats.dataset))
+    valid_indices = [True for _ in range(len(dataset_instance_stats.dataset))]
     if n_instances_range is not None:
         valid_indices = pairwise_and(valid_indices,
                                      dataset_instance_stats.filter_images_by_n_instances(n_instances_range, sem_cls))
@@ -137,7 +137,11 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_ra
                     valid_indices[idx] = False
                 else:
                     n_images_chosen += 1
-        assert sum(valid_indices) == n_images
+        try:
+            assert sum(valid_indices) == n_images
+        except AssertionError:
+            import ipdb; ipdb.set_trace()
+            raise
     sampler = samplers.sampler_factory(sequential=sequential, bool_index_subset=valid_indices)(
         dataset_instance_stats.dataset)
 

@@ -38,28 +38,16 @@ def filter_images_by_semantic_classes(dataset, semantic_classes):
     for index, (img, (sem_lbl, _)) in enumerate(dataset):
         is_valid = sum([(sem_lbl == sem_val).sum() for sem_val in semantic_classes])
         if is_valid:
-            valid_indices.append(index)
-    if len(valid_indices) == 0:
+            valid_indices.append(True)
+        else:
+            valid_indices.append(False)
+    if sum(valid_indices) == 0:
         print(Warning('Found no valid images'))
     return valid_indices
 
 
 def max_or_default(tensor, default_val=0):
     return default_val if torch.numel(tensor) == 0 else torch.max(tensor)
-
-
-def filter_images_by_n_instances_from_dataset(dataset, n_instances, semantic_classes=None):
-    valid_indices = []
-    for index, (img, (sem_lbl, inst_lbl)) in enumerate(dataset):
-        if semantic_classes is None:
-            is_valid = inst_lbl.max()[0] >= n_instances
-        else:
-            max_per_class = [max_or_default(inst_lbl[sem_lbl == sem_cls]) for sem_cls in semantic_classes]
-            is_valid = any([m > n_instances for m in max_per_class])
-        if is_valid:
-            valid_indices.append(index)
-    if len(valid_indices) == 0:
-        print(Warning('Found no valid images'))
 
 
 def filter_images_by_n_instances_from_counts(instance_counts, n_instances_range=None,
@@ -70,7 +58,7 @@ def filter_images_by_n_instances_from_counts(instance_counts, n_instances_range=
     python "range" rules -- [n_instances_min, n_instances_max)
     """
     if n_instances_range is None:
-        return [x for x in range(instance_counts.size(0))]
+        return [True for _ in range(instance_counts.size(0))]
 
     assert len(n_instances_range) == 2, ValueError('range must be a tuple of (min, max).  You can set None for either '
                                                    'end of that range.')
@@ -115,7 +103,9 @@ def filter_images_by_non_bground(dataset, bground_val=0, void_val=-1):
     for index, (img, (sem_lbl, _)) in enumerate(dataset):
         is_valid = (torch.sum(sem_lbl == bground_val) + torch.sum(sem_lbl == void_val)) != torch.numel(sem_lbl)
         if is_valid:
-            valid_indices.append(index)
+            valid_indices.append(True)
+        else:
+            valid_indices.append(False)
     if len(valid_indices) == 0:
         import ipdb; ipdb.set_trace()
         raise Exception('Found no valid images')

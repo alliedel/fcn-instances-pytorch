@@ -7,10 +7,8 @@ import os.path as osp
 import torch
 
 import torchfcn
-
 from examples.voc.script_utils import get_log_dir
 from examples.voc.script_utils import get_parameters
-
 
 configurations = {
     # same configuration as original work

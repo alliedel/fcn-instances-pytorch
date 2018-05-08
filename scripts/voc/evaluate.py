@@ -4,13 +4,14 @@ import argparse
 import os
 import os.path as osp
 
-from torchfcn import visualization_utils
 import numpy as np
 import skimage.io
 import torch
-from torch.autograd import Variable
-import torchfcn
 import tqdm
+from torch.autograd import Variable
+
+import torchfcn
+from torchfcn import visualization_utils
 
 
 def main():

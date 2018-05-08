@@ -1,7 +1,6 @@
 import os.path as osp
 
 import fcn
-
 import torch
 import torchvision
 

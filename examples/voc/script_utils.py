@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import argparse
 import datetime
 import os
 import os.path as osp
@@ -8,11 +7,9 @@ import shlex
 import subprocess
 
 import pytz
-import torch
 import yaml
 
 import torchfcn
-
 
 here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'

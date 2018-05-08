@@ -2,12 +2,11 @@
 
 from __future__ import print_function
 
-from distutils.version import LooseVersion
 import sys
+from distutils.version import LooseVersion
 
 from setuptools import find_packages
 from setuptools import setup
-
 
 __version__ = '1.7.2'
 

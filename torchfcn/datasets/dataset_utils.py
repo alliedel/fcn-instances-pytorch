@@ -1,7 +1,6 @@
-import torch
 import numpy as np
 import scipy.misc
-from torch.autograd import Variable
+import torch
 
 # TODO(allie): Allow for augmentations
 

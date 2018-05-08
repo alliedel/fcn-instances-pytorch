@@ -3,8 +3,8 @@
 import collections
 import os.path as osp
 
-import numpy as np
 import PIL.Image
+import numpy as np
 import scipy.io
 import torch
 from torch.utils import data

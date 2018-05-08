@@ -1,7 +1,7 @@
 import numpy as np
-import torch
+from PIL import ImageDraw
+
 from torchfcn.datasets import dataset_utils
-from PIL import Image, ImageDraw
 
 PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
 BLUE_RGB = (0, 0, 224)

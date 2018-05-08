@@ -4,15 +4,14 @@ import argparse
 import os
 import os.path as osp
 
+import numpy as np
 import torch
 from tensorboardX import SummaryWriter
 
 import torchfcn
 import torchfcn.datasets.voc
-from torchfcn import script_utils
 from torchfcn import instance_utils
-import numpy as np
-
+from torchfcn import script_utils
 
 here = osp.dirname(osp.abspath(__file__))
 

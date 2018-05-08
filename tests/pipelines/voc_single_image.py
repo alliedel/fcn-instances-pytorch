@@ -2,19 +2,16 @@
 #!/usr/bin/env python
 
 import argparse
-import numpy as np
 import os
 import os.path as osp
-import tqdm
 
+import numpy as np
 import torch
-from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 
 import torchfcn
 import torchfcn.datasets.voc
-from torchfcn import script_utils, instance_utils, visualization_utils
-import skimage.io
+from torchfcn import script_utils, instance_utils
 
 default_config = dict(
     max_iteration=100000,

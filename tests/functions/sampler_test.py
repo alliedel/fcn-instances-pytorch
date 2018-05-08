@@ -1,11 +1,11 @@
 import os
+
 import torch.utils.data
 import tqdm
 
-from torchfcn.datasets import samplers
-from torchfcn import script_utils
-
 from scripts.configurations import voc_cfg
+from torchfcn import script_utils
+from torchfcn.datasets import samplers
 
 
 def test_vanilla_sampler(train_dataset, loader_kwargs):

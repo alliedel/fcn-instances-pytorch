@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 
 import argparse
-import numpy as np
 import os
 import os.path as osp
-import tqdm
 
+import numpy as np
+import skimage.io
 import torch
-from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 
 import torchfcn
-import torchfcn.datasets.voc
 import torchfcn.datasets.synthetic
+import torchfcn.datasets.voc
 from torchfcn import script_utils, instance_utils, visualization_utils
-import skimage.io
 
 here = osp.dirname(osp.abspath(__file__))
 

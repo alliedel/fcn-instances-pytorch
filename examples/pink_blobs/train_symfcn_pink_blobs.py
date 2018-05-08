@@ -4,18 +4,14 @@ import argparse
 import os
 import os.path as osp
 
+import local_pyutils
 import torch
+from tensorboardX import SummaryWriter
 
 import torchfcn
-from torchfcn.datasets import dataset_utils
-
 from examples.voc.script_utils import get_log_dir
-from examples.voc.script_utils import get_parameters
-import local_pyutils
-
-from tensorboardX import SummaryWriter
+from torchfcn.datasets import dataset_utils
 from torchfcn.datasets import pink_blobs
-
 
 default_configuration = dict(
     max_iteration=100000,

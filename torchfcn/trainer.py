@@ -5,22 +5,20 @@ import os
 import os.path as osp
 import shutil
 
-import fcn
 import numpy as np
 import pytz
 import scipy.misc
 import torch
-from torch.autograd import Variable
-import tqdm
 import torch.nn.functional as F
+import tqdm
+from local_pyutils import flatten_dict
+from torch.autograd import Variable
 
 import torchfcn
 from torchfcn import losses
+from torchfcn import metrics
 from torchfcn import visualization_utils, instance_utils
 from torchfcn.visualization_utils import log_images
-from torchfcn import metrics
-
-from local_pyutils import flatten_dict
 
 MY_TIMEZONE = 'America/New_York'
 

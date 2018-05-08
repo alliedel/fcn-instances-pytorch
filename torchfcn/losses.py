@@ -1,10 +1,8 @@
+import local_pyutils
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
 from ortools.graph import pywrapgraph
-
-import local_pyutils
-from torchfcn.datasets import dataset_utils
 
 logger = local_pyutils.get_logger()
 

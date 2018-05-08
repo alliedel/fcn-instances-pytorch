@@ -1,12 +1,13 @@
-import collections
-import tqdm
-from torch.autograd import Variable
-import torch
 import os.path
+
+import torch
 import torch.nn.functional as F
-from torch.utils.data import sampler
-from torchfcn import script_utils
+import tqdm
 from local_pyutils import flatten_dict
+from torch.autograd import Variable
+from torch.utils.data import sampler
+
+from torchfcn import script_utils
 
 
 def is_sequential(my_sampler):

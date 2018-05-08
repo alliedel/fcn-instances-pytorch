@@ -2,17 +2,14 @@
 
 import collections
 import os.path as osp
-
-import numpy as np
-import PIL.Image
 import shutil
-import scipy.io
-import torch
+
+import PIL.Image
+import numpy as np
 from torch.utils import data
-import tqdm
 
 from . import dataset_utils
-from torchfcn import instance_utils
+
 
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
 #  multiple times with the assigned permutation.  That way you can train in batches that have

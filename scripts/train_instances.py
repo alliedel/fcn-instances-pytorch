@@ -1,14 +1,13 @@
 import argparse
-import numpy as np
 import os
 import os.path as osp
 
+import numpy as np
+import skimage.io
 import torch
 
-from torchfcn import script_utils, instance_utils, visualization_utils
-import skimage.io
-
 from scripts.configurations import synthetic_cfg, voc_cfg
+from torchfcn import script_utils, visualization_utils
 
 here = osp.dirname(osp.abspath(__file__))
 

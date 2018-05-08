@@ -6,6 +6,7 @@ import argparse
 import os.path as osp
 
 import matplotlib
+
 matplotlib.use('Agg')  # NOQA
 import matplotlib.pyplot as plt
 import pandas

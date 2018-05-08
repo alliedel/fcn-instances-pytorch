@@ -1,16 +1,14 @@
 #!/usr/bin/env python
 
 import os.path as osp
-import pkg_resources
 import sys
-
-import torch
 
 # FIXME: must be after import torch
 import caffe
+import pkg_resources
+import torch
 
 import torchfcn
-
 
 models = [
     ('fcn32s', 'FCN32s', []),

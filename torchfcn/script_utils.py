@@ -5,19 +5,18 @@ import os
 import os.path as osp
 import shlex
 import subprocess
+from glob import glob
 
 import pytz
-import yaml
-
 import torch
-from glob import glob
-from torchfcn.datasets.voc import VOC_ROOT
-from torchfcn import instance_utils
+import yaml
 from tensorboardX import SummaryWriter
+
 import torchfcn
-import torchfcn.datasets.voc
 import torchfcn.datasets.synthetic
-import numpy as np
+import torchfcn.datasets.voc
+from torchfcn import instance_utils
+from torchfcn.datasets.voc import VOC_ROOT
 
 here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'

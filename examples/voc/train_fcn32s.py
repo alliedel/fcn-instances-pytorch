@@ -13,7 +13,6 @@ import yaml
 
 import torchfcn
 
-
 MY_TIMEZONE = 'America/New_York'
 
 

@@ -1,5 +1,6 @@
-import os.path as osp
 import collections
+import os.path as osp
+
 import PIL.Image
 import numpy as np
 import scipy.io

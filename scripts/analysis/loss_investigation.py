@@ -1,21 +1,20 @@
 #!/usr/bin/env python
 
 import argparse
-import numpy as np
 import os
 import os.path as osp
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 from tensorboardX import SummaryWriter
+from torch.autograd import Variable
 
 import torchfcn
-import torchfcn.datasets.voc
 import torchfcn.datasets.synthetic
-from torchfcn import script_utils, instance_utils, visualization_utils, trainer
+import torchfcn.datasets.voc
 from torchfcn import losses
-
+from torchfcn import script_utils, instance_utils, visualization_utils, trainer
 
 here = osp.dirname(osp.abspath(__file__))
 

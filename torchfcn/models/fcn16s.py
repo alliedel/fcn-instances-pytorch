@@ -1,6 +1,9 @@
 import os.path as osp
 
-import fcn
+try:
+    import fcn
+except ImportError:
+    fcn = None
 import torch.nn as nn
 
 from torchfcn.models.model_utils import get_upsampling_weight
@@ -13,6 +16,8 @@ class FCN16s(nn.Module):
 
     @classmethod
     def download(cls):
+        if fcn is None:
+            raise NotImplementedError
         return fcn.data.cached_download(
             url='http://drive.google.com/uc?id=0B9P1L--7Wd2vVGE3TkRMbWlNRms',
             path=cls.pretrained_model,

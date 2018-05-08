@@ -78,7 +78,7 @@ sampler_cfgs = {
     },
     'person_2_4inst_allimg_realval': {
         'train':
-            {'n_images': 20,
+            {'n_images': None,
              'sem_cls_filter': ['person'],
              'n_instances_range': (2, 4),
              },
@@ -154,6 +154,7 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_ra
 
 def get_configured_sampler(dataset_type, dataset, sequential, n_instances_range, n_images, sem_cls_filter,
                            instance_count_file):
+    print('Computing dataset statistics...')
     if n_instances_range is not None:
         if dataset_type != 'voc':
             raise NotImplementedError('Need an established place to save instance counts')
@@ -166,9 +167,12 @@ def get_configured_sampler(dataset_type, dataset, sequential, n_instances_range,
             np.save(instance_count_file, instance_counts.numpy())
     else:
         stats = dataset_statistics.InstanceDatasetStatistics(dataset)
+    print('Done computing dataset statistics')
 
+    print('Creating sampler')
     my_sampler = get_sampler(stats, sequential=sequential, n_instances_range=n_instances_range, sem_cls=sem_cls_filter,
                              n_images=n_images)
+    print('Done creating sampler')
     if n_images:
         assert len(my_sampler.indices) == n_images
     return my_sampler
@@ -280,8 +284,9 @@ def main():
     torch.manual_seed(1337)
     if args.cuda:
         torch.cuda.manual_seed(1337)
-
+    print('Getting dataloaders...')
     dataloaders = get_dataloaders(cfg, args.dataset, args.cuda, args.sampler)
+    print('Done getting dataloaders')
     try:
         i, [sl, il] = [d for i, d in enumerate(dataloaders['train']) if i == 0][0]
     except:

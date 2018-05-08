@@ -123,14 +123,11 @@ def parse_args():
 
 def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_range=None, n_images=None):
     valid_indices = [True for _ in range(len(dataset_instance_stats.dataset))]
-    print('Filtering by n_instances_range')
-    import ipdb; ipdb.set_trace()
     if n_instances_range is not None:
         valid_indices = pairwise_and(valid_indices,
                                      dataset_instance_stats.filter_images_by_n_instances(n_instances_range, sem_cls))
     elif sem_cls is not None:
         valid_indices = pairwise_and(valid_indices, dataset_instance_stats.filter_images_by_semantic_classes(sem_cls))
-    print('Done filtering by n_instance_range')
     if n_images is not None:
         if sum(valid_indices) < n_images:
             raise Exception('Too few images to sample {}.  Choose a smaller value for n_images in the sampler '
@@ -157,7 +154,6 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_ra
 
 def get_configured_sampler(dataset_type, dataset, sequential, n_instances_range, n_images, sem_cls_filter,
                            instance_count_file):
-    print('Computing dataset statistics...')
     if n_instances_range is not None:
         if dataset_type != 'voc':
             raise NotImplementedError('Need an established place to save instance counts')
@@ -170,12 +166,9 @@ def get_configured_sampler(dataset_type, dataset, sequential, n_instances_range,
             np.save(instance_count_file, instance_counts.numpy())
     else:
         stats = dataset_statistics.InstanceDatasetStatistics(dataset)
-    print('Done computing dataset statistics')
 
-    print('Creating sampler')
     my_sampler = get_sampler(stats, sequential=sequential, n_instances_range=n_instances_range, sem_cls=sem_cls_filter,
                              n_images=n_images)
-    print('Done creating sampler')
     if n_images:
         assert len(my_sampler.indices) == n_images
     return my_sampler

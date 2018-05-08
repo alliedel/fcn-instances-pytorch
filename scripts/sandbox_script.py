@@ -19,7 +19,7 @@ sampler_cfgs = {
         'train':
             {'n_images': None,
              'sem_cls_filter': None,
-             'n_min_instances': None,
+             'n_instances_range': None,
              },
         'val': 'copy_train'
     },
@@ -27,7 +27,7 @@ sampler_cfgs = {
         'train':
             {'n_images': 1,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 2,
+             'n_instances_range': (2, None),
              },
         'val': 'copy_train'
     },
@@ -35,7 +35,7 @@ sampler_cfgs = {
         'train':
             {'n_images': 2,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 2,
+             'n_instances_range': (2, None),
              },
         'val': 'copy_train'
     },
@@ -43,7 +43,7 @@ sampler_cfgs = {
         'train':
             {'n_images': None,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 2,
+             'n_instances_range': (2, None),
              },
         'val': 'copy_train'
     },
@@ -51,23 +51,38 @@ sampler_cfgs = {
         'train':
             {'n_images': None,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 2,
+             'n_instances_range': (2, None),
              },
         'val':
             {'n_images': None,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 2,
+             'n_instances_range': (2, None),
              },
     },
     'person_2inst_20img_sameval': {
         'train':
             {'n_images': 20,
              'sem_cls_filter': ['person'],
-             'n_min_instances': 2,
+             'n_instances_range': (2, None),
              },
         'val': 'copy_train'
     },
-
+    'person_2_4inst_allimg_realval': {
+        'train':
+            {'n_images': 20,
+             'sem_cls_filter': ['person'],
+             'n_instances_range': (2, 4),
+             },
+        'val':
+            {'n_images': 20,
+             'sem_cls_filter': ['person'],
+             'n_instances_range': (2, 4),
+             },
+        'train_for_val':  # just configures what should be processed during val
+            {
+                'n_images': 'all'
+            }
+    }
 }
 
 
@@ -96,11 +111,11 @@ def parse_args():
     return args
 
 
-def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances=None, n_images=None):
+def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_range=None, n_images=None):
     valid_indices = range(len(dataset_instance_stats.dataset))
-    if n_instances is not None:
+    if n_instances_range is not None:
         valid_indices = pairwise_and(valid_indices,
-                                     dataset_instance_stats.filter_images_by_n_instances(n_instances, sem_cls))
+                                     dataset_instance_stats.filter_images_by_n_instances(n_instances_range, sem_cls))
     elif sem_cls is not None:
         valid_indices = pairwise_and(valid_indices, dataset_instance_stats.filter_images_by_semantic_classes(sem_cls))
     if n_images is not None:
@@ -123,9 +138,9 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances=No
     return sampler
 
 
-def get_configured_sampler(dataset_type, dataset, sequential, n_min_instances, n_images, sem_cls_filter,
+def get_configured_sampler(dataset_type, dataset, sequential, n_instances_range, n_images, sem_cls_filter,
                            instance_count_file):
-    if n_min_instances:
+    if n_instances_range is not None:
         if dataset_type != 'voc':
             raise NotImplementedError('Need an established place to save instance counts')
         instance_counts = torch.from_numpy(np.load(instance_count_file)) \
@@ -138,7 +153,7 @@ def get_configured_sampler(dataset_type, dataset, sequential, n_min_instances, n
     else:
         stats = dataset_statistics.InstanceDatasetStatistics(dataset)
 
-    my_sampler = get_sampler(stats, sequential=sequential, n_instances=n_min_instances, sem_cls=sem_cls_filter,
+    my_sampler = get_sampler(stats, sequential=sequential, n_instances_range=n_instances_range, sem_cls=sem_cls_filter,
                              n_images=n_images)
     if n_images:
         assert len(my_sampler.indices) == n_images
@@ -168,7 +183,7 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
                                   sem_cls_filter]
     train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
     train_sampler = get_configured_sampler(dataset_type, train_dataset, sequential=True,
-                                           n_min_instances=train_sampler_cfg.pop('n_min_instances', None),
+                                           n_instances_range=train_sampler_cfg.pop('n_instances_range', None),
                                            n_images=train_sampler_cfg.pop('n_images', None),
                                            sem_cls_filter=sem_cls_filter,
                                            instance_count_file=train_instance_count_file)
@@ -189,7 +204,7 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
                                       sem_cls_filter]
         val_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'val_instance_counts.npy')
         val_sampler = get_configured_sampler(dataset_type, val_dataset, sequential=True,
-                                             n_min_instances=val_sampler_cfg.pop('n_min_instances', None),
+                                             n_instances_range=val_sampler_cfg.pop('n_instances_range', None),
                                              n_images=val_sampler_cfg.pop('n_images', None),
                                              sem_cls_filter=sem_cls_filter,
                                              instance_count_file=val_instance_count_file)

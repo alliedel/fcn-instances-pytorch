@@ -21,10 +21,11 @@ class InstanceDatasetStatistics(object):
         valid_indices = filter_images_by_semantic_classes(self.dataset, semantic_classes)
         return valid_indices
 
-    def filter_images_by_n_instances(self, n_instances, semantic_classes=None):
+    def filter_images_by_n_instances(self, n_instances_range=None, semantic_classes=None):
         if self.instance_counts is None:
             self.compute_statistics()
-        valid_indices = filter_images_by_n_instances_from_counts(self.instance_counts, n_instances, semantic_classes)
+        valid_indices = filter_images_by_n_instances_from_counts(self.instance_counts, n_instances_range,
+                                                                 semantic_classes)
         return valid_indices
 
     def filter_images_by_non_bground(self, bground_val=0, void_val=-1):
@@ -61,12 +62,29 @@ def filter_images_by_n_instances_from_dataset(dataset, n_instances, semantic_cla
         print(Warning('Found no valid images'))
 
 
-def filter_images_by_n_instances_from_counts(instance_counts, n_instances, semantic_classes=None):
-    has_at_least_n_instances = instance_counts >= n_instances
-    if semantic_classes is None:
-        valid_indices_as_tensor = has_at_least_n_instances.sum(dim=1)
+def filter_images_by_n_instances_from_counts(instance_counts, n_instances_range=None,
+                                             semantic_classes=None):
+    """
+    n_instances_range: (min, max+1), where value is None if you don't want to bound that direction
+        -- default None is equivalent to (None, None) (All indices are valid.)
+    python "range" rules -- [n_instances_min, n_instances_max)
+    """
+    if n_instances_range is None:
+        return [x for x in range(instance_counts.size(0))]
+
+    assert len(n_instances_range) == 2, ValueError('range must be a tuple of (min, max).  You can set None for either '
+                                                   'end of that range.')
+    n_instances_min, n_instances_max = n_instances_range
+    has_at_least_n_instances = instance_counts >= n_instances_min
+    if n_instances_max is not None:
+        has_at_most_n_instances = instance_counts < n_instances_max
     else:
-        valid_indices_as_tensor = sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes])
+        has_at_most_n_instances = torch.ones_like(instance_counts)
+    if semantic_classes is None:
+        valid_indices_as_tensor = has_at_least_n_instances.sum(dim=1) * has_at_most_n_instances.sum(dim=1)
+    else:
+        valid_indices_as_tensor = sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes]) *\
+                                  sum([has_at_most_n_instances[:, sem_cls] for sem_cls in semantic_classes])
     valid_indices = [x for x in valid_indices_as_tensor]
     if len(valid_indices) == 0:
         print(Warning('Found no valid images'))

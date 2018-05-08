@@ -70,5 +70,10 @@ configurations = {
         n_instances_per_class=3,
         semantic_subset=['person', 'car', 'background'],
         lr=1e-6
+    ),
+    11: dict(
+        semantic_subset=['person', 'background'],
+        set_extras_to_void=True,
+        interval_validate=4000,
     )
 }

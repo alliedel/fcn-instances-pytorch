@@ -5,8 +5,8 @@
 *.*~
 build/
 dist/
-*/*/logs
 */*/*logs*
+*/*logs*
 profile_backup/
 viz_evaluate*.png
 cmake-build-debug

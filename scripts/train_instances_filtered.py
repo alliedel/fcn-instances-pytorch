@@ -314,6 +314,13 @@ def main():
     model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config, args.resume, args.semantic_init,
                                                                  args.cuda)
 
+    print('Number of classes in model: {}'.format(model.n_classes))
+    print('Number of training images: {}'.format(len(dataloaders['train'])))
+    print('Number of validation images: {}'.format(len(dataloaders['val'])))
+    if dataloaders['train_for_val'] is not None:
+        print('Number of training images we''ll use during validation: {}'.format(len(dataloaders['train_for_val'])))
+    else:
+        print('Number of training images we''ll use during validation: {}'.format(0))
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
     optim = script_utils.get_optimizer(cfg, model, checkpoint)

@@ -262,7 +262,6 @@ def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
         semantic_instance_class_list=problem_config.semantic_instance_class_list,
         map_to_semantic=False, include_instance_channel0=False,
         bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'])
-    print('Number of classes in model: {}'.format(model.n_classes))
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']

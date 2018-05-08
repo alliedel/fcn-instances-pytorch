@@ -1,3 +1,7 @@
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 import argparse
 import os
 import os.path as osp
@@ -107,7 +111,8 @@ def parse_args():
                                default=None)
         subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default='default',
                                help='Sampler for dataset')
-
+    if argcomplete:
+        argcomplete.autocomplete(parser)
     args = parser.parse_args()
     return args
 

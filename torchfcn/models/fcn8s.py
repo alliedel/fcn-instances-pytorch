@@ -1,9 +1,10 @@
+import numpy as np
 import os.path as osp
 
 import fcn
 import torch.nn as nn
 
-from .fcn32s import get_upsampling_weight
+from torchfcn.models.model_utils import get_upsampling_weight
 
 
 class FCN8s(nn.Module):
@@ -20,7 +21,10 @@ class FCN8s(nn.Module):
         )
 
     def __init__(self, n_class=21):
+        self.n_classes = n_class
         super(FCN8s, self).__init__()
+        self.semantic_instance_class_list = np.arange(n_class, dtype=float)
+
         # conv1
         self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
         self.relu1_1 = nn.ReLU(inplace=True)

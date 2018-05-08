@@ -6,25 +6,23 @@ import os.path as osp
 import socket
 
 import torch
+from tensorboardX import SummaryWriter
 
 import torchfcn
-
-from train_fcn32s import get_log_dir
-from train_fcn32s import get_parameters
-
+from torchfcn.script_utils import get_log_dir
+from torchfcn.script_utils import get_parameters
 
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     1: dict(
         max_iteration=100000,
-        lr=1.0e-14,
+        lr=1.0e-10,
         momentum=0.99,
         weight_decay=0.0005,
         interval_validate=4000,
     )
 }
-
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -39,7 +37,9 @@ def main():
 
     gpu = args.gpu
     cfg = configurations[args.config]
-    out = get_log_dir('fcn8s-instance', args.config, cfg)
+    out = get_log_dir(osp.basename(__file__).replace(
+        '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
+    print('logdir: {}'.format(out))
     resume = args.resume
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -54,7 +54,7 @@ def main():
     if socket.gethostname() == 'allieLaptop-Ubuntu':
         root = osp.expanduser('~/afsDirectories/kalman/data/datasets')
     elif socket.gethostname() == 'kalman':
-        root = osp.expanduser('~/afsDirectories/kalman/data/datasets')
+        root = osp.expanduser('~/data/datasets')
     else:
         raise Exception(
             'Specify dataset root for hostname {}'.format(socket.gethostname()))
@@ -69,7 +69,8 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN8sInstance(n_semantic_classes=21)
+    model = torchfcn.models.FCN8s(n_class=21)
+
     start_epoch = 0
     start_iteration = 0
     if resume:
@@ -84,7 +85,6 @@ def main():
         model = model.cuda()
 
     # 3. optimizer
-
     optim = torch.optim.SGD(
         [
             {'params': get_parameters(model, bias=False)},
@@ -97,6 +97,7 @@ def main():
     if resume:
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
+    writer = SummaryWriter(log_dir=out)
     trainer = torchfcn.Trainer(
         cuda=cuda,
         model=model,
@@ -106,6 +107,8 @@ def main():
         out=out,
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),
+        tensorboard_writer=writer,
+        matching_loss=matching
     )
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

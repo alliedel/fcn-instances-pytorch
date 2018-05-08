@@ -1,7 +1,9 @@
 import torch
 import numpy as np
+import scipy.misc
 from torch.autograd import Variable
 
+# TODO(allie): Allow for augmentations
 
 DEBUG_ASSERT = True
 
@@ -14,15 +16,25 @@ def assert_validation_images_arent_in_training_set(train_loader, val_loader):
                 raise Exception('validation img {} appears as training img {}'.format(val_idx,
                                                                                       train_idx))
 
-def transform_lbl(lbl):
-    lbl = torch.from_numpy(lbl).long()
+
+def transform_lbl(lbl, resized_sz=None):
+    # Resizing is tricky (we may lose classes to sub-pixel downsample)
+    if resized_sz is not None:
+        lbl = lbl.astype(float)
+        lbl = scipy.misc.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
+
+    lbl = torch.from_numpy(lbl).long()  # NOTE(allie): lbl.float() (?)
     return lbl
 
 
-def transform_img(img, mean_bgr):
+def transform_img(img, mean_bgr=None, resized_sz=None):
     img = img[:, :, ::-1]  # RGB -> BGR
+    if resized_sz is not None:
+        img = scipy.misc.imresize(img, (resized_sz[0], resized_sz[1]))
     img = img.astype(np.float64)
-    img -= mean_bgr
+    if mean_bgr is not None:
+        img -= mean_bgr
+    # NHWC -> NCWH
     img = img.transpose(2, 0, 1)
     img = torch.from_numpy(img).float()
     return img
@@ -33,10 +45,13 @@ def untransform_lbl(lbl):
     return lbl
 
 
-def untransform_img(img, mean_bgr):
+def untransform_img(img, mean_bgr=None, original_size=None):
+    if original_size is not None:
+        raise NotImplementedError
     img = img.numpy()
     img = img.transpose(1, 2, 0)
-    img += mean_bgr
+    if mean_bgr is not None:
+        img += mean_bgr
     img = img.astype(np.uint8)
     img = img[:, :, ::-1]
     return img
@@ -101,57 +116,6 @@ def permute_instance_order(inst_lbl, n_max_per_class):
     return inst_lbl
 
 
-def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, n_max_per_class,
-                                         set_extras_to_void=False):
-    """
-    sem_lbl is size(img); inst_lbl is size(img).  inst_lbl is just the original instance
-    image (inst_lbls at coordinates of person 0 are 0)
-    """
-    assert sem_lbl.shape == inst_lbl.shape
-    if torch.np.any(inst_lbl.numpy() >= n_max_per_class) and not set_extras_to_void:
-        raise Exception('more instances than the number you allocated for ({} vs {}).'.format(
-            inst_lbl.max(), n_max_per_class))
-        # if you don't want to raise an exception here, add a corresponding flag and use the
-        # following line:
-        # y = torch.min(inst_lbl, self.n_max_per_class)
-    y = inst_lbl
-    overflow_instances = inst_lbl >= n_max_per_class
-    y += (sem_lbl - 1) * n_max_per_class + 1
-    y[sem_lbl == -1] = -1
-    y[y < 0] = 0  # background got 1+range(-self.n_max_per_class,0); all go to 0.
-    y[overflow_instances] = -1
-
-    return y
-
-
-def get_instance_to_semantic_mapping(n_max_per_class, n_semantic_classes_with_background):
-    """
-    returns a binary matrix, where semantic_instance_mapping is N x S
-    (N = # instances, S = # semantic classes)
-    semantic_instance_mapping[inst_idx, :] is a one-hot vector,
-    and semantic_instance_mapping[inst_idx, sem_idx] = 1 iff that instance idx is an instance
-    of that semantic class.
-    """
-
-    if n_max_per_class == 1:
-        instance_to_semantic_mapping_matrix = torch.eye(n_semantic_classes_with_background,
-                                                        n_semantic_classes_with_background)
-    else:
-        n_instance_classes = \
-            1 + (n_semantic_classes_with_background - 1) * n_max_per_class
-        instance_to_semantic_mapping_matrix = torch.zeros(
-            (n_instance_classes, n_semantic_classes_with_background)).float()
-
-        semantic_instance_class_list = [0]
-        for semantic_class in range(n_semantic_classes_with_background - 1):
-            semantic_instance_class_list += [semantic_class for _ in range(
-                n_max_per_class)]
-        for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
-            instance_to_semantic_mapping_matrix[instance_idx,
-                                                semantic_idx] = 1
-    return instance_to_semantic_mapping_matrix
-
-
 def remap_to_reduced_semantic_classes(lbl, reduced_class_idxs, map_other_classes_to_bground=True):
     """
     reduced_class_idxs = idxs_into_all_voc
@@ -170,7 +134,10 @@ def remap_to_reduced_semantic_classes(lbl, reduced_class_idxs, map_other_classes
             raise Exception('Image has class labels outside the subset.\n Subset: {}\n'
                             'Classes in the image:{}'.format(reduced_class_idxs,
                                                              original_classes_in_this_img))
-    old_lbl = lbl.clone()
+    if torch.is_tensor(lbl):
+        old_lbl = lbl.clone()
+    else:
+        old_lbl = lbl.copy()
     lbl[...] = 0
     lbl[old_lbl == -1] = -1
     for new_idx, old_class_idx in enumerate(reduced_class_idxs):
@@ -190,8 +157,8 @@ def get_semantic_names_and_idxs(semantic_subset, full_set):
                            if cls in semantic_subset]
         idxs_into_all_voc = [tup[0] for tup in idx_name_tuples]
         names = [tup[1] for tup in idx_name_tuples]
-        assert 'background' in names or 0 in names, ValueError('You must include background in the '
-                                                           'list of classes.')
+        if 'background' not in names or 0 in names:
+            print(Warning('Background is not included in the list of classes...'))
         if len(idxs_into_all_voc) != len(semantic_subset):
             unrecognized_class_names = [cls for cls in semantic_subset if cls not in names]
             raise Exception('unrecognized class name(s): {}'.format(unrecognized_class_names))

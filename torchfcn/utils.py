@@ -13,7 +13,7 @@ def _fast_hist(label_true, label_pred, n_class):
     return hist
 
 
-def label_accuracy_score(label_trues, label_preds, n_class):
+def label_accuracy_score(label_trues, label_preds, n_class=None):
     """Returns accuracy score evaluation result.
 
       - overall accuracy
@@ -21,6 +21,8 @@ def label_accuracy_score(label_trues, label_preds, n_class):
       - mean IU
       - fwavacc
     """
+    if n_class is None:
+        n_class = label_trues.max() + 1
     hist = np.zeros((n_class, n_class))
     for lt, lp in zip(label_trues, label_preds):
         hist += _fast_hist(lt.flatten(), lp.flatten(), n_class)
@@ -35,3 +37,5 @@ def label_accuracy_score(label_trues, label_preds, n_class):
     freq = hist.sum(axis=1) / hist.sum()
     fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
     return acc, acc_cls, mean_iu, fwavacc
+
+

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import skimage.data
 
-from torchfcn.models.fcn32s import get_upsampling_weight
+from torchfcn.models.model_utils import get_upsampling_weight
 
 
 def test_get_upsampling_weight():

@@ -24,8 +24,8 @@ class InstanceDatasetStatistics(object):
     def filter_images_by_n_instances(self, n_instances_range=None, semantic_classes=None):
         if self.instance_counts is None:
             self.compute_statistics()
-        valid_indices = filter_images_by_n_instances_from_counts(self.instance_counts, n_instances_range,
-                                                                 semantic_classes)
+        valid_indices = filter_images_by_instance_range_from_counts(self.instance_counts, n_instances_range,
+                                                                    semantic_classes)
         return valid_indices
 
     def filter_images_by_non_bground(self, bground_val=0, void_val=-1):
@@ -50,8 +50,8 @@ def max_or_default(tensor, default_val=0):
     return default_val if torch.numel(tensor) == 0 else torch.max(tensor)
 
 
-def filter_images_by_n_instances_from_counts(instance_counts, n_instances_range=None,
-                                             semantic_classes=None):
+def filter_images_by_instance_range_from_counts(instance_counts, n_instances_range=None,
+                                                semantic_classes=None):
     """
     n_instances_range: (min, max+1), where value is None if you don't want to bound that direction
         -- default None is equivalent to (None, None) (All indices are valid.)

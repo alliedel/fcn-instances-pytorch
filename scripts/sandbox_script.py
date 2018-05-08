@@ -231,10 +231,10 @@ def main():
     }
     cfg_to_print.update(non_default_options)
     cfg_to_print['sampler'] = args.sampler
-    out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
-                                       cfg_to_print,
-                                       parent_directory=os.path.join(here, 'logs', args.dataset))
-    print('logdir: {}'.format(out_dir))
+    # out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
+    #                                    cfg_to_print,
+    #                                    parent_directory=os.path.join(here, 'logs', args.dataset))
+    # print('logdir: {}'.format(out_dir))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     args.cuda = torch.cuda.is_available()

@@ -21,7 +21,19 @@ from torchfcn import instance_utils
 # separately)
 
 
-VOC_ROOT = osp.abspath(osp.expanduser('~/data/datasets'))
+def get_default_voc_root():
+    other_options = [osp.abspath(osp.expanduser(p)) for p in ['~/afs_directories/kalman/data/datasets']]
+    VOC_ROOT = osp.abspath(osp.expanduser('~/data/datasets'))
+    if not osp.isdir(VOC_ROOT):
+        for option in other_options:
+            if osp.isdir(option):
+                VOC_ROOT = option
+                break
+    return VOC_ROOT
+
+
+VOC_ROOT = get_default_voc_root()
+
 
 DEBUG_ASSERT = True
 

@@ -36,7 +36,7 @@ class InstanceDatasetStatistics(object):
 def filter_images_by_semantic_classes(dataset, semantic_classes):
     valid_indices = []
     for index, (img, (sem_lbl, _)) in enumerate(dataset):
-        is_valid = torch.sum([(sem_lbl == sem_val) for sem_val in semantic_classes])
+        is_valid = sum([(sem_lbl == sem_val) for sem_val in semantic_classes])
         if is_valid:
             valid_indices.append(index)
     if len(valid_indices) == 0:

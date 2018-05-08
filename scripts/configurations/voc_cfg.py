@@ -75,5 +75,6 @@ configurations = {
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,
         interval_validate=4000,
+        max_iteration=10000000,
     )
 }

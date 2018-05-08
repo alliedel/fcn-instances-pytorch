@@ -100,6 +100,7 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
         if key == 'semantic_subset':
             if config_dict['semantic_subset'] is not None:
                 cfg_print['semantic_subset'] = ''.join([cls[0] for cls in config_dict['semantic_subset']])
+                import ipdb; ipdb.set_trace()
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
 

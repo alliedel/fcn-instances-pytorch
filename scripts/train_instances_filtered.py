@@ -26,7 +26,11 @@ sampler_cfgs = {
              'sem_cls_filter': None,
              'n_instances_range': None,
              },
-        'val': 'copy_train'
+        'val': 'copy_train',
+        'train_for_val':  # just configures what should be processed during val
+            {
+                'n_images': None  # Change to reduce amount of images used to 'validate' the training set
+            }
     },
     'person_2inst_1img': {
         'train':
@@ -79,13 +83,13 @@ sampler_cfgs = {
              'n_instances_range': (2, 4),
              },
         'val':
-            {'n_images': 20,
+            {'n_images': None,
              'sem_cls_filter': ['person'],
              'n_instances_range': (2, 4),
              },
         'train_for_val':  # just configures what should be processed during val
             {
-                'n_images': 'all'
+                'n_images': None
             }
     }
 }
@@ -219,7 +223,17 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
                                              sem_cls_filter=sem_cls_filter,
                                              instance_count_file=val_instance_count_file)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
-    train_for_val_sampler = train_loader.sampler.copy(sequential_override=True, cut_n_images=min(3, len(train_loader)))
+    train_for_val_cfg = sampler_cfgs[sampler_args].pop('train_for_val', None)
+    if train_for_val_cfg is None:
+        train_for_val_cfg = sampler_cfgs['default']['train_for_val']
+    cut_n_images = train_for_val_cfg.pop('n_images', None) or len(train_loader)
+    if train_for_val_cfg:  # Check if there are any keys left
+        raise ValueError('I don''t yet know how to process the following keys for train_for_val: {}'.format(
+            train_for_val_cfg.keys()))
+
+    train_for_val_sampler = train_loader.sampler.copy(sequential_override=True,
+                                                      cut_n_images=None if cut_n_images is None
+                                                      else min(cut_n_images, len(train_loader)))
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=1,
                                                        sampler=train_for_val_sampler, **loader_kwargs)
     return {

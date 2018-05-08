@@ -123,11 +123,14 @@ def parse_args():
 
 def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_range=None, n_images=None):
     valid_indices = [True for _ in range(len(dataset_instance_stats.dataset))]
+    print('Filtering by n_instances_range')
+    import ipdb; ipdb.set_trace()
     if n_instances_range is not None:
         valid_indices = pairwise_and(valid_indices,
                                      dataset_instance_stats.filter_images_by_n_instances(n_instances_range, sem_cls))
     elif sem_cls is not None:
         valid_indices = pairwise_and(valid_indices, dataset_instance_stats.filter_images_by_semantic_classes(sem_cls))
+    print('Done filtering by n_instance_range')
     if n_images is not None:
         if sum(valid_indices) < n_images:
             raise Exception('Too few images to sample {}.  Choose a smaller value for n_images in the sampler '
@@ -201,10 +204,13 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
                                   sem_cls_filter]
     train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
     train_sampler = get_configured_sampler(dataset_type, train_dataset, sequential=True,
-                                           n_instances_range=train_sampler_cfg.pop('n_min_instances', None),
+                                           n_instances_range=train_sampler_cfg.pop('n_instances_range', None),
                                            n_images=train_sampler_cfg.pop('n_images', None),
                                            sem_cls_filter=sem_cls_filter,
                                            instance_count_file=train_instance_count_file)
+    if train_sampler_cfg:  # Check if there are any keys left
+        raise ValueError('I don''t yet know how to process the following keys: {}'.format(
+            train_sampler_cfg.keys()))
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_sampler, **loader_kwargs)
 
     val_sampler_cfg = sampler_cfgs[sampler_args]['val']
@@ -222,10 +228,14 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
                                       sem_cls_filter]
         val_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'val_instance_counts.npy')
         val_sampler = get_configured_sampler(dataset_type, val_dataset, sequential=True,
-                                             n_instances_range=val_sampler_cfg.pop('n_min_instances', None),
+                                             n_instances_range=val_sampler_cfg.pop('n_instances_range', None),
                                              n_images=val_sampler_cfg.pop('n_images', None),
                                              sem_cls_filter=sem_cls_filter,
                                              instance_count_file=val_instance_count_file)
+        if val_sampler_cfg:  # Check if there are any keys left
+            raise ValueError('I don''t yet know how to process the following keys: {}'.format(
+                val_sampler_cfg.keys()))
+
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
     train_for_val_cfg = sampler_cfgs[sampler_args].pop('train_for_val', None)
     if train_for_val_cfg is None:

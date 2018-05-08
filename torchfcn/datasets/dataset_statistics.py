@@ -22,7 +22,9 @@ class InstanceDatasetStatistics(object):
         return valid_indices
 
     def filter_images_by_n_instances(self, n_instances_range=None, semantic_classes=None):
+        print('Inside filtering function!')
         if self.instance_counts is None:
+            print('Computing statistics')
             self.compute_statistics()
         valid_indices = filter_images_by_instance_range_from_counts(self.instance_counts, n_instances_range,
                                                                     semantic_classes)
@@ -57,6 +59,7 @@ def filter_images_by_instance_range_from_counts(instance_counts, n_instances_ran
         -- default None is equivalent to (None, None) (All indices are valid.)
     python "range" rules -- [n_instances_min, n_instances_max)
     """
+    print('Inside this function!')
     if n_instances_range is None:
         return [True for _ in range(instance_counts.size(0))]
 
@@ -64,15 +67,17 @@ def filter_images_by_instance_range_from_counts(instance_counts, n_instances_ran
                                                    'end of that range.')
     n_instances_min, n_instances_max = n_instances_range
     has_at_least_n_instances = instance_counts >= n_instances_min
-    if n_instances_max is not None:
-        has_at_most_n_instances = instance_counts < n_instances_max
-    else:
-        has_at_most_n_instances = torch.ones_like(instance_counts)
+    print('Computing has_at_most_n_instances')
+    has_at_most_n_instances = instance_counts < n_instances_max \
+        if n_instances_max is not None else torch.ones_like(instance_counts).bytes()
+    print('Done computing has_at_most_n_instances')
+    print('Doing the sum operation')
     if semantic_classes is None:
         valid_indices_as_tensor = has_at_least_n_instances.sum(dim=1) * has_at_most_n_instances.sum(dim=1)
     else:
         valid_indices_as_tensor = sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes]) *\
                                   sum([has_at_most_n_instances[:, sem_cls] for sem_cls in semantic_classes])
+    print('Doing other stuff')
     valid_indices = [x for x in valid_indices_as_tensor]
     if len(valid_indices) == 0:
         print(Warning('Found no valid images'))

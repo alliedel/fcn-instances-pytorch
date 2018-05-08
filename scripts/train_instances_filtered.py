@@ -1,18 +1,17 @@
 import argparse
-import numpy as np
 import os
 import os.path as osp
 
-import torch
-
-from torchfcn import script_utils, instance_utils, visualization_utils
+import numpy as np
 import skimage.io
-
-from scripts.configurations import synthetic_cfg, voc_cfg
-from torchfcn.datasets import samplers
-from torchfcn.datasets import dataset_statistics
+import torch
 import torch.utils.data
 from numpy import random
+
+from scripts.configurations import synthetic_cfg, voc_cfg
+from torchfcn import script_utils, visualization_utils
+from torchfcn.datasets import dataset_statistics
+from torchfcn.datasets import samplers
 
 here = osp.dirname(osp.abspath(__file__))
 

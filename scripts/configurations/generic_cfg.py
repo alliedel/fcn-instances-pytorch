@@ -9,7 +9,6 @@ default_config = dict(
     n_instances_per_class=None,
     set_extras_to_void=True,
     semantic_subset=None,
-    filter_bground_images=True,
     optim='sgd',
     single_instance=False,  # map_to_single_instance_problem
     initialize_from_semantic=False,

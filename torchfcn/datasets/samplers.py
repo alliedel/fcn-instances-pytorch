@@ -24,6 +24,18 @@ def sampler_factory(sequential, index_weights=None, bool_index_subset=None):
         def __len__(self):
             return len(self.indices)
 
+        def copy(self, sequential_override=None, cut_n_images=None):
+            copy_of_self = SubsetWeightedSampler(self.initial_indices)
+            copy_of_self.initial_indices = self.initial_indices
+            copy_of_self.sequential = sequential_override or self.sequential
+            copy_of_self.indices = self.indices
+            if cut_n_images:
+                copy_of_self.cut_sampler(cut_n_images)
+            return copy_of_self
+
+        def cut_sampler(self, n_images):
+            self.indices = [self.indices[i] for i in range(n_images)]
+
         @classmethod
         def get_sample_indices_from_initial(cls, initial_indices):
             if index_weights is not None:

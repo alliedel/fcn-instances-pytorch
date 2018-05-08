@@ -1,6 +1,9 @@
 import os.path as osp
 
-import fcn
+try:
+    import fcn
+except ImportError:
+    fcn = None
 import torch
 import torch.nn as nn
 from torchfcn import instance_utils
@@ -423,6 +426,8 @@ class FCN8sInstanceAtOnce(FCN8sInstanceNotAtOnce):
 
     @classmethod
     def download(cls):
+        if fcn is None:
+            raise NotImplementedError
         return fcn.data.cached_download(
             url='http://drive.google.com/uc?id=0B9P1L--7Wd2vblE1VUIxV1o2d2M',
             path=cls.pretrained_model,

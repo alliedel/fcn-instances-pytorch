@@ -1,13 +1,20 @@
 from . import generic_cfg
 
-default_config = generic_cfg.default_config
-default_config.update(
-    dict(n_instances_per_class=3,
-         set_extras_to_void=True,
-         lr=1.0e-4,
-         size_average=True,
-         )
-)
+
+def get_default_config():
+    default_cfg = generic_cfg.default_config
+    default_cfg.update(
+        dict(n_instances_per_class=3,
+             set_extras_to_void=True,
+             lr=1.0e-4,
+             size_average=True,
+             )
+    )
+    return default_cfg
+
+
+default_config = get_default_config()
+
 
 configurations = {
     # same configuration as original work
@@ -50,7 +57,6 @@ configurations = {
         weight_by_instance=True
     ),
     8: dict(
-        semantic_only_labels=False,
         n_instances_per_class=3,
         set_extras_to_void=True,
         weight_by_instance=True,
@@ -64,5 +70,11 @@ configurations = {
         n_instances_per_class=3,
         semantic_subset=['person', 'car', 'background'],
         lr=1e-6
+    ),
+    11: dict(
+        semantic_subset=['person', 'background'],
+        set_extras_to_void=True,
+        interval_validate=4000,
+        max_iteration=10000000,
     )
 }

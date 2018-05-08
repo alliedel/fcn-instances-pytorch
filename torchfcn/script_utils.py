@@ -35,7 +35,6 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'semantic_subset': 'sset',
                                         'val_on_train': 'VOT',
                                         'matching': 'ma',
-                                        'filter_images_by_semantic_subset': 'f_sem',
                                         'set_extras_to_void': 'void',
                                         'momentum': 'mo',
                                         'n_instances_per_class': 'nper',
@@ -66,13 +65,15 @@ class bcolors:
 
 
 def prune_defaults_from_dict(default_dict, update_dict):
+    non_defaults = update_dict.copy()
     keys = update_dict.keys()
     keys_to_pop = []
     for key in keys:
         if update_dict[key] == default_dict[key]:
             keys_to_pop.append(key)
     for key in keys_to_pop:
-        update_dict.pop(key)
+        non_defaults.pop(key)
+    return non_defaults
 
 
 def check_clean_work_tree(exit_on_error=False, interactive=True):
@@ -107,7 +108,7 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
 
 
 def create_config_from_default(config_args, default_config):
-    cfg = default_config
+    cfg = default_config.copy()
     cfg.update(config_args)
     return cfg
 
@@ -300,39 +301,11 @@ def get_synthetic_datasets(cfg):
 
 def get_voc_datasets(cfg, voc_root):
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
-                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
-                          map_to_single_instance_problem=cfg['single_instance'],
-                          filter_bground_images=cfg['filter_bground_images'])
-    semantic_subset_as_str = cfg['semantic_subset']
-    if semantic_subset_as_str is not None:
-        semantic_subset_as_str = '_'.join(cfg['semantic_subset'])
-    else:
-        semantic_subset_as_str = cfg['semantic_subset']
-    instance_counts_cfg_str = '_semantic_subset-{}'.format(semantic_subset_as_str)
-    instance_counts_file = osp.expanduser('~/data/datasets/VOC/instance_counts{}.npy'.format(instance_counts_cfg_str))
-    if os.path.exists(instance_counts_file):
-        print('Loading precomputed instance counts from {}'.format(instance_counts_file))
-        instance_precomputed = True
-        instance_counts = np.load(instance_counts_file)
-        if len(instance_counts.shape) == 0:
-            raise Exception('instance counts file contained empty array. Delete it: {}'.format(instance_counts_file))
-    else:
-        print('No precomputed instance counts (checked in {})'.format(instance_counts_file))
-        instance_precomputed = False
-        instance_counts = None
-    train_dataset_kwargs = dict(instance_counts_precomputed=instance_counts,
-                                collect_image_details=True)
+                          set_extras_to_void=cfg['set_extras_to_void'],
+                          map_to_single_instance_problem=cfg['single_instance'])
+    train_dataset_kwargs = dict()
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='train', **dataset_kwargs,
                                                           **train_dataset_kwargs)
-    if (cfg.get('weight_by_instance', None) or train_dataset_kwargs['collect_image_details'] is True) \
-            and not instance_precomputed:
-        try:
-            assert train_dataset.instance_counts is not None
-            np.save(instance_counts_file, train_dataset.instance_counts)
-        except:
-            import ipdb;
-            ipdb.set_trace()  # to save from rage-quitting after having just computed the instance counts
-            raise
     val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='seg11valid', **dataset_kwargs)
     return train_dataset, val_dataset
 

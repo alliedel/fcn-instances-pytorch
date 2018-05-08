@@ -347,12 +347,14 @@ def visualize_segmentation(**kwargs):
     viz_unlabeled = None
     if lbl_true is not None:
         mask_unlabeled = lbl_true == -1
-        lbl_true[mask_unlabeled] = 0
+        # lbl_true[mask_unlabeled] = 0
         viz_unlabeled = (
                 np.random.random((lbl_true.shape[0], lbl_true.shape[1], 3)) * 255
         ).astype(np.uint8)
         if lbl_pred is not None:
             lbl_pred[mask_unlabeled] = 0
+        # if mask_unlabeled.sum() > 1:
+        #     import ipdb; ipdb.set_trace()
 
     vizs = []
     for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
@@ -435,7 +437,7 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permut
     n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to make sense.
     channels_to_visualize: None == 'all'
     """
-
+    use_funky_void_pixels = True
     n_channels = scores.shape[0]
     if n_class is None:
         cmap = np.repeat(np.ones((1, 3)) * 255, [n_channels, 1])
@@ -464,6 +466,13 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permut
         color = cmap[gt_channel, :]
         pred_label_mask = np.repeat((lbl_pred == matched_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
         true_label_mask = np.repeat((lbl_true == gt_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        if use_funky_void_pixels:
+            void_mask = lbl_true == -1
+            viz_void = (
+                    np.random.random((lbl_true.shape[0], lbl_true.shape[1], 3)) * 255
+            ).astype(np.uint8)
+            true_label_mask[void_mask] = viz_void[void_mask]
+
         heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), color=(255, 255, 255)).astype(np.uint8)
         heatmap_normalized = scores2d2heatmap(single_channel_scores, clims=(0, score_vis_normalizer),
                                               color=(255, 255, 255)).astype(np.uint8)
@@ -485,11 +494,17 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permut
                                             margin_color=margin_color, margin_size=margin_size_small)
     colormaps_row = get_tile_image(colormaps, (1, len(channels_to_visualize)), margin_color=margin_color,
                                    margin_size=margin_size_small)
-    if input_image is not None:
-        get_tile_image(input_image, (1, len(channels_to_visualize)), margin_color=margin_color,
-                       margin_size=margin_size_small)
 
-    all_rows = [heatmap_row, heatmap_row_normalized, pred_label_mask_row, colormaps_row, true_label_mask_row]
+    all_rows = [heatmap_row]
+    # all_rows.append(heatmap_row_normalized)
+    all_rows += [pred_label_mask_row, colormaps_row, true_label_mask_row]
+
+    if input_image is not None:
+        input_image_row = get_tile_image([input_image for _ in range(len(channels_to_visualize))],
+                                         (1, len(channels_to_visualize)),
+                                         margin_color=margin_color,
+                                         margin_size=margin_size_small)
+        all_rows.append(input_image_row)
 
     return get_tile_image(all_rows, (len(all_rows), 1), margin_color=margin_color, margin_size=margin_size_large)
 

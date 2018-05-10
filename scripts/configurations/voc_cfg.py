@@ -77,10 +77,18 @@ configurations = {
         interval_validate=4000,
         max_iteration=10000000,
     ),
-    'many_itr_freeze_vgg_person_only': dict(
+    'person_only__freeze_vgg__many_itr': dict(
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,
         interval_validate=4000,
         max_iteration=10000000,
+    ),
+    'person_only__3_channels_map_to_semantic__freeze_vgg__many_itr': dict(
+        semantic_subset=['person', 'background'],
+        set_extras_to_void=True,
+        interval_validate=4000,
+        max_iteration=10000000,
+        map_to_semantic=True,
+        n_instances_per_class=3,
     )
 }

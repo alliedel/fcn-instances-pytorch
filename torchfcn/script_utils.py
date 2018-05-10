@@ -98,10 +98,9 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
         config_key_replacements = {v: k for k, v in config_key_replacements.items()}
     cfg_print = config_dict.copy()
     for key, replacement_key in config_key_replacements.items():
-        if key == 'semantic_subset':
+        if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
             if config_dict['semantic_subset'] is not None:
                 cfg_print['semantic_subset'] = ''.join([cls[0] for cls in config_dict['semantic_subset']])
-                import ipdb; ipdb.set_trace()
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
 
@@ -264,7 +263,7 @@ def get_problem_config(class_names, n_instances_per_class):
 def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
     model = torchfcn.models.FCN8sInstanceAtOnce(
         semantic_instance_class_list=problem_config.semantic_instance_class_list,
-        map_to_semantic=False, include_instance_channel0=False,
+        map_to_semantic=cfg['map_to_semantic'], include_instance_channel0=False,
         bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'])
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model_state_dict'])

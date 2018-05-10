@@ -16,5 +16,6 @@ default_config = dict(
     size_average=True,
     score_multiplier=None,
     freeze_vgg=False,
+    map_to_semantic=False,
 )
 

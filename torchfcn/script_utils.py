@@ -94,14 +94,14 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
 
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME,
                        reverse_replacements=False):
-    import ipdb; ipdb.set_trace()
     if reverse_replacements:
         config_key_replacements = {v: k for k, v in config_key_replacements.items()}
     cfg_print = config_dict.copy()
     for key, replacement_key in config_key_replacements.items():
         if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
             if config_dict['semantic_subset'] is not None:
-                cfg_print['semantic_subset'] = ''.join([cls[0] for cls in config_dict['semantic_subset']])
+                cfg_print['semantic_subset'] = ''.join([cls for cls in config_dict['semantic_subset']])
+                # cfg_print['semantic_subset'] = ''.join([cls[0] for cls in config_dict['semantic_subset']])
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
 

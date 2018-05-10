@@ -153,7 +153,10 @@ def get_log_dir(model_name, config_id=None, cfg=None, parent_directory='logs'):
     name += '_VCS-{}'.format(git_hash().replace("'", ""))
     name += '_MODEL-%s' % model_name
     if config_id is not None:
-        name += '_CFG-%03d' % config_id
+        if isinstance(config_id, int):
+            name += '_CFG-%03d' % config_id
+        else:
+            name += '_CFG-{}'.format(config_id)
     if cfg is not None:
         for k, v in cfg.items():
             v = str(v)

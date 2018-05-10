@@ -18,6 +18,7 @@ DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.
 
 DEBUG = True
 
+
 class FCN8sInstanceNotAtOnce(nn.Module):
 
     def __init__(self, n_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
@@ -145,6 +146,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         self._initialize_weights()
 
     def forward(self, x):
+        input_size = x.size()
         h = x
         h = self.relu1_1(self.conv1_1(h))
         h = self.relu1_2(self.conv1_2(h))
@@ -198,18 +200,18 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         h = upscore_pool4 + score_pool3c  # 1/8
 
         h = self.upscore8(h)  # ConvTranspose2d, stride=8
-        return h
+        h = h[:, :, 31:31 + input_size[2], 31:31 + input_size[3]].contiguous()
 
         if self.map_to_semantic:
             h = self.conv1x1_instance_to_semantic(h)
 
-        h = sample_contiguous_center(h, input_size)
+        # h = sample_contiguous_center(h, input_size)
 
         return h
 
-    def sample_contiguous_center(self, h, input_size):
-        h = h[:, :, 31:31 + input_size[2], 31:31 + input_size[3]].contiguous()
-        return h
+    # def sample_contiguous_center(self, h, input_size):
+    #     h = h[:, :, 31:31 + input_size[2], 31:31 + input_size[3]].contiguous()
+    #     return h
 
     def copy_params_from_fcn8s(self, fcn16s):
         raise NotImplementedError('function not yet adapted for instance rather than semantic networks (gotta copy '
@@ -225,6 +227,26 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         #     if l1.bias is not None:
         #         assert l1.bias.size() == l2.bias.size()
         #         l2.bias.data.copy_(l1.bias.data)
+
+    def _freeze_vgg_children(self):
+        vgg_components = [
+
+        ]
+        for child in self.children():
+            if child_counter < 6:
+                print("child ", child_counter," was frozen")
+                for param in child.parameters():
+                    param.requires_grad = False
+            elif child_counter == 6:
+                children_of_child_counter = 0
+                for children_of_child in child.children():
+                    if children_of_child_counter < 1:
+                        for param in children_of_child.parameters():
+                            param.requires_grad = False
+                        print('child ', children_of_child_counter, 'of child',child_counter,' was frozen')
+                    else:
+                        print('child ', children_of_child_counter, 'of child',child_counter,' was not frozen')
+                    children_of_child_counter += 1
 
     def _initialize_weights(self):
         num_modules = len(list(self.modules()))
@@ -424,17 +446,6 @@ class FCN8sInstanceAtOnce(FCN8sInstanceNotAtOnce):
     pretrained_model = \
         osp.expanduser('~/data/models/pytorch/fcn8s-atonce_from_caffe.pth')
 
-    @classmethod
-    def download(cls):
-        if fcn is None:
-            raise NotImplementedError
-        return fcn.data.cached_download(
-            url='http://drive.google.com/uc?id=0B9P1L--7Wd2vblE1VUIxV1o2d2M',
-            path=cls.pretrained_model,
-            md5='bfed4437e941fef58932891217fe6464',
-        )
-
-    # @profile
     def forward(self, x):
         h = x
         h = self.relu1_1(self.conv1_1(h))

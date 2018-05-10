@@ -3,6 +3,38 @@ import torch
 
 import torchfcn
 
+VGG_CHILDREN_NAMES = ['conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
+                      'conv2_1', 'relu2_1', 'conv2_2', 'relu2_2', 'pool2',
+                      'conv3_1', 'relu3_1', 'conv3_2', 'relu3_2', 'conv3_3', 'relu3_3', 'pool3',
+                      'conv4_1', 'relu4_1', 'conv4_2', 'relu4_2', 'conv4_3', 'relu4_3', 'pool4',
+                      'conv5_1', 'relu5_1', 'conv5_2', 'relu5_2', 'conv5_3', 'relu5_3', 'pool5',
+                      'fc6', 'relu6', 'drop6',
+                      'fc7', 'relu7', 'drop7']
+
+
+def freeze_vgg_module_subset(model, vgg_children_names=VGG_CHILDREN_NAMES):
+    freeze_children_by_name(model, vgg_children_names)
+
+
+def freeze_module_list(module_list):
+    for my_module in module_list:
+        for p_name, my_p in my_module.named_parameters():
+            my_p.requires_grad = False
+
+
+def freeze_children_by_name(model, module_names_to_freeze, error_for_leftover_modules=True):
+    model_children_names = [child[0] for child in model.named_children()]
+    if error_for_leftover_modules:
+        # Make sure all modules exist
+        module_exists = [module_name in model_children_names for module_name in module_names_to_freeze]
+        assert all(module_exists), ValueError('Tried to freeze modules that do not exist: {}'.format(
+            [module_name for module_name in model_children_names if not module_exists[module_name]]))
+
+    for module_name, my_module in model.named_children():
+        if module_name in model_children_names:
+            for p_name, my_p in my_module.named_parameters():
+                my_p.requires_grad = False
+
 
 def get_parameters(model, bias=False):
     import torch.nn as nn
@@ -30,7 +62,8 @@ def get_parameters(model, bias=False):
         elif isinstance(m, modules_skipped):
             continue
         else:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
             raise ValueError('Unexpected module: %s' % str(m))
 
 
@@ -51,8 +84,8 @@ def get_upsampling_weight(in_channels, out_channels, kernel_size):
         weight[range(in_channels), range(out_channels), :, :] = filt
     else:
         weight = \
-        (filt[np.newaxis, np.newaxis, :, :]).repeat(in_channels, axis=0).repeat(out_channels, axis=1).astype(
-            np.float64)
+            (filt[np.newaxis, np.newaxis, :, :]).repeat(in_channels, axis=0).repeat(out_channels, axis=1).astype(
+                np.float64)
     return torch.from_numpy(weight).float()
 
 

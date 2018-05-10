@@ -315,12 +315,9 @@ def main():
                                                                  args.cuda)
 
     print('Number of classes in model: {}'.format(model.n_classes))
-    print('Number of training images: {}'.format(len(dataloaders['train'])))
-    print('Number of validation images: {}'.format(len(dataloaders['val'])))
-    if dataloaders['train_for_val'] is not None:
-        print('Number of training images we''ll use during validation: {}'.format(len(dataloaders['train_for_val'])))
-    else:
-        print('Number of training images we''ll use during validation: {}'.format(0))
+    print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
+        len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
+
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
     optim = script_utils.get_optimizer(cfg, model, checkpoint)

@@ -17,6 +17,7 @@ import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
 from torchfcn import instance_utils
 from torchfcn.datasets.voc import VOC_ROOT
+from torchfcn.models import model_utils
 
 here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'
@@ -286,6 +287,9 @@ def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
             model.copy_params_from_vgg16(vgg16)
     if cuda:
         model = model.cuda()
+
+    if cfg['freeze_vgg']:
+        model_utils.freeze_vgg_module_subset(model)
     return model, start_epoch, start_iteration
 
 

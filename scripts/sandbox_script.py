@@ -18,6 +18,7 @@ from torchfcn.datasets import samplers
 
 here = osp.dirname(osp.abspath(__file__))
 
+
 sampler_cfgs = {
     'default': {
         'train':
@@ -25,68 +26,12 @@ sampler_cfgs = {
              'sem_cls_filter': None,
              'n_instances_range': None,
              },
-        'val': 'copy_train'
-    },
-    'person_2inst_1img': {
-        'train':
-            {'n_images': 1,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val': 'copy_train'
-    },
-    'person_2inst_2img': {
-        'train':
-            {'n_images': 2,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val': 'copy_train'
-    },
-    'person_2inst_allimg_sameval': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val': 'copy_train'
-    },
-    'person_2inst_allimg_realval': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val':
-            {'n_images': None,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-    },
-    'person_2inst_20img_sameval': {
-        'train':
-            {'n_images': 20,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val': 'copy_train'
-    },
-    'person_2_4inst_allimg_realval': {
-        'train':
-            {'n_images': 20,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, 4),
-             },
-        'val':
-            {'n_images': 20,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, 4),
-             },
+        'val': 'copy_train',
         'train_for_val':  # just configures what should be processed during val
             {
-                'n_images': 'all'
+                'n_images': None  # Change to reduce amount of images used to 'validate' the training set
             }
-    }
+    },
 }
 
 
@@ -117,7 +62,7 @@ def parse_args():
 
 
 def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_range=None, n_images=None):
-    valid_indices = range(len(dataset_instance_stats.dataset))
+    valid_indices = [True for _ in range(len(dataset_instance_stats.dataset))]
     if n_instances_range is not None:
         valid_indices = pairwise_and(valid_indices,
                                      dataset_instance_stats.filter_images_by_n_instances(n_instances_range, sem_cls))
@@ -136,7 +81,11 @@ def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_ra
                     valid_indices[idx] = False
                 else:
                     n_images_chosen += 1
-        assert sum(valid_indices) == n_images
+        try:
+            assert sum(valid_indices) == n_images
+        except AssertionError:
+            import ipdb; ipdb.set_trace()
+            raise
     sampler = samplers.sampler_factory(sequential=sequential, bool_index_subset=valid_indices)(
         dataset_instance_stats.dataset)
 
@@ -192,6 +141,9 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
                                            n_images=train_sampler_cfg.pop('n_images', None),
                                            sem_cls_filter=sem_cls_filter,
                                            instance_count_file=train_instance_count_file)
+    if train_sampler_cfg:  # Check if there are any keys left
+        raise ValueError('I don''t yet know how to process the following keys: {}'.format(
+            train_sampler_cfg.keys()))
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_sampler, **loader_kwargs)
 
     val_sampler_cfg = sampler_cfgs[sampler_args]['val']
@@ -213,8 +165,22 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
                                              n_images=val_sampler_cfg.pop('n_images', None),
                                              sem_cls_filter=sem_cls_filter,
                                              instance_count_file=val_instance_count_file)
+        if val_sampler_cfg:  # Check if there are any keys left
+            raise ValueError('I don''t yet know how to process the following keys: {}'.format(
+                val_sampler_cfg.keys()))
+
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
-    train_for_val_sampler = train_loader.sampler.copy(sequential_override=True, cut_n_images=min(3, len(train_loader)))
+    train_for_val_cfg = sampler_cfgs[sampler_args].pop('train_for_val', None)
+    if train_for_val_cfg is None:
+        train_for_val_cfg = sampler_cfgs['default']['train_for_val']
+    cut_n_images = train_for_val_cfg.pop('n_images', None) or len(train_loader)
+    if train_for_val_cfg:  # Check if there are any keys left
+        raise ValueError('I don''t yet know how to process the following keys for train_for_val: {}'.format(
+            train_for_val_cfg.keys()))
+
+    train_for_val_sampler = train_loader.sampler.copy(sequential_override=True,
+                                                      cut_n_images=None if cut_n_images is None
+                                                      else min(cut_n_images, len(train_loader)))
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=1,
                                                        sampler=train_for_val_sampler, **loader_kwargs)
     return {
@@ -233,7 +199,7 @@ def pairwise_or(list1, list2):
 
 
 def main():
-    script_utils.check_clean_work_tree()
+    # script_utils.check_clean_work_tree()
     args = parse_args()
     gpu = args.gpu
     config_idx = args.config
@@ -270,21 +236,9 @@ def main():
         train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, script_utils.VOC_ROOT)
     else:
         raise ValueError
-
-    train_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'train_instance_counts.npy')
-    val_instance_count_file = os.path.join(script_utils.VOC_ROOT, 'val_instance_counts.npy')
-    all_instance_counts = {'train': None, 'val': None}
-    for split, instance_count_file, dataset in zip(['train', 'val'],
-                                                   [train_instance_count_file, val_instance_count_file],
-                                                   [train_dataset, val_dataset]):
-        instance_counts = torch.from_numpy(np.load(instance_count_file)) \
-            if os.path.isfile(instance_count_file) else None
-        stats = dataset_statistics.InstanceDatasetStatistics(dataset, instance_counts)
-        if instance_counts is None:
-            stats.compute_statistics()
-            instance_counts = stats.instance_counts
-        all_instance_counts[split] = instance_counts
-    import ipdb; ipdb.set_trace()
+    problem_config = script_utils.get_problem_config(train_dataset.class_names, 2)
+    model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
+                                                                 checkpoint=None, semantic_init=None, cuda=args.cuda)
 
 
 if __name__ == '__main__':

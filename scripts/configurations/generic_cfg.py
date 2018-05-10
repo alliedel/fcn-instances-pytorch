@@ -15,5 +15,6 @@ default_config = dict(
     bottleneck_channel_capacity=None,
     size_average=True,
     score_multiplier=None,
+    freeze_vgg=False,
 )
 

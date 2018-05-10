@@ -236,8 +236,10 @@ def get_optimizer(cfg, model, checkpoint=None):
     elif cfg['optim'] == 'sgd':
         optim = torch.optim.SGD(
             [
-                {'params': get_parameters(model, bias=False)},
-                {'params': get_parameters(model, bias=True),
+                {'params': filter(lambda p: False if p is None else p.requires_grad,
+                                  get_parameters(model, bias=False))},
+                {'params': filter(lambda p: False if p is None else p.requires_grad,
+                                  get_parameters(model, bias=True)),
                  'lr': cfg['lr'] * 2, 'weight_decay': 0},
             ],
             lr=cfg['lr'],

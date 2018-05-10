@@ -138,13 +138,11 @@ def get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_
     n_instance_classes = len(semantic_instance_class_list)
     n_semantic_classes = int(max(semantic_instance_class_list) + 1)
     if not compose_transposed:
-        try:
-            instance_to_semantic_mapping_matrix = torch.zeros((n_instance_classes, n_semantic_classes)).float()
+        instance_to_semantic_mapping_matrix = torch.zeros((n_instance_classes, n_semantic_classes)).float()
         for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
             instance_to_semantic_mapping_matrix[instance_idx, semantic_idx] = 1
     else:
-        try:
-            instance_to_semantic_mapping_matrix = torch.zeros((n_semantic_classes, n_instance_classes)).float()
+        instance_to_semantic_mapping_matrix = torch.zeros((n_semantic_classes, n_instance_classes)).float()
         for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
             instance_to_semantic_mapping_matrix[semantic_idx, instance_idx] = 1
     return instance_to_semantic_mapping_matrix if not as_numpy else \

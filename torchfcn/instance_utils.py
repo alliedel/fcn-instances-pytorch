@@ -126,24 +126,27 @@ def get_instance_count_id_list(semantic_instance_class_list, non_instance_sem_cl
 
 
 def get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_class_list,
-                                                              as_numpy=False):
+                                                              as_numpy=False, compose_transposed=True):
     """
     returns a binary matrix, where semantic_instance_mapping is N x S
     (N = # instances, S = # semantic classes)
     semantic_instance_mapping[inst_idx, :] is a one-hot vector,
     and semantic_instance_mapping[inst_idx, sem_idx] = 1 iff that instance idx is an instance
     of that semantic class.
+    compose_transposed: S x N
     """
     n_instance_classes = len(semantic_instance_class_list)
     n_semantic_classes = int(max(semantic_instance_class_list) + 1)
-    try:
-        instance_to_semantic_mapping_matrix = torch.zeros((n_instance_classes, n_semantic_classes)).float()
-    except:
-        import ipdb; ipdb.set_trace()
-        raise Exception
-    for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
-        instance_to_semantic_mapping_matrix[instance_idx,
-                                            semantic_idx] = 1
+    if not compose_transposed:
+        try:
+            instance_to_semantic_mapping_matrix = torch.zeros((n_instance_classes, n_semantic_classes)).float()
+        for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
+            instance_to_semantic_mapping_matrix[instance_idx, semantic_idx] = 1
+    else:
+        try:
+            instance_to_semantic_mapping_matrix = torch.zeros((n_semantic_classes, n_instance_classes)).float()
+        for instance_idx, semantic_idx in enumerate(semantic_instance_class_list):
+            instance_to_semantic_mapping_matrix[semantic_idx, instance_idx] = 1
     return instance_to_semantic_mapping_matrix if not as_numpy else \
         instance_to_semantic_mapping_matrix.numpy()
 

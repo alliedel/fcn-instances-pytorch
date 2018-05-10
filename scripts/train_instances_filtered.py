@@ -324,6 +324,28 @@ def main():
     # TODO(allie): something is wrong with adam... fix it.
     optim = script_utils.get_optimizer(cfg, model, checkpoint)
 
+    from torchfcn.models import model_utils
+    frozen_modules = []
+    unfrozen_modules = []
+    for module_name, module in model.named_children():
+        module_frozen = all([p.requires_grad is False for p in module.parameters()])
+        frozen_modules.append(module_name)
+        if not module_frozen:
+            assert all([p.requires_grad is True for p in module.parameters()])
+            unfrozen_modules.append(module_name)
+
+    non_vgg_frozen_modules = [module_name for module_name in frozen_modules
+                              if module_name is not in model_utils.VGG_CHILDREN_NAMES]
+    if cfg['freeze_vgg']:
+        for module_name, module in model.named_children():
+            if module_name in model_utils.VGG_CHILDREN_NAMES:
+                assert all([p for p in module.parameters()])
+        print('All modules were correctly frozen: '.format({}).format(model_utils.VGG_CHILDREN_NAMES))
+
+    print('Modules frozen: {}'.format(frozen_modules))
+    print('Non-VGG modules frozen: {}'.format(frozen_modules))
+    print('Modules unfrozen: {}'.format(unfrozen_modules))
+
     trainer = script_utils.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

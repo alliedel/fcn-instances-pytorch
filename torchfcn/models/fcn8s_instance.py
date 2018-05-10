@@ -53,7 +53,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
             self.n_classes = len(semantic_instance_class_list)
         self.instance_to_semantic_mapping_matrix = \
             instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
-                self.semantic_instance_class_list, as_numpy=False)
+                self.semantic_instance_class_list, as_numpy=False, compose_transposed=True)
         self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(1)
 
         if bottleneck_channel_capacity is None:
@@ -228,33 +228,13 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         #         assert l1.bias.size() == l2.bias.size()
         #         l2.bias.data.copy_(l1.bias.data)
 
-    def _freeze_vgg_children(self):
-        vgg_components = [
-
-        ]
-        for child in self.children():
-            if child_counter < 6:
-                print("child ", child_counter," was frozen")
-                for param in child.parameters():
-                    param.requires_grad = False
-            elif child_counter == 6:
-                children_of_child_counter = 0
-                for children_of_child in child.children():
-                    if children_of_child_counter < 1:
-                        for param in children_of_child.parameters():
-                            param.requires_grad = False
-                        print('child ', children_of_child_counter, 'of child',child_counter,' was frozen')
-                    else:
-                        print('child ', children_of_child_counter, 'of child',child_counter,' was not frozen')
-                    children_of_child_counter += 1
-
     def _initialize_weights(self):
         num_modules = len(list(self.modules()))
         for idx, m in enumerate(self.modules()):
             if idx == num_modules - 1 and self.map_to_semantic:
                 assert m == self.conv1x1_instance_to_semantic
-                self.conv1x1_instance_to_semantic.weight.data.copy_(
-                    self.instance_to_semantic_mapping_matrix.transpose(1, 0))
+                import ipdb; ipdb.set_trace()
+                self.conv1x1_instance_to_semantic.weight.data.copy_(self.instance_to_semantic_mapping_matrix)
                 self.conv1x1_instance_to_semantic.weight.requires_grad = False  # Fix weights
                 print('conv1x1 initialized to have weights of shape {}'.format(
                     self.conv1x1_instance_to_semantic.weight.data.shape))

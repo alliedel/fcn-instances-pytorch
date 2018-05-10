@@ -22,6 +22,15 @@ def freeze_module_list(module_list):
             my_p.requires_grad = False
 
 
+def freeze_all_children(model):
+    """
+    Primarily used for debugging, to make sure it doesn't actually learn anything
+    """
+    for module_name, my_module in model.named_children():
+        for p_name, my_p in my_module.named_parameters():
+            my_p.requires_grad = False
+
+
 def freeze_children_by_name(model, module_names_to_freeze, error_for_leftover_modules=True):
     model_children_names = [child[0] for child in model.named_children()]
     if error_for_leftover_modules:
@@ -31,7 +40,7 @@ def freeze_children_by_name(model, module_names_to_freeze, error_for_leftover_mo
             [module_name for module_name in model_children_names if not module_exists[module_name]]))
 
     for module_name, my_module in model.named_children():
-        if module_name in model_children_names:
+        if module_name in module_names_to_freeze:
             for p_name, my_p in my_module.named_parameters():
                 my_p.requires_grad = False
 

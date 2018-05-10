@@ -103,7 +103,7 @@ def parse_args():
         'synthetic': subparsers.add_parser('synthetic', help='synthetic dataset options')
     }
     for dataset_name, subparser in dataset_parsers.items():
-        subparser.add_argument('-c', '--config', type=int, default=0,
+        subparser.add_argument('-c', '--config', type=str, default=0,
                                choices={'synthetic': synthetic_cfg.configurations,
                                         'voc': voc_cfg.configurations}[dataset_name].keys())
         subparser.set_defaults(dataset=dataset_name)

@@ -54,7 +54,7 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         self.instance_to_semantic_mapping_matrix = \
             instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
                 self.semantic_instance_class_list, as_numpy=False, compose_transposed=True)
-        self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(1)
+        self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
 
         if bottleneck_channel_capacity is None:
             self.bottleneck_channel_capacity = self.n_classes
@@ -231,10 +231,10 @@ class FCN8sInstanceNotAtOnce(nn.Module):
     def _initialize_weights(self):
         num_modules = len(list(self.modules()))
         for idx, m in enumerate(self.modules()):
-            if idx == num_modules - 1 and self.map_to_semantic:
+            if self.map_to_semantic and idx == num_modules - 1:
                 assert m == self.conv1x1_instance_to_semantic
-                import ipdb; ipdb.set_trace()
-                self.conv1x1_instance_to_semantic.weight.data.copy_(self.instance_to_semantic_mapping_matrix)
+                self.conv1x1_instance_to_semantic.weight.data.copy_(self.instance_to_semantic_mapping_matrix.view(
+                    self.n_classes, self.n_semantic_classes, 1, 1))
                 self.conv1x1_instance_to_semantic.weight.requires_grad = False  # Fix weights
                 print('conv1x1 initialized to have weights of shape {}'.format(
                     self.conv1x1_instance_to_semantic.weight.data.shape))

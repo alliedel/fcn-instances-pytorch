@@ -53,6 +53,8 @@ def test_vgg_freeze():
     assert len([module[0] for module in model.named_children()]) == \
            len(unfrozen_modules + vgg_frozen_modules + non_vgg_frozen_modules)
 
+    assert non_vgg_frozen_modules == ['conv1x1_instance_to_semantic']
+
 
 def test_all():
     test_vgg_freeze()

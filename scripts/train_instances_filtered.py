@@ -275,6 +275,8 @@ def main():
     }
     cfg_to_print.update(non_default_options)
     cfg_to_print['sampler'] = args.sampler
+
+    cfg_to_print = script_utils.create_config_copy(cfg_to_print)
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        cfg_to_print,
                                        parent_directory=os.path.join(here, 'logs', args.dataset))

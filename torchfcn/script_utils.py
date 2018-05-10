@@ -94,6 +94,7 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
 
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME,
                        reverse_replacements=False):
+    import ipdb; ipdb.set_trace()
     if reverse_replacements:
         config_key_replacements = {v: k for k, v in config_key_replacements.items()}
     cfg_print = config_dict.copy()

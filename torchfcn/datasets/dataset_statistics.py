@@ -65,7 +65,7 @@ def filter_images_by_instance_range_from_counts(instance_counts, n_instances_ran
     n_instances_min, n_instances_max = n_instances_range
     has_at_least_n_instances = instance_counts >= n_instances_min
     has_at_most_n_instances = instance_counts < n_instances_max \
-        if n_instances_max is not None else torch.ones_like(instance_counts).bytes()
+        if n_instances_max is not None else torch.ByteTensor(instance_counts.size()).fill_(1)
     if semantic_classes is None:
         valid_indices_as_tensor = has_at_least_n_instances.sum(dim=1) * has_at_most_n_instances.sum(dim=1)
     else:

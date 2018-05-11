@@ -7,8 +7,10 @@ import shlex
 import subprocess
 from glob import glob
 
+import numpy as np
 import pytz
 import torch
+import torch.utils.data
 import yaml
 from tensorboardX import SummaryWriter
 
@@ -16,6 +18,7 @@ import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
 from torchfcn import instance_utils
+from torchfcn.datasets import dataset_statistics, samplers
 from torchfcn.datasets.voc import VOC_ROOT
 from torchfcn.models import model_utils
 
@@ -50,7 +53,7 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 
 
-class bcolors:
+class TermColors:
     """
     https://stackoverflow.com/questions/287871/print-in-terminal-with-colors
     """
@@ -83,12 +86,13 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
     if exit_code != 0:
         override = False
         if interactive:
-            override = 'y' == input(bcolors.WARNING + 'Your working directory tree isn\'t clean:\n ' + bcolors.ENDC +
-                                    bcolors.FAIL + '{}'.format(stdout.decode()) + bcolors.ENDC +
-                                    'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': '
-                                    '' + bcolors.ENDC)
+            override = 'y' == input(
+                TermColors.WARNING + 'Your working directory tree isn\'t clean:\n ' + TermColors.ENDC +
+                TermColors.FAIL + '{}'.format(stdout.decode()) + TermColors.ENDC +
+                'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': '
+                '' + TermColors.ENDC)
         if exit_on_error or interactive and not override:
-            raise Exception(bcolors.FAIL + 'Exiting.  Please commit or stash your changes.' + bcolors.ENDC)
+            raise Exception(TermColors.FAIL + 'Exiting.  Please commit or stash your changes.' + TermColors.ENDC)
     return exit_code, stdout
 
 
@@ -140,9 +144,9 @@ def get_latest_model_path_from_logdir(logdir):
 
 def git_hash():
     cmd = 'git log -n 1 --pretty="%h"'
-    hash = subprocess.check_output(shlex.split(cmd)).strip()
-    hash = hash.decode("utf-8")
-    return hash
+    hash_ = subprocess.check_output(shlex.split(cmd)).strip()
+    hash_ = hash_.decode("utf-8")
+    return hash_
 
 
 def get_log_dir(model_name, config_id=None, cfg=None, parent_directory='logs'):
@@ -204,7 +208,7 @@ def get_parameters(model, bias=False):
         elif isinstance(m, modules_skipped):
             continue
         else:
-            import ipdb;
+            import ipdb
             ipdb.set_trace()
             raise ValueError('Unexpected module: %s' % str(m))
 
@@ -257,7 +261,7 @@ def get_problem_config(class_names, n_instances_per_class):
     # 0. Problem setup (instance segmentation definition)
     class_names = class_names
     n_semantic_classes = len(class_names)
-    n_instances_by_semantic_id = [1] + [n_instances_per_class for sem_cls in range(1, n_semantic_classes)]
+    n_instances_by_semantic_id = [1] + [n_instances_per_class for _ in range(1, n_semantic_classes)]
     problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
     problem_config.set_class_names(class_names)
     return problem_config
@@ -318,32 +322,143 @@ def get_voc_datasets(cfg, voc_root):
     return train_dataset, val_dataset
 
 
-def get_dataloaders(cfg, dataset, cuda, single_image_index=None):
+def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_range=None, n_images=None):
+    valid_indices = [True for _ in range(len(dataset_instance_stats.dataset))]
+    if n_instances_range is not None:
+        valid_indices = pairwise_and(valid_indices,
+                                     dataset_instance_stats.filter_images_by_n_instances(n_instances_range, sem_cls))
+    elif sem_cls is not None:
+        valid_indices = pairwise_and(valid_indices, dataset_instance_stats.filter_images_by_semantic_classes(sem_cls))
+    if n_images is not None:
+        if sum(valid_indices) < n_images:
+            raise Exception('Too few images to sample {}.  Choose a smaller value for n_images in the sampler '
+                            'config, or change your filtering requirements for the sampler.'.format(n_images))
+
+        # Subsample n_images
+        n_images_chosen = 0
+        for idx in np.random.permutation(len(valid_indices)):
+            if valid_indices[idx]:
+                if n_images_chosen == n_images:
+                    valid_indices[idx] = False
+                else:
+                    n_images_chosen += 1
+        try:
+            assert sum(valid_indices) == n_images
+        except AssertionError:
+            import ipdb
+            ipdb.set_trace()
+            raise
+    sampler = samplers.sampler_factory(sequential=sequential, bool_index_subset=valid_indices)(
+        dataset_instance_stats.dataset)
+
+    return sampler
+
+
+def get_configured_sampler(dataset_type, dataset, sequential, n_instances_range, n_images, sem_cls_filter,
+                           instance_count_file):
+    if n_instances_range is not None:
+        if dataset_type != 'voc':
+            raise NotImplementedError('Need an established place to save instance counts')
+        instance_counts = torch.from_numpy(np.load(instance_count_file)) \
+            if os.path.isfile(instance_count_file) else None
+        stats = dataset_statistics.InstanceDatasetStatistics(dataset, instance_counts)
+        if instance_counts is None:
+            stats.compute_statistics()
+            instance_counts = stats.instance_counts
+            np.save(instance_count_file, instance_counts.numpy())
+    else:
+        stats = dataset_statistics.InstanceDatasetStatistics(dataset)
+
+    my_sampler = get_sampler(stats, sequential=sequential, n_instances_range=n_instances_range, sem_cls=sem_cls_filter,
+                             n_images=n_images)
+    if n_images:
+        assert len(my_sampler.indices) == n_images
+    return my_sampler
+
+
+def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     # 1. dataset
-    if dataset == 'synthetic':
+    if dataset_type == 'synthetic':
         train_dataset, val_dataset = get_synthetic_datasets(cfg)
-    elif dataset == 'voc':
+    elif dataset_type == 'voc':
         train_dataset, val_dataset = get_voc_datasets(cfg, VOC_ROOT)
     else:
         raise ValueError
-    if single_image_index is not None:
-        train_dataset = train_dataset.copy(modified_length=1)
-        val_dataset = train_dataset
-    loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **loader_kwargs)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kwargs)
-    train_loader_for_val = torch.utils.data.DataLoader(train_dataset.copy(modified_length=min(len(train_dataset), 3)),
-                                                       batch_size=1,
-                                                       shuffle=False, **loader_kwargs)
-    try:
-        img, (sl, il) = train_dataset[0]
-    except:
-        import ipdb;
-        ipdb.set_trace()
-        raise Exception('Cannot load an image from your dataset')
 
+    # 2. samplers
+    if sampler_cfg is None:
+        train_sampler = samplers.sampler.RandomSampler(train_dataset)
+        val_sampler = samplers.sampler.SequentialSampler(val_dataset)
+        train_for_val_sampler = samplers.sampler.SequentialSampler(train_dataset)
+    else:
+        train_sampler_cfg = sampler_cfg['train']
+        val_sampler_cfg = sampler_cfg['val']
+        train_for_val_cfg = pop_without_del(sampler_cfg, 'train_for_val', None)
+        sampler_cfg['train_for_val'] = train_for_val_cfg
+
+        sem_cls_filter = pop_without_del(train_sampler_cfg, 'sem_cls_filter', None)
+        if sem_cls_filter is not None:
+            if isinstance(sem_cls_filter[0], str):
+                try:
+                    sem_cls_filter = [train_dataset.class_names.index(class_name) for class_name in sem_cls_filter]
+                except:
+                    sem_cls_filter = [int(np.where(train_dataset.class_names == class_name)[0][0])
+                                      for class_name in sem_cls_filter]
+        train_instance_count_file = os.path.join(VOC_ROOT, 'train_instance_counts.npy')
+        train_sampler = get_configured_sampler(dataset_type, train_dataset, sequential=True,
+                                               n_instances_range=pop_without_del(train_sampler_cfg,
+                                                                                 'n_instances_range', None),
+                                               n_images=pop_without_del(train_sampler_cfg, 'n_images', None),
+                                               sem_cls_filter=sem_cls_filter,
+                                               instance_count_file=train_instance_count_file)
+        if isinstance(val_sampler_cfg, str) and val_sampler_cfg == 'copy_train':
+            val_sampler = train_sampler.copy(sequential_override=True)
+            val_dataset = train_dataset
+        else:
+            sem_cls_filter = pop_without_del(val_sampler_cfg, 'sem_cls_filter', None)
+            if sem_cls_filter is not None:
+                if isinstance(sem_cls_filter[0], str):
+                    try:
+                        sem_cls_filter = [val_dataset.class_names.index(class_name) for class_name in sem_cls_filter]
+                    except:
+                        sem_cls_filter = [int(np.where(val_dataset.class_names == class_name)[0][0])
+                                          for class_name in sem_cls_filter]
+            val_instance_count_file = os.path.join(VOC_ROOT, 'val_instance_counts.npy')
+            val_sampler = get_configured_sampler(dataset_type, val_dataset, sequential=True,
+                                                 n_instances_range=pop_without_del(val_sampler_cfg,
+                                                                                   'n_instances_range', None),
+                                                 n_images=pop_without_del(val_sampler_cfg, 'n_images', None),
+                                                 sem_cls_filter=sem_cls_filter,
+                                                 instance_count_file=val_instance_count_file)
+
+        cut_n_images = pop_without_del(train_for_val_cfg, 'n_images', None) or len(train_dataset)
+        train_for_val_sampler = train_sampler.copy(sequential_override=True,
+                                                   cut_n_images=None if cut_n_images is None
+                                                   else min(cut_n_images, len(train_dataset)))
+
+    # Create dataloaders from datasets and samplers
+    loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_sampler, **loader_kwargs)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
+    train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=1,
+                                                       sampler=train_for_val_sampler, **loader_kwargs)
     return {
         'train': train_loader,
         'val': val_loader,
         'train_for_val': train_loader_for_val,
     }
+
+
+def pairwise_and(list1, list2):
+    return [a and b for a, b in zip(list1, list2)]
+
+
+def pairwise_or(list1, list2):
+    return [a or b for a, b in zip(list1, list2)]
+
+
+def pop_without_del(dictionary, key, default):
+    val = dictionary.pop(key, default)
+    dictionary[key] = val
+    return val

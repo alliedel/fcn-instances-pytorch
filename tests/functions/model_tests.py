@@ -24,7 +24,8 @@ def build_example_model(**model_cfg_override_kwargs):
 
 
 def test_vgg_freeze():
-    model = build_example_model(map_to_semantic=True)
+    model = build_example_model()
+    # model = build_example_model(map_to_semantic=True)
     model_utils.freeze_vgg_module_subset(model)
 
     frozen_modules, unfrozen_modules = [], []
@@ -37,9 +38,9 @@ def test_vgg_freeze():
             unfrozen_modules.append(module_name)
 
     non_vgg_frozen_modules = [module_name for module_name in frozen_modules
-                          if module_name not in model_utils.VGG_CHILDREN_NAMES]
+                              if module_name not in model_utils.VGG_CHILDREN_NAMES]
     vgg_frozen_modules = [module_name for module_name in frozen_modules
-                              if module_name in model_utils.VGG_CHILDREN_NAMES]
+                          if module_name in model_utils.VGG_CHILDREN_NAMES]
     for module_name, module in model.named_children():
         if module_name in model_utils.VGG_CHILDREN_NAMES:
             assert all([p.requires_grad is False for p in module.parameters()])
@@ -49,9 +50,9 @@ def test_vgg_freeze():
     print('Non-VGG modules frozen: {}'.format(non_vgg_frozen_modules))
     print('Modules unfrozen: {}'.format(unfrozen_modules))
     assert set(unfrozen_modules + vgg_frozen_modules + non_vgg_frozen_modules) == \
-           set([module[0] for module in model.named_children()])
+        set([module[0] for module in model.named_children()])
     assert len([module[0] for module in model.named_children()]) == \
-           len(unfrozen_modules + vgg_frozen_modules + non_vgg_frozen_modules)
+        len(unfrozen_modules + vgg_frozen_modules + non_vgg_frozen_modules)
 
     assert non_vgg_frozen_modules == ['conv1x1_instance_to_semantic']
 

@@ -1,3 +1,9 @@
+numpy
+ipdb
+PyYAML
+pytz
+torch
+tensorboardX
 absl-py (0.1.9)
 backports-abc (0.5)
 backports.functools-lru-cache (1.4)

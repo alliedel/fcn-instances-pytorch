@@ -165,9 +165,9 @@ def main():
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
     if metrics[2] < 85:
-        print(script_utils.bcolors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + script_utils.bcolors.ENDC)
+        print(script_utils.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + script_utils.TermColors.ENDC)
     else:
-        print(script_utils.bcolors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + script_utils.bcolors.ENDC)
+        print(script_utils.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + script_utils.TermColors.ENDC)
 
 
 if __name__ == '__main__':

@@ -81,13 +81,13 @@ configurations = {
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,
         interval_validate=4000,
-        max_iteration=10000000,
+        max_iteration=1000000,
     ),
     'person_only__3_channels_map_to_semantic__freeze_vgg__many_itr': dict(
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,
         interval_validate=4000,
-        max_iteration=10000000,
+        max_iteration=1000000,
         map_to_semantic=True,
         n_instances_per_class=3,
     )

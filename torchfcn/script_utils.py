@@ -434,7 +434,7 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
         cut_n_images = pop_without_del(train_for_val_cfg, 'n_images', None) or len(train_dataset)
         train_for_val_sampler = train_sampler.copy(sequential_override=True,
                                                    cut_n_images=None if cut_n_images is None
-                                                   else min(cut_n_images, len(train_dataset)))
+                                                   else min(cut_n_images, len(train_sampler)))
 
     # Create dataloaders from datasets and samplers
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}

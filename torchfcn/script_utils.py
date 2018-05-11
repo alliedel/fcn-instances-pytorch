@@ -194,7 +194,6 @@ def get_parameters(model, bias=False):
         torchfcn.models.FCN8sInstance
     )
     for m in model.modules():
-        # import ipdb; ipdb.set_trace()
         if isinstance(m, nn.Conv2d):
             if bias:
                 yield m.bias
@@ -267,7 +266,7 @@ def get_problem_config(class_names, n_instances_per_class):
 
 
 def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
-    model = torchfcn.models.FCN8sInstanceAtOnce(
+    model = torchfcn.models.FCN8sInstance(
         semantic_instance_class_list=problem_config.semantic_instance_class_list,
         map_to_semantic=cfg['map_to_semantic'], include_instance_channel0=False,
         bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'])
@@ -282,7 +281,7 @@ def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
             if not os.path.exists(semantic_init_path):
                 raise ValueError('I could not find the path {}.  Did you set the path using the semantic-init '
                                  'flag?'.format(semantic_init_path))
-            semantic_model = torchfcn.models.FCN8sInstanceAtOnce(
+            semantic_model = torchfcn.models.FCN8sInstance(
                 semantic_instance_class_list=[1 for _ in range(problem_config.n_semantic_classes)],
                 map_to_semantic=False, include_instance_channel0=False)
             print('Copying params from preinitialized semantic model')

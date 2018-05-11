@@ -77,7 +77,7 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN8sInstanceAtOnce(
+    model = torchfcn.models.FCN8sInstance(
         semantic_instance_class_list=problem_config.semantic_instance_class_list,
         map_to_semantic=False, include_instance_channel0=False,
         bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'])
@@ -94,7 +94,7 @@ def main():
         if not os.path.exists(semantic_init_path):
             raise ValueError('I could not find the path {}.  Did you set the path using the semantic-init '
                              'flag?'.format(semantic_init_path))
-        semantic_model = torchfcn.models.FCN8sInstanceAtOnce(
+        semantic_model = torchfcn.models.FCN8sInstance(
             semantic_instance_class_list=[1 for _ in range(problem_config.n_semantic_classes)],
             map_to_semantic=False, include_instance_channel0=False)
         print('Copying params from preinitialized semantic model')

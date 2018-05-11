@@ -19,10 +19,11 @@ DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.
 DEBUG = True
 
 
-class FCN8sInstanceNotAtOnce(nn.Module):
+class FCN8sInstance(nn.Module):
 
     def __init__(self, n_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
-                 include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None):
+                 include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
+                 at_once=True):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -32,12 +33,13 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         """
         if include_instance_channel0:
             raise NotImplementedError
-        super(FCN8sInstanceNotAtOnce, self).__init__()
+        super(FCN8sInstance, self).__init__()
         if n_classes is None:
             assert semantic_instance_class_list is not None, 'either n_classes or semantic_instance_class_list must ' \
                                                              'be specified.'
         else:
             self.n_classes = n_classes
+        self.at_once = at_once
         self.map_to_semantic = map_to_semantic
         self.score_multiplier_init = score_multiplier_init
         if semantic_instance_class_list is None:
@@ -188,10 +190,15 @@ class FCN8sInstanceNotAtOnce(nn.Module):
         score_pool4c = h  # 1/16
 
         h = upscore2 + score_pool4c  # 1/16
-        h = self.upscore_pool4(h)  # ConvTranspose2d, stride=2
+        if self.at_once:
+            h = self.score_pool4(pool4 * 0.01)  # XXX: scaling to train at once
+        else:
+            h = self.upscore_pool4(h)  # ConvTranspose2d, stride=2
         upscore_pool4 = h  # 1/8
-
-        h = self.score_pool3(pool3)  #  * 0.0001
+        if self.at_once:
+            h = self.score_pool3(pool3 * 0.0001)
+        else:
+            h = self.score_pool3(pool3)
         h = h[:, :,
               9:9 + upscore_pool4.size()[2],
               9:9 + upscore_pool4.size()[3]]
@@ -413,86 +420,10 @@ def module_has_params(module):
     return has_params
 
 
-def FCN8sInstanceNotAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, **kwargs):
-    model = FCN8sInstanceNotAtOnce(**kwargs)
-    # state_dict = torch.load(model_file, map_location=lambda storage, location: 'cpu')
-    state_dict = torch.load(model_file, map_location=lambda storage, loc: storage)[
-        'model_state_dict']
-    model.load_state_dict(state_dict)
-    return model
-
-
-class FCN8sInstanceAtOnce(FCN8sInstanceNotAtOnce):
-    pretrained_model = \
-        osp.expanduser('~/data/models/pytorch/fcn8s-atonce_from_caffe.pth')
-
-    def forward(self, x):
-        h = x
-        h = self.relu1_1(self.conv1_1(h))
-        h = self.relu1_2(self.conv1_2(h))
-        h = self.pool1(h)
-
-        h = self.relu2_1(self.conv2_1(h))
-        h = self.relu2_2(self.conv2_2(h))
-        h = self.pool2(h)
-
-        h = self.relu3_1(self.conv3_1(h))
-        h = self.relu3_2(self.conv3_2(h))
-        h = self.relu3_3(self.conv3_3(h))
-        h = self.pool3(h)
-        pool3 = h  # 1/8
-
-        h = self.relu4_1(self.conv4_1(h))
-        h = self.relu4_2(self.conv4_2(h))
-        h = self.relu4_3(self.conv4_3(h))
-        h = self.pool4(h)
-        pool4 = h  # 1/16
-
-        h = self.relu5_1(self.conv5_1(h))
-        h = self.relu5_2(self.conv5_2(h))
-        h = self.relu5_3(self.conv5_3(h))
-        h = self.pool5(h)
-
-        h = self.relu6(self.fc6(h))
-        h = self.drop6(h)
-
-        h = self.relu7(self.fc7(h))
-        h = self.drop7(h)
-
-        h = self.score_fr(h)
-        h = self.upscore2(h)
-        upscore2 = h  # 1/16
-
-        h = self.score_pool4(pool4 * 0.01)  # XXX: scaling to train at once
-        h = h[:, :, 5:5 + upscore2.size()[2], 5:5 + upscore2.size()[3]]
-        score_pool4c = h  # 1/16
-
-        h = upscore2 + score_pool4c  # 1/16
-        h = self.upscore_pool4(h)
-        upscore_pool4 = h  # 1/8
-
-        h = self.score_pool3(pool3 * 0.0001)  # XXX: scaling to train at once
-        h = h[:, :,
-            9:9 + upscore_pool4.size()[2],
-            9:9 + upscore_pool4.size()[3]]
-        score_pool3c = h  # 1/8
-
-        h = upscore_pool4 + score_pool3c  # 1/8
-
-        h = self.upscore8(h)
-
-        if self.score_multiplier_init:
-            h = self.score_multiplier1x1(h)
-
-        h = h[:, :, 31:31 + x.size()[2], 31:31 + x.size()[3]].contiguous()
-
-        return h
-
-
-def FCN8sInstanceAtOncePretrained(model_file=DEFAULT_SAVED_MODEL_PATH,
-                                  n_classes=21, semantic_instance_class_list=None, map_to_semantic=False):
-    model = FCN8sInstanceAtOnce(n_classes=n_classes, semantic_instance_class_list=semantic_instance_class_list,
-                                map_to_semantic=map_to_semantic)
+def FCN8sInstancePretrained(model_file=DEFAULT_SAVED_MODEL_PATH,
+                            n_classes=21, semantic_instance_class_list=None, map_to_semantic=False):
+    model = FCN8sInstance(n_classes=n_classes, semantic_instance_class_list=semantic_instance_class_list,
+                          map_to_semantic=map_to_semantic, at_once=True)
     # state_dict = torch.load(model_file, map_location=lambda storage, location: 'cpu')
     state_dict = torch.load(model_file, map_location=lambda storage, loc: storage)[
         'model_state_dict']

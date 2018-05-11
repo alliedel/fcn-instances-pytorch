@@ -190,9 +190,8 @@ def get_parameters(model, bias=False):
         torchfcn.models.FCN32s,
         torchfcn.models.FCN16s,
         torchfcn.models.FCN8s,
-        torchfcn.models.FCN8sInstanceNotAtOnce,
         torchfcn.models.FCN8sAtOnce,
-        torchfcn.models.FCN8sInstanceAtOnce
+        torchfcn.models.FCN8sInstance
     )
     for m in model.modules():
         # import ipdb; ipdb.set_trace()

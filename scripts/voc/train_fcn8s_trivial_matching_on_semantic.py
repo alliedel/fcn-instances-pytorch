@@ -98,7 +98,7 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN8sInstanceAtOnce(
+    model = torchfcn.models.FCN8sInstance(
         semantic_instance_class_list=problem_config.semantic_instance_class_list, map_to_semantic=False)
     print('Number of classes in model: {}'.format(model.n_classes))
     start_epoch = 0

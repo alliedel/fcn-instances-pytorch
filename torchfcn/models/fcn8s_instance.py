@@ -21,7 +21,7 @@ DEBUG = True
 
 class FCN8sInstance(nn.Module):
 
-    def __init__(self, n_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
+    def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
                  at_once=True):
         """
@@ -31,35 +31,34 @@ class FCN8sInstance(nn.Module):
         we don't allocate space for a channel like this)
         bottleneck_channel_capacity: n_classes (default); 'semantic': n_semantic_classes', some number
         """
+        super(FCN8sInstance, self).__init__()
+
         if include_instance_channel0:
             raise NotImplementedError
-        super(FCN8sInstance, self).__init__()
-        if n_classes is None:
-            assert semantic_instance_class_list is not None, 'either n_classes or semantic_instance_class_list must ' \
-                                                             'be specified.'
+        if semantic_instance_class_list is None:
+            assert n_instance_classes is not None,\
+                ValueError('either n_classes or semantic_instance_class_list must be specified.')
+            assert not map_to_semantic, ValueError('need semantic_instance_class_list to map to semantic')
         else:
-            self.n_classes = n_classes
+            assert n_instance_classes is None or n_instance_classes == len(semantic_instance_class_list)
+            n_instance_classes = len(semantic_instance_class_list)
+
+        if semantic_instance_class_list is None:
+            self.semantic_instance_class_list = list(range(n_instance_classes))
+        else:
+            self.semantic_instance_class_list = semantic_instance_class_list
+        self.n_instance_classes = n_instance_classes
         self.at_once = at_once
         self.map_to_semantic = map_to_semantic
         self.score_multiplier_init = score_multiplier_init
-        if semantic_instance_class_list is None:
-            assert not map_to_semantic, ValueError('need semantic_instance_class_list to map to semantic')
-            # self.semantic_instance_class_list = np.arange(n_classes, dtype=int)
-            self.semantic_instance_class_list = list(range(n_classes))
-        else:
-            self.semantic_instance_class_list = semantic_instance_class_list
-            if n_classes is not None:
-                assert n_classes == len(semantic_instance_class_list), \
-                    'n_classes does not math the length of the semantic_instance_class_list you passed in.  ' \
-                    'Either leave it unspecified or check n_classes (number of instance classes): {}'.format(n_classes)
-            self.n_classes = len(semantic_instance_class_list)
         self.instance_to_semantic_mapping_matrix = \
             instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
                 self.semantic_instance_class_list, as_numpy=False, compose_transposed=True)
         self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
+        self.n_output_channels = n_instance_classes if not map_to_semantic else self.n_semantic_classes
 
         if bottleneck_channel_capacity is None:
-            self.bottleneck_channel_capacity = self.n_classes
+            self.bottleneck_channel_capacity = self.n_instance_classes
         elif isinstance(bottleneck_channel_capacity, str):
             assert bottleneck_channel_capacity == 'semantic', ValueError('Did not recognize '
                                                                          'bottleneck_channel_capacity {}')
@@ -138,17 +137,17 @@ class FCN8sInstance(nn.Module):
         self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
             self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
         self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
-            self.bottleneck_channel_capacity, self.n_classes, kernel_size=16, stride=8, bias=False)
+            self.bottleneck_channel_capacity, self.n_instance_classes, kernel_size=16, stride=8, bias=False)
         if self.score_multiplier_init is not None:
-            self.score_multiplier1x1 = nn.Conv2d(self.n_classes, self.n_classes, kernel_size=1, stride=1, bias=True)
+            self.score_multiplier1x1 = nn.Conv2d(self.n_instance_classes, self.n_instance_classes,
+                                                 kernel_size=1, stride=1, bias=True)
         if self.map_to_semantic:
-            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
-                                                          out_channels=self.n_semantic_classes,
+            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
+                                                          out_channels=self.n_output_channels,
                                                           kernel_size=1, bias=False)
         self._initialize_weights()
 
     def forward(self, x):
-        input_size = x.size()
         h = x
         h = self.relu1_1(self.conv1_1(h))
         h = self.relu1_2(self.conv1_2(h))
@@ -185,16 +184,17 @@ class FCN8sInstance(nn.Module):
         h = self.upscore2(h)  # ConvTranspose2d, stride=2
         upscore2 = h  # 1/16
 
-        h = self.score_pool4(pool4)  # not * 0.01 (scaling would be to train at once)
+        if self.at_once:
+            h = self.score_pool4(pool4 * 0.01)
+        else:
+            h = self.score_pool4(pool4)
         h = h[:, :, 5:5 + upscore2.size()[2], 5:5 + upscore2.size()[3]]
         score_pool4c = h  # 1/16
 
         h = upscore2 + score_pool4c  # 1/16
-        if self.at_once:
-            h = self.score_pool4(pool4 * 0.01)  # XXX: scaling to train at once
-        else:
-            h = self.upscore_pool4(h)  # ConvTranspose2d, stride=2
+        h = self.upscore_pool4(h)  # ConvTranspose2d, stride=2
         upscore_pool4 = h  # 1/8
+
         if self.at_once:
             h = self.score_pool3(pool3 * 0.0001)
         else:
@@ -206,19 +206,18 @@ class FCN8sInstance(nn.Module):
 
         h = upscore_pool4 + score_pool3c  # 1/8
 
-        h = self.upscore8(h)  # ConvTranspose2d, stride=8
-        h = h[:, :, 31:31 + input_size[2], 31:31 + input_size[3]].contiguous()
+        h = self.upscore8(h)
+
+        if self.score_multiplier_init:
+            h = self.score_multiplier1x1(h)
 
         if self.map_to_semantic:
             h = self.conv1x1_instance_to_semantic(h)
 
-        # h = sample_contiguous_center(h, input_size)
+        h = h[:, :, 31:31 + x.size()[2], 31:31 + x.size()[3]].contiguous()
 
         return h
 
-    # def sample_contiguous_center(self, h, input_size):
-    #     h = h[:, :, 31:31 + input_size[2], 31:31 + input_size[3]].contiguous()
-    #     return h
 
     def copy_params_from_fcn8s(self, fcn16s):
         raise NotImplementedError('function not yet adapted for instance rather than semantic networks (gotta copy '
@@ -241,10 +240,8 @@ class FCN8sInstance(nn.Module):
             if self.map_to_semantic and idx == num_modules - 1:
                 assert m == self.conv1x1_instance_to_semantic
                 self.conv1x1_instance_to_semantic.weight.data.copy_(self.instance_to_semantic_mapping_matrix.view(
-                    self.n_classes, self.n_semantic_classes, 1, 1))
+                    self.n_instance_classes, self.n_semantic_classes, 1, 1))
                 self.conv1x1_instance_to_semantic.weight.requires_grad = False  # Fix weights
-                print('conv1x1 initialized to have weights of shape {}'.format(
-                    self.conv1x1_instance_to_semantic.weight.data.shape))
             elif isinstance(m, nn.Conv2d):
                 m.weight.data.zero_()
                 # m.weight.data.normal_(0.0, 0.02)
@@ -405,7 +402,7 @@ class FCN8sInstance(nn.Module):
             else:
                 print('All modules copied correctly: {}'.format(successfully_copied_modules))
         if self.map_to_semantic:
-            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_classes,
+            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
                                                           out_channels=self.n_semantic_classes,
                                                           kernel_size=1, bias=False)
 
@@ -420,9 +417,10 @@ def module_has_params(module):
     return has_params
 
 
-def FCN8sInstancePretrained(model_file=DEFAULT_SAVED_MODEL_PATH,
-                            n_classes=21, semantic_instance_class_list=None, map_to_semantic=False):
-    model = FCN8sInstance(n_classes=n_classes, semantic_instance_class_list=semantic_instance_class_list,
+def FCN8sInstancePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, n_instance_classes=21,
+                            semantic_instance_class_list=None, map_to_semantic=False):
+    model = FCN8sInstance(n_instance_classes=n_instance_classes,
+                          semantic_instance_class_list=semantic_instance_class_list,
                           map_to_semantic=map_to_semantic, at_once=True)
     # state_dict = torch.load(model_file, map_location=lambda storage, location: 'cpu')
     state_dict = torch.load(model_file, map_location=lambda storage, loc: storage)[

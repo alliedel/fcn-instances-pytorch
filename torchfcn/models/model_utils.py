@@ -22,6 +22,20 @@ def freeze_module_list(module_list):
             my_p.requires_grad = False
 
 
+def compare_model_states(model1, model2):
+    matching_modules, nonmatching_modules = [], []
+    for (module_name, module1), (module_name2, module2) in zip(model1.named_children(), model2.named_children()):
+        assert module_name == module_name2, 'Modules from model1 and model2 dont''t matched when named_children() is ' \
+                                            'called.'
+        module_matches = all([torch.equal(p1, p2) for p1, p2 in zip(module1.parameters(), module2.parameters())])
+        if module_matches:
+            matching_modules.append(module_name)
+        else:
+            nonmatching_modules.append(module_name)
+
+    return matching_modules, nonmatching_modules
+
+
 def freeze_all_children(model):
     """
     Primarily used for debugging, to make sure it doesn't actually learn anything

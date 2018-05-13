@@ -67,6 +67,7 @@ def main():
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        cfg_to_print,
                                        parent_directory=os.path.join(here, 'logs', args.dataset))
+    script_utils.save_config(out_dir, cfg)
     print('logdir: {}'.format(out_dir))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -95,8 +96,8 @@ def main():
     for key, dataloader in dataloaders.items():
         dataloader.dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
         dataloader.dataset.set_instance_cap(n_instances_per_class)
-
-    problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class)
+    problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
+                                                     map_to_semantic=cfg['map_to_semantic'])
 
     if args.resume:
         checkpoint = torch.load(args.resume)
@@ -107,7 +108,7 @@ def main():
     model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config, args.resume, args.semantic_init,
                                                                  args.cuda)
 
-    print('Number of classes in model: {}'.format(model.n_classes))
+    print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
 

@@ -49,9 +49,6 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
             pred_permutations, loss, loss_components = ret
         else:
             pred_permutations, loss = ret
-        # assert pred_permutations.shape[0] == 1, NotImplementedError
-        # Somehow the gradient is no longer getting backpropped through loss, so I just recompute
-        #  it here with the permutation I computed.
         if DEBUG_ASSERTS or recompute_optimal_loss:
             ret = cross_entropy2d_without_matching(
                 log_predictions[:, pred_permutations[0, :], :, :], sem_lbl, inst_lbl,
@@ -60,9 +57,6 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
                 loss_recomputed, loss_components = ret
             else:
                 loss_recomputed = ret
-            # if not tensors_are_close(loss.data, loss_recomputed.data):
-            #     print(Warning('{} != {}'.format(
-            #         loss.data.cpu().numpy(), loss_recomputed.data.cpu().numpy())))
             if recompute_optimal_loss:
                 loss = loss_recomputed
     else:
@@ -82,9 +76,7 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
         return pred_permutations, loss
 
 
-def tensors_are_close(tensor_a, tensor_b, tol=None):
-    # tol = tol or 1e-12
-    # return torch.np.all(torch.lt(torch.abs(torch.add(tensor_a, -tensor_b)), tol))
+def tensors_are_close(tensor_a, tensor_b):
     return torch.np.allclose(tensor_a.cpu().numpy(), tensor_b.cpu().numpy())
 
 
@@ -130,7 +122,6 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
     assert (log_predictions.size(0), log_predictions.size(2), log_predictions.size(3)) == \
            sem_lbl.size()
     assert weight is None, NotImplementedError
-    unique_semantic_vals, inst_counts = np.unique(semantic_instance_labels, return_counts=True)
     losses = []
     for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(semantic_instance_labels, instance_id_labels)):
         try:
@@ -244,7 +235,18 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
                      / normalizer for inst_val in inst_id_lbls_for_this_class]
                     for sem_inst_idx in sem_inst_idxs_for_this_class]
     # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
+    if DEBUG_ASSERTS:
+        try:
+            assert all([not sum(is_nan(cost_list_1d[j].data))
+                        for cost_list_1d in cost_list_2d for j in range(len(cost_list_1d))])
+        except:
+            import ipdb; ipdb.set_trace()
+            raise Exception('costs reached nan')
     return cost_list_2d
+
+
+def is_nan(val):
+    return val != val
 
 
 def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):

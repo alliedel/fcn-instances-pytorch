@@ -17,6 +17,8 @@ from tensorboardX import SummaryWriter
 import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
+from scripts.configurations import synthetic_cfg, voc_cfg
+from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn import instance_utils
 from torchfcn.datasets import dataset_statistics, samplers
 from torchfcn.datasets.voc import VOC_ROOT
@@ -104,7 +106,7 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
     for key, replacement_key in config_key_replacements.items():
         if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
             if config_dict['semantic_subset'] is not None:
-                cfg_print['semantic_subset'] = ''.join([cls for cls in config_dict['semantic_subset']])
+                cfg_print['semantic_subset'] = '_'.join([cls for cls in config_dict['semantic_subset']])
                 # cfg_print['semantic_subset'] = ''.join([cls[0] for cls in config_dict['semantic_subset']])
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
@@ -178,6 +180,11 @@ def get_log_dir(model_name, config_id=None, cfg=None, parent_directory='logs'):
     with open(osp.join(log_dir, 'config.yaml'), 'w') as f:
         yaml.safe_dump(cfg, f, default_flow_style=False)
     return log_dir
+
+
+def save_config(log_dir, cfg):
+    with open(osp.join(log_dir, 'config.yaml'), 'w') as f:
+        yaml.safe_dump(cfg, f, default_flow_style=False)
 
 
 def get_parameters(model, bias=False):
@@ -255,20 +262,21 @@ def get_optimizer(cfg, model, checkpoint=None):
 
 
 # val_dataset.class_names
-def get_problem_config(class_names, n_instances_per_class):
+def get_problem_config(class_names, n_instances_per_class, map_to_semantic=False):
     # 0. Problem setup (instance segmentation definition)
     class_names = class_names
     n_semantic_classes = len(class_names)
     n_instances_by_semantic_id = [1] + [n_instances_per_class for _ in range(1, n_semantic_classes)]
-    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
+    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id,
+                                                          map_to_semantic=map_to_semantic)
     problem_config.set_class_names(class_names)
     return problem_config
 
 
 def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
     model = torchfcn.models.FCN8sInstance(
-        semantic_instance_class_list=problem_config.semantic_instance_class_list,
-        map_to_semantic=cfg['map_to_semantic'], include_instance_channel0=False,
+        semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
+        map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
         bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'])
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -460,3 +468,62 @@ def pop_without_del(dictionary, key, default):
     val = dictionary.pop(key, default)
     dictionary[key] = val
     return val
+
+
+def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: torch.utils.data.Dataset,
+                             resume: str, semantic_init, out_dir: str) -> tuple:
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    cuda = torch.cuda.is_available()
+
+    np.random.seed(1234)
+    torch.manual_seed(1337)
+    if cuda:
+        torch.cuda.manual_seed(1337)
+    print('Getting dataloaders...')
+    sampler_cfg = sampler_cfgs[sampler_args]
+    if sampler_cfg['train_for_val'] is None:
+        sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
+
+    dataloaders = get_dataloaders(cfg, dataset, cuda, sampler_cfg)
+    print('Done getting dataloaders')
+    try:
+        i, [sl, il] = [d for i, d in enumerate(dataloaders['train']) if i == 0][0]
+    except:
+        raise
+    synthetic_generator_n_instances_per_semantic_id = 2
+    n_instances_per_class = cfg['n_instances_per_class'] or \
+                            (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
+
+    # reduce dataloaders to semantic subset before running / generating problem config:
+    for key, dataloader in dataloaders.items():
+        dataloader.dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
+        dataloader.dataset.set_instance_cap(n_instances_per_class)
+    problem_config = get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
+                                        map_to_semantic=cfg['map_to_semantic'])
+
+    if resume:
+        checkpoint = torch.load(resume)
+    else:
+        checkpoint = None
+
+    # 2. model
+    model, start_epoch, start_iteration = get_model(cfg, problem_config, checkpoint, semantic_init, cuda)
+
+    print('Number of output channels in model: {}'.format(model.n_output_channels))
+    print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
+        len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
+
+    # 3. optimizer
+    # TODO(allie): something is wrong with adam... fix it.
+    optim = get_optimizer(cfg, model, checkpoint)
+
+    if cfg['freeze_vgg']:
+        for module_name, module in model.named_children():
+            if module_name in model_utils.VGG_CHILDREN_NAMES:
+                assert all([p for p in module.parameters()])
+        print('All modules were correctly frozen: '.format({}).format(model_utils.VGG_CHILDREN_NAMES))
+    trainer = get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir)
+    trainer.epoch = start_epoch
+    trainer.iteration = start_iteration
+
+    return problem_config, model, trainer, optim, dataloaders

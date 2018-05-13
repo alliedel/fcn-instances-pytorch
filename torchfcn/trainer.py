@@ -25,6 +25,26 @@ MY_TIMEZONE = 'America/New_York'
 DEBUG_ASSERTS = True
 
 
+def permute_scores(score, pred_permutations):
+    score_permuted_to_match = score.clone()
+    for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
+        # batch size?
+        score_permuted_to_match[:, ch, :, :] = score[:, pred_permutations[:, ch], :, :]
+    return score_permuted_to_match
+
+
+def permute_labels(label_preds, permutations):
+    if torch.is_tensor(label_preds):
+        label_preds_permuted = label_preds.clone()
+    else:
+        label_preds_permuted = label_preds.copy()
+    for idx in range(permutations.shape[0]):
+        permutation = permutations[idx, :]
+        for old_channel, new_channel in enumerate(permutation):
+            label_preds_permuted[label_preds == old_channel] = new_channel
+    return label_preds_permuted
+
+
 class Trainer(object):
 
     def __init__(self, cuda, model, optimizer,
@@ -91,16 +111,25 @@ class Trainer(object):
         }
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
+        map_to_semantic = self.instance_problem.map_to_semantic
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                       score.size(3))):
             import ipdb;
             ipdb.set_trace()
             raise Exception('Sizes of score, targets are incorrect')
+
+        if map_to_semantic:
+            inst_lbl[inst_lbl > 1] = 1
+
+        semantic_instance_labels = self.instance_problem.semantic_instance_class_list
+        instance_id_labels = self.instance_problem.instance_count_id_list
+        matching = self.matching_loss
+
         permutations, loss = losses.cross_entropy2d(
             score, sem_lbl, inst_lbl,
-            semantic_instance_labels=self.instance_problem.semantic_instance_class_list,
-            instance_id_labels=self.instance_problem.instance_count_id_list,
-            matching=self.matching_loss,
+            semantic_instance_labels=semantic_instance_labels,
+            instance_id_labels=instance_id_labels,
+            matching=matching,
             size_average=self.size_average, break_here=False, recompute_optimal_loss=False, **kwargs)
         return permutations, loss
 
@@ -111,7 +140,7 @@ class Trainer(object):
         If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
             False.
         """
-        metrics, visualizations = None, None
+        val_metrics = None
         write_metrics = (split == 'val') if write_metrics is None else write_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -179,19 +208,19 @@ class Trainer(object):
         val_loss /= len(data_loader)
 
         if should_compute_metrics:
-            metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
+            val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
             if write_metrics:
-                self.write_metrics(metrics, val_loss, split)
+                self.write_metrics(val_metrics, val_loss, split)
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('metrics/{}/loss'.format(split),
                                                        val_loss, self.iteration)
-                    self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), metrics[2],
+                    self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2],
                                                        self.iteration)
 
             if save_checkpoint:
                 self.save_checkpoint()
             if update_best_checkpoint:
-                self.update_best_checkpoint_if_best(mean_iu=metrics[2])
+                self.update_best_checkpoint_if_best(mean_iu=val_metrics[2])
             self.compute_and_write_instance_metrics()
 
         # Restore training settings set prior to function call
@@ -199,7 +228,7 @@ class Trainer(object):
             self.model.train()
 
         visualizations = (segmentation_visualizations, score_visualizations)
-        return metrics, visualizations
+        return val_metrics, visualizations
 
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:
@@ -213,34 +242,17 @@ class Trainer(object):
                     self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric,
                                                        self.iteration)
 
-    def permute_scores(self, score, pred_permutations):
-        score_permuted_to_match = score.clone()
-        for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
-            # batch size?
-            score_permuted_to_match[:, ch, :, :] = score[:, pred_permutations[:, ch], :, :]
-        return score_permuted_to_match
-
-    def permute_labels(self, label_preds, permutations):
-        if torch.is_tensor(label_preds):
-            label_preds_permuted = label_preds.clone()
-        else:
-            label_preds_permuted = label_preds.copy()
-        for idx in range(permutations.shape[0]):
-            permutation = permutations[idx, :]
-            for old_channel, new_channel in enumerate(permutation):
-                label_preds_permuted[label_preds == old_channel] = new_channel
-        return label_preds_permuted
-
     def compute_metrics(self, label_trues, label_preds, permutations=None):
         if permutations is not None:
             assert type(permutations) == list, NotImplementedError('I''m assuming permutations are a list of ndarrays '
                                                                    'from multiple batches')
-            label_preds_permuted = [self.permute_labels(label_pred, perms)
+            label_preds_permuted = [permute_labels(label_pred, perms)
                                     for label_pred, perms in zip(label_preds, permutations)]
         else:
             label_preds_permuted = label_preds
-        metrics = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted, n_class=self.n_combined_class)
-        return metrics
+        metrics_list = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted,
+                                                           n_class=self.n_combined_class)
+        return metrics_list
 
     def write_metrics(self, metrics, loss, split):
         with open(osp.join(self.out, 'log.csv'), 'a') as f:

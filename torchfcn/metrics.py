@@ -206,9 +206,8 @@ def get_same_sem_cls_channels(channel_idx, semantic_instance_class_list):
 def compile_scores(model, data_loader):
     training = model.training
     model.eval()
-    compiled_scores = None
     n_images = data_loader.batch_size * len(data_loader)
-    n_channels = model.n_classes
+    n_channels = model.n_output_channels
     batch_size = data_loader.batch_size
     min_image_size, max_image_size = (torch.np.inf, torch.np.inf), (0, 0)
     for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
@@ -225,8 +224,6 @@ def compile_scores(model, data_loader):
         if next(model.parameters()).is_cuda:
             data, sem_lbl, inst_lbl = data.cuda(), sem_lbl.cuda(), inst_lbl.cuda()
         scores = model(data)
-        if compiled_scores is None:
-            compiled_scores = Variable(torch.ones(n_images, *list(scores.size())[1:]))
         try:
             compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = scores
         except:

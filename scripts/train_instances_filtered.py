@@ -116,7 +116,7 @@ def main():
     if cfg['freeze_vgg']:
         for module_name, module in model.named_children():
             if module_name in model_utils.VGG_CHILDREN_NAMES:
-                assert all([p for p in module.parameters()])
+                assert all([p.requires_grad is False for p in module.parameters()])
         print('All modules were correctly frozen: '.format({}).format(model_utils.VGG_CHILDREN_NAMES))
 
     trainer = script_utils.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)

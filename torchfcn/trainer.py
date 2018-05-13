@@ -386,7 +386,6 @@ class Trainer(object):
         # n_class = len(self.train_loader.dataset.class_names)
         # n_class = self.model.n_classes
 
-        import ipdb; ipdb.set_trace()
         for batch_idx, (data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):

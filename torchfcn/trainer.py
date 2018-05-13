@@ -232,8 +232,9 @@ class Trainer(object):
 
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:
-            print('Computing instance metrics')
-            for split, metric_maker in self.metric_makers.items():
+
+            for split, metric_maker in tqdm.tqdm(self.metric_makers.items(), desc='Computing instance metrics',
+                                                 total=len(self.metric_makers.items()), leave=False):
                 metric_maker.clear()
                 metric_maker.compute_metrics(self.model)
                 metrics_as_nested_dict = metric_maker.get_aggregated_metrics_as_nested_dict()
@@ -382,10 +383,10 @@ class Trainer(object):
 
     def train_epoch(self):
         self.model.train()
-
         # n_class = len(self.train_loader.dataset.class_names)
         # n_class = self.model.n_classes
 
+        import ipdb; ipdb.set_trace()
         for batch_idx, (data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):

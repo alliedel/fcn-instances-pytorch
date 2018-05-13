@@ -41,7 +41,13 @@ def load_logdir(logdir, gpu=0, packed_as_dict=True):
     # person_only__freeze_vgg__many_itr_SSET-personbackground_SAMPLER-person_2_4inst_allimg_realval_DATASET-
     # voc_ITR-1000000_VAL-4000'
     cfg = load_config(logdir)
-    dataset = cfg['dataset']
+    try:
+        dataset = cfg['dataset']
+    except:
+        print('WARNING: remove this for legacy code')
+        cfg['dataset'] = 'voc'
+        dataset = cfg['dataset']
+        cfg['sampler'] = 'person_2_4inst_allimg_realval'
     model_pth = osp.join(logdir, 'model_best.pth.tar')
     out_dir = '/tmp'
 

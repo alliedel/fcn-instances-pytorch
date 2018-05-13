@@ -55,14 +55,11 @@ def main():
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[args.dataset]
     cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)
-    non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg_options[config_idx])
+    cfg['dataset'] = args.dataset
+    cfg['sampler'] = args.sampler
+    non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg)
     print('non-default cfg values: {}'.format(non_default_options))
-    cfg_to_print = {
-        'dataset': args.dataset
-    }
-    cfg_to_print.update(non_default_options)
-    cfg_to_print['sampler'] = args.sampler
-
+    cfg_to_print = non_default_options
     cfg_to_print = script_utils.create_config_copy(cfg_to_print)
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        cfg_to_print,

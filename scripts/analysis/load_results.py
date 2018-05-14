@@ -70,6 +70,7 @@ if __name__ == '__main__':
                                                                          checkpoint=None, semantic_init=None,
                                                                          cuda=cuda)
 
+    # Checking which modules were actually learned
     matching_modules, unmatching_modules = model_utils.compare_model_states(initial_model, model)
     init_logdir = '/tmp/scrap_logdir'
     local_pyutils.mkdir_if_needed(init_logdir)
@@ -86,4 +87,47 @@ if __name__ == '__main__':
     print(matching_modules)
     print('non-matching:')
     print(unmatching_modules)
+
+    # Checking the cost matrix for the first image
+    import torch.nn.functional as F
+    from torchfcn import losses
+    data0 = [x for i, x in enumerate(dataloaders['train_for_val']) if i == 0][0]
+    img = torch.autograd.Variable(data0[0].cuda())
+    sem_lbl = torch.autograd.Variable(data0[1][0].cuda())
+    inst_lbl = torch.autograd.Variable(data0[1][1].cuda())
+    scores = model.forward(img)
+    log_predictions = F.log_softmax(scores, dim=1)
+    size_average=True
+    semantic_instance_labels = trainer.instance_problem.semantic_instance_class_list
+    instance_id_labels = trainer.instance_problem.instance_count_id_list
+
+    sem_val = 1
+
+    normalizer = (inst_lbl >= 0).float().data.sum()
+    num_inst_classes = len(semantic_instance_labels)
+    idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
+    cost_list_2d = losses.create_pytorch_cross_entropy_cost_matrix(log_predictions[0, ...], sem_lbl[0, ...],
+                                                                   inst_lbl[0, ...],
+                                                                   semantic_instance_labels,
+                                                                   instance_id_labels,
+                                                                   sem_val, size_average=size_average)
+    cost_matrix, multiplier = losses.convert_pytorch_costs_to_ints(cost_list_2d)
+
+    for ground_truth in range(len(cost_matrix)):
+        for prediction in range(len(cost_matrix[0])):
+            print('cost_list_2d gt={}, pred={}: {}'.format(ground_truth, prediction, cost_list_2d[prediction][
+                ground_truth].data.cpu().numpy().item()))
+
+    for ground_truth in range(len(cost_matrix)):
+        for prediction in range(len(cost_matrix[0])):
+            print('cost_matrix gt={}, pred={}: {}'.format(ground_truth, prediction, cost_matrix[prediction][
+                ground_truth]))
+
+    pred_permutations, loss, loss_components = losses.cross_entropy2d(scores, sem_lbl, inst_lbl,
+                                                                      semantic_instance_labels,
+                                                                      instance_id_labels, matching=True,
+                                                                      break_here=False, recompute_optimal_loss=False,
+                                                                      return_loss_components=True,
+                                                                      size_average=size_average)
+
     import ipdb; ipdb.set_trace()

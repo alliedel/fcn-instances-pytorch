@@ -480,6 +480,10 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: t
         torch.cuda.manual_seed(1337)
     print('Getting dataloaders...')
     sampler_cfg = sampler_cfgs[sampler_args]
+    try:
+        sampler_cfg['train_for_val']
+    except:
+        sampler_cfg['train_for_val'] = None
     if sampler_cfg['train_for_val'] is None:
         sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
 

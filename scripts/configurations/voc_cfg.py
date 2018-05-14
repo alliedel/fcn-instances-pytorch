@@ -84,6 +84,13 @@ configurations = {
         max_iteration=100000,
         freeze_vgg=True,
     ),
+    'person_only__nofreeze__many_itr': dict(
+        semantic_subset=['person', 'background'],
+        set_extras_to_void=True,
+        interval_validate=1000,
+        max_iteration=100000,
+        freeze_vgg=False,
+    ),
     'person_only__3_channels_map_to_semantic__freeze_vgg__many_itr': dict(
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,

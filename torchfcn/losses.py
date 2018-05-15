@@ -42,7 +42,21 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
         ipdb.set_trace()
     log_predictions = F.log_softmax(scores, dim=1)
 
+    if DEBUG_ASSERTS:
+        try:
+            assert not is_nan(scores.data).sum()
+        except:
+            import ipdb; ipdb.set_trace()
+            raise Exception('scores reached nan')
+
+        try:
+            assert not is_nan(log_predictions.data).sum()
+        except:
+            import ipdb; ipdb.set_trace()
+            raise Exception('log_predictions reached nan')
+
     if matching:
+
         ret = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
                                             instance_id_labels, return_loss_components=return_loss_components, **kwargs)
         if return_loss_components:
@@ -136,7 +150,7 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
     losses = torch.cat([c[torch.np.newaxis, :] for c in losses], dim=0).float()
     loss = sum(losses)
     if size_average:
-        normalizer = (inst_lbl >= 0).data.sum()
+        normalizer = (inst_lbl >= 0).data.float().sum()
         loss /= normalizer
         losses /= normalizer
 
@@ -265,8 +279,16 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
                 else 10 ** (10 - int(np.log10(absolute_max)))
 
     num_classes = len(cost_list_2d_variables)
-    cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r_pred][c_gt].data[0]) for c_gt in range(
-        num_classes)] for r_pred in range(num_classes)]
+    cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r_pred][c_gt].data[0])
+                        for c_gt in range(num_classes)]
+                       for r_pred in range(num_classes)]
+    if DEBUG_ASSERTS:
+        try:
+            assert all([not is_nan(cost_list_1d[j])
+                        for cost_list_1d in cost_matrix_int for j in range(len(cost_list_1d))])
+        except:
+            import ipdb; ipdb.set_trace()
+            raise Exception('costs in cost_matrix_int reached nan')
     return cost_matrix_int, multiplier
 
 

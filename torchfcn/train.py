@@ -40,7 +40,7 @@ def permute_labels(label_preds, permutations):
         label_preds_permuted = label_preds.copy()
     for idx in range(permutations.shape[0]):
         permutation = permutations[idx, :]
-        for old_channel, new_channel in enumerate(permutation):
+        for new_channel, old_channel in enumerate(permutation):
             label_preds_permuted[label_preds == old_channel] = new_channel
     return label_preds_permuted
 
@@ -243,10 +243,13 @@ class Trainer(object):
                     self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric,
                                                        self.iteration)
 
-    def compute_metrics(self, label_trues, label_preds, permutations=None):
+    def compute_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
         if permutations is not None:
-            assert type(permutations) == list, NotImplementedError('I''m assuming permutations are a list of ndarrays '
-                                                                   'from multiple batches')
+            if single_batch:
+                permutations = [permutations]
+            assert type(permutations) == list, \
+                NotImplementedError('I''m assuming permutations are a list of ndarrays from multiple batches, '
+                                    'not type {}'.format(type(permutations)))
             label_preds_permuted = [permute_labels(label_pred, perms)
                                     for label_pred, perms in zip(label_preds, permutations)]
         else:

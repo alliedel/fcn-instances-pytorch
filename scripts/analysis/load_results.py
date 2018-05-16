@@ -19,20 +19,21 @@ def parse_args():
 
 def load_config(logdir):
     cfg_file = osp.join(logdir, 'config.yaml')
-    loaded_cfg_updates = yaml.load(open(cfg_file))
-    print(Warning('WARNING: Using legacy code here! Get rid of loading default config.'))
-    default_cfg = voc_cfg.default_config
-
-    loaded_cfg = default_cfg
-    loaded_cfg.update(loaded_cfg_updates)
+    # loaded_cfg_updates = yaml.load(open(cfg_file))
+    # print(Warning('WARNING: Using legacy code here! Get rid of loading default config.'))
+    # default_cfg = voc_cfg.default_config
+    #
+    # loaded_cfg = default_cfg
+    # loaded_cfg.update(loaded_cfg_updates)
+    loaded_cfg = yaml.load(open(cfg_file))
 
     # Handling some poor legacy code
-    if 'sset' in loaded_cfg.keys():
-        semantic_subset_as_string = loaded_cfg['sset']
-        if semantic_subset_as_string == 'personbackground':
-            loaded_cfg['semantic_subset'] = ['person', 'background']
-        else:
-            raise NotImplementedError('legacy code not filled in here')
+    # if 'sset' in loaded_cfg.keys():
+    #     semantic_subset_as_string = loaded_cfg['sset']
+    #     if semantic_subset_as_string == 'personbackground':
+    #         loaded_cfg['semantic_subset'] = ['person', 'background']
+    #     else:
+    #         raise NotImplementedError('legacy code not filled in here')
     return loaded_cfg
 
 
@@ -60,16 +61,7 @@ def load_logdir(logdir, gpu=0, packed_as_dict=True):
         return cfg, model_pth, out_dir, problem_config, model, trainer, optim, dataloaders
 
 
-if __name__ == '__main__':
-    args = parse_args()
-    logdir = args.logdir
-    cfg, model_pth, out_dir, problem_config, model, trainer, optim, dataloaders = load_logdir(logdir, gpu=args.gpu,
-                                                                                              packed_as_dict=False)
-    cuda = torch.cuda.is_available()
-    initial_model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                         checkpoint=None, semantic_init=None,
-                                                                         cuda=cuda)
-
+def main_check_freeze():
     # Checking which modules were actually learned
     matching_modules, unmatching_modules = model_utils.compare_model_states(initial_model, model)
     init_logdir = '/tmp/scrap_logdir'
@@ -87,6 +79,21 @@ if __name__ == '__main__':
     print(matching_modules)
     print('non-matching:')
     print(unmatching_modules)
+
+
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    logdir = args.logdir
+    cfg, model_pth, out_dir, problem_config, model, trainer, optim, dataloaders = load_logdir(logdir, gpu=args.gpu,
+                                                                                              packed_as_dict=False)
+    cuda = torch.cuda.is_available()
+    initial_model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
+                                                                         checkpoint=None, semantic_init=None,
+                                                                         cuda=cuda)
+
+    # main_check_freeze()
 
     # Checking the cost matrix for the first image
     import torch.nn.functional as F
@@ -129,5 +136,9 @@ if __name__ == '__main__':
                                                                       break_here=False, recompute_optimal_loss=False,
                                                                       return_loss_components=True,
                                                                       size_average=size_average)
+    inst_lbl_pred = scores.data.max(1)[1].cpu().numpy()[:, :, :]
+    lt_combined = trainer.gt_tuple_to_combined(sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy())
+    metrics = trainer.compute_metrics(label_trues=lt_combined, label_preds=inst_lbl_pred,
+                                      permutations=pred_permutations, single_batch=True)
 
     import ipdb; ipdb.set_trace()

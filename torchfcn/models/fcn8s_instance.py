@@ -23,7 +23,7 @@ class FCN8sInstance(nn.Module):
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
-                 at_once=True):
+                 at_once=True, n_input_channels=3):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -56,6 +56,7 @@ class FCN8sInstance(nn.Module):
                 self.semantic_instance_class_list, as_numpy=False, compose_transposed=True)
         self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
         self.n_output_channels = n_instance_classes if not map_to_semantic else self.n_semantic_classes
+        self.n_input_channels = n_input_channels
 
         if bottleneck_channel_capacity is None:
             self.bottleneck_channel_capacity = self.n_instance_classes
@@ -69,7 +70,7 @@ class FCN8sInstance(nn.Module):
             self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
 
         # conv1
-        self.conv1_1 = nn.Conv2d(3, 64, 3, padding=100)
+        self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, 3, padding=100)
         self.relu1_1 = nn.ReLU(inplace=True)
         self.conv1_2 = nn.Conv2d(64, 64, 3, padding=1)
         self.relu1_2 = nn.ReLU(inplace=True)
@@ -217,7 +218,6 @@ class FCN8sInstance(nn.Module):
         h = h[:, :, 31:31 + x.size()[2], 31:31 + x.size()[3]].contiguous()
 
         return h
-
 
     def copy_params_from_fcn8s(self, fcn16s):
         raise NotImplementedError('function not yet adapted for instance rather than semantic networks (gotta copy '

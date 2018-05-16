@@ -129,7 +129,7 @@ configurations = {
         map_to_semantic=False,
         single_instance=True,
     ),
-    'person_only__3_channels_map_to_semantic__freeze_vgg__many_itr_smaller_lr': dict(
+    'person_semantic__freeze__smaller_lr': dict(
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,
         interval_validate=50,
@@ -139,7 +139,7 @@ configurations = {
         freeze_vgg=True,
         lr=1e-6
     ),
-    'person_only__3_channels_map_to_semantic__nofreeze__many_itr_smaller_lr': dict(
+    'person_semantic__nofreeze__smaller_lr': dict(
         semantic_subset=['person', 'background'],
         set_extras_to_void=True,
         interval_validate=50,

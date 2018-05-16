@@ -18,7 +18,7 @@ import torchfcn
 from torchfcn import losses
 from torchfcn import metrics
 from torchfcn import visualization_utils, instance_utils
-from torchfcn.visualization_utils import log_images
+from torchfcn.export_utils import log_images
 
 MY_TIMEZONE = 'America/New_York'
 

@@ -81,13 +81,11 @@ def main_check_freeze():
     print(unmatching_modules)
 
 
-
-
 if __name__ == '__main__':
     args = parse_args()
     logdir = args.logdir
-    cfg, model_pth, out_dir, problem_config, model, trainer, optim, dataloaders = load_logdir(logdir, gpu=args.gpu,
-                                                                                              packed_as_dict=False)
+    cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = load_logdir(logdir, gpu=args.gpu,
+                                                                                                 packed_as_dict=False)
     cuda = torch.cuda.is_available()
     initial_model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
                                                                          checkpoint=None, semantic_init=None,
@@ -105,8 +103,8 @@ if __name__ == '__main__':
     scores = model.forward(img)
     log_predictions = F.log_softmax(scores, dim=1)
     size_average=True
-    semantic_instance_labels = trainer.instance_problem.semantic_instance_class_list
-    instance_id_labels = trainer.instance_problem.instance_count_id_list
+    semantic_instance_labels = my_trainer.instance_problem.semantic_instance_class_list
+    instance_id_labels = my_trainer.instance_problem.instance_count_id_list
 
     sem_val = 1
 
@@ -137,8 +135,8 @@ if __name__ == '__main__':
                                                                       return_loss_components=True,
                                                                       size_average=size_average)
     inst_lbl_pred = scores.data.max(1)[1].cpu().numpy()[:, :, :]
-    lt_combined = trainer.gt_tuple_to_combined(sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy())
-    metrics = trainer.compute_metrics(label_trues=lt_combined, label_preds=inst_lbl_pred,
-                                      permutations=pred_permutations, single_batch=True)
+    lt_combined = my_trainer.gt_tuple_to_combined(sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy())
+    metrics = my_trainer.compute_metrics(label_trues=lt_combined, label_preds=inst_lbl_pred,
+                                         permutations=pred_permutations, single_batch=True)
 
     import ipdb; ipdb.set_trace()

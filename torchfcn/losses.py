@@ -186,8 +186,13 @@ def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_inst
 
         for ground_truth in range(len(cost_matrix)):
             for prediction in range(len(cost_matrix[0])):
-                assignment.AddArcWithCost(ground_truth, prediction,
-                                          cost_matrix[prediction][ground_truth])
+                try:
+                    assignment.AddArcWithCost(ground_truth, prediction,
+                                              cost_matrix[prediction][ground_truth])
+                except:
+                    print(cost_matrix[prediction][ground_truth])
+                    import ipdb; ipdb.set_trace()
+                    raise
         check_status(assignment.Solve(), assignment)
         debug_print_assignments(assignment, multiplier)
         gt_indices += idxs

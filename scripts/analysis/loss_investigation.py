@@ -14,7 +14,7 @@ import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
 from torchfcn import losses
-from torchfcn import script_utils, instance_utils, visualization_utils, train
+from torchfcn import script_utils, instance_utils, visualization_utils, trainer
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -233,8 +233,8 @@ def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_co
                                                  score_vis_normalizer=score.max(),
                                                  channel_labels=channel_labels,
                                                  channels_to_visualize=None)
-    train.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
-                                basename=basename, tile=True)
+    trainer.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
+                                  basename=basename, tile=True)
 
 
 if __name__ == '__main__':

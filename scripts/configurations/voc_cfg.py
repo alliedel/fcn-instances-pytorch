@@ -128,5 +128,25 @@ configurations = {
         freeze_vgg=True,
         map_to_semantic=False,
         single_instance=True,
-    )
+    ),
+    'person_only__3_channels_map_to_semantic__freeze_vgg__many_itr_smaller_lr': dict(
+        semantic_subset=['person', 'background'],
+        set_extras_to_void=True,
+        interval_validate=50,
+        max_iteration=100000,
+        map_to_semantic=True,
+        n_instances_per_class=3,
+        freeze_vgg=True,
+        lr=1e-6
+    ),
+    'person_only__3_channels_map_to_semantic__nofreeze__many_itr_smaller_lr': dict(
+        semantic_subset=['person', 'background'],
+        set_extras_to_void=True,
+        interval_validate=50,
+        max_iteration=100000,
+        map_to_semantic=True,
+        n_instances_per_class=3,
+        freeze_vgg=False,
+        lr=1e-6
+    ),
 }

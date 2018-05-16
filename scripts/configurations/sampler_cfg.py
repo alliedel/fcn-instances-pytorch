@@ -23,7 +23,11 @@ sampler_cfgs = {
              'sem_cls_filter': ['person'],
              'n_instances_range': (2, None),
              },
-        'val': 'copy_train'
+        'val': 'copy_train',
+        'train_for_val':
+            {
+                'n_images': None
+            }
     },
     'person_2inst_2img': {
         'train':
@@ -59,7 +63,11 @@ sampler_cfgs = {
              'sem_cls_filter': ['person'],
              'n_instances_range': (2, None),
              },
-        'val': 'copy_train'
+        'val': 'copy_train',
+        'train_for_val':
+            {
+                'n_images': None
+            }
     },
     'person_2_4inst_allimg_realval': {
         'train':

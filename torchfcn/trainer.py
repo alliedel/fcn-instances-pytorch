@@ -279,8 +279,13 @@ class Trainer(object):
                         elif isinstance(metric, np.ndarray):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
                                                                   self.iteration, bins='auto')
+                        elif metric is None:
+                            import ipdb; ipdb; ipdb.set_trace()
+                            pass
                         else:
-                            raise ValueError('I''m not sure how to write {} to tensorboard_writer'.format(type(metric)))
+                            import ipdb; ipdb; ipdb.set_trace()
+                            raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
+                                             ' '.format(type(metric), name))
 
     def compute_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
         if permutations is not None:

@@ -106,9 +106,10 @@ class Trainer(object):
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
         self.metric_makers = {
-            'val': metrics.InstanceMetrics(self.instance_problem, self.val_loader, self.my_cross_entropy),
+            'val': metrics.InstanceMetrics(self.instance_problem, self.val_loader, self.my_cross_entropy,
+                                           self.my_per_component_cross_entropy),
             'train_for_val': metrics.InstanceMetrics(self.instance_problem, self.train_loader_for_val,
-                                                     self.my_cross_entropy)
+                                                     self.my_cross_entropy, self.my_per_component_cross_entropy)
         }
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
@@ -133,6 +134,30 @@ class Trainer(object):
             matching=matching,
             size_average=self.size_average, break_here=False, recompute_optimal_loss=False, **kwargs)
         return permutations, loss
+
+    def my_per_component_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
+        map_to_semantic = self.instance_problem.map_to_semantic
+        if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
+                                                      score.size(3))):
+            import ipdb;
+            ipdb.set_trace()
+            raise Exception('Sizes of score, targets are incorrect')
+
+        if map_to_semantic:
+            inst_lbl[inst_lbl > 1] = 1
+
+        semantic_instance_labels = self.instance_problem.semantic_instance_class_list
+        instance_id_labels = self.instance_problem.instance_count_id_list
+        matching = self.matching_loss
+
+        permutations, loss, loss_components = losses.cross_entropy2d(
+            score, sem_lbl, inst_lbl,
+            semantic_instance_labels=semantic_instance_labels,
+            instance_id_labels=instance_id_labels,
+            matching=matching,
+            size_average=self.size_average, break_here=False, recompute_optimal_loss=False,
+            return_loss_components=True, **kwargs)
+        return permutations, loss, loss_components
 
     def validate(self, split='val', write_metrics=None, save_checkpoint=None,
                  update_best_checkpoint=None, should_export_visualizations=True):
@@ -244,15 +269,18 @@ class Trainer(object):
                                                        self.iteration)
                 histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
                 histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
-                for name, metric in histogram_metrics_as_flattened_dict.items():
-                    if torch.is_tensor(metric):
-                        self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
-                                                              metric.numpy(), self.iteration, bins='auto')
-                    elif isinstance(metric, np.ndarray):
-                        self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
-                                                              self.iteration, bins='auto')
-                    else:
-                        raise ValueError('I''m not sure how to write {} to tensorboard_writer'.format(type(metric)))
+                if self.iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
+                    for name, metric in tqdm.tqdm(histogram_metrics_as_flattened_dict.items(),
+                                                  total=len(histogram_metrics_as_flattened_dict.items()),
+                                                  desc='Writing histogram metrics', leave=False):
+                        if torch.is_tensor(metric):
+                            self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
+                                                                  metric.numpy(), self.iteration, bins='auto')
+                        elif isinstance(metric, np.ndarray):
+                            self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
+                                                                  self.iteration, bins='auto')
+                        else:
+                            raise ValueError('I''m not sure how to write {} to tensorboard_writer'.format(type(metric)))
 
     def compute_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
         if permutations is not None:

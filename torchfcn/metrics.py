@@ -15,18 +15,25 @@ def is_sequential(my_sampler):
 
 
 class InstanceMetrics(object):
-    def __init__(self, problem_config, data_loader, loss_function):
+    def __init__(self, problem_config, data_loader, loss_function, component_loss_function=None):
         assert loss_function is not None, Warning('I think you want to input the loss function.  If not, get rid of '
                                                   'this line.')
+        assert component_loss_function is not None, Warning('I think you want to input the loss function.  If not, '
+                                                            'get rid of '
+                                                            'this line.')
         self.problem_config = problem_config
         self.data_loader = data_loader
         self.loss_function = loss_function
+        self.component_loss_function = component_loss_function
+        self.variables_to_preserve = ('problem_config', 'data_loader', 'loss_function', 'component_loss_function',
+                                      'variables_to_preserve')
 
         assert not isinstance(self.data_loader.sampler, sampler.RandomSampler), \
             'Sampler is instance of RandomSampler. Please set shuffle to False on data_loader'
         assert is_sequential(self.data_loader.sampler), NotImplementedError
         self.scores = None
         self.losses = None
+        self.loss_components = None
         self.assignments = None
         self.softmaxed_scores = None
         self.n_pixels_assigned_per_channel = None
@@ -34,17 +41,19 @@ class InstanceMetrics(object):
         self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = None, None, None
         self.metrics_computed = False
 
-    def clear(self, variables_to_preserve=('problem_config', 'data_loader', 'loss_function')):
+    def clear(self, variables_to_preserve=None):
         """
         Clear to evaluate a new model
         """
+        if variables_to_preserve is None:
+            variables_to_preserve = self.variables_to_preserve
         for attr_name in self.__dict__.keys():
             if attr_name in variables_to_preserve:
                 continue
             setattr(self, attr_name, None)
 
     def compute_metrics(self, model):
-        compiled_scores, compiled_losses = self.compute_scores_and_losses(model)
+        compiled_scores, compiled_losses, compiled_loss_components = self.compute_scores_and_losses(model)
         self.assignments = argmax_scores(compiled_scores)
         self.softmaxed_scores = softmax_scores(compiled_scores)
         self.n_pixels_assigned_per_channel = self._compute_pixels_assigned_per_channel(self.assignments)
@@ -55,13 +64,14 @@ class InstanceMetrics(object):
         self.metrics_computed = True
         self.scores = compiled_scores
         self.losses = compiled_losses
+        self.loss_components = compiled_loss_components
 
     def compute_scores_and_losses(self, model):
-        compiled_scores, compiled_losses = self._compile_scores_and_losses(model)
-        return compiled_scores, compiled_losses
+        compiled_scores, compiled_losses, compiled_loss_components = self._compile_scores_and_losses(model)
+        return compiled_scores, compiled_losses, compiled_loss_components
 
     def _compile_scores_and_losses(self, model):
-        return compile_scores_and_losses(model, self.data_loader, self.loss_function)
+        return compile_scores_and_losses(model, self.data_loader, self.loss_function, self.component_loss_function)
 
     def _compute_pixels_assigned_per_channel(self, assignments):
         n_images = len(self.data_loader)
@@ -220,7 +230,33 @@ class InstanceMetrics(object):
                    enumerate(self.problem_config.semantic_instance_class_list) if sc == sem_cls]
             softmax_scores_per_sem_cls[:, sem_cls, ...] = self.softmaxed_scores[:, chs, ...].sum(dim=1)
         histogram_metrics_dict = {
-            'loss_per_image': self.losses
+            'loss_per_image': {
+                channel_labels[channel_idx]:
+                    self.loss_components[:, channel_idx]
+                for channel_idx in range(self.loss_components.size(1))
+            }.update(
+                {
+                    'total': self.losses
+                }
+            ),
+            'num_pixels_assigned_per_image': {
+                channel_labels[channel_idx]: self.n_pixels_assigned_per_channel.float()[:, channel_idx]
+                for channel_idx in range(self.n_pixels_assigned_per_channel.size(1))
+            },
+            # 'softmax_scores': {
+            #     # 'assigned': {
+            #     #     channel_labels[channel_idx]:
+            #     #         0 if (self.assignments == channel_idx).sum() == 0
+            #     #         else (self.softmaxed_scores[:, channel_idx, :, :][self.assignments ==
+            #     #                                                           channel_idx]).mean()
+            #     #     for channel_idx in range(self.softmaxed_scores.size(1))
+            #     # },
+            #     'all': {
+            #         channel_labels[channel_idx]:
+            #             self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]
+            #         for channel_idx in range(self.softmaxed_scores.size(1))
+            #     }
+            # }
         }
         return histogram_metrics_dict
 
@@ -237,7 +273,7 @@ def get_same_sem_cls_channels(channel_idx, semantic_instance_class_list):
             if sc == semantic_instance_class_list[channel_idx]]
 
 
-def compile_scores_and_losses(model, data_loader, loss_function):
+def compile_scores_and_losses(model, data_loader, loss_function, component_loss_function=None):
     """
     loss_function: must be of the form loss_function(scores, sem_lbl, inst_lbl)
     """
@@ -255,8 +291,8 @@ def compile_scores_and_losses(model, data_loader, loss_function):
         max_image_size = (max(max_image_size[0], data.size(2)), min(max_image_size[1], data.size(3)))
 
     compiled_scores = torch.ones(n_images, n_channels, *list(min_image_size))
-    # NOTE(allie): may want to return per-channel or per-cls losses
     compiled_losses = torch.ones(n_images) if loss_function is not None else None
+    compiled_loss_components = torch.ones(n_images, n_channels) if component_loss_function is not None else None
     for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
             enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
             leave=False):
@@ -286,19 +322,17 @@ def compile_scores_and_losses(model, data_loader, loss_function):
                     ipdb.set_trace()
                     raise
                 compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = cropped_scores.data
-        if loss_function is not None:
-            ret = loss_function(scores, sem_lbl, inst_lbl)
-            if len(ret) == 2:
-                pred_permutations_batch, loss_batch = ret
-            elif len(ret) == 3:
-                pred_permutations_batch, loss_batch, loss_components = ret
-            else:
-                raise Exception('I expected the loss function to return a 2 or 3 tuple (pred permutations, loss, '
-                                'and possibly loss components)')
+        if component_loss_function is not None:
+            pred_permutations_batch, loss_batch, loss_components = component_loss_function(scores, sem_lbl, inst_lbl)
+            compiled_loss_components[(batch_idx * batch_size):((batch_idx + 1) * batch_size), :] = loss_components.data
             compiled_losses[(batch_idx * batch_size):((batch_idx + 1) * batch_size)] = loss_batch.data
+        elif loss_function is not None:
+            pred_permutations_batch, loss_batch = loss_function(scores, sem_lbl, inst_lbl)
+            compiled_losses[(batch_idx * batch_size):((batch_idx + 1) * batch_size)] = loss_batch.data
+
     if training:
         model.train()
-    return compiled_scores, compiled_losses
+    return compiled_scores, compiled_losses, compiled_loss_components
 
 
 def crop_to_reduced_size23(tensor, cropped_size23):

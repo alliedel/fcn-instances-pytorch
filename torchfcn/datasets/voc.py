@@ -68,7 +68,7 @@ class VOCClassSegBase(data.Dataset):
                  map_other_classes_to_bground=True,
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
-                 _im_a_copy=False, map_to_single_instance_problem=False):
+                 _im_a_copy=False, map_to_single_instance_problem=False, augment_semantic_masks=False):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -77,6 +77,7 @@ class VOCClassSegBase(data.Dataset):
         the instance number: [0, n_instances_per_class[sem_idx])
         filter_bground_images : most useful when you've run with semantic_subset != None -- will get rid of any
         images that don't contain that semantic subset (which become just background images)
+        augment_semantic_masks: expand the number of channels in the input image by S, the number of semantic classes
         """
 
         self.map_to_single_instance_problem = map_to_single_instance_problem
@@ -102,6 +103,7 @@ class VOCClassSegBase(data.Dataset):
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
         self.n_inst_cap_per_class = None
+        self.augment_semantic_masks = augment_semantic_masks
 
         # VOC2011 and others are subset of VOC2012
         year = 2012

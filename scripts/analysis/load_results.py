@@ -1,9 +1,7 @@
 import argparse
 import os.path as osp
-import os
 import yaml
 from torchfcn import script_utils
-from scripts.configurations import voc_cfg
 import torch
 from torchfcn.models import model_utils
 import local_pyutils

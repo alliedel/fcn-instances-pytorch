@@ -239,8 +239,9 @@ class FCN8sInstance(nn.Module):
         for idx, m in enumerate(self.modules()):
             if self.map_to_semantic and idx == num_modules - 1:
                 assert m == self.conv1x1_instance_to_semantic
-                self.conv1x1_instance_to_semantic.weight.data.copy_(self.instance_to_semantic_mapping_matrix.view(
-                    self.n_instance_classes, self.n_semantic_classes, 1, 1))
+                copy_tensor(src=self.instance_to_semantic_mapping_matrix.view(self.n_instance_classes,
+                                                                              self.n_semantic_classes, 1, 1),
+                            dest=self.conv1x1_instance_to_semantic.weight.data)
                 self.conv1x1_instance_to_semantic.weight.requires_grad = False  # Fix weights
             elif isinstance(m, nn.Conv2d):
                 m.weight.data.zero_()
@@ -256,7 +257,7 @@ class FCN8sInstance(nn.Module):
                     initial_weight = model_utils.get_non_symmetric_upsampling_weight(
                         m.in_channels, m.out_channels, m.kernel_size[0],
                         semantic_instance_class_list=self.semantic_instance_class_list)
-                m.weight.data.copy_(initial_weight)
+                copy_tensor(src=initial_weight, dest=m.weight.data)
         if self.score_multiplier_init:
             self.score_multiplier1x1.weight.data.zero_()
             for ch in range(self.score_multiplier1x1.weight.size(1)):
@@ -286,10 +287,12 @@ class FCN8sInstance(nn.Module):
         ]
         for l1, l2 in zip(vgg16.features, features):
             if isinstance(l1, nn.Conv2d) and isinstance(l2, nn.Conv2d):
-                assert l1.weight.size() == l2.weight.size()
-                assert l1.bias.size() == l2.bias.size()
-                l2.weight.data.copy_(l1.weight.data)
-                l2.bias.data.copy_(l1.bias.data)
+                if l2 == self.conv1_1 and self.n_input_channels != 3:  # accomodate different input size
+                    assert self.n_input_channels > 3, NotImplementedError('Only know how to initialize with # '
+                                                                          'input channels >= 3')
+                    copy_tensor(src=l1, dest=l2[:, :3, ...])
+                else:
+                    copy_conv(src_conv_module=l1, dest_conv_module=l2)
         for i, name in zip([0, 3], ['fc6', 'fc7']):
             l1 = vgg16.classifier[i]
             l2 = getattr(self, name)
@@ -335,8 +338,8 @@ class FCN8sInstance(nn.Module):
                         # so we use slicing)
                         n_instances_this_class = float(sum(
                             [1 if sic == sem_cls else 0 for sic in self.semantic_instance_class_list]))
-                        my_p.data[inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[sem_cls:(sem_cls + 1),
-                                                                      ...] / n_instances_this_class)
+                        copy_tensor(src=p_to_copy.data[sem_cls:(sem_cls + 1), ...] / n_instances_this_class,
+                                    dest=my_p.data[inst_cls:(inst_cls + 1), ...])
             elif module_name in conv2dT_with_repeated_channels:
                 assert isinstance(module_to_copy, nn.ConvTranspose2d)
                 # assert l1.weight.size() == l2.weight.size()
@@ -351,7 +354,8 @@ class FCN8sInstance(nn.Module):
                     for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
                         # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
                         # so we use slicing)
-                        my_p.data[:, inst_cls:(inst_cls + 1), ...].copy_(p_to_copy.data[:, sem_cls:(sem_cls + 1), ...])
+                        copy_tensor(src=p_to_copy.data[:, sem_cls:(sem_cls + 1), ...],
+                                    dest=my_p.data[:, inst_cls:(inst_cls + 1), ...])
             elif isinstance(my_module, nn.Conv2d) or isinstance(my_module, nn.ConvTranspose2d):
                 assert type(module_to_copy) == type(my_module)
                 for p_name, my_p in my_module.named_parameters():
@@ -359,7 +363,7 @@ class FCN8sInstance(nn.Module):
                     if not my_p.size() == p_to_copy.size():
                         import ipdb; ipdb.set_trace()
                         raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
-                    my_p.data.copy_(p_to_copy.data)
+                    copy_tensor(src=p_to_copy.data, dest=my_p.data)
                     assert torch.equal(my_p.data, p_to_copy.data)
             elif any([isinstance(my_module, type) for type in module_types_to_ignore]):
                 continue
@@ -405,6 +409,20 @@ class FCN8sInstance(nn.Module):
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
                                                           out_channels=self.n_semantic_classes,
                                                           kernel_size=1, bias=False)
+
+
+def copy_tensor(src, dest):
+    """
+    Just used to help me remember which direction the copy_ happens
+    """
+    dest.copy_(src)
+
+
+def copy_conv(src_conv_module, dest_conv_module):
+    assert src_conv_module.weight.size() == dest_conv_module.weight.size()
+    assert src_conv_module.bias.size() == dest_conv_module.bias.size()
+    copy_tensor(src=src_conv_module.weight.data, dest=dest_conv_module.weight.data)
+    copy_tensor(src=src_conv_module.bias.data, dest=dest_conv_module.bias.data)
 
 
 def module_has_params(module):

@@ -106,8 +106,9 @@ class Trainer(object):
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
         self.metric_makers = {
-            'val': metrics.InstanceMetrics(self.instance_problem, self.val_loader),
-            'train_for_val': metrics.InstanceMetrics(self.instance_problem, self.train_loader_for_val)
+            'val': metrics.InstanceMetrics(self.instance_problem, self.val_loader, self.my_cross_entropy),
+            'train_for_val': metrics.InstanceMetrics(self.instance_problem, self.train_loader_for_val,
+                                                     self.my_cross_entropy)
         }
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
@@ -237,11 +238,16 @@ class Trainer(object):
                                                  total=len(self.metric_makers.items()), leave=False):
                 metric_maker.clear()
                 metric_maker.compute_metrics(self.model)
-                metrics_as_nested_dict = metric_maker.get_aggregated_metrics_as_nested_dict()
+                metrics_as_nested_dict = metric_maker.get_aggregated_scalar_metrics_as_nested_dict()
                 metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
                 for name, metric in metrics_as_flattened_dict.items():
                     self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric,
                                                        self.iteration)
+                histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
+                histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
+                for name, metric in histogram_metrics_as_flattened_dict.items():
+                    self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
+                                                          self.iteration)
 
     def compute_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
         if permutations is not None:

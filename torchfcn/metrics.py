@@ -15,13 +15,15 @@ def is_sequential(my_sampler):
 
 
 class InstanceMetrics(object):
-    def __init__(self, problem_config, data_loader):
+    def __init__(self, problem_config, data_loader, loss_function=None):
         self.problem_config = problem_config
         self.data_loader = data_loader
+        self.loss_function = loss_function
         assert not isinstance(self.data_loader.sampler, sampler.RandomSampler), \
             'Sampler is instance of RandomSampler. Please set shuffle to False on data_loader'
         assert is_sequential(self.data_loader.sampler), NotImplementedError
         self.scores = None
+        self.losses = None
         self.assignments = None
         self.softmaxed_scores = None
         self.n_pixels_assigned_per_channel = None
@@ -39,7 +41,7 @@ class InstanceMetrics(object):
             setattr(self, attr_name, None)
 
     def compute_metrics(self, model):
-        scores = self.compute_scores(model)
+        compiled_scores, compiled_losses = self.compute_scores_and_losses(model)
         self.assignments = argmax_scores(scores)
         self.softmaxed_scores = softmax_scores(scores)
         self.n_pixels_assigned_per_channel = self._compute_pixels_assigned_per_channel(self.assignments)
@@ -48,13 +50,15 @@ class InstanceMetrics(object):
         self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = \
             self._compute_majority_assignment_stats(self.assignments)
         self.metrics_computed = True
-        self.scores = scores
+        self.scores = compiled_scores
+        self.losses = compiled_losses
 
-    def compute_scores(self, model):
-        return self._compile_scores(model).data
+    def compute_scores_and_losses(self, model):
+        compiled_scores, compiled_losses = self._compile_scores_and_losses(model)
+        return compiled_scores.data, compiled_losses.data
 
-    def _compile_scores(self, model):
-        return compile_scores(model, self.data_loader)
+    def _compile_scores_and_losses(self, model):
+        return compile_scores_and_losses(model, self.data_loader, self.loss_function)
 
     def _compute_pixels_assigned_per_channel(self, assignments):
         n_images = len(self.data_loader)
@@ -117,7 +121,7 @@ class InstanceMetrics(object):
                         n_found_per_sem_cls[data_idx, sem_cls] += 1
         return n_found_per_sem_cls, n_missed_per_sem_cls, channels_of_majority_assignments
 
-    def get_aggregated_metrics_as_nested_dict(self):
+    def get_aggregated_scalar_metrics_as_nested_dict(self):
         """
         Aggregate metrics over images and return list of metrics to summarize the performance of the model.
         """
@@ -175,6 +179,14 @@ class InstanceMetrics(object):
                             for channel_idx, sem_cls in enumerate(self.problem_config.semantic_instance_class_list)
                         },
                     },
+                    'score': {
+                        'value_for_assigned_pixels': {
+                            channel_labels[channel_idx] + '_max':
+                                0 if (self.assignments == channel_idx).sum() == 0
+                                else (self.scores[:, channel_idx, :, :][self.assignments == channel_idx]).mean()
+                            for channel_idx in range(self.softmaxed_scores.size(1))
+                        },
+                    },
                 },
             'perc_found_per_sem_cls':
                 {
@@ -190,6 +202,25 @@ class InstanceMetrics(object):
         }
         return metrics_dict
 
+    def get_aggregated_histogram_metrics_as_nested_dict(self):
+        """
+        Aggregate metrics over images and return list of metrics to summarize the performance of the model.
+        """
+        assert self.metrics_computed, 'Run compute_metrics first'
+        channel_labels = self.problem_config.get_channel_labels('{}_{}')
+        sem_labels = self.problem_config.class_names
+        sz_score_by_sem = list(self.softmaxed_scores.size())
+        sz_score_by_sem[1] = self.problem_config.n_semantic_classes
+        softmax_scores_per_sem_cls = torch.zeros(tuple(sz_score_by_sem))
+        for sem_cls in range(self.problem_config.n_semantic_classes):
+            chs = [ci for ci, sc in
+                   enumerate(self.problem_config.semantic_instance_class_list) if sc == sem_cls]
+            softmax_scores_per_sem_cls[:, sem_cls, ...] = self.softmaxed_scores[:, chs, ...].sum(dim=1)
+        histogram_metrics_dict = {
+            'loss_per_image': self.losses
+        }
+        return histogram_metrics_dict
+
     def get_images_based_on_characteristics(self):
         image_characteristics = {
             'multiple_instances_detected':
@@ -203,7 +234,10 @@ def get_same_sem_cls_channels(channel_idx, semantic_instance_class_list):
             if sc == semantic_instance_class_list[channel_idx]]
 
 
-def compile_scores(model, data_loader):
+def compile_scores_and_losses(model, data_loader, loss_function=None):
+    """
+    loss_function: must be of the form loss_function(scores, sem_lbl, inst_lbl)
+    """
     training = model.training
     model.eval()
     n_images = data_loader.batch_size * len(data_loader)
@@ -217,6 +251,8 @@ def compile_scores(model, data_loader):
         max_image_size = (max(max_image_size[0], data.size(2)), min(max_image_size[1], data.size(3)))
 
     compiled_scores = Variable(torch.ones(n_images, n_channels, *list(min_image_size)))
+    # NOTE(allie): may want to return per-channel or per-cls losses
+    compiled_losses = Variable(torch.ones(n_images)) if loss_function is not None else None
     for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
             enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
             leave=False):
@@ -246,9 +282,12 @@ def compile_scores(model, data_loader):
                     ipdb.set_trace()
                     raise
                 compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = cropped_scores
+        if loss_function is not None:
+            compiled_losses[(batch_idx * batch_size):((batch_idx + 1) * batch_size)] = loss_function(scores, sem_lbl,
+                                                                                                     inst_lbl)
     if training:
         model.train()
-    return compiled_scores
+    return compiled_scores, compiled_losses
 
 
 def crop_to_reduced_size23(tensor, cropped_size23):
@@ -314,7 +353,7 @@ def _test():
     # not necessary, but we'll make sure it runs anyway
     instance_metrics.clear()
     instance_metrics.compute_metrics(model)
-    metrics_as_nested_dict = instance_metrics.get_aggregated_metrics_as_nested_dict()
+    metrics_as_nested_dict = instance_metrics.get_aggregated_scalar_metrics_as_nested_dict()
     metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
     instance_metrics.get_images_based_on_characteristics()
     instance_metrics.clear()

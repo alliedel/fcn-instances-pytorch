@@ -58,7 +58,7 @@ class InstanceMetrics(object):
 
     def compute_scores_and_losses(self, model):
         compiled_scores, compiled_losses = self._compile_scores_and_losses(model)
-        return compiled_scores.data, compiled_losses.data
+        return compiled_scores, compiled_losses
 
     def _compile_scores_and_losses(self, model):
         return compile_scores_and_losses(model, self.data_loader, self.loss_function)
@@ -254,9 +254,9 @@ def compile_scores_and_losses(model, data_loader, loss_function):
         min_image_size = (min(min_image_size[0], data.size(2)), min(min_image_size[1], data.size(3)))
         max_image_size = (max(max_image_size[0], data.size(2)), min(max_image_size[1], data.size(3)))
 
-    compiled_scores = Variable(torch.ones(n_images, n_channels, *list(min_image_size)))
+    compiled_scores = torch.ones(n_images, n_channels, *list(min_image_size))
     # NOTE(allie): may want to return per-channel or per-cls losses
-    compiled_losses = Variable(torch.ones(n_images)) if loss_function is not None else None
+    compiled_losses = torch.ones(n_images) if loss_function is not None else None
     for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
             enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
             leave=False):
@@ -265,7 +265,7 @@ def compile_scores_and_losses(model, data_loader, loss_function):
             data, sem_lbl, inst_lbl = data.cuda(), sem_lbl.cuda(), inst_lbl.cuda()
         scores = model(data)
         try:
-            compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = scores
+            compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = scores.data
         except:
             if all([s1 > s2 for s1, s2 in zip(
                     compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...].size(),
@@ -285,10 +285,11 @@ def compile_scores_and_losses(model, data_loader, loss_function):
                     import ipdb;
                     ipdb.set_trace()
                     raise
-                compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = cropped_scores
+                compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = cropped_scores.data
         if loss_function is not None:
-            compiled_losses[(batch_idx * batch_size):((batch_idx + 1) * batch_size)] = loss_function(scores, sem_lbl,
-                                                                                                     inst_lbl)
+            pred_permutations_batch, loss_batch = loss_function(scores, sem_lbl, inst_lbl)
+            print(loss_batch)
+            compiled_losses[(batch_idx * batch_size):((batch_idx + 1) * batch_size)] = loss_batch.data
     if training:
         model.train()
     return compiled_scores, compiled_losses

@@ -233,7 +233,6 @@ class Trainer(object):
 
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:
-
             for split, metric_maker in tqdm.tqdm(self.metric_makers.items(), desc='Computing instance metrics',
                                                  total=len(self.metric_makers.items()), leave=False):
                 metric_maker.clear()

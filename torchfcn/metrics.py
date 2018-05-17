@@ -15,10 +15,13 @@ def is_sequential(my_sampler):
 
 
 class InstanceMetrics(object):
-    def __init__(self, problem_config, data_loader, loss_function=None):
+    def __init__(self, problem_config, data_loader, loss_function):
+        assert loss_function is not None, Warning('I think you want to input the loss function.  If not, get rid of '
+                                                  'this line.')
         self.problem_config = problem_config
         self.data_loader = data_loader
         self.loss_function = loss_function
+
         assert not isinstance(self.data_loader.sampler, sampler.RandomSampler), \
             'Sampler is instance of RandomSampler. Please set shuffle to False on data_loader'
         assert is_sequential(self.data_loader.sampler), NotImplementedError
@@ -31,7 +34,7 @@ class InstanceMetrics(object):
         self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = None, None, None
         self.metrics_computed = False
 
-    def clear(self, variables_to_preserve=('problem_config', 'data_loader')):
+    def clear(self, variables_to_preserve=('problem_config', 'data_loader', 'loss_function')):
         """
         Clear to evaluate a new model
         """
@@ -42,8 +45,8 @@ class InstanceMetrics(object):
 
     def compute_metrics(self, model):
         compiled_scores, compiled_losses = self.compute_scores_and_losses(model)
-        self.assignments = argmax_scores(scores)
-        self.softmaxed_scores = softmax_scores(scores)
+        self.assignments = argmax_scores(compiled_scores)
+        self.softmaxed_scores = softmax_scores(compiled_scores)
         self.n_pixels_assigned_per_channel = self._compute_pixels_assigned_per_channel(self.assignments)
         self.n_instances_assigned_per_sem_cls = \
             self._compute_instances_assigned_per_sem_cls(self.n_pixels_assigned_per_channel)
@@ -234,10 +237,11 @@ def get_same_sem_cls_channels(channel_idx, semantic_instance_class_list):
             if sc == semantic_instance_class_list[channel_idx]]
 
 
-def compile_scores_and_losses(model, data_loader, loss_function=None):
+def compile_scores_and_losses(model, data_loader, loss_function):
     """
     loss_function: must be of the form loss_function(scores, sem_lbl, inst_lbl)
     """
+    assert loss_function is not None
     training = model.training
     model.eval()
     n_images = data_loader.batch_size * len(data_loader)

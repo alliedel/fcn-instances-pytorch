@@ -287,8 +287,14 @@ def compile_scores_and_losses(model, data_loader, loss_function):
                     raise
                 compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = cropped_scores.data
         if loss_function is not None:
-            pred_permutations_batch, loss_batch = loss_function(scores, sem_lbl, inst_lbl)
-            print(loss_batch)
+            ret = loss_function(scores, sem_lbl, inst_lbl)
+            if len(ret) == 2:
+                pred_permutations_batch, loss_batch = ret
+            elif len(ret) == 3:
+                pred_permutations_batch, loss_batch, loss_components = ret
+            else:
+                raise Exception('I expected the loss function to return a 2 or 3 tuple (pred permutations, loss, '
+                                'and possibly loss components)')
             compiled_losses[(batch_idx * batch_size):((batch_idx + 1) * batch_size)] = loss_batch.data
     if training:
         model.train()

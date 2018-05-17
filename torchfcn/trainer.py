@@ -245,8 +245,14 @@ class Trainer(object):
                 histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
                 histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
                 for name, metric in histogram_metrics_as_flattened_dict.items():
-                    self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
-                                                          self.iteration)
+                    if torch.is_tensor(metric):
+                        self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
+                                                              metric.numpy(), self.iteration, bins='auto')
+                    elif isinstance(metric, np.ndarray):
+                        self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
+                                                              self.iteration, bins='auto')
+                    else:
+                        raise ValueError('I''m not sure how to write {} to tensorboard_writer'.format(type(metric)))
 
     def compute_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
         if permutations is not None:

@@ -18,8 +18,8 @@ import torchfcn
 from torchfcn import losses
 from torchfcn import metrics
 from torchfcn import visualization_utils, instance_utils
-from torchfcn.export_utils import log_images
 from torchfcn.datasets import dataset_utils
+from torchfcn.export_utils import log_images
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -161,7 +161,7 @@ class Trainer(object):
             return_loss_components=True, **kwargs)
         return permutations, loss, loss_components
 
-    def augment_image_with_semantic_mask(self, img, sem_lbl):
+    def augment_image(self, img, sem_lbl):
         semantic_one_hot = dataset_utils.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
         return dataset_utils.augment_channels(img, semantic_one_hot, dim=1)
 
@@ -276,7 +276,7 @@ class Trainer(object):
                 histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
                 histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
                 if self.iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
-                # if 1:
+                    # if 1:
                     for name, metric in tqdm.tqdm(histogram_metrics_as_flattened_dict.items(),
                                                   total=len(histogram_metrics_as_flattened_dict.items()),
                                                   desc='Writing histogram metrics', leave=False):
@@ -287,10 +287,14 @@ class Trainer(object):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
                                                                   self.iteration, bins='auto')
                         elif metric is None:
-                            import ipdb; ipdb; ipdb.set_trace()
+                            import ipdb;
+                            ipdb;
+                            ipdb.set_trace()
                             pass
                         else:
-                            import ipdb; ipdb; ipdb.set_trace()
+                            import ipdb;
+                            ipdb;
+                            ipdb.set_trace()
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              ' '.format(type(metric), name))
 
@@ -347,7 +351,7 @@ class Trainer(object):
             shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
                         osp.join(self.out, 'model_best.pth.tar'))
 
-    def validate_single_batch(self, data, sem_lbl, inst_lbl, data_loader, should_visualize):
+    def validate_single_batch(self, img_data, sem_lbl, inst_lbl, data_loader, should_visualize):
         true_labels = []
         pred_labels = []
         pred_permutations = []
@@ -355,20 +359,20 @@ class Trainer(object):
         score_visualizations = []
         val_loss = 0
         if self.cuda:
-            data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
+            img_data, (sem_lbl, inst_lbl) = img_data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         # TODO(allie): Don't turn target into variables yet here? (Not yet sure if this works
         # before we've actually combined the semantic and instance labels...)
-        data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
-                                  Variable(sem_lbl), Variable(inst_lbl)
-        imgs = data.data.cpu()
-        full_data = data if not self.augment_input_with_semantic_masks \
-            else self.augment_image_with_semantic_mask(data, sem_lbl)
+        full_data = img_data if not self.augment_input_with_semantic_masks \
+            else self.augment_image(img_data, sem_lbl)
+        imgs = img_data.cpu()
+        full_data, sem_lbl, inst_lbl = Variable(full_data, volatile=True), \
+                                       Variable(sem_lbl), Variable(inst_lbl)
 
-        score = self.model(data)
+        score = self.model(full_data)
         pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
         if np.isnan(float(loss.data[0])):
             raise ValueError('loss is nan while validating')
-        val_loss += float(loss.data[0]) / len(data)
+        val_loss += float(loss.data[0]) / len(full_data)
 
         softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
         inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
@@ -443,7 +447,7 @@ class Trainer(object):
         # n_class = len(self.train_loader.dataset.class_names)
         # n_class = self.model.n_classes
 
-        for batch_idx, (data, target) in tqdm.tqdm(  # tqdm: progress bar
+        for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):
             iteration = batch_idx + self.epoch * len(self.train_loader)
@@ -465,14 +469,16 @@ class Trainer(object):
                 inst_lbl[sem_lbl == -1] = -1
 
             if self.cuda:
-                data, (sem_lbl, inst_lbl) = data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
-            data, sem_lbl, inst_lbl = Variable(data), \
-                                      Variable(sem_lbl), Variable(inst_lbl)
+                img_data, (sem_lbl, inst_lbl) = img_data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
+            full_data = img_data if not self.augment_input_with_semantic_masks \
+                else self.augment_image(img_data, sem_lbl)
+            full_data, sem_lbl, inst_lbl = Variable(full_data), \
+                                           Variable(sem_lbl), Variable(inst_lbl)
             self.optim.zero_grad()
-            score = self.model(data)
+            score = self.model(full_data)
 
             pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
-            loss /= len(data)
+            loss /= len(full_data)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
             if self.tensorboard_writer is not None:

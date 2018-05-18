@@ -290,7 +290,9 @@ class FCN8sInstance(nn.Module):
                 if l2 == self.conv1_1 and self.n_input_channels != 3:  # accomodate different input size
                     assert self.n_input_channels > 3, NotImplementedError('Only know how to initialize with # '
                                                                           'input channels >= 3')
-                    copy_tensor(src=l1, dest=l2[:, :3, ...])
+                    import ipdb; ipdb.set_trace()
+                    copy_tensor(src=l1.weight.data, dest=l2.weight.data[:, :3, ...])
+                    copy_tensor(src=l1.bias.data, dest=l2.bias)
                 else:
                     copy_conv(src_conv_module=l1, dest_conv_module=l2)
         for i, name in zip([0, 3], ['fc6', 'fc7']):

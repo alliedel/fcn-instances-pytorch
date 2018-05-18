@@ -85,5 +85,14 @@ sampler_cfgs = {
             {
                 'n_images': None
             }
+    },
+    'person_2_4inst_1img': {
+        'train':
+            {'n_images': 1,
+             'sem_cls_filter': ['person'],
+             'n_instances_range': (2, 4),
+             },
+        'val': 'copy_train',
+        'train_for_val':  'copy_train'
     }
 }

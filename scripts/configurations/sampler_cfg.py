@@ -93,6 +93,8 @@ sampler_cfgs = {
              'n_instances_range': (2, 4),
              },
         'val': 'copy_train',
-        'train_for_val':  'copy_train'
+        'train_for_val':  {
+            'n_images': None
+        }
     }
 }

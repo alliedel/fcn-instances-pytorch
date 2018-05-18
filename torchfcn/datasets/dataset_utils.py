@@ -57,18 +57,17 @@ def untransform_img(img, mean_bgr=None, original_size=None):
 
 
 def zeros_like(x, out_size=None):
-    assert x.__class__.__name__.find('Variable') != -1 \
-           or x.__class__.__name__.find('Tensor') != -1, "Object is neither a Tensor nor a Variable"
+    assert isinstance(x, torch.autograd.Variable) or torch.is_tensor(x)
     if out_size is None:
         out_size = x.size()
     y = torch.zeros(out_size)
     if x.is_cuda:
         y = y.cuda()
 
-    if x.__class__.__name__ == 'Variable':
+    if isinstance(x, torch.autograd.Variable):
         return torch.autograd.Variable(y, requires_grad=x.requires_grad)
-    elif x.__class__.__name__.find('Tensor') != -1:
-        return torch.zeros(y)
+    else:
+        return y
 
 
 def labels_to_one_hot(input_labels, n_classes, output_onehot=None):

@@ -102,7 +102,6 @@ class VOCClassSegBase(data.Dataset):
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
         self.n_inst_cap_per_class = None
-        self.augment_semantic_masks = augment_semantic_masks
 
         # VOC2011 and others are subset of VOC2012
         year = 2012

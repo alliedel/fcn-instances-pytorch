@@ -27,7 +27,7 @@ class InstanceMetrics(object):
         self.loss_function = loss_function
         self.component_loss_function = component_loss_function
         self.variables_to_preserve = ('problem_config', 'data_loader', 'loss_function', 'component_loss_function',
-                                      'variables_to_preserve')
+                                      'variables_to_preserve', 'augment_function_img_sem')
 
         assert not isinstance(self.data_loader.sampler, sampler.RandomSampler), \
             'Sampler is instance of RandomSampler. Please set shuffle to False on data_loader'

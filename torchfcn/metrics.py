@@ -294,16 +294,16 @@ def compile_scores_and_losses(model, data_loader, loss_function, component_loss_
     n_channels = model.n_output_channels
     batch_size = data_loader.batch_size
     min_image_size, max_image_size = (torch.np.inf, torch.np.inf), (0, 0)
-    for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
+    for batch_idx, (img_data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
             enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
             leave=False):
-        min_image_size = (min(min_image_size[0], data.size(2)), min(min_image_size[1], data.size(3)))
-        max_image_size = (max(max_image_size[0], data.size(2)), min(max_image_size[1], data.size(3)))
+        min_image_size = (min(min_image_size[0], img_data.size(2)), min(min_image_size[1], img_data.size(3)))
+        max_image_size = (max(max_image_size[0], img_data.size(2)), min(max_image_size[1], img_data.size(3)))
 
     compiled_scores = torch.ones(n_images, n_channels, *list(min_image_size))
     compiled_losses = torch.ones(n_images) if loss_function is not None else None
     compiled_loss_components = torch.ones(n_images, n_channels) if component_loss_function is not None else None
-    for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
+    for batch_idx, (img_data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
             enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
             leave=False):
         if next(model.parameters()).is_cuda:

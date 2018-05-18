@@ -270,6 +270,7 @@ class Trainer(object):
                 histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
                 histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
                 if self.iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
+                # if 1:
                     for name, metric in tqdm.tqdm(histogram_metrics_as_flattened_dict.items(),
                                                   total=len(histogram_metrics_as_flattened_dict.items()),
                                                   desc='Writing histogram metrics', leave=False):

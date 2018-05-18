@@ -231,19 +231,19 @@ class InstanceMetrics(object):
             softmax_scores_per_sem_cls[:, sem_cls, ...] = self.softmaxed_scores[:, chs, ...].sum(dim=1)
         histogram_metrics_dict = {
             'loss_per_image':
-                cat_dictionaries({
+                {
+                    'total': self.losses
+                },
+            'loss_per_channel':
+                {
                     channel_labels[channel_idx]:
                         self.loss_components[:, channel_idx]
                     for channel_idx in range(self.loss_components.size(1))
-                },
-                    {
-                        'total': self.losses
-                    }
-                ),
-            'num_pixels_assigned_per_image': {
-                channel_labels[channel_idx]: self.n_pixels_assigned_per_channel.float()[:, channel_idx]
-                for channel_idx in range(self.n_pixels_assigned_per_channel.size(1))
-            },
+                }
+            # 'num_pixels_assigned_per_image': {
+            #     channel_labels[channel_idx]: self.n_pixels_assigned_per_channel.float()[:, channel_idx]
+            #     for channel_idx in range(self.n_pixels_assigned_per_channel.size(1))
+            # },
             # 'softmax_scores': {
             #     # 'assigned': {
             #     #     channel_labels[channel_idx]:

@@ -174,3 +174,7 @@ def pytorch_unique(pytorch_1d_tensor):
     else:
         raise Exception('pytorch_1d_tensor isn\'t actually a tensor!  Maybe you want to use '
                         'local_pyutils.unique() for a list or np.unique() for a np array.')
+
+
+def augment_channels(tensor, augmentation_tensor, dim=0):
+    return torch.cat([tensor, augmentation_tensor], dim=dim)

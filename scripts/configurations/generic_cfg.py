@@ -17,5 +17,6 @@ default_config = dict(
     score_multiplier=None,
     freeze_vgg=False,
     map_to_semantic=False,
+    augment_semantic=False,
 )
 

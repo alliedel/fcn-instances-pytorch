@@ -19,6 +19,7 @@ from torchfcn import losses
 from torchfcn import metrics
 from torchfcn import visualization_utils, instance_utils
 from torchfcn.export_utils import log_images
+from torchfcn.datasets import dataset_utils
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -51,7 +52,7 @@ class Trainer(object):
                  train_loader, val_loader, out, max_iter, instance_problem,
                  size_average=True, interval_validate=None, matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
-                 use_semantic_loss=False):
+                 use_semantic_loss=False, augment_input_with_semantic_masks=False):
         self.cuda = cuda
 
         self.model = model
@@ -70,6 +71,7 @@ class Trainer(object):
         self.instance_problem = instance_problem
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
         self.use_semantic_loss = use_semantic_loss
+        self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -158,6 +160,10 @@ class Trainer(object):
             size_average=self.size_average, break_here=False, recompute_optimal_loss=False,
             return_loss_components=True, **kwargs)
         return permutations, loss, loss_components
+
+    def augment_image_with_semantic_mask(self, img, sem_lbl):
+        semantic_one_hot = dataset_utils.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
+        return dataset_utils.augment_channels(img, semantic_one_hot, dim=1)
 
     def validate(self, split='val', write_metrics=None, save_checkpoint=None,
                  update_best_checkpoint=None, should_export_visualizations=True):
@@ -354,13 +360,16 @@ class Trainer(object):
         # before we've actually combined the semantic and instance labels...)
         data, sem_lbl, inst_lbl = Variable(data, volatile=True), \
                                   Variable(sem_lbl), Variable(inst_lbl)
+        imgs = data.data.cpu()
+        full_data = data if not self.augment_input_with_semantic_masks \
+            else self.augment_image_with_semantic_mask(data, sem_lbl)
+
         score = self.model(data)
         pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
         if np.isnan(float(loss.data[0])):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(data)
 
-        imgs = data.data.cpu()
         softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
         inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
 

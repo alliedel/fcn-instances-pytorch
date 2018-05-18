@@ -68,7 +68,7 @@ class VOCClassSegBase(data.Dataset):
                  map_other_classes_to_bground=True,
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
-                 _im_a_copy=False, map_to_single_instance_problem=False, augment_semantic_masks=False):
+                 _im_a_copy=False, map_to_single_instance_problem=False):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -77,7 +77,6 @@ class VOCClassSegBase(data.Dataset):
         the instance number: [0, n_instances_per_class[sem_idx])
         filter_bground_images : most useful when you've run with semantic_subset != None -- will get rid of any
         images that don't contain that semantic subset (which become just background images)
-        augment_semantic_masks: expand the number of channels in the input image by S, the number of semantic classes
         """
 
         self.map_to_single_instance_problem = map_to_single_instance_problem
@@ -260,6 +259,7 @@ class VOCClassSegBase(data.Dataset):
                 lbl = [sem_lbl, inst_lbl]
             else:
                 lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
+
         return img, lbl
 
     def remap_to_reduced_semantic_classes(self, sem_lbl):

@@ -182,6 +182,24 @@ configurations = {
         n_instances_per_class=3,
         freeze_vgg=False,
         augment_semantic=False,
+    ),
+    'person_sem_aug': dict(
+        semantic_subset=['person', 'background'],
+        interval_validate=1000,
+        max_iteration=100000,
+        n_instances_per_class=3,
+        freeze_vgg=False,
+        augment_semantic=True,
+        map_to_semantic=True
+    ),
+    'person_sem_noaug': dict(
+        semantic_subset=['person', 'background'],
+        interval_validate=1000,
+        max_iteration=100000,
+        n_instances_per_class=3,
+        freeze_vgg=False,
+        augment_semantic=False,
+        map_to_semantic=True
     )
 
 }

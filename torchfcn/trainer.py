@@ -107,11 +107,16 @@ class Trainer(object):
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
+        metric_maker_kwargs = {
+            'problem_config': self.instance_problem,
+            'loss_function': self.my_cross_entropy,
+            'component_loss_function': self.my_per_component_cross_entropy,
+            'augment_function_img_sem': self.augment_image
+            if self.augment_input_with_semantic_masks else None
+        }
         self.metric_makers = {
-            'val': metrics.InstanceMetrics(self.instance_problem, self.val_loader, self.my_cross_entropy,
-                                           self.my_per_component_cross_entropy),
-            'train_for_val': metrics.InstanceMetrics(self.instance_problem, self.train_loader_for_val,
-                                                     self.my_cross_entropy, self.my_per_component_cross_entropy)
+            'val': metrics.InstanceMetrics(self.val_loader, **metric_maker_kwargs),
+            'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val, **metric_maker_kwargs)
         }
 
     def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):

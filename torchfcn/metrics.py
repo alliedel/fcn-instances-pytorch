@@ -15,7 +15,8 @@ def is_sequential(my_sampler):
 
 
 class InstanceMetrics(object):
-    def __init__(self, problem_config, data_loader, loss_function, component_loss_function=None):
+    def __init__(self, data_loader, problem_config, loss_function, component_loss_function=None,
+                 augment_function_img_sem=None):
         assert loss_function is not None, Warning('I think you want to input the loss function.  If not, get rid of '
                                                   'this line.')
         assert component_loss_function is not None, Warning('I think you want to input the loss function.  If not, '
@@ -40,6 +41,7 @@ class InstanceMetrics(object):
         self.n_instances_assigned_per_sem_cls = None
         self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = None, None, None
         self.metrics_computed = False
+        self.augment_function_img_sem = augment_function_img_sem
 
     def clear(self, variables_to_preserve=None):
         """
@@ -71,7 +73,8 @@ class InstanceMetrics(object):
         return compiled_scores, compiled_losses, compiled_loss_components
 
     def _compile_scores_and_losses(self, model):
-        return compile_scores_and_losses(model, self.data_loader, self.loss_function, self.component_loss_function)
+        return compile_scores_and_losses(model, self.data_loader, self.loss_function, self.component_loss_function,
+                                         self.augment_function_img_sem)
 
     def _compute_pixels_assigned_per_channel(self, assignments):
         n_images = len(self.data_loader)
@@ -279,7 +282,8 @@ def cat_dictionaries(dictionary, dictionary_to_add):
     return dictionary
 
 
-def compile_scores_and_losses(model, data_loader, loss_function, component_loss_function=None):
+def compile_scores_and_losses(model, data_loader, loss_function, component_loss_function=None,
+                              augment_function_img_sem=None):
     """
     loss_function: must be of the form loss_function(scores, sem_lbl, inst_lbl)
     """
@@ -302,10 +306,14 @@ def compile_scores_and_losses(model, data_loader, loss_function, component_loss_
     for batch_idx, (data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
             enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
             leave=False):
-        data, sem_lbl, inst_lbl = Variable(data, volatile=True), Variable(sem_lbl), Variable(inst_lbl)
         if next(model.parameters()).is_cuda:
-            data, sem_lbl, inst_lbl = data.cuda(), sem_lbl.cuda(), inst_lbl.cuda()
-        scores = model(data)
+            img_data, sem_lbl, inst_lbl = img_data.cuda(), sem_lbl.cuda(), inst_lbl.cuda()
+        if augment_function_img_sem is not None:
+            full_data = augment_function_img_sem(img_data, sem_lbl)
+        else:
+            full_data = img_data
+        full_data, sem_lbl, inst_lbl = Variable(full_data, volatile=True), Variable(sem_lbl), Variable(inst_lbl)
+        scores = model(full_data)
         try:
             compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...] = scores.data
         except:
@@ -400,7 +408,7 @@ def _test():
     problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class)
     model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config, checkpoint,
                                                                  semantic_init=None, cuda=cuda)
-    instance_metrics = InstanceMetrics(problem_config, dataloaders['val'])
+    instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )
     # not necessary, but we'll make sure it runs anyway
     instance_metrics.clear()
     instance_metrics.compute_metrics(model)

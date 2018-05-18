@@ -107,7 +107,6 @@ class Trainer(object):
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
-        import ipdb; ipdb.set_trace()
         metric_maker_kwargs = {
             'problem_config': self.instance_problem,
             'loss_function': self.my_cross_entropy,

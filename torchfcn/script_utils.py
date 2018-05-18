@@ -275,10 +275,12 @@ def get_problem_config(class_names, n_instances_per_class, map_to_semantic=False
 
 
 def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
+    n_input_channels = 3 if not cfg['augment_semantic'] else 3 + problem_config.n_semantic_classes
     model = torchfcn.models.FCN8sInstance(
         semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
         map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
-        bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'])
+        bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'],
+        n_input_channels=n_input_channels)
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']

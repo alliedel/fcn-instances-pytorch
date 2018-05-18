@@ -174,5 +174,14 @@ configurations = {
         n_instances_per_class=3,
         freeze_vgg=False,
         augment_semantic=True,
+    ),
+    'person_noaug': dict(
+        semantic_subset=['person', 'background'],
+        interval_validate=10,
+        max_iteration=10000,
+        n_instances_per_class=3,
+        freeze_vgg=False,
+        augment_semantic=False,
     )
+
 }

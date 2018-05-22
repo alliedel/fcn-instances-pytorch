@@ -495,8 +495,8 @@ class Trainer(object):
             inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
             metrics = []
-            for sem_lbl, inst_lbl, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
-                lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
+            for sem_lbl_np, inst_lbl_np, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
+                lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
                 acc, acc_cls, mean_iu, fwavacc = \
                     self.compute_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[pred_permutations])
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))

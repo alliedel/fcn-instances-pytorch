@@ -114,7 +114,7 @@ def main():
                                        cfg_to_print,
                                        parent_directory=os.path.join(here, 'logs', args.dataset))
     script_utils.save_config(out_dir, cfg)
-    print(script_utils.color_text('logdir: {}'.format(out_dir), script_utils.TermColors.OKBLUE))
+    print(script_utils.color_text('logdir: {}'.format(out_dir), script_utils.TermColors.OKGREEN))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     args.cuda = torch.cuda.is_available()

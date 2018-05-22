@@ -80,7 +80,8 @@ def parse_args():
         else:
             # some exceptions
             if k == 'clip':
-                setattr(override_cfg_args, 'clip', None)
+                if getattr(override_cfg_args, 'clip') <= 0:
+                    setattr(override_cfg_args, 'clip', None)
 
     return args, override_cfg_args
 

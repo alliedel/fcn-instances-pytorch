@@ -508,9 +508,9 @@ class Trainer(object):
             if self.tensorboard_writer is not None:
                 self.model.eval()
                 score = self.model(full_data)
-                self.model.train()
                 new_pred_permutations, new_loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
                 loss_improvement = loss.data[0] - new_loss.data[0]
+                self.model.train()
                 self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,
                                                    self.iteration)
                 self.tensorboard_writer.add_scalar('metrics/reassignment', sum([p1 != p2 for p1, p2 in zip(

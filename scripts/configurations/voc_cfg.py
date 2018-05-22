@@ -167,7 +167,7 @@ configurations = {
         freeze_vgg=False,
         lr=1e-6
     ),
-    'person_semaug': dict(
+    'person_aug_inst': dict(
         semantic_subset=['person', 'background'],
         interval_validate=1000,
         max_iteration=100000,
@@ -175,7 +175,7 @@ configurations = {
         freeze_vgg=False,
         augment_semantic=True,
     ),
-    'person_noaug': dict(
+    'person_noaug_inst': dict(
         semantic_subset=['person', 'background'],
         interval_validate=1000,
         max_iteration=100000,
@@ -183,7 +183,7 @@ configurations = {
         freeze_vgg=False,
         augment_semantic=False,
     ),
-    'person_sem_aug': dict(
+    'person_aug_sem': dict(
         semantic_subset=['person', 'background'],
         interval_validate=1000,
         max_iteration=100000,
@@ -192,7 +192,7 @@ configurations = {
         augment_semantic=True,
         map_to_semantic=True
     ),
-    'person_sem_noaug': dict(
+    'person_noaug_sem': dict(
         semantic_subset=['person', 'background'],
         interval_validate=1000,
         max_iteration=100000,
@@ -201,5 +201,4 @@ configurations = {
         augment_semantic=False,
         map_to_semantic=True
     )
-
 }

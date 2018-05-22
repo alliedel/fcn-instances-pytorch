@@ -513,8 +513,9 @@ class Trainer(object):
                 self.model.train()
                 self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,
                                                    self.iteration)
-                self.tensorboard_writer.add_scalar('metrics/reassignment', sum([p1 != p2 for p1, p2 in zip(
-                    new_pred_permutations, pred_permutations)]), self.iteration)
+                self.tensorboard_writer.add_scalar('metrics/reassignment',
+                                                   sum((new_pred_permutations != pred_permutations).int()),
+                                                   self.iteration)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))

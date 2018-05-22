@@ -95,15 +95,18 @@ def main():
     cfg['dataset'] = args.dataset
     cfg['sampler'] = args.sampler
     non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg)
-    print('non-default cfg values: {}'.format(non_default_options))
-    cfg_to_print = non_default_options
-    cfg_to_print = script_utils.create_config_copy(cfg_to_print)
 
     for key, override_val in cfg_override_args.__dict__.items():
         old_val = cfg.pop(key)
         if override_val != old_val:
             print('Overriding value for {}: {} --> {}'.format(key, old_val, override_val))
         cfg[key] = override_val
+        non_default_options[key] = override_val
+
+    print('non-default cfg values: {}'.format(non_default_options))
+    cfg_to_print = non_default_options
+    cfg_to_print = script_utils.create_config_copy(cfg_to_print)
+    cfg_to_print = script_utils.make_ordered_cfg(cfg_to_print)
 
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        cfg_to_print,

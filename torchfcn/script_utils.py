@@ -17,7 +17,7 @@ from tensorboardX import SummaryWriter
 import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
-from scripts.configurations import synthetic_cfg, voc_cfg
+from collections import OrderedDict
 from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn import instance_utils
 from torchfcn.datasets import dataset_statistics, samplers
@@ -54,6 +54,8 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         }
 
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
+
+CFG_ORDER = {}
 
 
 class TermColors:
@@ -112,6 +114,25 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
             cfg_print[replacement_key] = cfg_print.pop(key)
 
     return cfg_print
+
+
+def make_ordered_cfg(cfg, start_arg_order=('dataset', 'sampler'), end_arg_order=()):
+    """
+    Returns an ordered copy of cfg, with start, <alphabetical>, and end ordering.
+    """
+    # Get order
+    cfg_keys = list(cfg.keys())
+    start_keys = [k for k in start_arg_order if k in cfg_keys]
+    end_keys = [k for k in end_arg_order if k in cfg_keys]
+    for k in start_keys + end_keys:
+        cfg_keys.remove(k)
+    middle_keys = [k for k in sorted(cfg_keys)]
+
+    # Add keys in order
+    cfg_ordered = OrderedDict()
+    for k in start_keys + middle_keys + end_keys:
+        cfg_ordered[k] = cfg[k]
+    return cfg_ordered
 
 
 def create_config_from_default(config_args, default_config):
@@ -178,7 +199,10 @@ def get_log_dir(model_name, config_id=None, cfg=None, parent_directory='logs'):
     if not osp.exists(log_dir):
         os.makedirs(log_dir)
     with open(osp.join(log_dir, 'config.yaml'), 'w') as f:
-        yaml.safe_dump(cfg, f, default_flow_style=False)
+        if isinstance(cfg, OrderedDict):
+            yaml.safe_dump(dict(cfg), f, default_flow_style=False)
+        else:
+            yaml.safe_dump(cfg, f, default_flow_style=False)
     return log_dir
 
 

@@ -20,4 +20,3 @@ default_config = dict(
     augment_semantic=False,
     clip=1e20,
 )
-

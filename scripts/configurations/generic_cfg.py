@@ -18,5 +18,6 @@ default_config = dict(
     freeze_vgg=False,
     map_to_semantic=False,
     augment_semantic=False,
+    clip=1e20,
 )
 

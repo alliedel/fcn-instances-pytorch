@@ -23,7 +23,7 @@ class FCN8sInstance(nn.Module):
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
-                 at_once=True, n_input_channels=3):
+                 at_once=True, n_input_channels=3, clip=None):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -142,6 +142,8 @@ class FCN8sInstance(nn.Module):
         if self.score_multiplier_init is not None:
             self.score_multiplier1x1 = nn.Conv2d(self.n_instance_classes, self.n_instance_classes,
                                                  kernel_size=1, stride=1, bias=True)
+        self.clipping_function = None if clip is None else model_utils.get_clipping_function(min=-clip, max=clip)
+
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
                                                           out_channels=self.n_output_channels,
@@ -211,6 +213,9 @@ class FCN8sInstance(nn.Module):
 
         if self.score_multiplier_init:
             h = self.score_multiplier1x1(h)
+
+        if self.clipping_function is not None:
+            h = self.clipping_function(h)
 
         if self.map_to_semantic:
             h = self.conv1x1_instance_to_semantic(h)

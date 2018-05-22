@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-
+from torch.nn import functional as F
 import torchfcn
 
 VGG_CHILDREN_NAMES = ['conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
@@ -10,6 +10,11 @@ VGG_CHILDREN_NAMES = ['conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
                       'conv5_1', 'relu5_1', 'conv5_2', 'relu5_2', 'conv5_3', 'relu5_3', 'pool5',
                       'fc6', 'relu6', 'drop6',
                       'fc7', 'relu7', 'drop7']
+
+
+def get_clipping_function(min=None, max=None):
+    # NOTE(allie): maybe inplace=True?
+    return lambda x: F.hardtanh(x, min=min, max=max)
 
 
 def freeze_vgg_module_subset(model, vgg_children_names=VGG_CHILDREN_NAMES):

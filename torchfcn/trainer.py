@@ -480,8 +480,8 @@ class Trainer(object):
             full_data, sem_lbl, inst_lbl = Variable(full_data), \
                                            Variable(sem_lbl), Variable(inst_lbl)
             self.optim.zero_grad()
-            score = self.model(full_data)
 
+            score = self.model(full_data)
             pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
             loss /= len(full_data)
             if np.isnan(float(loss.data[0])):
@@ -504,6 +504,7 @@ class Trainer(object):
             self.write_metrics(metrics, loss, split='train')
             if self.iteration >= self.max_iter:
                 break
+            last_score = score.data
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))

@@ -280,7 +280,7 @@ def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
         semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
         map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
         bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'],
-        n_input_channels=n_input_channels)
+        n_input_channels=n_input_channels, clip=cfg['clip'])
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']

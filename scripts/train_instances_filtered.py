@@ -75,6 +75,10 @@ def parse_args():
         if '--' + k not in argv and '-' + k not in argv:
             delattr(override_cfg_args, k)
 
+        # some exceptions
+        if k == 'clip':
+            setattr(override_cfg_args, 'clip', None)
+
     return args, override_cfg_args
 
 

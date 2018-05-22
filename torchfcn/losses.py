@@ -269,7 +269,8 @@ def is_nan(val):
 
 
 def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
-    infinity_cap = 1e12
+    infinity_cap = 1e15
+    log_infinity_cap = np.log10(infinity_cap)
     if multiplier is None:
         # Choose multiplier that keeps as many digits of precision as possible without creating
         # overflow errors
@@ -278,10 +279,10 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
             for c in cl:
                 absolute_max = max(absolute_max, abs(c.data[0]))
         if absolute_max == 0:
-            multiplier = 10 ** (10)
+            multiplier = 1
+            # multiplier = 10 ** 10
         else:
-            multiplier = 1 if absolute_max > infinity_cap \
-                else 10 ** (10 - int(np.log10(absolute_max)))
+            multiplier = 10 ** (log_infinity_cap - int(np.log10(absolute_max)))
 
     num_classes = len(cost_list_2d_variables)
     cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r_pred][c_gt].data[0])

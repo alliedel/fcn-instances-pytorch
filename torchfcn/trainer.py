@@ -514,7 +514,7 @@ class Trainer(object):
                 self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,
                                                    self.iteration)
                 self.tensorboard_writer.add_scalar('metrics/reassignment',
-                                                   sum((new_pred_permutations != pred_permutations).int()),
+                                                   sum(new_pred_permutations != pred_permutations),
                                                    self.iteration)
 
     def train(self):

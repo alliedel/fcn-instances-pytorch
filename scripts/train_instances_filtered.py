@@ -63,7 +63,6 @@ def parse_args():
                                                   '- set cfg instead)')
 
     bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
-    argv = [args.dataset] + argv
     if len(bad_args) > 0:
         raise cfg_override_parser.error('bad_args: {}'.format(bad_args))
 

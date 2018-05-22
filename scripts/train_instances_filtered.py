@@ -25,7 +25,7 @@ def parse_args():
     dataset_parsers = {
         'voc': subparsers.add_parser('voc', help='VOC dataset options',
                                      epilog='\n\nOverride options:\n' + '\n'.join(
-            ['--{}: {}'.format(k, v) for k, v in voc_cfg.default_config.items()]),
+                                         ['--{}: {}'.format(k, v) for k, v in voc_cfg.default_config.items()]),
                                      formatter_class=argparse.RawTextHelpFormatter),
         'synthetic': subparsers.add_parser('synthetic', help='synthetic dataset options')
     }
@@ -48,27 +48,31 @@ def parse_args():
     args, argv = parser.parse_known_args()
 
     # Config override parser
+    cfg_default = {'synthetic': synthetic_cfg.default_config,
+                   'voc': voc_cfg.default_config}[args.dataset]
     cfg_override_parser = argparse.ArgumentParser()
-    subparsers_override = cfg_override_parser.add_subparsers(help='dataset', dest='dataset: voc, synthetic')
-    override_dataset_parsers = {
-        'voc': subparsers_override.add_parser('voc', help='VOC dataset options'),
-        'synthetic': subparsers_override.add_parser('synthetic', help='synthetic dataset options')
-    }
-    for dataset_name, override_subparser in override_dataset_parsers.items():
-        cfg_default = {'synthetic': synthetic_cfg.default_config,
-                       'voc': voc_cfg.default_config}[dataset_name]
-        for arg, default_val in cfg_default.items():
-            if default_val is not None:
-                override_subparser.add_argument('--' + arg, type=type(default_val), default=default_val,
-                                                help='cfg override (only recommended for one-off experiments '
-                                                     '- set cfg instead)')
-            else:
-                override_subparser.add_argument('--' + arg, default=default_val,
-                                                help='cfg override (only recommended for one-off experiments '
-                                                     '- set cfg instead)')
+
+    for arg, default_val in cfg_default.items():
+        if default_val is not None:
+            cfg_override_parser.add_argument('--' + arg, type=type(default_val), default=default_val,
+                                             help='cfg override (only recommended for one-off experiments '
+                                                  '- set cfg instead)')
+        else:
+            cfg_override_parser.add_argument('--' + arg, default=default_val,
+                                             help='cfg override (only recommended for one-off experiments '
+                                                  '- set cfg instead)')
+
+    bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
     argv = [args.dataset] + argv
+    if len(bad_args) > 0:
+        raise cfg_override_parser.error('bad_args: {}'.format(bad_args))
+
     # Parse with list of options
-    override_cfg_args = cfg_override_parser.parse_args(argv)
+    override_cfg_args, leftovers = cfg_override_parser.parse_known_args(argv)
+    if len(leftovers) != 0:
+        raise ValueError('args not recognized: {}'.format(leftovers))
+    # apparently this is failing, so I'm going to have to screen this on my own:
+
     # Remove options from namespace that weren't defined
     key_list = list(override_cfg_args.__dict__.keys())
     for k in key_list:

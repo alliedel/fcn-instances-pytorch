@@ -12,9 +12,9 @@ import torch
 import torch.utils.data
 
 from scripts.configurations import synthetic_cfg, voc_cfg
+from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn import script_utils, visualization_utils
 from torchfcn.models import model_utils
-from scripts.configurations.sampler_cfg import sampler_cfgs
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -23,7 +23,10 @@ def parse_args():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(help='dataset', dest='dataset: voc, synthetic')
     dataset_parsers = {
-        'voc': subparsers.add_parser('voc', help='VOC dataset options'),
+        'voc': subparsers.add_parser('voc', help='VOC dataset options',
+                                     epilog='\n\nOverride options:\n' + '\n'.join(
+            ['--{}: {}'.format(k, v) for k, v in voc_cfg.default_config.items()]),
+                                     formatter_class=argparse.RawTextHelpFormatter),
         'synthetic': subparsers.add_parser('synthetic', help='synthetic dataset options')
     }
     for dataset_name, subparser in dataset_parsers.items():
@@ -39,15 +42,45 @@ def parse_args():
                                default=None)
         subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default='default',
                                help='Sampler for dataset')
+
     if argcomplete:
         argcomplete.autocomplete(parser)
-    args = parser.parse_args()
-    return args
+    args, argv = parser.parse_known_args()
+
+    # Config override parser
+    cfg_override_parser = argparse.ArgumentParser()
+    subparsers_override = cfg_override_parser.add_subparsers(help='dataset', dest='dataset: voc, synthetic')
+    override_dataset_parsers = {
+        'voc': subparsers_override.add_parser('voc', help='VOC dataset options'),
+        'synthetic': subparsers_override.add_parser('synthetic', help='synthetic dataset options')
+    }
+    for dataset_name, override_subparser in override_dataset_parsers.items():
+        cfg_default = {'synthetic': synthetic_cfg.default_config,
+                       'voc': voc_cfg.default_config}[dataset_name]
+        for arg, default_val in cfg_default.items():
+            if default_val is not None:
+                override_subparser.add_argument('--' + arg, type=type(default_val), default=default_val,
+                                                help='cfg override (only recommended for one-off experiments '
+                                                     '- set cfg instead)')
+            else:
+                override_subparser.add_argument('--' + arg, default=default_val,
+                                                help='cfg override (only recommended for one-off experiments '
+                                                     '- set cfg instead)')
+    argv = [args.dataset] + argv
+    # Parse with list of options
+    override_cfg_args = cfg_override_parser.parse_args(argv)
+    # Remove options from namespace that weren't defined
+    key_list = list(override_cfg_args.__dict__.keys())
+    for k in key_list:
+        if '--' + k not in argv and '-' + k not in argv:
+            delattr(override_cfg_args, k)
+
+    return args, override_cfg_args
 
 
 def main():
     script_utils.check_clean_work_tree()
-    args = parse_args()
+    args, cfg_override_args = parse_args()
     gpu = args.gpu
     config_idx = args.config
     cfg_default = {'synthetic': synthetic_cfg.default_config,
@@ -61,6 +94,13 @@ def main():
     print('non-default cfg values: {}'.format(non_default_options))
     cfg_to_print = non_default_options
     cfg_to_print = script_utils.create_config_copy(cfg_to_print)
+
+    for key, override_val in cfg_override_args.__dict__.items():
+        old_val = cfg.pop(key)
+        if override_val != old_val:
+            print('Overriding value for {}: {} --> {}'.format(key, old_val, override_val))
+        cfg[key] = override_val
+
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        cfg_to_print,
                                        parent_directory=os.path.join(here, 'logs', args.dataset))

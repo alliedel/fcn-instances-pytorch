@@ -14,7 +14,7 @@ VGG_CHILDREN_NAMES = ['conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
 
 def get_clipping_function(min=None, max=None):
     # NOTE(allie): maybe inplace=True?
-    return lambda x: F.hardtanh(x, min=min, max=max)
+    return lambda x: F.hardtanh(x, min_val=min, max_val=max)
 
 
 def freeze_vgg_module_subset(model, vgg_children_names=VGG_CHILDREN_NAMES):

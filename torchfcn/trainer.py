@@ -487,7 +487,7 @@ class Trainer(object):
             if np.isnan(float(loss.data[0])):
                 raise ValueError('loss is nan while training')
             if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('metrics/training_loss', loss.data[0],
+                self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
                                                    self.iteration)
             loss.backward()
             self.optim.step()
@@ -504,7 +504,17 @@ class Trainer(object):
             self.write_metrics(metrics, loss, split='train')
             if self.iteration >= self.max_iter:
                 break
-            last_score = score.data
+
+            if self.tensorboard_writer is not None:
+                self.model.eval()
+                score = self.model(full_data)
+                self.model.train()
+                new_pred_permutations, new_loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+                loss_improvement = loss.data[0] - new_loss.data[0]
+                self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,
+                                                   self.iteration)
+                self.tensorboard_writer.add_scalar('metrics/reassignment', sum([p1 != p2 for p1, p2 in zip(
+                    new_pred_permutations, pred_permutations)]), self.iteration)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))

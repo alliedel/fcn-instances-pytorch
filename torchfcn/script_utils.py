@@ -83,6 +83,21 @@ def prune_defaults_from_dict(default_dict, update_dict):
     return non_defaults
 
 
+def color_text(text, color):
+    """
+    color can either be a string, like 'OKGREEN', or the value itself, like TermColors.OKGREEN
+    """
+    color_keys = TermColors.__dict__.keys()
+    color_vals = [getattr(TermColors, k) for k in color_keys]
+    if color in color_keys:
+        color = getattr(TermColors, color)
+    elif color in color_vals:
+        pass
+    else:
+        raise Exception('color not recognized: {}\nChoose from: {}, {}'.format(color, color_keys, color_vals))
+    return color + text + TermColors.ENDC
+
+
 def check_clean_work_tree(exit_on_error=False, interactive=True):
     child = subprocess.Popen(['git', 'diff', '--name-only', '--exit-code'], stdout=subprocess.PIPE)
     stdout = child.communicate()[0]

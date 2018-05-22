@@ -99,11 +99,13 @@ def main():
     for key, override_val in cfg_override_args.__dict__.items():
         old_val = cfg.pop(key)
         if override_val != old_val:
-            print('Overriding value for {}: {} --> {}'.format(key, old_val, override_val))
+            print(script_utils.color_text('Overriding value for {}: {} --> {}'.format(key, old_val, override_val),
+                                          script_utils.TermColors.WARNING))
         cfg[key] = override_val
         non_default_options[key] = override_val
 
-    print('non-default cfg values: {}'.format(non_default_options))
+    print(script_utils.color_text('non-default cfg values: {}'.format(non_default_options),
+                                  script_utils.TermColors.OKBLUE))
     cfg_to_print = non_default_options
     cfg_to_print = script_utils.create_config_copy(cfg_to_print)
     cfg_to_print = script_utils.make_ordered_cfg(cfg_to_print)
@@ -112,7 +114,7 @@ def main():
                                        cfg_to_print,
                                        parent_directory=os.path.join(here, 'logs', args.dataset))
     script_utils.save_config(out_dir, cfg)
-    print('logdir: {}'.format(out_dir))
+    print(script_utils.color_text('logdir: {}'.format(out_dir), script_utils.TermColors.OKBLUE))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     args.cuda = torch.cuda.is_available()

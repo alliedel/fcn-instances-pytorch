@@ -509,6 +509,7 @@ class Trainer(object):
                 self.model.eval()
                 score = self.model(full_data)
                 new_pred_permutations, new_loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+                new_loss /= len(full_data)
                 loss_improvement = loss.data[0] - new_loss.data[0]
                 self.model.train()
                 self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,

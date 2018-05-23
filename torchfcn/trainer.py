@@ -26,6 +26,16 @@ MY_TIMEZONE = 'America/New_York'
 DEBUG_ASSERTS = True
 
 
+
+
+def is_nan(val):
+    return val != val
+
+
+def any_nan(tensor):
+    return is_nan(tensor).sum()
+
+
 def permute_scores(score, pred_permutations):
     score_permuted_to_match = score.clone()
     for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
@@ -400,7 +410,7 @@ class Trainer(object):
 
         score = self.model(full_data)
         pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
-        if np.isnan(float(loss.data[0])):
+        if is_nan(loss.data[0]):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(full_data)
 
@@ -508,12 +518,10 @@ class Trainer(object):
 
             score = self.model(full_data)
             pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
-            if np.isnan(float(loss.data[0])):
+            if is_nan(loss.data[0]):
                 raise ValueError('loss is nan while training')
             loss /= len(full_data)
-            if np.isnan(float(loss.data[0])):
-                raise ValueError('loss is nan while training')
-            if np.isnan(float(score.data[0])):
+            if any_nan(score.data[0]):
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],

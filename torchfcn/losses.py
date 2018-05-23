@@ -256,7 +256,7 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
     # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
     if DEBUG_ASSERTS:
         try:
-            assert all([not sum(is_nan(cost_list_1d[j].data))
+            assert all([not any_nan(cost_list_1d[j].data)
                         for cost_list_1d in cost_list_2d for j in range(len(cost_list_1d))])
         except:
             import ipdb; ipdb.set_trace()
@@ -266,6 +266,10 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
 
 def is_nan(val):
     return val != val
+
+
+def any_nan(tensor):
+    return is_nan(tensor).sum()
 
 
 def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):

@@ -514,9 +514,6 @@ class Trainer(object):
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
                                                    self.iteration)
-            if self.write_activation_condition(iteration=self.iteration, epoch=self.epoch,
-                                               interval_validate=self.interval_validate):
-                self.retrieve_and_write_batch_activations(full_data)
             loss.backward()
             self.optim.step()
 
@@ -545,6 +542,9 @@ class Trainer(object):
                 self.tensorboard_writer.add_scalar('metrics/reassignment',
                                                    np.sum(new_pred_permutations != pred_permutations),
                                                    self.iteration)
+                if self.write_activation_condition(iteration=self.iteration, epoch=self.epoch,
+                                                   interval_validate=self.interval_validate):
+                    self.retrieve_and_write_batch_activations(full_data)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))

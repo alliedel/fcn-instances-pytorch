@@ -19,6 +19,18 @@ from torchfcn.models import model_utils
 here = osp.dirname(osp.abspath(__file__))
 
 
+def str2bool(v):
+    """
+    https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
+    """
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(help='dataset', dest='dataset: voc, synthetic')
@@ -54,7 +66,11 @@ def parse_args():
 
     for arg, default_val in cfg_default.items():
         if default_val is not None:
-            cfg_override_parser.add_argument('--' + arg, type=type(default_val), default=default_val,
+            if isinstance(default_val, bool):
+                arg_type = str2bool
+            else:
+                arg_type = type(default_val)
+            cfg_override_parser.add_argument('--' + arg, type=arg_type, default=default_val,
                                              help='cfg override (only recommended for one-off experiments '
                                                   '- set cfg instead)')
         else:

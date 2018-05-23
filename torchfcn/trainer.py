@@ -46,6 +46,13 @@ def permute_labels(label_preds, permutations):
     return label_preds_permuted
 
 
+def should_write_activations(iteration, epoch, interval_validate):
+    if epoch == 0:
+        return True
+    else:
+        return False
+
+
 class Trainer(object):
 
     def __init__(self, cuda, model, optimizer,
@@ -53,7 +60,8 @@ class Trainer(object):
                  size_average=True, interval_validate=None, matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
-                 export_activations=False, activation_layers_to_export=()):
+                 export_activations=False, activation_layers_to_export=(),
+                 write_activation_condition=should_write_activations):
         self.cuda = cuda
 
         self.model = model
@@ -73,8 +81,11 @@ class Trainer(object):
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
         self.use_semantic_loss = use_semantic_loss
         self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
+
+        # Writing activations
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
+        self.write_activation_condition = write_activation_condition
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -270,8 +281,16 @@ class Trainer(object):
         visualizations = (segmentation_visualizations, score_visualizations)
         return val_metrics, visualizations
 
-    def write_batch_activations(self):
-        
+    def retrieve_and_write_batch_activations(self, batch_input):
+        if self.tensorboard_writer is not None:
+            activations = self.model.get_activations(batch_input, self.activation_layers_to_export)
+            histogram_activations = {'batch_activations/' + k: v for k, v in activations.items()}
+            for name, activations in tqdm.tqdm(histogram_activations.items(),
+                                               total=len(histogram_activations.items()),
+                                               desc='Writing activation distributions', leave=False):
+                if torch.is_tensor(activations):
+                    self.tensorboard_writer.add_histogram('{}'.format(name),
+                                                          activations.numpy(), self.iteration, bins='auto')
 
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:
@@ -495,6 +514,9 @@ class Trainer(object):
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
                                                    self.iteration)
+            if self.write_activation_condition(iteration=self.iteration, epoch=self.epoch,
+                                               interval_validate=self.interval_validate):
+                self.retrieve_and_write_batch_activations(full_data)
             loss.backward()
             self.optim.step()
 

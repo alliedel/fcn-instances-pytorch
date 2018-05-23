@@ -299,7 +299,14 @@ class Trainer(object):
                                                total=len(histogram_activations.items()),
                                                desc='Writing activation distributions', leave=False):
                 if torch.is_tensor(activations):
-                    self.tensorboard_writer.add_histogram('{}'.format(name),
+                    if name == 'upscore8':
+                        channel_labels = self.instance_problem.get_channel_labels('{} {}')
+                        assert activations.size(1) == len(channel_labels)
+                        for c, channel_label in enumerate(channel_labels):
+                            self.tensorboard_writer.add_histogram('{}/{}'.format(name, channel_label),
+                                                                  activations[:, c, :, :].cpu().numpy(),
+                                                                  self.iteration, bins='auto')
+                    self.tensorboard_writer.add_histogram('{}/all_channels'.format(name),
                                                           activations.cpu().numpy(), self.iteration, bins='auto')
 
     def compute_and_write_instance_metrics(self):

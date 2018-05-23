@@ -290,7 +290,7 @@ class Trainer(object):
                                                desc='Writing activation distributions', leave=False):
                 if torch.is_tensor(activations):
                     self.tensorboard_writer.add_histogram('{}'.format(name),
-                                                          activations.numpy(), self.iteration, bins='auto')
+                                                          activations.cpu().numpy(), self.iteration, bins='auto')
 
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:

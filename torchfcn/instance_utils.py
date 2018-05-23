@@ -48,24 +48,36 @@ class InstanceProblemConfig(object):
 
         self.instance_count_id_list = get_instance_count_id_list(self.semantic_instance_class_list,
                                                                  include_channel0=self.include_instance_channel0)
+        self.model_instance_count_id_list = get_instance_count_id_list(self.model_semantic_instance_class_list,
+                                                                       include_channel0=self.include_instance_channel0)
         self.instance_to_semantic_mapping_matrix = get_instance_to_semantic_mapping(
             self.model_n_instances_by_semantic_id)
         self.instance_to_semantic_conv1x1 = nn.Conv2d(in_channels=len(self.model_semantic_instance_class_list),
                                                       out_channels=self.n_semantic_classes,
                                                       kernel_size=1, bias=False)
 
-    def get_channel_labels(self, sem_inst_format='{}_{}'):
-        if self.class_names is None:
-            semantic_instance_labels = self.semantic_instance_class_list
+    def _get_channel_labels(self, semantic_instance_class_list, instance_count_id_list, class_names, map_to_semantic,
+                            sem_inst_format):
+        if class_names is None:
+            semantic_instance_labels = semantic_instance_class_list
         else:
-            semantic_instance_labels = [self.class_names[c] for c in self.semantic_instance_class_list]
-        if self.map_to_semantic:
+            semantic_instance_labels = [class_names[c] for c in self.semantic_instance_class_list]
+        if map_to_semantic:
             channel_labels = [sem_inst_format.format(sem_cls, '') for sem_cls, inst_id in zip(
-                semantic_instance_labels, self.instance_count_id_list)]
+                semantic_instance_labels, instance_count_id_list)]
         else:
             channel_labels = [sem_inst_format.format(sem_cls, int(inst_id)) for sem_cls, inst_id in zip(
-                semantic_instance_labels, self.instance_count_id_list)]
+                semantic_instance_labels, instance_count_id_list)]
         return channel_labels
+
+    def get_channel_labels(self, sem_inst_format='{}_{}'):
+        return self._get_channel_labels(self.semantic_instance_class_list, self.instance_count_id_list,
+                                        self.class_names, map_to_semantic=self.map_to_semantic,
+                                        sem_inst_format=sem_inst_format)
+
+    def get_model_channel_labels(self, sem_inst_format='{}_{}'):
+        return self._get_channel_labels(self.model_semantic_instance_class_list, self.model_instance_count_id_list,
+                                        self.class_names, map_to_semantic=False, sem_inst_format=sem_inst_format)
 
     def set_class_names(self, class_names):
         assert class_names is None or (len(class_names) == self.n_semantic_classes)

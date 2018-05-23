@@ -300,7 +300,14 @@ class Trainer(object):
                                                desc='Writing activation distributions', leave=False):
                 if torch.is_tensor(activations):
                     if name == 'upscore8':
-                        channel_labels = self.instance_problem.get_channel_labels('{} {}')
+                        channel_labels = self.instance_problem.get_model_channel_labels('{}_{}')
+                        assert activations.size(1) == len(channel_labels)
+                        for c, channel_label in enumerate(channel_labels):
+                            self.tensorboard_writer.add_histogram('{}/{}'.format(name, channel_label),
+                                                                  activations[:, c, :, :].cpu().numpy(),
+                                                                  self.iteration, bins='auto')
+                    elif name == 'conv1x1_instance_to_semantic':
+                        channel_labels = self.instance_problem.get_channel_labels('{}_{}')
                         assert activations.size(1) == len(channel_labels)
                         for c, channel_label in enumerate(channel_labels):
                             self.tensorboard_writer.add_histogram('{}/{}'.format(name, channel_label),

@@ -298,7 +298,6 @@ class Trainer(object):
             for name, activations in tqdm.tqdm(histogram_activations.items(),
                                                total=len(histogram_activations.items()),
                                                desc='Writing activation distributions', leave=False):
-                import ipdb; ipdb.set_trace()
                 if name == 'upscore8':
                     channel_labels = self.instance_problem.get_model_channel_labels('{}_{}')
                     assert activations.size(1) == len(channel_labels)

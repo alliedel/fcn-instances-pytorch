@@ -19,4 +19,6 @@ default_config = dict(
     map_to_semantic=False,
     augment_semantic=False,
     clip=1e20,
+    export_activations=False,
+    activation_layers_to_export=('upscore8', 'score_pool4', 'conv1x1_instance_to_semantic'),
 )

@@ -57,6 +57,9 @@ class FCN8sInstance(nn.Module):
         self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
         self.n_output_channels = n_instance_classes if not map_to_semantic else self.n_semantic_classes
         self.n_input_channels = n_input_channels
+        self.activations = None
+        self.activation_layers = []
+        self.my_forward_hooks = {}
 
         if bottleneck_channel_capacity is None:
             self.bottleneck_channel_capacity = self.n_instance_classes
@@ -149,6 +152,42 @@ class FCN8sInstance(nn.Module):
                                                           out_channels=self.n_output_channels,
                                                           kernel_size=1, bias=False)
         self._initialize_weights()
+
+    def store_activation(self, layer, input, output, layer_name):
+        if layer_name not in self.activation_layers:
+            self.activation_layers.append(layer_name)
+        if self.activations is None:
+            self.activations = {}
+        self.activations[layer_name] = output.data
+
+    def add_forward_hook(self, layer_name):
+        try:
+            layer = getattr(self, layer_name)
+        except AttributeError:
+            raise AttributeError('Could not find attribute with name {} in {}'.format(layer_name, self.__class__))
+
+        self.my_forward_hooks[layer_name] = layer.register_forward_hook(lambda *args, **kwargs:
+                                                                        self.store_activation(*args, **kwargs,
+                                                                                              layer_name=layer_name))
+
+    def clear_forward_hooks_and_activations(self):
+        self.activations = None
+        self.activation_layers = []
+        for name, hook in self.my_forward_hooks.items():
+            hook.remove()
+        self.my_forward_hooks = {}
+
+    def get_activations(self, input, layer_names):
+        training = self.training
+        self.eval()
+        for layer_name in layer_names:
+            self.add_forward_hook(layer_name)
+        self.forward(input)
+        activations = self.activations
+        self.clear_forward_hooks_and_activations()
+        if training:
+            self.train()
+        return activations
 
     def forward(self, x):
         h = x

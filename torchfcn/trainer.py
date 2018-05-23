@@ -52,7 +52,8 @@ class Trainer(object):
                  train_loader, val_loader, out, max_iter, instance_problem,
                  size_average=True, interval_validate=None, matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
-                 use_semantic_loss=False, augment_input_with_semantic_masks=False):
+                 use_semantic_loss=False, augment_input_with_semantic_masks=False,
+                 export_activations=False, activation_layers_to_export=()):
         self.cuda = cuda
 
         self.model = model
@@ -72,6 +73,8 @@ class Trainer(object):
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
         self.use_semantic_loss = use_semantic_loss
         self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
+        self.export_activations = export_activations
+        self.activation_layers_to_export = activation_layers_to_export
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -266,6 +269,9 @@ class Trainer(object):
 
         visualizations = (segmentation_visualizations, score_visualizations)
         return val_metrics, visualizations
+
+    def write_batch_activations(self):
+        
 
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:

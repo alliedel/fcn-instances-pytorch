@@ -294,27 +294,27 @@ class Trainer(object):
     def retrieve_and_write_batch_activations(self, batch_input):
         if self.tensorboard_writer is not None:
             activations = self.model.get_activations(batch_input, self.activation_layers_to_export)
-            histogram_activations = {'batch_activations/' + k: v for k, v in activations.items()}
+            histogram_activations = activations
             for name, activations in tqdm.tqdm(histogram_activations.items(),
                                                total=len(histogram_activations.items()),
                                                desc='Writing activation distributions', leave=False):
-                if torch.is_tensor(activations):
-                    if name == 'upscore8':
-                        channel_labels = self.instance_problem.get_model_channel_labels('{}_{}')
-                        assert activations.size(1) == len(channel_labels)
-                        for c, channel_label in enumerate(channel_labels):
-                            self.tensorboard_writer.add_histogram('{}/{}'.format(name, channel_label),
-                                                                  activations[:, c, :, :].cpu().numpy(),
-                                                                  self.iteration, bins='auto')
-                    elif name == 'conv1x1_instance_to_semantic':
-                        channel_labels = self.instance_problem.get_channel_labels('{}_{}')
-                        assert activations.size(1) == len(channel_labels)
-                        for c, channel_label in enumerate(channel_labels):
-                            self.tensorboard_writer.add_histogram('{}/{}'.format(name, channel_label),
-                                                                  activations[:, c, :, :].cpu().numpy(),
-                                                                  self.iteration, bins='auto')
-                    self.tensorboard_writer.add_histogram('{}/all_channels'.format(name),
-                                                          activations.cpu().numpy(), self.iteration, bins='auto')
+                import ipdb; ipdb.set_trace()
+                if name == 'upscore8':
+                    channel_labels = self.instance_problem.get_model_channel_labels('{}_{}')
+                    assert activations.size(1) == len(channel_labels)
+                    for c, channel_label in enumerate(channel_labels):
+                        self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
+                                                              activations[:, c, :, :].cpu().numpy(),
+                                                              self.iteration, bins='auto')
+                elif name == 'conv1x1_instance_to_semantic':
+                    channel_labels = self.instance_problem.get_channel_labels('{}_{}')
+                    assert activations.size(1) == len(channel_labels)
+                    for c, channel_label in enumerate(channel_labels):
+                        self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
+                                                              activations[:, c, :, :].cpu().numpy(),
+                                                              self.iteration, bins='auto')
+                self.tensorboard_writer.add_histogram('batch_activations/{}/all_channels'.format(name),
+                                                      activations.cpu().numpy(), self.iteration, bins='auto')
 
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:

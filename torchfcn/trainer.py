@@ -20,20 +20,11 @@ from torchfcn import metrics
 from torchfcn import visualization_utils, instance_utils
 from torchfcn.datasets import dataset_utils
 from torchfcn.export_utils import log_images
+from torchfcn.models.model_utils import is_nan, any_nan
 
 MY_TIMEZONE = 'America/New_York'
 
 DEBUG_ASSERTS = True
-
-
-
-
-def is_nan(val):
-    return val != val
-
-
-def any_nan(tensor):
-    return is_nan(tensor).sum()
 
 
 def permute_scores(score, pred_permutations):
@@ -300,7 +291,8 @@ class Trainer(object):
                                                desc='Writing activation distributions', leave=False):
                 if name == 'upscore8':
                     channel_labels = self.instance_problem.get_model_channel_labels('{}_{}')
-                    assert activations.size(1) == len(channel_labels)
+                    assert activations.size(1) == len(channel_labels), '{} != {}'.format(activations.size(1),
+                                                                                         len(channel_labels))
                     for c, channel_label in enumerate(channel_labels):
                         self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
                                                               activations[:, c, :, :].cpu().numpy(),

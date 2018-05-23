@@ -12,6 +12,19 @@ VGG_CHILDREN_NAMES = ['conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
                       'fc7', 'relu7', 'drop7']
 
 
+def is_nan(val):
+    if torch.is_tensor(val):
+        return (val != val).int() + (val == float('inf')).int() + (val == float('inf')).int()
+    elif isinstance(val, np.ndarray):
+        return (val != val) + (val == float('inf')) + (val == float('inf'))
+    else:
+        return (val != val) or val == float('inf') or val == -float('inf')
+
+
+def any_nan(tensor):
+    return is_nan(tensor).sum()
+
+
 def get_clipping_function(min=None, max=None):
     # NOTE(allie): maybe inplace=True?
     return lambda x: F.hardtanh(x, min_val=min, max_val=max)

@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from ortools.graph import pywrapgraph
+from torchfcn.models.model_utils import is_nan, any_nan
 
 logger = local_pyutils.get_logger()
 
@@ -262,14 +263,6 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
             import ipdb; ipdb.set_trace()
             raise Exception('costs reached nan')
     return cost_list_2d
-
-
-def is_nan(val):
-    return val != val
-
-
-def any_nan(tensor):
-    return is_nan(tensor).sum()
 
 
 def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):

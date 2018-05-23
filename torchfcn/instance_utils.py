@@ -56,12 +56,13 @@ class InstanceProblemConfig(object):
                                                       out_channels=self.n_semantic_classes,
                                                       kernel_size=1, bias=False)
 
-    def _get_channel_labels(self, semantic_instance_class_list, instance_count_id_list, class_names, map_to_semantic,
+    @staticmethod
+    def _get_channel_labels(semantic_instance_class_list, instance_count_id_list, class_names, map_to_semantic,
                             sem_inst_format):
         if class_names is None:
             semantic_instance_labels = semantic_instance_class_list
         else:
-            semantic_instance_labels = [class_names[c] for c in self.semantic_instance_class_list]
+            semantic_instance_labels = [class_names[c] for c in semantic_instance_class_list]
         if map_to_semantic:
             channel_labels = [sem_inst_format.format(sem_cls, '') for sem_cls, inst_id in zip(
                 semantic_instance_labels, instance_count_id_list)]

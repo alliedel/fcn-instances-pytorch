@@ -48,7 +48,7 @@ def permute_labels(label_preds, permutations):
 
 
 def should_write_activations(iteration, epoch, interval_validate):
-    if epoch == 0:
+    if iteration < 3000:
         return True
     else:
         return False

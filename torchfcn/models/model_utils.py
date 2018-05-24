@@ -14,9 +14,9 @@ VGG_CHILDREN_NAMES = ['conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
 
 def is_nan(val):
     if torch.is_tensor(val):
-        return (val != val).int() + (val == float('inf')).int() + (val == float('inf')).int()
+        return (val != val).int() + (val == float('inf')).int() + (val == -float('inf')).int()
     elif isinstance(val, np.ndarray):
-        return (val != val) + (val == float('inf')) + (val == float('inf'))
+        return (val != val) + (val == float('inf')) + (val == -float('inf'))
     else:
         return (val != val) or val == float('inf') or val == -float('inf')
 

@@ -548,6 +548,7 @@ class Trainer(object):
                 break
 
             if self.tensorboard_writer is not None:
+
                 self.model.eval()
                 new_score = self.model(full_data)
                 if any_nan(new_score.data):
@@ -556,6 +557,7 @@ class Trainer(object):
                 new_loss /= len(full_data)
                 loss_improvement = loss.data[0] - new_loss.data[0]
                 self.model.train()
+
                 self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,
                                                    self.iteration)
                 self.tensorboard_writer.add_scalar('metrics/reassignment',

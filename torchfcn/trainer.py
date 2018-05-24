@@ -537,9 +537,11 @@ class Trainer(object):
             score = self.model(full_data)
             pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
             if is_nan(loss.data[0]):
+                import ipdb; ipdb.set_trace()
                 raise ValueError('loss is nan while training')
             loss /= len(full_data)
             if any_nan(score.data):
+                import ipdb; ipdb.set_trace()
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
@@ -565,6 +567,7 @@ class Trainer(object):
                 self.model.eval()
                 new_score = self.model(full_data)
                 if any_nan(new_score.data):
+                    import ipdb; ipdb.set_trace()
                     raise ValueError('new_score became nan while training')
                 new_pred_permutations, new_loss = self.my_cross_entropy(new_score, sem_lbl, inst_lbl)
                 new_loss /= len(full_data)
@@ -580,6 +583,7 @@ class Trainer(object):
                                                    interval_validate=self.interval_validate):
                     self.retrieve_and_write_batch_activations(full_data)
                 if is_nan(new_loss.data[0]):
+                    import ipdb; ipdb.set_trace()
                     raise ValueError('new_loss is nan while training')
 
     def train(self):

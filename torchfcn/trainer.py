@@ -304,6 +304,19 @@ class Trainer(object):
                         self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
                                                               activations[:, c, :, :].cpu().numpy(),
                                                               self.iteration, bins='auto')
+                elif name == 'conv1_1':
+                    # This is expensive to write, so we'll just write a representative set.
+                    min = torch.min(activations)
+                    max = torch.max(activations)
+                    mean = torch.mean(activations)
+                    representative_set = np.ndarray((100, 3))
+                    representative_set[:, 0] = min
+                    representative_set[:, 1] = max
+                    representative_set[:, 2] = mean
+                    self.tensorboard_writer.add_histogram('batch_activations/{}/all_channels'.format(name),
+                                                          representative_set, self.iteration, bins='auto')
+                    continue
+
                 self.tensorboard_writer.add_histogram('batch_activations/{}/all_channels'.format(name),
                                                       activations.cpu().numpy(), self.iteration, bins='auto')
 

@@ -185,7 +185,7 @@ class Trainer(object):
         semantic_one_hot = dataset_utils.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
         return dataset_utils.augment_channels(img, semantic_one_hot, dim=1)
 
-    def validate(self, split='val', write_metrics=None, save_checkpoint=None,
+    def validate(self, split='val', write_basic_metrics=None, write_instance_metrics=None, save_checkpoint=None,
                  update_best_checkpoint=None, should_export_visualizations=True):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
@@ -193,11 +193,13 @@ class Trainer(object):
             False.
         """
         val_metrics = None
-        write_metrics = (split == 'val') if write_metrics is None else write_metrics
+        write_instance_metrics = (split == 'val') if write_instance_metrics is None else write_instance_metrics
+        write_basic_metrics = write_basic_metrics if write_basic_metrics is None else True
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
             else update_best_checkpoint
-        should_compute_metrics = write_metrics or save_checkpoint or update_best_checkpoint
+        should_compute_basic_metrics = \
+            write_basic_metrics or write_instance_metrics or save_checkpoint or update_best_checkpoint
 
         assert split in ['train', 'val']
         if split == 'train':
@@ -232,7 +234,7 @@ class Trainer(object):
                 inst_lbl[sem_lbl == -1] = -1
 
             should_visualize = len(segmentation_visualizations) < num_images_to_visualize
-            if not (should_compute_metrics or should_visualize):
+            if not (should_compute_basic_metrics or should_visualize):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
             true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
@@ -259,9 +261,9 @@ class Trainer(object):
 
         val_loss /= len(data_loader)
 
-        if should_compute_metrics:
+        if should_compute_basic_metrics:
             val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
-            if write_metrics:
+            if write_basic_metrics:
                 self.write_metrics(val_metrics, val_loss, split)
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('metrics/{}/loss'.format(split),
@@ -273,6 +275,7 @@ class Trainer(object):
                 self.save_checkpoint()
             if update_best_checkpoint:
                 self.update_best_checkpoint_if_best(mean_iu=val_metrics[2])
+        if write_instance_metrics:
             self.compute_and_write_instance_metrics()
 
         # Restore training settings set prior to function call
@@ -507,6 +510,7 @@ class Trainer(object):
         self.model.train()
         # n_class = len(self.train_loader.dataset.class_names)
         # n_class = self.model.n_classes
+        last_score, last_last_score, last_loss, last_last_loss = None, None, None, None
 
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
@@ -543,12 +547,16 @@ class Trainer(object):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('loss is nan while training')
             loss /= len(full_data)
+            if loss.data[0] > 1e6:
+                import ipdb; ipdb.set_trace()
             if any_nan(score.data):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
                                                    self.iteration)
+                self.tensorboard_writer.add_histogram('scores/training_batch_loss', loss.data[0],
+                                                      self.iteration)
             loss.backward()
             self.optim.step()
 
@@ -588,6 +596,12 @@ class Trainer(object):
                 if is_nan(new_loss.data[0]):
                     import ipdb; ipdb.set_trace()
                     raise ValueError('new_loss is nan while training')
+            if last_score is not None:
+                last_last_score = last_score.clone()
+            if last_loss is not None:
+                last_last_loss = last_loss.clone()
+            last_score = score.data.clone()
+            last_loss = loss.data.clone()
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))

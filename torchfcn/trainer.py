@@ -313,7 +313,7 @@ class Trainer(object):
                     representative_set[:, 0] = min
                     representative_set[:, 1] = max
                     representative_set[:, 2] = mean
-                    self.tensorboard_writer.add_histogram('batch_activations/{}/all_channels'.format(name),
+                    self.tensorboard_writer.add_histogram('batch_activations/{}/min_mean_max_all_channels'.format(name),
                                                           representative_set, self.iteration, bins='auto')
                     continue
 

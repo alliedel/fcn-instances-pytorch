@@ -17,4 +17,4 @@ if __name__ == '__main__':
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
         load_results.load_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
 
-    
+

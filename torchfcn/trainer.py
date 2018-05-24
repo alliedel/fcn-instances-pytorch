@@ -301,9 +301,12 @@ class Trainer(object):
                     channel_labels = self.instance_problem.get_channel_labels('{}_{}')
                     assert activations.size(1) == len(channel_labels)
                     for c, channel_label in enumerate(channel_labels):
-                        self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
-                                                              activations[:, c, :, :].cpu().numpy(),
-                                                              self.iteration, bins='auto')
+                        try:
+                            self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
+                                                                  activations[:, c, :, :].cpu().numpy(),
+                                                                  self.iteration, bins='auto')
+                        except IndexError as ie:
+                            print('WARNING: Didn\'t write activations.  IndexError: {}'.format(ie))
                 elif name == 'conv1_1':
                     # This is expensive to write, so we'll just write a representative set.
                     min = torch.min(activations)

@@ -194,7 +194,7 @@ class Trainer(object):
         """
         val_metrics = None
         write_instance_metrics = (split == 'val') if write_instance_metrics is None else write_instance_metrics
-        write_basic_metrics = write_basic_metrics if write_basic_metrics is None else True
+        write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
             else update_best_checkpoint
@@ -261,13 +261,10 @@ class Trainer(object):
 
         val_loss /= len(data_loader)
 
-        if split == 'val':
-            import ipdb; ipdb.set_trace()
         if should_compute_basic_metrics:
             val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
             if write_basic_metrics:
                 self.write_metrics(val_metrics, val_loss, split)
-                import ipdb; ipdb.set_trace()
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('metrics/{}/loss'.format(split),
                                                        val_loss, self.iteration)

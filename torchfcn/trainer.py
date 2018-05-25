@@ -386,8 +386,12 @@ class Trainer(object):
                 log = [self.epoch, self.iteration] + [''] * 5 + \
                       [loss] + list(metrics) + [elapsed_time]
             elif split == 'train':
+                try:
+                    metrics_as_list = metrics.tolist()
+                except:
+                    metrics_as_list = list(metrics)
                 log = [self.epoch, self.iteration] + [loss] + \
-                      metrics.tolist() + [''] * 5 + [elapsed_time]
+                      metrics_as_list + [''] * 5 + [elapsed_time]
             else:
                 raise ValueError('split not recognized')
             log = map(str, log)

@@ -68,7 +68,7 @@ class VOCClassSegBase(data.Dataset):
                  map_other_classes_to_bground=True,
                  permute_instance_order=False, set_extras_to_void=False,
                  return_semantic_instance_tuple=None, semantic_only_labels=None,
-                 _im_a_copy=False, map_to_single_instance_problem=False):
+                 _im_a_copy=False, map_to_single_instance_problem=False, ordering=None):
         """
         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
@@ -102,6 +102,7 @@ class VOCClassSegBase(data.Dataset):
         self.return_semantic_instance_tuple = return_semantic_instance_tuple
         self.semantic_only_labels = semantic_only_labels
         self.n_inst_cap_per_class = None
+        self.ordering = ordering
 
         # VOC2011 and others are subset of VOC2012
         year = 2012

@@ -183,7 +183,7 @@ class Trainer(object):
 
     def augment_image(self, img, sem_lbl):
         semantic_one_hot = dataset_utils.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
-        return dataset_utils.augment_channels(img, semantic_one_hot, dim=1)
+        return dataset_utils.augment_channels(img, 100.0 * semantic_one_hot, dim=1)
 
     def validate(self, split='val', write_basic_metrics=None, write_instance_metrics=None, save_checkpoint=None,
                  update_best_checkpoint=None, should_export_visualizations=True):
@@ -261,10 +261,13 @@ class Trainer(object):
 
         val_loss /= len(data_loader)
 
+        if split == 'val':
+            import ipdb; ipdb.set_trace()
         if should_compute_basic_metrics:
             val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
             if write_basic_metrics:
                 self.write_metrics(val_metrics, val_loss, split)
+                import ipdb; ipdb.set_trace()
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('metrics/{}/loss'.format(split),
                                                        val_loss, self.iteration)
@@ -588,8 +591,8 @@ class Trainer(object):
                 self.tensorboard_writer.add_scalar('metrics/reassignment',
                                                    np.sum(new_pred_permutations != pred_permutations),
                                                    self.iteration)
-                if self.write_activation_condition(iteration=self.iteration, epoch=self.epoch,
-                                                   interval_validate=self.interval_validate):
+                if self.export_activations and self.write_activation_condition(iteration=self.iteration, \
+                        epoch=self.epoch, interval_validate=self.interval_validate):
                     self.retrieve_and_write_batch_activations(full_data)
                 if is_nan(new_loss.data[0]):
                     import ipdb; ipdb.set_trace()

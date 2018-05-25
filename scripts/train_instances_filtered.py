@@ -188,7 +188,8 @@ def main():
                 assert all([p.requires_grad is False for p in module.parameters()])
         print('All modules were correctly frozen: '.format({}).format(model_utils.VGG_CHILDREN_NAMES))
     if not cfg['map_to_semantic']:
-        cfg['activation_layers_to_export'].remove('conv1x1_instance_to_semantic')
+        cfg['activation_layers_to_export'] = tuple([x for x in cfg[
+            'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
     trainer = script_utils.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration

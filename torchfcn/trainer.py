@@ -547,16 +547,14 @@ class Trainer(object):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('loss is nan while training')
             loss /= len(full_data)
-            if loss.data[0] > 1e6:
-                import ipdb; ipdb.set_trace()
+            if loss.data[0] > 1e4:
+                print('WARNING: loss={} at iteration {}'.format(loss.data[0], self.iteration))
             if any_nan(score.data):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
                                                    self.iteration)
-                self.tensorboard_writer.add_histogram('scores/training_batch_loss', loss.data[0],
-                                                      self.iteration)
             loss.backward()
             self.optim.step()
 

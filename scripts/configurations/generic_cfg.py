@@ -24,4 +24,5 @@ default_config = dict(
                                  'pool3', 'pool4', 'pool5', 'drop6', 'fc7', 'drop7',
                                  'upscore8', 'conv1x1_instance_to_semantic'),
     ordering=None,  # 'lr'
+    add_intermediate_convs=False,
 )

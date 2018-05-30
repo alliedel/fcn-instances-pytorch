@@ -23,7 +23,7 @@ class FCN8sInstance(nn.Module):
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
-                 at_once=True, n_input_channels=3, clip=None):
+                 at_once=True, n_input_channels=3, clip=None, add_intermediate_convs=False):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -71,6 +71,7 @@ class FCN8sInstance(nn.Module):
             assert bottleneck_channel_capacity == int(bottleneck_channel_capacity), ValueError(
                 'bottleneck_channel_capacity must be an int')
             self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
+        self.add_intermediate_convs = add_intermediate_convs
 
         # conv1
         self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, 3, padding=100)
@@ -128,6 +129,9 @@ class FCN8sInstance(nn.Module):
         self.fc7 = nn.Conv2d(4096, 4096, kernel_size=1)  # H/32 x W/32 x 4096
         self.relu7 = nn.ReLU(inplace=True)
         self.drop7 = nn.Dropout2d()
+
+        self.intermediate_conv1 = None if not self.add_intermediate_convs else nn.Conv2d(4096, 4096, 10)
+        self.intermediate_conv2 = None if not self.add_intermediate_convs else nn.Conv2d(4096, 4096, 10)
 
         # H/32 x W/32 x n_semantic_cls
         self.score_fr = nn.Conv2d(4096, self.bottleneck_channel_capacity, 1)
@@ -221,7 +225,9 @@ class FCN8sInstance(nn.Module):
 
         h = self.relu7(self.fc7(h))
         h = self.drop7(h)
-
+        if self.add_intermediate_convs:
+            h = self.intermediate_conv1(h)
+            h = self.intermediate_conv2(h)
         h = self.score_fr(h)
         h = self.upscore2(h)  # ConvTranspose2d, stride=2
         upscore2 = h  # 1/16

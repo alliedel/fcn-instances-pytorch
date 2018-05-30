@@ -130,8 +130,10 @@ class FCN8sInstance(nn.Module):
         self.relu7 = nn.ReLU(inplace=True)
         self.drop7 = nn.Dropout2d()
 
-        self.intermediate_conv1 = None if not self.add_intermediate_convs else nn.Conv2d(4096, 4096, 10)
-        self.intermediate_conv2 = None if not self.add_intermediate_convs else nn.Conv2d(4096, 4096, 10)
+        self.intermediate_conv1 = None if not self.add_intermediate_convs \
+            else nn.Conv2d(self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, 10)
+        self.intermediate_conv2 = None if not self.add_intermediate_convs \
+            else nn.Conv2d(self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, 10)
 
         # H/32 x W/32 x n_semantic_cls
         self.score_fr = nn.Conv2d(4096, self.bottleneck_channel_capacity, 1)
@@ -225,10 +227,10 @@ class FCN8sInstance(nn.Module):
 
         h = self.relu7(self.fc7(h))
         h = self.drop7(h)
+        h = self.score_fr(h)
         if self.add_intermediate_convs:
             h = self.intermediate_conv1(h)
             h = self.intermediate_conv2(h)
-        h = self.score_fr(h)
         h = self.upscore2(h)  # ConvTranspose2d, stride=2
         upscore2 = h  # 1/16
 

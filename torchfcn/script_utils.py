@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import shlex
 import subprocess
+from collections import OrderedDict
 from glob import glob
 
 import numpy as np
@@ -17,7 +18,6 @@ from tensorboardX import SummaryWriter
 import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
-from collections import OrderedDict
 from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn import instance_utils
 from torchfcn.datasets import dataset_statistics, samplers
@@ -365,7 +365,8 @@ def get_synthetic_datasets(cfg):
 def get_voc_datasets(cfg, voc_root):
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'],
-                          map_to_single_instance_problem=cfg['single_instance'])
+                          map_to_single_instance_problem=cfg['single_instance'],
+                          ordering=cfg['ordering'])
     train_dataset_kwargs = dict()
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='train', **dataset_kwargs,
                                                           **train_dataset_kwargs)

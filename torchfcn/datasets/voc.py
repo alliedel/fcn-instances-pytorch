@@ -2,12 +2,11 @@
 
 import collections
 import os.path as osp
-import shutil
 
-import PIL.Image
 import numpy as np
 from torch.utils import data
 
+from torchfcn.datasets.dataset_utils import load_img_as_dtype, generate_per_sem_instance_file
 from . import dataset_utils
 
 
@@ -111,6 +110,8 @@ class VOCClassSegBase(data.Dataset):
         # Get files
         self.files = self.get_files(dataset_dir)
         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
+        if self.ordering is not None:
+            self.sem_instance_id_remapping = [None for _ in self.files]  # buffer to store remappings in later
 
     def __len__(self):
         return len(self.files[self.split])
@@ -124,7 +125,7 @@ class VOCClassSegBase(data.Dataset):
 
     def set_instance_cap(self, n_inst_cap_per_class=None):
         if not isinstance(n_inst_cap_per_class, int):
-            raise NotImplementedError('Havent implemented dif cap per semantic class. Please use an int.')
+            raise NotImplementedError('Haven\'t implemented dif cap per semantic class. Please use an int.')
         self.n_inst_cap_per_class = n_inst_cap_per_class
 
     def reset_instance_cap(self):
@@ -165,48 +166,39 @@ class VOCClassSegBase(data.Dataset):
                 # TODO(allie) -- allow functionality for permuting instance labels
                 inst_absolute_lbl_file = osp.join(
                     dataset_dir, 'SegmentationObject/%s.png' % did)
-                inst_lbl_file = osp.join(
+                inst_lbl_file_unordered = osp.join(
                     dataset_dir, 'SegmentationObject/%s_per_sem_cls.png' % did)
-                if not osp.isfile(inst_lbl_file):
+                if not osp.isfile(inst_lbl_file_unordered):
                     if not osp.isfile(inst_absolute_lbl_file):
                         raise Exception('This image does not exist')
-                    self.generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file)
+                    generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file_unordered)
+
+                # Generate ordered instance ids
+                if self.ordering is None:
+                    inst_lbl_file = inst_lbl_file_unordered
+                elif self.ordering == 'LR':
+                    inst_lbl_file = inst_lbl_file_unordered.replace('.png', '_ordered_lr.png')
+                    if not osp.isfile(inst_lbl_file):
+                        dataset_utils.generate_lr_ordered_instance_file(inst_lbl_file_unordered,
+                                                                        sem_lbl_file, inst_lbl_file)
+
+                else:
+                    raise ValueError('ordering={} not recognized'.format(self.ordering))
                 files[split].append({
                     'img': img_file,
                     'sem_lbl': sem_lbl_file,
                     'inst_absolute_lbl': inst_absolute_lbl_file,
                     'inst_lbl': inst_lbl_file,
+                    'inst_lbl_unordered': inst_lbl_file_unordered,
                 })
             assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
         return files
 
-    def generate_per_sem_instance_file(self, inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
-        print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
-        sem_lbl = self.load_img_as_dtype(sem_lbl_file, np.int32)
-        unique_sem_lbls = np.unique(sem_lbl)
-        if sum(unique_sem_lbls > 0) <= 1:  # only one semantic object type
-            shutil.copyfile(inst_absolute_lbl_file, inst_lbl_file)
-        else:
-            inst_lbl = self.load_img_as_dtype(inst_absolute_lbl_file, np.int32)
-            inst_lbl[inst_lbl == 255] = -1
-            for sem_val in unique_sem_lbls[unique_sem_lbls > 0]:
-                first_instance_idx = inst_lbl[sem_lbl == sem_val].min()
-                inst_lbl[sem_lbl == sem_val] -= (first_instance_idx - 1)
-            self.write_np_array_as_img(inst_lbl, inst_lbl_file)
-
-    def write_np_array_as_img(self, arr, filename):
-        im = PIL.Image.fromarray(arr.astype(np.uint8))
-        im.save(filename)
-
-    def load_img_as_dtype(self, img_file, dtype):
-        img = PIL.Image.open(img_file)
-        img = np.array(img, dtype=dtype)
-        return img
-
     def transform_img(self, img):
         return dataset_utils.transform_img(img, self.mean_bgr, resized_sz=None)
 
-    def transform_lbl(self, lbl):
+    @staticmethod
+    def transform_lbl(lbl):
         return dataset_utils.transform_lbl(lbl)
 
     def transform(self, img, lbl):
@@ -228,27 +220,34 @@ class VOCClassSegBase(data.Dataset):
     def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
         raise NotImplementedError('we need to pass or create the instance config class to make this work properly')
 
-    def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file):
-        img = self.load_img_as_dtype(img_file, np.uint8)
-
-        # load semantic label
-        sem_lbl = self.load_img_as_dtype(sem_lbl_file, np.int32)
+    def load_and_process_sem_lbl(self, sem_lbl_file):
+        sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
         sem_lbl[sem_lbl == 255] = -1
         if self._transform:
-            img, sem_lbl = self.transform(img, sem_lbl)
+            sem_lbl = self.transform_lbl(sem_lbl)
         # map to reduced class set
         sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
+        return sem_lbl
+
+    def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file, gt_sem_inst_ordering_tuple_list=None):
+        img = load_img_as_dtype(img_file, np.uint8)
+        if self._transform:
+            img = self.transform_img(img)
+
+        # load semantic label
+        sem_lbl = self.load_and_process_sem_lbl(sem_lbl_file)
 
         # load instance label
         if self.semantic_only_labels:
             lbl = sem_lbl
         else:
-            inst_lbl = self.load_img_as_dtype(inst_lbl_file, np.int32)
+            inst_lbl = load_img_as_dtype(inst_lbl_file, np.int32)
             inst_lbl[inst_lbl == 255] = -1
             if self.map_to_single_instance_problem:
                 inst_lbl[inst_lbl != -1] = 1
             inst_lbl = self.transform_lbl(inst_lbl)
             inst_lbl[sem_lbl == -1] = -1
+
             if self.n_inst_cap_per_class is not None:
                 inst_lbl[inst_lbl > self.n_inst_cap_per_class] = -1
 
@@ -266,17 +265,6 @@ class VOCClassSegBase(data.Dataset):
         return dataset_utils.remap_to_reduced_semantic_classes(
             sem_lbl, reduced_class_idxs=self.idxs_into_all_voc,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
-
-    # def copy(self, modified_length=10):
-    #     my_copy = self.__class__(root=self.root, _im_a_copy=True)
-    #     for attr, val in self.__dict__.items():
-    #         setattr(my_copy, attr, val)
-    #     assert modified_length <= len(my_copy), "Can\'t create a copy with more examples than " \
-    #                                             "the initial dataset"
-    #
-    #     my_copy.modify_image_set(range(modified_length))
-    #     assert len(my_copy) == modified_length
-    #     return my_copy
 
 
 class VOC2011ClassSeg(VOCClassSegBase):

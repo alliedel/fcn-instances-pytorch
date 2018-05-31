@@ -1,5 +1,9 @@
+import shutil
+
+import PIL.Image
 import numpy as np
 import scipy.misc
+import scipy.ndimage
 import torch
 
 # TODO(allie): Allow for augmentations
@@ -114,6 +118,23 @@ def permute_instance_order(inst_lbl, n_max_per_class):
     return inst_lbl
 
 
+def remap(lbl, new_idxs):
+    if torch.is_tensor(lbl):
+        old_lbl = lbl.clone()
+    else:
+        old_lbl = lbl.copy()
+    lbl[...] = -2
+    lbl[old_lbl == -1] = -1
+    for old_class_idx, new_idx in enumerate(new_idxs):
+        lbl[old_lbl == old_class_idx] = new_idx
+
+    if DEBUG_ASSERT:
+        if any(lbl == -2):
+            untouched_values = old_lbl[lbl == -2]
+            import ipdb; ipdb.set_trace()
+            raise Exception('mapping was not thorough.  No value specified for {}'.format(untouched_values[0]))
+
+
 def remap_to_reduced_semantic_classes(lbl, reduced_class_idxs, map_other_classes_to_bground=True):
     """
     reduced_class_idxs = idxs_into_all_voc
@@ -177,3 +198,70 @@ def pytorch_unique(pytorch_1d_tensor):
 
 def augment_channels(tensor, augmentation_tensor, dim=0):
     return torch.cat([tensor, augmentation_tensor], dim=dim)
+
+
+def load_img_as_dtype(img_file, dtype):
+    img = PIL.Image.open(img_file)
+    img = np.array(img, dtype=dtype)
+    return img
+
+
+def write_np_array_as_img(arr, filename):
+    im = PIL.Image.fromarray(arr.astype(np.uint8))
+    im.save(filename)
+
+
+def write_np_array_as_img_with_borrowed_colormap_pallete(arr, filename, filename_for_colormap):
+    im = PIL.Image.fromarray(arr.astype(np.uint8))
+    colormap_src = PIL.Image.open(filename_for_colormap)
+    converted = im.quantize(palette=colormap_src)
+    converted.save(filename)
+
+
+def generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
+    print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
+    sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
+    sem_lbl[sem_lbl == 255] = -1
+    unique_sem_lbls = np.unique(sem_lbl)
+    if sum(unique_sem_lbls > 0) <= 1:  # only one semantic object type
+        shutil.copyfile(inst_absolute_lbl_file, inst_lbl_file)
+    else:
+        inst_lbl = load_img_as_dtype(inst_absolute_lbl_file, np.int32)
+        inst_lbl[inst_lbl == 255] = -1
+        for sem_val in unique_sem_lbls[unique_sem_lbls > 0]:
+            first_instance_idx = inst_lbl[sem_lbl == sem_val].min()
+            inst_lbl[sem_lbl == sem_val] -= (first_instance_idx - 1)
+        inst_lbl[inst_lbl == -1] = 255
+        write_np_array_as_img_with_borrowed_colormap_pallete(inst_lbl, inst_lbl_file, sem_lbl_file)
+
+
+def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out_inst_lbl_file_ordered):
+    print('Generating LR-ordered instance file: {}'.format(out_inst_lbl_file_ordered))
+    sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
+    unique_sem_lbls = np.unique(sem_lbl)
+    inst_lbl = load_img_as_dtype(inst_lbl_file_unordered, np.int32)
+    inst_lbl[inst_lbl == 255] = -1
+    old_inst_lbl = inst_lbl.copy()
+    for sem_val in unique_sem_lbls[unique_sem_lbls > 0]:
+        unique_instance_idxs = np.unique(old_inst_lbl[sem_lbl == sem_val])
+        if DEBUG_ASSERT:
+            assert not np.any(unique_instance_idxs == 0)
+        unique_instance_idxs = unique_instance_idxs[unique_instance_idxs > 0]  # don't remap void
+        coms = []
+        for old_inst_val in unique_instance_idxs:
+            com = compute_centroid_binary_mask(np.logical_and(sem_lbl == sem_val, old_inst_lbl == old_inst_val))
+            coms.append(com)
+        left_right_ordering = [x for x in np.argsort([com[1] for com in coms])]
+        if not all([x == y for x, y in zip(left_right_ordering, list(range(len(left_right_ordering))))]):
+            print('debug: confirmed we reordered at least one instance')
+        old_inst_vals = [unique_instance_idxs[x] for x in left_right_ordering]
+
+        for new_inst_val_minus_1, old_inst_val in enumerate(old_inst_vals):
+            new_inst_val = new_inst_val_minus_1 + 1
+            inst_lbl[np.logical_and(sem_lbl == sem_val, old_inst_lbl == old_inst_val)] = new_inst_val
+    inst_lbl[inst_lbl == -1] = 255
+    write_np_array_as_img_with_borrowed_colormap_pallete(inst_lbl, out_inst_lbl_file_ordered, inst_lbl_file_unordered)
+
+
+def compute_centroid_binary_mask(binary_mask):
+    return np.argwhere(binary_mask).sum(axis=0)/binary_mask.sum()

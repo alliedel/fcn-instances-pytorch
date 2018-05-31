@@ -57,7 +57,6 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
             raise Exception('log_predictions reached nan')
 
     if matching:
-
         ret = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
                                             instance_id_labels, return_loss_components=return_loss_components, **kwargs)
         if return_loss_components:
@@ -75,7 +74,10 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instanc
             if recompute_optimal_loss:
                 loss = loss_recomputed
     else:
-        pred_permutations = None
+        n, c = log_predictions.size()[0:2]
+        pred_permutations = np.empty((n, c), dtype=int)
+        for i in range(n):
+            pred_permutations[i, :] = range(c)
         ret = cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl,
                                                semantic_instance_labels,
                                                instance_id_labels,

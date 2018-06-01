@@ -52,7 +52,7 @@ def permute_channels(tensor_4d, permuted_channels):
     """
     Requires making a copy since we can't do in-place operations
     """
-    return torch.cat([tensor_4d[:, i:(i+1), :, :] for i in permuted_channels], dim=1)
+    return torch.cat([tensor_4d[:, i:(i + 1), :, :] for i in permuted_channels], dim=1)
 
 
 def semantic_label_gt_as_instance_prediction(sem_lbl, problem_config):
@@ -82,7 +82,8 @@ def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True
                   return_loss_components=False, **kwargs):
     if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                   score.size(3))):
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         raise Exception('Sizes of score, targets are incorrect')
     rets = losses.cross_entropy2d(
         score, sem_lbl, inst_lbl,
@@ -111,8 +112,32 @@ def parse_args():
     return args
 
 
+def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir, writer, iteration,
+                         basename):
+    inst_lbl_pred = score.max(dim=1)[1].data.cpu().numpy()[:, :, :]
+    sem_lbl = sem_lbl.data.cpu().numpy()
+    inst_lbl = inst_lbl.data.cpu().numpy()
+    score = score.data.cpu().numpy()
+    semantic_instance_class_list = problem_config.semantic_instance_class_list
+    instance_count_id_list = problem_config.instance_count_id_list
+    n_combined_class = problem_config.n_classes
+
+    lt_combined = instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
+                                                                      instance_count_id_list)
+    channel_labels = problem_config.get_channel_labels('{} {}')
+    viz = visualization_utils.visualize_heatmaps(scores=score[0, ...],
+                                                 lbl_true=lt_combined[0, ...],
+                                                 lbl_pred=inst_lbl_pred[0, ...],
+                                                 pred_permutations=pred_permutations[0, ...],
+                                                 n_class=n_combined_class,
+                                                 score_vis_normalizer=score.max(),
+                                                 channel_labels=channel_labels,
+                                                 channels_to_visualize=None)
+    trainer.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
+                                  basename=basename, tile=True)
+
+
 def main():
-    script_utils.check_clean_work_tree()
     synthetic_generator_n_instances_per_semantic_id = 2
     args = parse_args()
     cfg = {
@@ -123,9 +148,10 @@ def main():
         'xaxis': args.xaxis,
     }
 
-    out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), cfg=cfg,
-                                   parent_directory=osp.dirname(osp.abspath(__file__)))
-
+    out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_id=None,
+                                   cfg=cfg,
+                                   parent_directory=os.path.join(here, 'logs', 'synthetic'))
+    print('Log in {}'.format(out))
     cuda = True  # torch.cuda.is_available()
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -136,13 +162,14 @@ def main():
 
     # 1. dataset
     dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id,
-                          map_to_single_instance_problem=False)
+                          map_to_single_instance_problem=False, blob_size=(80, 80))
     train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
     val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
     try:
         img, (sl, il) = train_dataset[0]
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         raise Exception('Cannot load an image from your dataset')
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **loader_kwargs)
@@ -188,7 +215,7 @@ def main():
                 'smearing': float(smearing),
                 'assignment_mixing': assignment_mixing,
             }
-            print('prediction {}/{}'.format(prediction_number+1, len(max_confidences)))
+            print('prediction {}/{}'.format(prediction_number + 1, len(max_confidences)))
             score = compute_scores(data, sem_lbl, inst_lbl, problem_config, cuda=True, **scoring_cfg)
             pred_permutations, loss, loss_components = loss_function(score, sem_lbl, inst_lbl, problem_config,
                                                                      return_loss_components=True)
@@ -210,31 +237,6 @@ def main():
             # Write images
             write_visualizations(sem_lbl, inst_lbl, softmax_scores, pred_permutations, problem_config, outdir=out,
                                  writer=writer, iteration=prediction_number, basename='scores')
-
-
-def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_config, outdir, writer, iteration,
-                         basename):
-    inst_lbl_pred = score.max(dim=1)[1].data.cpu().numpy()[:, :, :]
-    sem_lbl = sem_lbl.data.cpu().numpy()
-    inst_lbl = inst_lbl.data.cpu().numpy()
-    score = score.data.cpu().numpy()
-    semantic_instance_class_list = problem_config.semantic_instance_class_list
-    instance_count_id_list = problem_config.instance_count_id_list
-    n_combined_class = problem_config.n_classes
-
-    lt_combined = instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
-                                                                      instance_count_id_list)
-    channel_labels = problem_config.get_channel_labels('{} {}')
-    viz = visualization_utils.visualize_heatmaps(scores=score[0, ...],
-                                                 lbl_true=lt_combined[0, ...],
-                                                 lbl_pred=inst_lbl_pred[0, ...],
-                                                 pred_permutations=pred_permutations[0, ...],
-                                                 n_class=n_combined_class,
-                                                 score_vis_normalizer=score.max(),
-                                                 channel_labels=channel_labels,
-                                                 channels_to_visualize=None)
-    trainer.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
-                                  basename=basename, tile=True)
 
 
 if __name__ == '__main__':

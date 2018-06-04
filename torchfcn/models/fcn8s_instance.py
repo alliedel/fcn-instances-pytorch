@@ -23,7 +23,7 @@ class FCN8sInstance(nn.Module):
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
-                 at_once=True, n_input_channels=3, clip=None):
+                 at_once=True, n_input_channels=3, clip=None, add_conv8=False):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -71,18 +71,19 @@ class FCN8sInstance(nn.Module):
             assert bottleneck_channel_capacity == int(bottleneck_channel_capacity), ValueError(
                 'bottleneck_channel_capacity must be an int')
             self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
+        self.add_conv8 = add_conv8
 
         # conv1
-        self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, 3, padding=100)
+        self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, kernel_size=3, padding=100)
         self.relu1_1 = nn.ReLU(inplace=True)
-        self.conv1_2 = nn.Conv2d(64, 64, 3, padding=1)
+        self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
         self.relu1_2 = nn.ReLU(inplace=True)
-        self.pool1 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/2
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # 1/2
 
         # conv2
-        self.conv2_1 = nn.Conv2d(64, 128, 3, padding=1)
+        self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.relu2_1 = nn.ReLU(inplace=True)
-        self.conv2_2 = nn.Conv2d(128, 128, 3, padding=1)
+        self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
         self.relu2_2 = nn.ReLU(inplace=True)
         self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/4
 
@@ -96,11 +97,7 @@ class FCN8sInstance(nn.Module):
         self.pool3 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/8
 
         # conv4
-        try:
-            self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
-        except:
-            import ipdb
-            ipdb.set_trace()
+        self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
         self.relu4_1 = nn.ReLU(inplace=True)
         self.conv4_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
         self.relu4_2 = nn.ReLU(inplace=True)
@@ -130,7 +127,19 @@ class FCN8sInstance(nn.Module):
         self.drop7 = nn.Dropout2d()
 
         # H/32 x W/32 x n_semantic_cls
-        self.score_fr = nn.Conv2d(4096, self.bottleneck_channel_capacity, 1)
+        INTERMEDIATE_CONV_CHANNEL_SIZE = 20
+        intermediate_channel_size = self.bottleneck_channel_capacity if not self.add_conv8 else \
+            INTERMEDIATE_CONV_CHANNEL_SIZE
+        self.score_fr = nn.Conv2d(4096, intermediate_channel_size, kernel_size=1)
+
+        # # conv8 -- added
+        # self.conv8_1 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
+        # self.relu8_1 = nn.ReLU(inplace=True)
+        # self.conv8_2 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
+        # self.relu8_2 = nn.ReLU(inplace=True)
+        # self.conv8_3 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
+        # self.relu8_3 = nn.ReLU(inplace=True)
+
         # H/32 x W/32 x n_semantic_cls
         self.score_pool3 = nn.Conv2d(256, self.bottleneck_channel_capacity, 1)
         # H/32 x W/32 x n_semantic_cls
@@ -221,8 +230,10 @@ class FCN8sInstance(nn.Module):
 
         h = self.relu7(self.fc7(h))
         h = self.drop7(h)
-
         h = self.score_fr(h)
+        # if self.add_conv8:
+        #     h = self.intermediate_conv1(h)
+        #     h = self.intermediate_conv2(h)
         h = self.upscore2(h)  # ConvTranspose2d, stride=2
         upscore2 = h  # 1/16
 

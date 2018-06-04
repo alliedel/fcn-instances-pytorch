@@ -200,5 +200,17 @@ configurations = {
         freeze_vgg=False,
         augment_semantic=False,
         map_to_semantic=True
+    ),
+    'person_lr': dict(
+        ordering='lr',
+        matching=False,
+        semantic_subset=['person', 'background'],
+        n_instances_per_class=3,
+    ),
+    'person_not_lr': dict(
+        ordering=None,
+        matching=True,
+        semantic_subset=['person', 'background'],
+        n_instances_per_class=3,
     )
 }

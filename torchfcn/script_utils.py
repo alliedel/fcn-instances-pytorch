@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import shlex
 import subprocess
+from collections import OrderedDict
 from glob import glob
 
 import numpy as np
@@ -17,7 +18,6 @@ from tensorboardX import SummaryWriter
 import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
-from collections import OrderedDict
 from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn import instance_utils
 from torchfcn.datasets import dataset_statistics, samplers
@@ -50,7 +50,8 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'score_multiplier': 'sm',
                                         'weight_by_instance': 'wt',
                                         'optim': 'o',
-                                        'augment_semantic': 'augsem'
+                                        'augment_semantic': 'augsem',
+                                        'add_conv8': 'conv8',
                                         }
 
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
@@ -321,7 +322,7 @@ def get_model(cfg, problem_config, checkpoint, semantic_init, cuda):
         semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
         map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
         bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'],
-        n_input_channels=n_input_channels, clip=cfg['clip'])
+        n_input_channels=n_input_channels, clip=cfg['clip'], add_conv8=cfg['add_conv8'])
     if checkpoint is not None:
         model.load_state_dict(checkpoint['model_state_dict'])
         start_epoch = checkpoint['epoch']
@@ -364,7 +365,8 @@ def get_synthetic_datasets(cfg):
 def get_voc_datasets(cfg, voc_root):
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'],
-                          map_to_single_instance_problem=cfg['single_instance'])
+                          map_to_single_instance_problem=cfg['single_instance'],
+                          ordering=cfg['ordering'])
     train_dataset_kwargs = dict()
     train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(voc_root, split='train', **dataset_kwargs,
                                                           **train_dataset_kwargs)

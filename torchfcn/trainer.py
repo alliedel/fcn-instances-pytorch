@@ -27,6 +27,10 @@ MY_TIMEZONE = 'America/New_York'
 DEBUG_ASSERTS = True
 
 
+BINARY_AUGMENT_MULTIPLIER = 100.0
+BINARY_AUGMENT_CENTERED = True
+
+
 def permute_scores(score, pred_permutations):
     score_permuted_to_match = score.clone()
     for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
@@ -183,7 +187,8 @@ class Trainer(object):
 
     def augment_image(self, img, sem_lbl):
         semantic_one_hot = dataset_utils.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
-        return dataset_utils.augment_channels(img, 100.0 * semantic_one_hot, dim=1)
+        return dataset_utils.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
+                                              (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
 
     def validate(self, split='val', write_basic_metrics=None, write_instance_metrics=None, save_checkpoint=None,
                  update_best_checkpoint=None, should_export_visualizations=True):

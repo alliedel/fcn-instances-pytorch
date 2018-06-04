@@ -326,8 +326,8 @@ def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
     if checkpoint_file is not None:
         checkpoint = torch.load(checkpoint_file)
         model.load_state_dict(checkpoint['model_state_dict'])
-        start_epoch = checkpoint_file['epoch']
-        start_iteration = checkpoint_file['iteration']
+        start_epoch = checkpoint['epoch']
+        start_iteration = checkpoint['iteration']
     else:
         start_epoch, start_iteration = 0, 0
         if cfg['initialize_from_semantic']:

@@ -238,7 +238,7 @@ def main():
         raise ValueError
     problem_config = script_utils.get_problem_config(train_dataset.class_names, 2)
     model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                 checkpoint=None, semantic_init=None, cuda=args.cuda)
+                                                                 checkpoint_file=None, semantic_init=None, cuda=args.cuda)
 
 
 if __name__ == '__main__':

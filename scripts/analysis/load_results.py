@@ -86,7 +86,7 @@ if __name__ == '__main__':
                                                                                                  packed_as_dict=False)
     cuda = torch.cuda.is_available()
     initial_model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                         checkpoint=None, semantic_init=None,
+                                                                         checkpoint_file=None, semantic_init=None,
                                                                          cuda=cuda)
 
     # main_check_freeze()

@@ -22,7 +22,7 @@ def test(frozen=True):
 
     problem_config = script_utils.get_problem_config(ALL_VOC_CLASS_NAMES, cfg['n_instances_per_class'])
     model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                 checkpoint=None, semantic_init=None, cuda=cuda)
+                                                                 checkpoint_file=None, semantic_init=None, cuda=cuda)
     initial_model = copy.deepcopy(model)
     # script_utils.check_clean_work_tree()
     if frozen:

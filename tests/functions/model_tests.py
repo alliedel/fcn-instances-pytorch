@@ -19,7 +19,7 @@ def build_example_model(**model_cfg_override_kwargs):
         cfg[k] = v
     problem_config = script_utils.get_problem_config(ALL_VOC_CLASS_NAMES, 2, map_to_semantic=cfg['map_to_semantic'])
     model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                 checkpoint=None, semantic_init=None, cuda=cuda)
+                                                                 checkpoint_file=None, semantic_init=None, cuda=cuda)
     return model
 
 

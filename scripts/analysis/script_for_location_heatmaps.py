@@ -71,10 +71,12 @@ def main():
             display_pyutils.imwrite_list_as_3d_array_to_workspace(
                 heatmap_image_list_3d, filename_base_ext='{}_score_heatmaps_imsave.png'.format(split))
             display_pyutils.matshow_and_save_3d_array_to_workspace(
-                heatmap_image_list_3d, filename_base_ext='{}_score_heatmaps_matshow_clim_synced.png'.format(split))
+                heatmap_image_list_3d, filename_base_ext='{}_score_heatmaps_matshow_clim_synced.png'.format(split),
+                show_filenames_as_titles=True)
             display_pyutils.matshow_and_save_3d_array_to_workspace(
                 heatmap_image_list_3d, sync_clims=False,
-                filename_base_ext='{}_score_heatmaps_clim_unsynced_per_image.png'.format(split))
+                filename_base_ext='{}_score_heatmaps_clim_unsynced_per_image.png'.format(split),
+                show_filenames_as_titles=True)
         except Exception as exc:
             import ipdb;
             ipdb.set_trace()

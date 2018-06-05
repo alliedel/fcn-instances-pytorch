@@ -157,6 +157,11 @@ def create_config_from_default(config_args, default_config):
     return cfg
 
 
+def load_config_from_logdir(logdir):
+    cfg_file = osp.join(logdir, 'config.yaml')
+    return load_config(cfg_file)
+
+
 def load_config(config_path):
     with open(config_path, 'r') as f:
         cfg = yaml.safe_load(f)
@@ -484,6 +489,7 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
                                                  sem_cls_filter=sem_cls_filter,
                                                  instance_count_file=val_instance_count_file)
 
+
         cut_n_images = pop_without_del(train_for_val_cfg, 'n_images', None) or len(train_dataset)
         train_for_val_sampler = train_sampler.copy(sequential_override=True,
                                                    cut_n_images=None if cut_n_images is None
@@ -515,6 +521,21 @@ def pop_without_del(dictionary, key, default):
     val = dictionary.pop(key, default)
     dictionary[key] = val
     return val
+
+
+def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=True):
+    cfg = load_config(logdir)
+    dataset = cfg['dataset']
+    model_pth = osp.join(logdir, 'model_best.pth.tar')
+    out_dir = '/tmp'
+
+    problem_config, model, trainer, optim, dataloaders = load_everything_from_cfg(
+        cfg, gpu, cfg['sampler'], dataset, resume=model_pth, semantic_init=None, out_dir=out_dir)
+    if packed_as_dict:
+        return dict(cfg=cfg, model_pth=model_pth, out_dir=out_dir, problem_config=problem_config, model=model,
+                    trainer=trainer, optim=optim, dataloaders=dataloaders)
+    else:
+        return cfg, model_pth, out_dir, problem_config, model, trainer, optim, dataloaders
 
 
 def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: torch.utils.data.Dataset,

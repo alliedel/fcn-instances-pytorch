@@ -5,10 +5,30 @@ import numpy as np
 import scipy.misc
 import scipy.ndimage
 import torch
+from torch.autograd import Variable
 
 # TODO(allie): Allow for augmentations
 
 DEBUG_ASSERT = True
+
+
+def prep_input_for_scoring(input_tensor, cuda):
+    """
+    n_semantic_classes only needed for augmenting.
+    """
+    if cuda:
+        input_tensor = input_tensor.cuda()
+    input_variable = Variable(input_tensor)
+    return input_variable
+
+
+def prep_inputs_for_scoring(img_tensor, sem_lbl_tensor, inst_lbl_tensor, cuda):
+    """
+    n_semantic_classes only needed for augmenting.
+    """
+    img_var, sem_lbl_var, inst_lbl_var = tuple(prep_input_for_scoring(x, cuda) for x in (img_tensor, sem_lbl_tensor,
+                                                                                         inst_lbl_tensor))
+    return img_var, sem_lbl_var, inst_lbl_var
 
 
 def assert_validation_images_arent_in_training_set(train_loader, val_loader):

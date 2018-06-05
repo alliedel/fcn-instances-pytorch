@@ -287,7 +287,7 @@ def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
     return trainer
 
 
-def get_optimizer(cfg, model, checkpoint=None):
+def get_optimizer(cfg, model, checkpoint_file=None):
     if cfg['optim'] == 'adam':
         optim = torch.optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     elif cfg['optim'] == 'sgd':
@@ -304,7 +304,8 @@ def get_optimizer(cfg, model, checkpoint=None):
             weight_decay=cfg['weight_decay'])
     else:
         raise Exception('optimizer {} not recognized.'.format(cfg['optim']))
-    if checkpoint:
+    if checkpoint_file:
+        checkpoint = torch.load(checkpoint_file)
         optim.load_state_dict(checkpoint['optim_state_dict'])
     return optim
 
@@ -523,8 +524,8 @@ def pop_without_del(dictionary, key, default):
     return val
 
 
-def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=True):
-    cfg = load_config(logdir)
+def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=False):
+    cfg = load_config_from_logdir(logdir)
     dataset = cfg['dataset']
     model_pth = osp.join(logdir, 'model_best.pth.tar')
     out_dir = '/tmp'
@@ -573,13 +574,10 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: t
     problem_config = get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
                                         map_to_semantic=cfg['map_to_semantic'])
 
-    if resume:
-        checkpoint = torch.load(resume)
-    else:
-        checkpoint = None
+    checkpoint_file = resume
 
     # 2. model
-    model, start_epoch, start_iteration = get_model(cfg, problem_config, checkpoint, semantic_init, cuda)
+    model, start_epoch, start_iteration = get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda)
 
     print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
@@ -587,7 +585,7 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: t
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
-    optim = get_optimizer(cfg, model, checkpoint)
+    optim = get_optimizer(cfg, model, checkpoint_file)
 
     if cfg['freeze_vgg']:
         for module_name, module in model.named_children():

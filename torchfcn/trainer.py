@@ -542,7 +542,7 @@ class Trainer(object):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
+                self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
                                                    self.iteration)
             loss.backward()
             self.optim.step()

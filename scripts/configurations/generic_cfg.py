@@ -25,4 +25,8 @@ default_config = dict(
                                  'upscore8', 'conv1x1_instance_to_semantic'),
     ordering=None,  # 'lr'
     add_conv8=False,
+    sampler=None,
+    dataset=None,
 )
+
+

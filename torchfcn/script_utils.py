@@ -528,15 +528,16 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     # 1. dataset
     if dataset_type == 'synthetic':
         train_dataset, val_dataset = get_synthetic_datasets(cfg)
-        n_instances_per_class = cfg['synthetic_generator_n_instances_per_semantic_id']
     elif dataset_type == 'voc':
         train_dataset, val_dataset = get_voc_datasets(cfg, VOC_ROOT)
         if cfg['semantic_subset'] is not None:
             train_dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
             val_dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
-        n_instances_per_class = 1 if cfg['single_instance'] else cfg['n_instances_per_class']
-        train_dataset.set_instance_cap(n_instances_per_class)
-        val_dataset.set_instance_cap(n_instances_per_class)
+        instance_cap = cfg['n_instances_per_class'] if cfg['dataset_instance_cap'] == 'match_model' else \
+            cfg['dataset_instance_cap']
+        if instance_cap is not None:
+            train_dataset.set_instance_cap(n_instances_per_class)
+            val_dataset.set_instance_cap(n_instances_per_class)
     else:
         raise ValueError
 
@@ -665,14 +666,8 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: t
         i, [sl, il] = [d for i, d in enumerate(dataloaders['train']) if i == 0][0]
     except:
         raise
-    synthetic_generator_n_instances_per_semantic_id = 2
-    n_instances_per_class = cfg['n_instances_per_class'] or \
-                            (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
+    n_instances_per_class = 1 if cfg['single_instance'] else cfg['n_instances_per_class']
 
-    # reduce dataloaders to semantic subset before running / generating problem config:
-    for key, dataloader in dataloaders.items():
-        dataloader.dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
-        dataloader.dataset.set_instance_cap(n_instances_per_class)
     problem_config = get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
                                         map_to_semantic=cfg['map_to_semantic'])
 

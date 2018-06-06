@@ -7,7 +7,8 @@ default_config.update(
     lr=1.0e-4,
     size_average=True,
     n_instances_per_class=None,
-    synthetic_generator_n_instances_per_semantic_id=2
+    synthetic_generator_n_instances_per_semantic_id=2,
+    export_activations=False,
 )
 
 configurations = {

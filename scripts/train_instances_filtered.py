@@ -93,6 +93,7 @@ def main():
     print('Done getting dataloaders')
 
     # reduce dataloaders to semantic subset before running / generating problem config:
+    n_instances_per_class = cfg['n_instances_per_class']
     problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
                                                      map_to_semantic=cfg['map_to_semantic'])
 

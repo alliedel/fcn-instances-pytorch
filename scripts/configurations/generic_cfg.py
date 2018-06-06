@@ -27,6 +27,5 @@ default_config = dict(
     add_conv8=False,
     sampler=None,
     dataset=None,
+    dataset_instance_cap='match_model',  #
 )
-
-

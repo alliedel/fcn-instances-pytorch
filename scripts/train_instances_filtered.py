@@ -91,14 +91,8 @@ def main():
     print('Getting dataloaders...')
     dataloaders = script_utils.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
     print('Done getting dataloaders')
-    synthetic_generator_n_instances_per_semantic_id = 2
-    n_instances_per_class = cfg['n_instances_per_class'] or \
-                            (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
 
     # reduce dataloaders to semantic subset before running / generating problem config:
-    for key, dataloader in dataloaders.items():
-        dataloader.dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
-        dataloader.dataset.set_instance_cap(n_instances_per_class)
     problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
                                                      map_to_semantic=cfg['map_to_semantic'])
 

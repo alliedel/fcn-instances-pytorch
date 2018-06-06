@@ -451,8 +451,7 @@ def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
 
 
 def get_synthetic_datasets(cfg):
-    synthetic_generator_n_instances_per_semantic_id = 2
-    dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id,
+    dataset_kwargs = dict(transform=True, n_max_per_class=cfg['synthetic_generator_n_instances_per_semantic_id'],
                           map_to_single_instance_problem=cfg['single_instance'])
     train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
     val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
@@ -529,8 +528,15 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     # 1. dataset
     if dataset_type == 'synthetic':
         train_dataset, val_dataset = get_synthetic_datasets(cfg)
+        n_instances_per_class = cfg['synthetic_generator_n_instances_per_semantic_id']
     elif dataset_type == 'voc':
         train_dataset, val_dataset = get_voc_datasets(cfg, VOC_ROOT)
+        if cfg['semantic_subset'] is not None:
+            train_dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
+            val_dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
+        n_instances_per_class = cfg['n_instances_per_class'] or (1 if cfg['single_instance'])
+        train_dataset.set_instance_cap(n_instances_per_class)
+        val_dataset.set_instance_cap(n_instances_per_class)
     else:
         raise ValueError
 

@@ -534,7 +534,7 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
         if cfg['semantic_subset'] is not None:
             train_dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
             val_dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
-        n_instances_per_class = cfg['n_instances_per_class'] or (1 if cfg['single_instance'])
+        n_instances_per_class = 1 if cfg['single_instance'] else cfg['n_instances_per_class']
         train_dataset.set_instance_cap(n_instances_per_class)
         val_dataset.set_instance_cap(n_instances_per_class)
     else:

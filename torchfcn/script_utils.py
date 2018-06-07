@@ -457,8 +457,8 @@ def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
     return model, start_epoch, start_iteration
 
 
-def get_synthetic_datasets(cfg):
-    dataset_kwargs = dict(transform=True, n_max_per_class=cfg['synthetic_generator_n_instances_per_semantic_id'],
+def get_synthetic_datasets(cfg, transform=True):
+    dataset_kwargs = dict(transform=transform, n_max_per_class=cfg['synthetic_generator_n_instances_per_semantic_id'],
                           map_to_single_instance_problem=cfg['single_instance'], ordering=cfg['ordering'])
     train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
     val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)

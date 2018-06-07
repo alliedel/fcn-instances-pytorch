@@ -66,13 +66,12 @@ class BlobExampleGenerator(object):
                 if n_inst_this_sem_cls > 0:
                     self.random_rows[:, sem_idx, :n_inst_this_sem_cls] = \
                         np.random.randint(0, self.img_size[0] - self.blob_size[0], (n_images, n_inst_this_sem_cls))
-                    random_cols_unordered = np.random.randint(0, self.img_size[1] - self.blob_size[1],
+                    random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[1],
                                                               (n_images, n_inst_this_sem_cls))
                     if self.ordering == 'lr':
-                        random_cols = random_cols_unordered.sort(axis=0)
-                        import ipdb; ipdb.set_trace()
+                        random_cols.sort(axis=1)
                     elif self.ordering is None:
-                        random_cols = random_cols_unordered
+                        pass
                     else:
                         raise ValueError('Didn\'t recognize ordering {}'.format(self.ordering))
                     self.random_cols[:, sem_idx, :n_inst_this_sem_cls] = random_cols
@@ -102,21 +101,21 @@ class BlobExampleGenerator(object):
         assert len(my_copy) == modified_length
         return my_copy
 
-    def get_blob_coordinates(self, image_index, semantic_idx, instance_id=None):
+    def get_blob_coordinates(self, image_index, semantic_idx, instance_idx=None):
         n_instances_in_this_sem_cls = self.n_instances_per_sem_cls[semantic_idx]
-        assert instance_id is None or n_instances_in_this_sem_cls > instance_id, \
+        assert instance_idx is None or n_instances_in_this_sem_cls > instance_idx, \
             ValueError('semantic class {} only has {} instances allocated'.format(
                 semantic_idx, n_instances_in_this_sem_cls))
         if self.location_generation_type == 'random':
-            if instance_id is None:
+            if instance_idx is None:
                 instance_rows = [self.random_rows[image_index, semantic_idx, i]
                                  for i in range(n_instances_in_this_sem_cls)]
                 instance_cols = [self.random_cols[image_index, semantic_idx, i]
                                  for i in range(n_instances_in_this_sem_cls)]
                 return instance_rows, instance_cols
             else:
-                r = self.random_rows[image_index, semantic_idx, instance_id - 1]  # instance_id = 1 for first object
-                c = self.random_cols[image_index, semantic_idx, instance_id - 1]
+                r = self.random_rows[image_index, semantic_idx, instance_idx]
+                c = self.random_cols[image_index, semantic_idx, instance_idx]
                 return r, c
         else:
             raise ValueError
@@ -125,9 +124,10 @@ class BlobExampleGenerator(object):
         img = np.zeros(self.img_size + (3,), dtype=float)
         sem_lbl = np.zeros(self.img_size, dtype=int)
         inst_lbl = np.zeros(self.img_size, dtype=int)
+        
         for semantic_idx, semantic_class in enumerate(self.semantic_classes):
             for instance_idx in range(self.n_instances_per_sem_cls[semantic_idx]):
-                r, c = self.get_blob_coordinates(image_index, semantic_idx, instance_id=instance_idx)
+                r, c = self.get_blob_coordinates(image_index, semantic_idx, instance_idx=instance_idx)
                 instance_id = instance_idx + 1
 
                 if semantic_class == 'square':
@@ -293,8 +293,8 @@ def valid_ellipse_locations(img_shape, center_r, center_c, b, a):
     return in_ellipse
 
 
-def draw_ellipse_on_pil_img(img, start_r, start_c, end_r, end_c, clr):
-    draw = ImageDraw.Draw(image)
-    draw.ellipse((start_c, start_r, end_c, end_r), fill=clr,
-                 outline=clr)
-    return image
+# def draw_ellipse_on_pil_img(img, start_r, start_c, end_r, end_c, clr):
+#     draw = ImageDraw.Draw(image)
+#     draw.ellipse((start_c, start_r, end_c, end_r), fill=clr,
+#                  outline=clr)
+#     return image

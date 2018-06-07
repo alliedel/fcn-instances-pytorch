@@ -21,7 +21,7 @@ def get_center_min_max(h, dest_h):
     return pad_vertical, (pad_vertical + h)
 
 
-def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
+def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
     if cfg['augment_semantic']:
         raise NotImplementedError('Gotta augment semantic first before running through model.')
 
@@ -33,9 +33,9 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
             x = dataset_utils.prep_input_for_scoring(x, cuda=cuda)
             score = model(x)
             n_channels = score.size(1)
-
-    heatmap_scores = torch.zeros(n_channels, *largest_image_shape)
-    heatmap_counts = torch.zeros(n_channels, *largest_image_shape)
+    largest_relative_image_shape = [2 * dim_sz for dim_sz in largest_image_shape]
+    heatmap_scores = torch.zeros(n_channels, *largest_relative_image_shape)
+    heatmap_counts = torch.zeros(n_channels, *largest_relative_image_shape)
 
     for idx, (x, (sem_lbl, inst_lbl)) in enumerate(dataloader):
         x, sem_lbl, inst_lbl = dataset_utils.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
@@ -65,17 +65,17 @@ def main():
                                                                          checkpoint_file=None, semantic_init=None,
                                                                          cuda=cuda)
     for split in ['train', 'val']:
-        heatmap_average = get_per_image_per_channel_heatmaps(model, dataloaders[split], cfg, cuda)
+        heatmap_average = get_relative_per_image_per_channel_heatmaps(model, dataloaders[split], cfg, cuda)
         try:
             heatmap_image_list_3d = heatmap_average.numpy().transpose(1, 2, 0)
             display_pyutils.imwrite_list_as_3d_array_to_workspace(
-                heatmap_image_list_3d, filename_base_ext='{}_score_heatmaps_imsave.png'.format(split))
+                heatmap_image_list_3d, filename_base_ext='{}_score_relative_heatmaps_imsave.png'.format(split))
             display_pyutils.matshow_and_save_3d_array_to_workspace(
-                heatmap_image_list_3d, filename_base_ext='{}_score_heatmaps_matshow_clim_synced.png'.format(split),
+                heatmap_image_list_3d, filename_base_ext='{}_score_relative_heatmaps_matshow_clim_synced.png'.format(split),
                 show_filenames_as_titles=True)
             display_pyutils.matshow_and_save_3d_array_to_workspace(
                 heatmap_image_list_3d, sync_clims=False,
-                filename_base_ext='{}_score_heatmaps_clim_unsynced_per_image.png'.format(split),
+                filename_base_ext='{}_score_relative_heatmaps_clim_unsynced_per_image.png'.format(split),
                 show_filenames_as_titles=True)
         except Exception as exc:
             import ipdb;

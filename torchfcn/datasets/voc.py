@@ -245,7 +245,8 @@ class VOCClassSegBase(data.Dataset):
             inst_lbl[inst_lbl == 255] = -1
             if self.map_to_single_instance_problem:
                 inst_lbl[inst_lbl != -1] = 1
-            inst_lbl = self.transform_lbl(inst_lbl)
+            if self._transform:
+                inst_lbl = self.transform_lbl(inst_lbl)
             inst_lbl[sem_lbl == -1] = -1
 
             if self.n_inst_cap_per_class is not None:

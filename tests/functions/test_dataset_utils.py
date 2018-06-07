@@ -5,7 +5,7 @@ import numpy as np
 here = osp.dirname(__file__)
 
 
-def test_lr_ordering():
+def test_lr_ordering_voc():
     img_id = '2011_003114'
     test_data_folder = osp.join(osp.dirname(here), 'test_data')
     sem_lbl_file = osp.join(test_data_folder, 'VOC2012', 'SegmentationClass', '{}.png'.format(img_id))
@@ -49,5 +49,5 @@ def test_lr_ordering():
 
 
 if __name__ == '__main__':
-    test_lr_ordering()
+    test_lr_ordering_voc()
 

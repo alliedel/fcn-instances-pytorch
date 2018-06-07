@@ -8,6 +8,7 @@ def get_default_config():
              set_extras_to_void=True,
              lr=1.0e-4,
              size_average=True,
+             dataset='voc',
              )
     )
     return default_cfg

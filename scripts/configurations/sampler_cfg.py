@@ -98,3 +98,5 @@ sampler_cfgs = {
         }
     }
 }
+
+sampler_cfgs[None] = sampler_cfgs['default']

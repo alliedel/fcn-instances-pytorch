@@ -58,13 +58,6 @@ def get_cfgs(dataset, config_idx, cfg_override_args):
     return cfg, cfg_to_print
 
 
-def get_sampler_cfg(sampler_arg):
-    sampler_cfg = sampler_cfgs[sampler_arg]
-    if sampler_cfg['train_for_val'] is None:
-        sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
-    return sampler_cfg
-
-
 def main():
     script_utils.check_clean_work_tree()
     args, cfg_override_args = parse_args()
@@ -72,7 +65,7 @@ def main():
     config_idx = args.config
 
     cfg, cfg_to_print = get_cfgs(dataset=args.dataset, config_idx=config_idx, cfg_override_args=cfg_override_args)
-    sampler_cfg = get_sampler_cfg(args.sampler)
+    sampler_cfg = script_utils.get_sampler_cfg(args.sampler)
 
     # cfg['dataset'] = args.dataset
     # cfg['sampler'] = args.sampler

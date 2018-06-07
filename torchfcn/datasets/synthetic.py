@@ -32,9 +32,9 @@ class BlobExampleGenerator(object):
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
                  n_images=Defaults.n_images, mean_bgr=Defaults.mean_bgr,
-                 transform=Defaults.transform, velocity_r_c=None,
-                 initial_rows=None, initial_cols=None, _im_a_copy=False,
-                 map_to_single_instance_problem=False):
+                 transform=Defaults.transform, _im_a_copy=False,
+                 map_to_single_instance_problem=False,
+                 ordering=None):
         self.map_to_single_instance_problem = map_to_single_instance_problem
         self.img_size = img_size
         assert len(self.img_size) == 2
@@ -53,6 +53,7 @@ class BlobExampleGenerator(object):
         self.class_names, self.idxs_into_all_blobs = self.get_semantic_names_and_idxs(
             self.semantic_subset)
         self.n_instances_per_sem_cls = [0] + [n_max_per_class for _ in range(len(self.semantic_classes) - 1)]
+        self.ordering = ordering.lower() if ordering is not None else None
 
         # Blob dynamics
         self.location_generation_type = Defaults.location_generation_type
@@ -65,9 +66,16 @@ class BlobExampleGenerator(object):
                 if n_inst_this_sem_cls > 0:
                     self.random_rows[:, sem_idx, :n_inst_this_sem_cls] = \
                         np.random.randint(0, self.img_size[0] - self.blob_size[0], (n_images, n_inst_this_sem_cls))
-
-                    self.random_cols[:, sem_idx, :n_inst_this_sem_cls] = \
-                        np.random.randint(0, self.img_size[1] - self.blob_size[1], (n_images, n_inst_this_sem_cls))
+                    random_cols_unordered = np.random.randint(0, self.img_size[1] - self.blob_size[1],
+                                                              (n_images, n_inst_this_sem_cls))
+                    if self.ordering == 'lr':
+                        random_cols = random_cols_unordered.sort(axis=0)
+                        import ipdb; ipdb.set_trace()
+                    elif self.ordering is None:
+                        random_cols = random_cols_unordered
+                    else:
+                        raise ValueError('Didn\'t recognize ordering {}'.format(self.ordering))
+                    self.random_cols[:, sem_idx, :n_inst_this_sem_cls] = random_cols
                     # TODO(allie): check for overlap and get rid of it.
         else:
             self.n_images = n_images
@@ -77,8 +85,8 @@ class BlobExampleGenerator(object):
         if self.map_to_single_instance_problem:
             inst_lbl[inst_lbl > 1] = 1
         if self._transform:
-            img, (sem_lbl, inst_lbl) = self.transform_img(img), (self.transform_lbl(sem_lbl), self.transform_lbl(
-                inst_lbl))
+            img, (sem_lbl, inst_lbl) = self.transform_img(img), (self.transform_lbl(sem_lbl),
+                                                                 self.transform_lbl(inst_lbl))
         return img, (sem_lbl, inst_lbl)
 
     def __len__(self):

@@ -163,6 +163,13 @@ def get_parser(voc_default, voc_configs, synthetic_default, synthetic_configs):
     return parser
 
 
+def get_sampler_cfg(sampler_arg):
+    sampler_cfg = sampler_cfgs[sampler_arg]
+    if sampler_cfg['train_for_val'] is None:
+        sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
+    return sampler_cfg
+
+
 def prune_defaults_from_dict(default_dict, update_dict):
     non_defaults = update_dict.copy()
     keys_to_pop = []
@@ -458,8 +465,8 @@ def get_synthetic_datasets(cfg):
     return train_dataset, val_dataset
 
 
-def get_voc_datasets(cfg, voc_root):
-    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
+def get_voc_datasets(cfg, voc_root, transform=True):
+    dataset_kwargs = dict(transform=transform, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'],
                           map_to_single_instance_problem=cfg['single_instance'],
                           ordering=cfg['ordering'])
@@ -536,10 +543,10 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
         instance_cap = cfg['n_instances_per_class'] if cfg['dataset_instance_cap'] == 'match_model' else \
             cfg['dataset_instance_cap']
         if instance_cap is not None:
-            train_dataset.set_instance_cap(n_instances_per_class)
-            val_dataset.set_instance_cap(n_instances_per_class)
+            train_dataset.set_instance_cap(instance_cap)
+            val_dataset.set_instance_cap(instance_cap)
     else:
-        raise ValueError
+        raise ValueError('dataset_type={} not recognized'.format(dataset_type))
 
     # 2. samplers
     if sampler_cfg is None:
@@ -630,6 +637,11 @@ def pop_without_del(dictionary, key, default):
 def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=False):
     cfg = load_config_from_logdir(logdir)
     dataset = cfg['dataset']
+    if dataset is None:
+        print(color_text(
+            'dataset not set in cfg -- this needs to be fixed for future experiments (supporting for '
+            'legacy experiments).  Interpreting dataset name from folder name now...', TermColors.WARNING))
+        dataset = os.path.basename(os.path.dirname(os.path.normpath(logdir)))
     model_pth = osp.join(logdir, 'model_best.pth.tar')
     out_dir = '/tmp'
 
@@ -642,7 +654,7 @@ def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=False):
         return cfg, model_pth, out_dir, problem_config, model, trainer, optim, dataloaders
 
 
-def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: torch.utils.data.Dataset,
+def load_everything_from_cfg(cfg: dict, gpu: int, sampler_opt, dataset: torch.utils.data.Dataset,
                              resume: str, semantic_init, out_dir: str) -> tuple:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
@@ -652,7 +664,7 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: t
     if cuda:
         torch.cuda.manual_seed(1337)
     print('Getting dataloaders...')
-    sampler_cfg = sampler_cfgs[sampler_args]
+    sampler_cfg = get_sampler_cfg(cfg['sampler'])
     try:
         sampler_cfg['train_for_val']
     except:

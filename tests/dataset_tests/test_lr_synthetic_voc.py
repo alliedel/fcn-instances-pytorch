@@ -31,9 +31,9 @@ def is_lr_ordered(sem_lbl, inst_lbl):
 
 
 def test_lr_of_dataset(dataset_name):
-    cfg = voc_cfg.default_config
     print('Getting datasets')
     if dataset_name == 'voc':
+        cfg = voc_cfg.default_config
         # unordered
         cfg['ordering'] = None
         script_utils.set_random_seeds()
@@ -44,6 +44,7 @@ def test_lr_of_dataset(dataset_name):
         script_utils.set_random_seeds()
         train_dataset_ordered, _ = script_utils.get_voc_datasets(cfg, '/home/adelgior/data/datasets/', transform=False)
     elif dataset_name == 'synthetic':
+        cfg = synthetic_cfg.default_config
         # unordered
         cfg['ordering'] = None
         script_utils.set_random_seeds()

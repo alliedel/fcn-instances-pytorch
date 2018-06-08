@@ -35,4 +35,4 @@ _default_config = dict(
 
 
 def get_default_config():
-    return _default_config
+    return _default_config.copy()

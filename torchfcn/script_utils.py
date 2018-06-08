@@ -407,11 +407,12 @@ def get_optimizer(cfg, model, checkpoint_file=None):
 
 
 # val_dataset.class_names
-def get_problem_config(class_names, n_instances_per_class, map_to_semantic=False):
+def get_problem_config(class_names, n_instances_per_class: int, map_to_semantic=False):
     # 0. Problem setup (instance segmentation definition)
     class_names = class_names
     n_semantic_classes = len(class_names)
     n_instances_by_semantic_id = [1] + [n_instances_per_class for _ in range(1, n_semantic_classes)]
+    import ipdb; ipdb.set_trace()
     problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id,
                                                           map_to_semantic=map_to_semantic)
     problem_config.set_class_names(class_names)
@@ -684,6 +685,7 @@ def load_everything_from_cfg(cfg: dict, gpu: int, dataset_name: str, resume: str
     except:
         raise
     n_instances_per_class = 1 if cfg['single_instance'] else cfg['n_instances_per_class']
+    assert n_instances_per_class is not None
 
     problem_config = get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
                                         map_to_semantic=cfg['map_to_semantic'])

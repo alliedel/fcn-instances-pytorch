@@ -22,6 +22,8 @@ class InstanceProblemConfig(object):
         """
         if semantic_vals is not None:
             assert len(semantic_vals) == len(n_instances_by_semantic_id)
+        assert n_instances_by_semantic_id is not None, ValueError
+
         self.map_to_semantic = map_to_semantic
         self.class_names = class_names
         self.semantic_vals = semantic_vals or range(len(n_instances_by_semantic_id))

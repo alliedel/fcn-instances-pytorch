@@ -68,9 +68,6 @@ def main():
                                                                                                         args.dataset)
     sampler_cfg = script_utils.get_sampler_cfg(args.sampler)
 
-    # cfg['dataset'] = args.dataset
-    # cfg['sampler'] = args.sampler
-
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                        cfg_to_print,
                                        parent_directory=os.path.join(here, 'logs', args.dataset))

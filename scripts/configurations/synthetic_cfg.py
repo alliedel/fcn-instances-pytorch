@@ -8,7 +8,7 @@ def get_default_config():
         interval_validate=100,
         lr=1.0e-4,
         size_average=True,
-        n_instances_per_class=None,
+        n_instances_per_class=3,
         synthetic_generator_n_instances_per_semantic_id=2,
         export_activations=False,
         dataset='synthetic',

@@ -126,13 +126,18 @@ def parse_args():
     # Fix a few values
     replace_attr_with_function_of_val(override_cfg_args, 'clip', lambda old_val: old_val if old_val > 0 else None,
                                       error_if_attr_doesnt_exist=False)
+    print(override_cfg_args.semantic_subset)
+    replace_attr_with_function_of_val(override_cfg_args, 'semantic_subset',
+                                      lambda old_val: old_val if (old_val is None or old_val == '') else
+                                      [s.strip() for s in old_val.split(',')],
+                                      error_if_attr_doesnt_exist=False)
 
     return args, override_cfg_args
 
 
 def replace_attr_with_function_of_val(namespace, attr, replacement_function, error_if_attr_doesnt_exist=True):
     if attr in namespace.__dict__.keys():
-        setattr(namespace, attr, replacement_function(attr))
+        setattr(namespace, attr, replacement_function(getattr(namespace, attr)))
     elif error_if_attr_doesnt_exist:
         raise Exception('attr {} does not exist in namespace'.format(attr))
 
@@ -219,9 +224,8 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
     cfg_print = config_dict.copy()
     for key, replacement_key in config_key_replacements.items():
         if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
-            if getattr(config_dict, 'semantic_subset', None) is not None:
-                cfg_print['semantic_subset'] = '_'.join([cls for cls in config_dict['semantic_subset']])
-                # cfg_print['semantic_subset'] = ''.join([cls[0] for cls in config_dict['semantic_subset']])
+            if 'semantic_subset' in config_dict.keys() and config_dict['semantic_subset'] is not None:
+                cfg_print['semantic_subset'] = '_'.join([cls.strip() for cls in config_dict['semantic_subset']])
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
 
@@ -306,6 +310,9 @@ def get_log_dir(model_name, config_id=None, cfg=None, parent_directory='logs'):
             v = str(v)
             if '/' in v:
                 continue
+            if isinstance(v, list):
+                import ipdb; ipdb.set_trace()
+                v = '_'.join(v)
             name += '_%s-%s' % (k.upper(), v)
             for key, val in bad_char_replacements.items():
                 name = name.replace(key, val)
@@ -458,7 +465,8 @@ def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
 
 def get_synthetic_datasets(cfg, transform=True):
     dataset_kwargs = dict(transform=transform, n_max_per_class=cfg['synthetic_generator_n_instances_per_semantic_id'],
-                          map_to_single_instance_problem=cfg['single_instance'], ordering=cfg['ordering'])
+                          map_to_single_instance_problem=cfg['single_instance'], ordering=cfg['ordering'],
+                          semantic_subset=cfg['semantic_subset'])
     train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg['n_images_train'])
     val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg['n_images_val'])
     return train_dataset, val_dataset

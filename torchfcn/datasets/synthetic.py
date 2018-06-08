@@ -34,7 +34,11 @@ class BlobExampleGenerator(object):
                  n_images=Defaults.n_images, mean_bgr=Defaults.mean_bgr,
                  transform=Defaults.transform, _im_a_copy=False,
                  map_to_single_instance_problem=False,
-                 ordering=None):
+                 ordering=None, semantic_subset=None):
+
+        assert semantic_subset is None or all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset]), \
+            ValueError('semantic_subset={} is incorrect. Must be a list of semantic classes in {}'.format(
+                semantic_subset, ALL_BLOB_CLASS_NAMES))
         self.map_to_single_instance_problem = map_to_single_instance_problem
         self.img_size = img_size
         assert len(self.img_size) == 2
@@ -47,9 +51,9 @@ class BlobExampleGenerator(object):
         self.n_images = n_images
         self.mean_bgr = mean_bgr
         self._transform = transform
-        self.semantic_subset = None
+        self.semantic_subset = semantic_subset
         # TODO(allie): change the line below to allow dif. blob types
-        self.semantic_classes = ALL_BLOB_CLASS_NAMES
+        self.semantic_classes = semantic_subset or ALL_BLOB_CLASS_NAMES
         self.class_names, self.idxs_into_all_blobs = self.get_semantic_names_and_idxs(
             self.semantic_subset)
         self.n_instances_per_sem_cls = [0] + [n_max_per_class for _ in range(len(self.semantic_classes) - 1)]

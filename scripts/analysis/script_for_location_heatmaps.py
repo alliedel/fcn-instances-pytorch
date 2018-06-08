@@ -58,12 +58,11 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
 def main():
     args = parse_args()
     logdir = args.logdir
+
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
         script_utils.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     cuda = torch.cuda.is_available()
-    initial_model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                         checkpoint_file=None, semantic_init=None,
-                                                                         cuda=cuda)
+
     for split in ['train', 'val']:
         heatmap_average = get_per_image_per_channel_heatmaps(model, dataloaders[split], cfg, cuda)
         try:

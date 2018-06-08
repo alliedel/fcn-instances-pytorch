@@ -636,17 +636,24 @@ def pop_without_del(dictionary, key, default):
 
 def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=False):
     cfg = load_config_from_logdir(logdir)
-    dataset = cfg['dataset']
-    if dataset is None:
+    dataset_name = cfg['dataset']
+    if dataset_name != os.path.basename(os.path.dirname(os.path.normpath(logdir))):
+        cfg_dataset_name = dataset_name
+        dataset_name = os.path.basename(os.path.dirname(os.path.normpath(logdir)))
+        print(color_text('cfg[\'dataset\'] was set to '
+                         '{} but I think based on the log directory it\'s actually '
+                         '{}'.format(cfg_dataset_name, dataset_name), TermColors.WARNING))
+    if dataset_name is None:
         print(color_text(
             'dataset not set in cfg -- this needs to be fixed for future experiments (supporting for '
             'legacy experiments).  Interpreting dataset name from folder name now...', TermColors.WARNING))
-        dataset = os.path.basename(os.path.dirname(os.path.normpath(logdir)))
+        dataset_name = os.path.basename(os.path.dirname(os.path.normpath(logdir)))
     model_pth = osp.join(logdir, 'model_best.pth.tar')
     out_dir = '/tmp'
 
-    problem_config, model, trainer, optim, dataloaders = load_everything_from_cfg(
-        cfg, gpu, cfg['sampler'], dataset, resume=model_pth, semantic_init=None, out_dir=out_dir)
+    problem_config, model, trainer, optim, dataloaders = load_everything_from_cfg(cfg, gpu, dataset_name,
+                                                                                  resume=model_pth, semantic_init=None,
+                                                                                  out_dir=out_dir)
     if packed_as_dict:
         return dict(cfg=cfg, model_pth=model_pth, out_dir=out_dir, problem_config=problem_config, model=model,
                     trainer=trainer, optim=optim, dataloaders=dataloaders)
@@ -654,8 +661,7 @@ def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=False):
         return cfg, model_pth, out_dir, problem_config, model, trainer, optim, dataloaders
 
 
-def load_everything_from_cfg(cfg: dict, gpu: int, sampler_opt, dataset: torch.utils.data.Dataset,
-                             resume: str, semantic_init, out_dir: str) -> tuple:
+def load_everything_from_cfg(cfg: dict, gpu: int, dataset_name: str, resume: str, semantic_init, out_dir: str) -> tuple:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
 
@@ -672,7 +678,7 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_opt, dataset: torch.ut
     if sampler_cfg['train_for_val'] is None:
         sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
 
-    dataloaders = get_dataloaders(cfg, dataset, cuda, sampler_cfg)
+    dataloaders = get_dataloaders(cfg, dataset_name, cuda, sampler_cfg)
     print('Done getting dataloaders')
     try:
         i, [sl, il] = [d for i, d in enumerate(dataloaders['train']) if i == 0][0]

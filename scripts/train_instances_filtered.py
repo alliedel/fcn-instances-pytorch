@@ -63,8 +63,8 @@ def main():
     args, cfg_override_args = parse_args()
     gpu = args.gpu
     config_idx = args.config
-
     cfg, cfg_to_print = get_cfgs(dataset=args.dataset, config_idx=config_idx, cfg_override_args=cfg_override_args)
+    assert cfg['dataset'] == args.dataset, 'Debug Error'
     sampler_cfg = script_utils.get_sampler_cfg(args.sampler)
 
     # cfg['dataset'] = args.dataset

@@ -63,7 +63,6 @@ def main():
     args, cfg_override_args = parse_args()
     gpu = args.gpu
     config_idx = args.config
-    import ipdb; ipdb.set_trace()
     cfg, cfg_to_print = get_cfgs(dataset=args.dataset, config_idx=config_idx, cfg_override_args=cfg_override_args)
     assert cfg['dataset'] == args.dataset, 'Debug Error: cfg[\'dataset\']: {}, args.dataset: {}'.format(cfg['dataset'],
                                                                                                         args.dataset)

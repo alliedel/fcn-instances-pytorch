@@ -97,17 +97,17 @@ def str_or_int(val):
 def parse_args():
     # Get initial parser
     parser = get_parser(
-        voc_default=voc_cfg.default_config,
+        voc_default=voc_cfg.get_default_config(),
         voc_configs=voc_cfg.configurations,
-        synthetic_default=synthetic_cfg.default_config,
+        synthetic_default=synthetic_cfg.get_default_config(),
         synthetic_configs=synthetic_cfg.configurations,
     )
 
     args, argv = parser.parse_known_args()
 
     # Config override parser
-    cfg_default = {'synthetic': synthetic_cfg.default_config,
-                   'voc': voc_cfg.default_config}[args.dataset]
+    cfg_default = {'synthetic': synthetic_cfg.get_default_config(),
+                   'voc': voc_cfg.get_default_config()}[args.dataset]
     cfg_override_parser = get_cfg_override_parser(cfg_default)
 
     bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
@@ -139,7 +139,7 @@ def replace_attr_with_function_of_val(namespace, attr, replacement_function, err
 
 def get_parser(voc_default, voc_configs, synthetic_default, synthetic_configs):
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(help='dataset', dest='dataset: voc, synthetic')
+    subparsers = parser.add_subparsers(help='dataset: voc, synthetic', dest='dataset')
     dataset_parsers = {
         'voc': subparsers.add_parser('voc', help='VOC dataset options',
                                      epilog='\n\nOverride options:\n' + '\n'.join(
@@ -151,7 +151,6 @@ def get_parser(voc_default, voc_configs, synthetic_default, synthetic_configs):
         cfg_choices = list({'synthetic': synthetic_configs,
                             'voc': voc_configs}[dataset_name].keys())
         subparser.add_argument('-c', '--config', type=str_or_int, default=0, choices=cfg_choices)
-        subparser.set_defaults(dataset=dataset_name)
         subparser.add_argument('-g', '--gpu', type=int, required=True)
         subparser.add_argument('--resume', help='Checkpoint path')
         subparser.add_argument('--semantic-init', help='Checkpoint path of semantic model (e.g. - '

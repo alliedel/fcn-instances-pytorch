@@ -1,4 +1,7 @@
-default_config = dict(
+# NOTE(allie): Do not directly access this dictionary unless you want to change it for *every* module that imports
+# this one.  Ran into issues not copying this dictionary when I started changing it, and it changes all the config
+# dictionaries.
+_default_config = dict(
     max_iteration=100000,
     lr=1.0e-12,
     momentum=0.99,
@@ -29,3 +32,7 @@ default_config = dict(
     dataset=None,
     dataset_instance_cap='match_model',  #
 )
+
+
+def get_default_config():
+    return _default_config

@@ -3,7 +3,7 @@ from scripts.configurations import voc_cfg
 
 
 if __name__ == '__main__':
-    cfg = voc_cfg.default_config
+    cfg = voc_cfg.get_default_config()
     cfg['ordering'] = 'LR'
     print('Getting datasets')
     train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, '/home/adelgior/data/datasets/')

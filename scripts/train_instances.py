@@ -40,8 +40,8 @@ def main():
     args = parse_args()
     gpu = args.gpu
     config_idx = args.config
-    cfg_default = {'synthetic': synthetic_cfg.default_config,
-                   'voc': voc_cfg.default_config}[args.dataset]
+    cfg_default = {'synthetic': synthetic_cfg.get_default_config(),
+                   'voc': voc_cfg.get_default_config()}[args.dataset]
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[args.dataset]
     cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)

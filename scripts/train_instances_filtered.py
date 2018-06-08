@@ -35,8 +35,8 @@ def parse_args():
 
 def get_cfgs(dataset, config_idx, cfg_override_args):
     # dataset = args.dataset
-    cfg_default = {'synthetic': synthetic_cfg.default_config,
-                   'voc': voc_cfg.default_config}[dataset]
+    cfg_default = {'synthetic': synthetic_cfg.get_default_config(),
+                   'voc': voc_cfg.get_default_config()}[dataset]
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[dataset]
     cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)
@@ -63,8 +63,10 @@ def main():
     args, cfg_override_args = parse_args()
     gpu = args.gpu
     config_idx = args.config
+    import ipdb; ipdb.set_trace()
     cfg, cfg_to_print = get_cfgs(dataset=args.dataset, config_idx=config_idx, cfg_override_args=cfg_override_args)
-    assert cfg['dataset'] == args.dataset, 'Debug Error'
+    assert cfg['dataset'] == args.dataset, 'Debug Error: cfg[\'dataset\']: {}, args.dataset: {}'.format(cfg['dataset'],
+                                                                                                        args.dataset)
     sampler_cfg = script_utils.get_sampler_cfg(args.sampler)
 
     # cfg['dataset'] = args.dataset

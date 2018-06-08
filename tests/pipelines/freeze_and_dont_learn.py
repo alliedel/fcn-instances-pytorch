@@ -14,7 +14,7 @@ def test(frozen=True):
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
 
-    cfg = voc_cfg.default_config
+    cfg = voc_cfg.get_default_config()
     cfg_override_args = {'n_instances_per_class': 1, 'max_iteration': 1, 'interval_validate': 1, 'lr': 0.01}
     for k, v in cfg_override_args.items():
         cfg.pop(k)  # ensures the key actually existed before

@@ -10,6 +10,8 @@ default_config.update(
     synthetic_generator_n_instances_per_semantic_id=2,
     export_activations=False,
     dataset='synthetic',
+    n_images_train=100,
+    n_images_val=100,
 )
 
 configurations = {

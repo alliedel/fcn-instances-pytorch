@@ -126,7 +126,6 @@ def parse_args():
     # Fix a few values
     replace_attr_with_function_of_val(override_cfg_args, 'clip', lambda old_val: old_val if old_val > 0 else None,
                                       error_if_attr_doesnt_exist=False)
-    print(override_cfg_args.semantic_subset)
     replace_attr_with_function_of_val(override_cfg_args, 'semantic_subset',
                                       lambda old_val: old_val if (old_val is None or old_val == '') else
                                       [s.strip() for s in old_val.split(',')],

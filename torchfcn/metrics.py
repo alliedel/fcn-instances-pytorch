@@ -191,7 +191,7 @@ class InstanceMetrics(object):
                         'fraction_of_sem_cls_for_assigned_pixels': {
                             channel_labels[channel_idx] + '_mean': 0 if (self.assignments == channel_idx).sum() == 0
                             else ((self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]) /
-                                  self.softmaxed_scores[:, sem_cls, :, :][self.assignments == channel_idx]).mean()
+                                  softmax_scores_per_sem_cls[:, sem_cls, :, :][self.assignments == channel_idx]).mean()
                             for channel_idx, sem_cls in enumerate(self.problem_config.semantic_instance_class_list)
                         },
                     },

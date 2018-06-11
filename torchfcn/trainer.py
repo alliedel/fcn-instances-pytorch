@@ -118,7 +118,7 @@ class Trainer(object):
             'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val, **metric_maker_kwargs)
         }
 
-    def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
+    def my_cross_entropy(self, score, sem_lbl, inst_lbl, val_matching_override=False, **kwargs):
         map_to_semantic = self.instance_problem.map_to_semantic
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                       score.size(3))):
@@ -131,7 +131,7 @@ class Trainer(object):
 
         semantic_instance_labels = self.instance_problem.semantic_instance_class_list
         instance_id_labels = self.instance_problem.instance_count_id_list
-        matching = self.matching_loss
+        matching = val_matching_override or self.matching_loss
 
         permutations, loss = losses.cross_entropy2d(
             score, sem_lbl, inst_lbl,
@@ -422,7 +422,7 @@ class Trainer(object):
                                        Variable(sem_lbl), Variable(inst_lbl)
 
         score = self.model(full_data)
-        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching=True)
         if is_nan(loss.data[0]):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(full_data)
@@ -531,7 +531,7 @@ class Trainer(object):
             self.optim.zero_grad()
 
             score = self.model(full_data)
-            pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+            pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=False)
             if is_nan(loss.data[0]):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('loss is nan while training')
@@ -567,7 +567,8 @@ class Trainer(object):
                 if any_nan(new_score.data):
                     import ipdb; ipdb.set_trace()
                     raise ValueError('new_score became nan while training')
-                new_pred_permutations, new_loss = self.my_cross_entropy(new_score, sem_lbl, inst_lbl)
+                new_pred_permutations, new_loss = self.my_cross_entropy(new_score, sem_lbl, inst_lbl,
+                                                                        val_matching_override=False)
                 new_loss /= len(full_data)
                 loss_improvement = loss.data[0] - new_loss.data[0]
                 self.model.train()

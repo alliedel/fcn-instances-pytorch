@@ -422,7 +422,7 @@ class Trainer(object):
                                        Variable(sem_lbl), Variable(inst_lbl)
 
         score = self.model(full_data)
-        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching=True)
+        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=True)
         if is_nan(loss.data[0]):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(full_data)

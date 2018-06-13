@@ -31,11 +31,11 @@ class BlobExampleGenerator(object):
                  n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
-                 n_images=Defaults.n_images, mean_bgr=Defaults.mean_bgr,
+                 n_images=None, mean_bgr=Defaults.mean_bgr,
                  transform=Defaults.transform, _im_a_copy=False,
                  map_to_single_instance_problem=False,
                  ordering=None, semantic_subset=None):
-
+        n_images = n_images or Defaults.n_images
         assert semantic_subset is None or all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset]), \
             ValueError('semantic_subset={} is incorrect. Must be a list of semantic classes in {}'.format(
                 semantic_subset, ALL_BLOB_CLASS_NAMES))

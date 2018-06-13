@@ -466,8 +466,10 @@ def get_synthetic_datasets(cfg, transform=True):
     dataset_kwargs = dict(transform=transform, n_max_per_class=cfg['synthetic_generator_n_instances_per_semantic_id'],
                           map_to_single_instance_problem=cfg['single_instance'], ordering=cfg['ordering'],
                           semantic_subset=cfg['semantic_subset'])
-    train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg['n_images_train'])
-    val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg['n_images_val'])
+    train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg.pop(
+        'n_images_train', None))
+    val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg.pop(
+        'n_images_train', None))
     return train_dataset, val_dataset
 
 

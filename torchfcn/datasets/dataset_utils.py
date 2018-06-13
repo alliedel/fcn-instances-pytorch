@@ -283,5 +283,12 @@ def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out
     write_np_array_as_img_with_borrowed_colormap_pallete(inst_lbl, out_inst_lbl_file_ordered, inst_lbl_file_unordered)
 
 
+def get_image_center(img_size, floor=False):
+    if floor:
+        return [sz // 2 for sz in img_size]
+    else:
+        return [sz / 2 for sz in img_size]
+
+
 def compute_centroid_binary_mask(binary_mask):
     return np.argwhere(binary_mask).sum(axis=0)/binary_mask.sum()

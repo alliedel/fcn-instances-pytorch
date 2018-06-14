@@ -17,7 +17,8 @@ from torch.autograd import Variable
 import torchfcn
 from torchfcn import losses
 from torchfcn import metrics
-from torchfcn import visualization_utils, instance_utils
+from torchfcn import instance_utils
+from torchfcn.analysis import visualization_utils
 from torchfcn.datasets import dataset_utils
 from torchfcn.export_utils import log_images
 from torchfcn.models.model_utils import is_nan, any_nan

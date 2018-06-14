@@ -11,7 +11,7 @@ import tqdm
 from torch.autograd import Variable
 
 import torchfcn
-from torchfcn import visualization_utils
+from torchfcn.analysis import visualization_utils
 
 
 def main():

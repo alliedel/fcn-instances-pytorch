@@ -14,7 +14,8 @@ import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
 from torchfcn import losses
-from torchfcn import script_utils, instance_utils, visualization_utils, trainer
+from torchfcn import script_utils, instance_utils, trainer
+from torchfcn.analysis import visualization_utils
 
 here = osp.dirname(osp.abspath(__file__))
 

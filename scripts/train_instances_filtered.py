@@ -8,9 +8,8 @@ import torch
 import torch.utils.data
 
 from scripts.configurations import synthetic_cfg, voc_cfg
-from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn import script_utils
-from torchfcn import visualization_utils
+from torchfcn.analysis import visualization_utils
 from torchfcn.models import model_utils
 
 here = osp.dirname(osp.abspath(__file__))

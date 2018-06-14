@@ -469,7 +469,7 @@ def get_synthetic_datasets(cfg, transform=True):
     train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg.pop(
         'n_images_train', None))
     val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg.pop(
-        'n_images_train', None))
+        'n_images_val', None))
     return train_dataset, val_dataset
 
 
@@ -683,9 +683,14 @@ def load_everything_from_cfg(cfg: dict, gpu: int, dataset_name: str, resume: str
         sampler_cfg['train_for_val']
     except:
         sampler_cfg['train_for_val'] = None
-    if sampler_cfg['train_for_val'] is None:
+    if sampler_cfg.pop('train_for_val', None) is None:
         sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
-
+    if cfg.pop('n_images_train', None) is not None:
+        sampler_cfg['train']['n_images'] = cfg['n_images_train']
+    if cfg.pop('n_images_val', None) is not None:
+        sampler_cfg['val']['n_images'] = cfg['n_images_val']
+    if cfg.pop('n_images_train_for_val', None) is not None:
+        sampler_cfg['train_for_val']['n_images'] = cfg['n_images_train_for_val']
     dataloaders = get_dataloaders(cfg, dataset_name, cuda, sampler_cfg)
     print('Done getting dataloaders')
     try:

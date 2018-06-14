@@ -683,13 +683,13 @@ def load_everything_from_cfg(cfg: dict, gpu: int, dataset_name: str, resume: str
         sampler_cfg['train_for_val']
     except:
         sampler_cfg['train_for_val'] = None
-    if sampler_cfg.pop('train_for_val', None) is None:
+    if 'train_for_val' not in sampler_cfg.keys() or sampler_cfg['train_for_val'] is None:
         sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
-    if cfg.pop('n_images_train', None) is not None:
+    if 'n_images_train' in cfg.keys() and cfg['n_images_train'] is not None:
         sampler_cfg['train']['n_images'] = cfg['n_images_train']
-    if cfg.pop('n_images_val', None) is not None:
+    if 'n_images_val' in cfg.keys() and cfg['n_images_val'] is not None:
         sampler_cfg['val']['n_images'] = cfg['n_images_val']
-    if cfg.pop('n_images_train_for_val', None) is not None:
+    if 'n_images_train_for_val' in cfg.keys() and cfg['n_images_train_for_val'] is not None:
         sampler_cfg['train_for_val']['n_images'] = cfg['n_images_train_for_val']
     dataloaders = get_dataloaders(cfg, dataset_name, cuda, sampler_cfg)
     print('Done getting dataloaders')

@@ -59,11 +59,13 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
                 image_center = dataset_utils.get_image_center(gt_location_mask.size(), floor=False)
                 com_offset_rc = [int(c - img_c) for c, img_c in zip(com_rc, image_center)]
             try:
-                loc_rc_in_heatmap_image = cropped_r1 + com_offset_rc[0], cropped_c1 + com_offset_rc[1]
+                loc_rc_in_heatmap_image = cropped_r1 - com_offset_rc[0], cropped_c1 - com_offset_rc[1]
                 r1, r2 = loc_rc_in_heatmap_image[0], loc_rc_in_heatmap_image[0] + x.size(2)
                 c1, c2 = loc_rc_in_heatmap_image[1], loc_rc_in_heatmap_image[1] + x.size(3)
-                list_of_heatmap_scores[channel_idx_to_be_relative_to][:, r1:r2, c1:c2] += softmax_scores[0, ...]
-                list_of_heatmap_counts[channel_idx_to_be_relative_to][:, r1:r2, c1:c2] += 1
+                for c in range(n_channels):
+                    list_of_heatmap_scores[c][channel_idx_to_be_relative_to, r1:r2, c1:c2] += \
+                        softmax_scores[data_idx, c, ...]
+                    list_of_heatmap_counts[c][channel_idx_to_be_relative_to, r1:r2, c1:c2] += 1
             except Exception as exc:
                 import ipdb; ipdb.set_trace()
                 raise
@@ -73,14 +75,7 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
     for heatmap, heatmap_counts in zip(list_of_heatmap_averages, list_of_heatmap_counts):
         heatmap[heatmap_counts == 0] = 0
 
-    # Rearrange so each element in the list is the heatmap for a given channel relative to every other channel
-    n_channels = len(list_of_heatmap_averages)
-    list_of_heatmap_averages_rearranged = [torch.zeros_like(x) for x in list_of_heatmap_averages]
-    for c in range(n_channels):
-        for c_rel in range(n_channels):
-            list_of_heatmap_averages_rearranged[c][c_rel, :, :] = list_of_heatmap_averages[c_rel][c, :, :]
-
-    return list_of_heatmap_averages_rearranged
+    return list_of_heatmap_averages
 
 
 def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):

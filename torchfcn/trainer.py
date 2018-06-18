@@ -47,7 +47,9 @@ class Trainer(object):
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),
-                 write_activation_condition=should_write_activations):
+                 write_activation_condition=should_write_activations,
+                 bool_compute_instance_metrics=True,
+                 generate_new_synthetic_data_each_epoch=False):
         self.cuda = cuda
 
         self.model = model
@@ -67,11 +69,13 @@ class Trainer(object):
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
         self.use_semantic_loss = use_semantic_loss
         self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
+        self.generate_new_synthetic_data_each_epoch = generate_new_synthetic_data_each_epoch
 
         # Writing activations
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
+        self.bool_compute_instance_metrics = bool_compute_instance_metrics
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -179,7 +183,9 @@ class Trainer(object):
             False.
         """
         val_metrics = None
-        write_instance_metrics = (split == 'val') if write_instance_metrics is None else write_instance_metrics
+        bool_compute_instance_metrics = self.bool_compute_instance_metrics
+        write_instance_metrics = self.bool_compute_instance_metrics and (split == 'val') \
+            if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -337,14 +343,10 @@ class Trainer(object):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
                                                                   self.iteration, bins='auto')
                         elif metric is None:
-                            import ipdb;
-                            ipdb;
-                            ipdb.set_trace()
+                            import ipdb; ipdb.set_trace()
                             pass
                         else:
-                            import ipdb;
-                            ipdb;
-                            ipdb.set_trace()
+                            import ipdb; ipdb.set_trace()
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              ' '.format(type(metric), name))
 
@@ -501,6 +503,9 @@ class Trainer(object):
         # n_class = len(self.train_loader.dataset.class_names)
         # n_class = self.model.n_classes
         last_score, last_last_score, last_loss, last_last_loss = None, None, None, None
+
+        if self.generate_new_synthetic_data_each_epoch:
+            self.train_loader.initialize_locations_per_image()
 
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),

@@ -31,7 +31,8 @@ class BlobExampleGenerator(object):
                  n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
-                 n_images=None, mean_bgr=Defaults.mean_bgr,
+                 n_images=None,
+                 mean_bgr=Defaults.mean_bgr,
                  transform=Defaults.transform, _im_a_copy=False,
                  map_to_single_instance_problem=False,
                  ordering=None, semantic_subset=None):
@@ -62,26 +63,33 @@ class BlobExampleGenerator(object):
         # Blob dynamics
         self.location_generation_type = Defaults.location_generation_type
         if self.location_generation_type == 'random':
-            self.n_images = n_images
             self.random_rows = np.nan * np.ones((self.n_images, len(self.semantic_classes), self.n_max_per_class))
             self.random_cols = np.nan * np.ones((self.n_images, len(self.semantic_classes), self.n_max_per_class))
-            for sem_idx, _ in enumerate(self.semantic_classes):
-                n_inst_this_sem_cls = self.n_instances_per_sem_cls[sem_idx]
-                if n_inst_this_sem_cls > 0:
-                    self.random_rows[:, sem_idx, :n_inst_this_sem_cls] = \
-                        np.random.randint(0, self.img_size[0] - self.blob_size[0], (n_images, n_inst_this_sem_cls))
-                    random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[1],
-                                                              (n_images, n_inst_this_sem_cls))
-                    if self.ordering == 'lr':
-                        random_cols.sort(axis=1)
-                    elif self.ordering is None:
-                        pass
-                    else:
-                        raise ValueError('Didn\'t recognize ordering {}'.format(self.ordering))
-                    self.random_cols[:, sem_idx, :n_inst_this_sem_cls] = random_cols
-                    # TODO(allie): check for overlap and get rid of it.
+            self.n_images = n_images
+            self.initialize_locations_per_image()
         else:
             self.n_images = n_images
+
+    def initialize_locations_per_image(self):
+        # initialize to nan to be sure we clear them (for debugging purposes)
+        self.random_rows[:] = np.nan
+        self.random_cols[:] = np.nan
+
+        for sem_idx, _ in enumerate(self.semantic_classes):
+            n_inst_this_sem_cls = self.n_instances_per_sem_cls[sem_idx]
+            if n_inst_this_sem_cls > 0:
+                self.random_rows[:, sem_idx, :n_inst_this_sem_cls] = \
+                    np.random.randint(0, self.img_size[0] - self.blob_size[0], (self.n_images, n_inst_this_sem_cls))
+                random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[1],
+                                                (self.n_images, n_inst_this_sem_cls))
+                if self.ordering == 'lr':
+                    random_cols.sort(axis=1)
+                elif self.ordering is None:
+                    pass
+                else:
+                    raise ValueError('Didn\'t recognize ordering {}'.format(self.ordering))
+                self.random_cols[:, sem_idx, :n_inst_this_sem_cls] = random_cols
+                # TODO(allie): check for overlap and get rid of it.
 
     def __getitem__(self, image_index):
         img, (sem_lbl, inst_lbl) = self.generate_img_lbl_pair(image_index)

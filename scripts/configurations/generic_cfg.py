@@ -31,6 +31,7 @@ _default_config = dict(
     sampler=None,
     dataset=None,
     dataset_instance_cap='match_model',  #
+    write_instance_metrics=True,
 )
 
 

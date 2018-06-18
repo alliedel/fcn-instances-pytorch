@@ -637,9 +637,9 @@ class Trainer(object):
         train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
             self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
         val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))
-        plt.plot(self.train_losses_stored, label=train_label, linecolor=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
+        plt.plot(self.train_losses_stored, label=train_label, color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
         plt.plot(self.val_losses_stored, label=val_label,
-                 linecolor=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
+                 color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
         plt.legend()
         if self.tensorboard_writer is not None:
             export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)

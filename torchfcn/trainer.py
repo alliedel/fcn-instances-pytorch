@@ -643,7 +643,7 @@ class Trainer(object):
         plt.legend()
         if self.tensorboard_writer is not None:
             export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
-        plt.savefig(os.path.join(self.out, 'val_train_loss.png'), h)
+        h.savefig(os.path.join(self.out, 'val_train_loss.png'))
 
 
 def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):

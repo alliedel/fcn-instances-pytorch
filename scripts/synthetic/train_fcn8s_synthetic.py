@@ -4,6 +4,7 @@ import argparse
 import os
 import os.path as osp
 
+import local_pyutils
 import numpy as np
 import skimage.io
 import torch
@@ -19,7 +20,7 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
-    script_utils.check_clean_work_tree()
+    local_pyutils.check_clean_work_tree()
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=0,

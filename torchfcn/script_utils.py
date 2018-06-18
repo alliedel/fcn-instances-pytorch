@@ -14,6 +14,7 @@ import pytz
 import torch
 import torch.utils.data
 import yaml
+from local_pyutils import TermColors
 from tensorboardX import SummaryWriter
 
 import torchfcn
@@ -62,20 +63,6 @@ BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 CFG_ORDER = {}
 
 DEBUG_ASSERTS = True
-
-
-class TermColors:
-    """
-    https://stackoverflow.com/questions/287871/print-in-terminal-with-colors
-    """
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
 
 
 def set_random_seeds(np_seed=1337, torch_seed=1337, torch_cuda_seed=1337):
@@ -197,23 +184,6 @@ def color_text(text, color):
     else:
         raise Exception('color not recognized: {}\nChoose from: {}, {}'.format(color, color_keys, color_vals))
     return color + text + TermColors.ENDC
-
-
-def check_clean_work_tree(exit_on_error=False, interactive=True):
-    child = subprocess.Popen(['git', 'diff', '--name-only', '--exit-code'], stdout=subprocess.PIPE)
-    stdout = child.communicate()[0]
-    exit_code = child.returncode
-    if exit_code != 0:
-        override = False
-        if interactive:
-            override = 'y' == input(
-                TermColors.WARNING + 'Your working directory tree isn\'t clean:\n ' + TermColors.ENDC +
-                TermColors.FAIL + '{}'.format(stdout.decode()) + TermColors.ENDC +
-                'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': '
-                '' + TermColors.ENDC)
-        if exit_on_error or interactive and not override:
-            raise Exception(TermColors.FAIL + 'Exiting.  Please commit or stash your changes.' + TermColors.ENDC)
-    return exit_code, stdout
 
 
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME,
@@ -744,3 +714,20 @@ def get_cfg_override_parser(cfg_default):
                                              help='cfg override (only recommended for one-off experiments '
                                                   '- set cfg in file instead)')
     return cfg_override_parser
+
+
+def check_clean_work_tree(exit_on_error=False, interactive=True):
+    child = subprocess.Popen(['git', 'diff', '--name-only', '--exit-code'], stdout=subprocess.PIPE)
+    stdout = child.communicate()[0]
+    exit_code = child.returncode
+    if exit_code != 0:
+        override = False
+        if interactive:
+            override = 'y' == input(
+                TermColors.WARNING + 'Your working directory tree isn\'t clean:\n ' + TermColors.ENDC +
+                TermColors.FAIL + '{}'.format(stdout.decode()) + TermColors.ENDC +
+                'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': '
+                '' + TermColors.ENDC)
+        if exit_on_error or interactive and not override:
+            raise Exception(TermColors.FAIL + 'Exiting.  Please commit or stash your changes.' + TermColors.ENDC)
+    return exit_code, stdout

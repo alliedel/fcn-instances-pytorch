@@ -1,8 +1,10 @@
 import argparse
+import os.path as osp
 
 import display_pyutils
 import matplotlib.pyplot as plt
 import torch
+import subprocess
 
 from torchfcn import script_utils
 from torchfcn.analysis import score_heatmaps
@@ -68,7 +70,7 @@ def write_relative_heatmaps_by_sem_cls(list_of_relative_heatmap_averages_rel_by_
     n_channels = len(list_of_relative_heatmap_averages_rel_by_semantic)
     n_semantic_classes = len(sem_class_names)
     for channel_idx in range(n_channels):
-        h = plt.figure(0, figsize=(10, 10))
+        h = plt.figure(0, figsize=(10, 10), dpi=300)
         hm = list_of_relative_heatmap_averages_rel_by_semantic[channel_idx]
         list_of_subtitles = ['rel-to {}'.format(sem_class_names[rel_sem_idx]) for rel_sem_idx in range(
             n_semantic_classes)]
@@ -105,11 +107,20 @@ def main():
     script_utils.set_random_seeds()
     display_pyutils.set_my_rc_defaults()
     cuda = torch.cuda.is_available()
+    if display_pyutils.check_for_emptied_workspace():
+        print('Workspace clean.')
+    else:
+        print('Workspace not clean, but running anyway.')
 
     # Load directory
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
         script_utils.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     model.eval()
+
+    # Write log directory name to folder
+    with open(osp.join(display_pyutils.WORKSPACE_DIR, osp.basename(osp.normpath(logdir))), 'w') as fid:
+        fid.write(logdir)
+
     for split in ['train', 'val']:
         # NOTE(allie): At the moment, clims is not synced.  Need to get the min/max and pass them in.
 

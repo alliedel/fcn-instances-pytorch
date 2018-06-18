@@ -2,6 +2,7 @@ import argparse
 import os
 import os.path as osp
 
+import local_pyutils
 import numpy as np
 import skimage.io
 import torch
@@ -37,7 +38,7 @@ def parse_args():
 
 
 def main():
-    script_utils.check_clean_work_tree()
+    local_pyutils.check_clean_work_tree()
     args = parse_args()
     gpu = args.gpu
     config_idx = args.config

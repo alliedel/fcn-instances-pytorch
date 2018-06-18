@@ -76,8 +76,10 @@ class BlobExampleGenerator(object):
         else:
             self.n_images = n_images
 
-    def initialize_locations_per_image(self):
+    def initialize_locations_per_image(self, random_seed=None):
         # initialize to nan to be sure we clear them (for debugging purposes)
+        if random_seed:
+            np.random.seed(random_seed)
         self.random_rows[:] = np.nan
         self.random_cols[:] = np.nan
 

@@ -80,6 +80,7 @@ class Trainer(object):
         self.bool_compute_instance_metrics = bool_compute_instance_metrics
 
         # Stored values
+        self.last_val_loss = None
         self.val_losses_stored = []
         self.train_losses_stored = []
         self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
@@ -259,6 +260,7 @@ class Trainer(object):
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
 
         val_loss /= len(data_loader)
+        self.last_val_loss = val_loss
 
         if should_compute_basic_metrics:
             val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
@@ -512,7 +514,9 @@ class Trainer(object):
         last_score, last_last_score, last_loss, last_last_loss = None, None, None, None
 
         if self.generate_new_synthetic_data_each_epoch:
-            self.train_loader.dataset.initialize_locations_per_image()
+            seed = np.random.randint(100)
+            self.train_loader.dataset.initialize_locations_per_image(seed)
+            self.train_loader_for_val.dataset.initialize_locations_per_image(seed)
 
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
@@ -522,10 +526,14 @@ class Trainer(object):
                 continue  # for resuming
             self.iteration = iteration
             if self.iteration % self.interval_validate == 0:
+                val_metrics, _ = self.validate()
+                val_loss = self.last_val_loss
                 if self.train_loader_for_val is not None:
                     train_metrics, _ = self.validate('train')
-                val_metrics, _ = self.validate()
-                self.add_metrics_to_plot_and_save(train_loss, val_loss)
+                    train_loss = self.last_val_loss
+                else:
+                    train_loss = None
+                self.update_mpl_joint_train_val_loss_figure(train_loss, val_loss)
 
             assert self.model.training
             if not self.loader_semantic_lbl_only:
@@ -616,8 +624,10 @@ class Trainer(object):
 
     def update_mpl_joint_train_val_loss_figure(self, train_loss, val_loss):
         figure_name = 'train/val losses'
-        self.train_losses_stored.append(train_loss)
-        self.val_losses_stored.append(val_loss)
+        if train_loss is not None:
+            self.train_losses_stored.append(train_loss)
+        if val_loss is not None:
+            self.val_losses_stored.append(val_loss)
 
         if self.joint_train_val_loss_mpl_figure is None:
             self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
@@ -625,10 +635,11 @@ class Trainer(object):
 
         h = plt.figure(figure_name)
         train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
-            self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader))
+            self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
         val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))
         plt.plot(self.train_losses_stored, label=train_label, linecolor=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
-        plt.plot(self.val_losses_stored, label=val_label, linecolor=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
+        plt.plot(self.val_losses_stored, label=val_label,
+                 linecolor=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
         plt.legend()
         if self.tensorboard_writer is not None:
             export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)

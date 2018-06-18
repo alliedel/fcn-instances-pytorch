@@ -533,8 +533,14 @@ class Trainer(object):
                     train_metrics, _ = self.validate('train')
                     train_loss = self.last_val_loss
                 else:
+                    print('Warning: cannot generate train vs. val plots if we dont have access to the training loss '
+                          'via train_for_val dataloader')
                     train_loss = None
-                self.update_mpl_joint_train_val_loss_figure(train_loss, val_loss)
+                if train_loss is not None:
+                    self.update_mpl_joint_train_val_loss_figure(train_loss, val_loss)
+                    if self.tensorboard_writer is not None:
+                        self.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
+                                                           self.iteration)
 
             assert self.model.training
             if not self.loader_semantic_lbl_only:

@@ -44,6 +44,7 @@ class BlobExampleGenerator(object):
         assert semantic_subset is None or all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset]), \
             ValueError('semantic_subset={} is incorrect. Must be a list of semantic classes in {}'.format(
                 semantic_subset, ALL_BLOB_CLASS_NAMES))
+        assert one_dimension in [None, 'x', 'y'], ValueError
         self.map_to_single_instance_problem = map_to_single_instance_problem
         self.img_size = img_size
         assert len(self.img_size) == 2
@@ -63,6 +64,7 @@ class BlobExampleGenerator(object):
             self.semantic_subset)
         self.n_instances_per_sem_cls = [0] + [n_max_per_class for _ in range(len(self.semantic_classes) - 1)]
         self.ordering = ordering.lower() if ordering is not None else None
+        self.one_dimension = one_dimension
 
         # Blob dynamics
         self.location_generation_type = Defaults.location_generation_type
@@ -83,9 +85,13 @@ class BlobExampleGenerator(object):
             n_inst_this_sem_cls = self.n_instances_per_sem_cls[sem_idx]
             if n_inst_this_sem_cls > 0:
                 self.random_rows[:, sem_idx, :n_inst_this_sem_cls] = \
-                    np.random.randint(0, self.img_size[0] - self.blob_size[0], (self.n_images, n_inst_this_sem_cls))
+                    np.random.randint(0, self.img_size[0] - self.blob_size[0], (self.n_images, n_inst_this_sem_cls)) \
+                        if self.one_dimension is not 'x' else (self.img_size[0] // 2)
+
                 random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[1],
-                                                (self.n_images, n_inst_this_sem_cls))
+                                                (self.n_images, n_inst_this_sem_cls))\
+                    if self.one_dimension is not 'y' else (self.img_size[1] // 2)
+
                 if self.ordering == 'lr':
                     random_cols.sort(axis=1)
                 elif self.ordering is None:

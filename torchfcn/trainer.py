@@ -84,6 +84,7 @@ class Trainer(object):
         self.val_losses_stored = []
         self.train_losses_stored = []
         self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
+        self.iterations_for_losses_stored = []
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -623,17 +624,14 @@ class Trainer(object):
                 break
 
     def update_mpl_joint_train_val_loss_figure(self, train_loss, val_loss):
+        assert train_loss is not None, ValueError
+        assert val_loss is not None, ValueError
         figure_name = 'train/val losses'
         ylim_buffer_size = 10
-        if train_loss is not None:
-            self.train_losses_stored.append(train_loss)
-        else:
-            print('WARNING: train loss not computed; leaving off plot')
-        if val_loss is not None:
-            self.val_losses_stored.append(val_loss)
-        else:
-            print('WARNING: val loss not computed; leaving off plot')
+        self.train_losses_stored.append(train_loss)
+        self.val_losses_stored.append(val_loss)
 
+        self.iterations_for_losses_stored.append(self.iteration)
         if self.joint_train_val_loss_mpl_figure is None:
             self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
             display_pyutils.set_my_rc_defaults()
@@ -644,24 +642,35 @@ class Trainer(object):
         train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
             self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
         val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))
+
         plt.plot(self.train_losses_stored, label=train_label, color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
-        plt.plot(self.val_losses_stored, label=val_label,
-                 color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
+        plt.plot(self.val_losses_stored, label=val_label, color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
         plt.legend()
         # Set y limits for just the last 10 datapoints
-        if len(self.train_losses_stored) > ylim_buffer_size:
-            ymin = min(self.train_losses_stored)
-            ymax = max(self.train_losses_stored)
+        last_x = max(len(self.train_losses_stored), len(self.val_losses_stored))
+        if last_x >= 0:
+            ymin = min(min(self.train_losses_stored[(last_x - ylim_buffer_size - 1):]),
+                       min(self.val_losses_stored[(last_x - ylim_buffer_size - 1):]))
+            ymax = max(max(self.train_losses_stored[(last_x - ylim_buffer_size - 1):]),
+                       max(self.val_losses_stored[(last_x - ylim_buffer_size - 1):]))
         else:
             ymin, ymax = None, None
-        if len(self.val_losses_stored) > ylim_buffer_size:
-            ymin = min(ymin, min(self.val_losses_stored)) if ymin is not None else min(self.val_losses_stored)
-            ymax = max(ymax, max(self.val_losses_stored)) if ymax is not None else max(self.val_losses_stored)
-        plt.ylim(ymin=ymin, ymax=ymax)
         if self.tensorboard_writer is not None:
             export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
-        h.savefig(os.path.join(self.out, 'val_train_loss.png'))
+        filename = os.path.join(self.out, 'val_train_loss.png')
+        h.savefig(filename)
 
+        # zoom
+        zoom_filename = os.path.join(self.out, 'val_train_loss_zoom_last_{}.png'.format(ylim_buffer_size))
+        if ymin is not None:
+            plt.ylim(ymin=ymin, ymax=ymax)
+            plt.xlim(xmin=(last_x - ylim_buffer_size - 1), xmax=last_x)
+            if self.tensorboard_writer is not None:
+                export_utils.log_plots(self.tensorboard_writer, 'joint_loss_last_{}'.format(ylim_buffer_size),
+                                       [h], self.iteration)
+            h.savefig(zoom_filename)
+        else:
+            shutil.copyfile(filename, zoom_filename)
 
 
 def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):

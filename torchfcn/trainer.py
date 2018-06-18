@@ -505,7 +505,7 @@ class Trainer(object):
         last_score, last_last_score, last_loss, last_last_loss = None, None, None, None
 
         if self.generate_new_synthetic_data_each_epoch:
-            self.train_loader.initialize_locations_per_image()
+            self.train_loader.dataset.initialize_locations_per_image()
 
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),

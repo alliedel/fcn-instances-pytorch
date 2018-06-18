@@ -627,7 +627,7 @@ class Trainer(object):
         assert train_loss is not None, ValueError
         assert val_loss is not None, ValueError
         figure_name = 'train/val losses'
-        ylim_buffer_size = 10
+        ylim_buffer_size = 3
         self.train_losses_stored.append(train_loss)
         self.val_losses_stored.append(val_loss)
 

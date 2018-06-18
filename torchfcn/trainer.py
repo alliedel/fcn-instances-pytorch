@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import shutil
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytz
 import scipy.misc
@@ -15,13 +16,14 @@ from local_pyutils import flatten_dict
 from torch.autograd import Variable
 
 import torchfcn
+from torchfcn import instance_utils
 from torchfcn import losses
 from torchfcn import metrics
-from torchfcn import instance_utils
 from torchfcn.analysis import visualization_utils
 from torchfcn.datasets import dataset_utils
-from torchfcn.export_utils import log_images
+from torchfcn import export_utils
 from torchfcn.models.model_utils import is_nan, any_nan
+import display_pyutils
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -76,6 +78,11 @@ class Trainer(object):
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
         self.bool_compute_instance_metrics = bool_compute_instance_metrics
+
+        # Stored values
+        self.val_losses_stored = []
+        self.train_losses_stored = []
+        self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -516,8 +523,9 @@ class Trainer(object):
             self.iteration = iteration
             if self.iteration % self.interval_validate == 0:
                 if self.train_loader_for_val is not None:
-                    self.validate('train')
-                self.validate()
+                    train_metrics, _ = self.validate('train')
+                val_metrics, _ = self.validate()
+                self.add_metrics_to_plot_and_save(train_loss, val_loss)
 
             assert self.model.training
             if not self.loader_semantic_lbl_only:
@@ -606,6 +614,26 @@ class Trainer(object):
             if self.iteration >= self.max_iter:
                 break
 
+    def update_mpl_joint_train_val_loss_figure(self, train_loss, val_loss):
+        figure_name = 'train/val losses'
+        self.train_losses_stored.append(train_loss)
+        self.val_losses_stored.append(val_loss)
+
+        if self.joint_train_val_loss_mpl_figure is None:
+            self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
+            display_pyutils.set_my_rc_defaults()
+
+        h = plt.figure(figure_name)
+        train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
+            self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader))
+        val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))
+        plt.plot(self.train_losses_stored, label=train_label, linecolor=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
+        plt.plot(self.val_losses_stored, label=val_label, linecolor=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
+        plt.legend()
+        if self.tensorboard_writer is not None:
+            export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
+        plt.savefig(os.path.join(self.out, 'val_train_loss.png'), h)
+
 
 def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):
     if not osp.exists(outdir):
@@ -615,7 +643,7 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
                                                      margin_size=50)
         tag = '{}images'.format(basename)
         if tensorboard_writer is not None:
-            log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
+            export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
         out_subdir = osp.join(outdir, tag)
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)
@@ -628,7 +656,7 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
             os.makedirs(out_subdir)
         for img_idx, out_img in enumerate(visualizations):
             if tensorboard_writer is not None:
-                log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
+                export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
             out_subsubdir = osp.join(out_subdir, str(img_idx))
             if not osp.exists(out_subsubdir):
                 os.makedirs(out_subsubdir)

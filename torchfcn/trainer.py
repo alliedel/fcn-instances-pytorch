@@ -624,6 +624,7 @@ class Trainer(object):
 
     def update_mpl_joint_train_val_loss_figure(self, train_loss, val_loss):
         figure_name = 'train/val losses'
+        ylim_buffer_size = 10
         if train_loss is not None:
             self.train_losses_stored.append(train_loss)
         else:
@@ -638,6 +639,7 @@ class Trainer(object):
             display_pyutils.set_my_rc_defaults()
 
         h = plt.figure(figure_name)
+
         plt.clf()
         train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
             self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
@@ -646,9 +648,20 @@ class Trainer(object):
         plt.plot(self.val_losses_stored, label=val_label,
                  color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
         plt.legend()
+        # Set y limits for just the last 10 datapoints
+        if len(self.train_losses_stored) > ylim_buffer_size:
+            ymin = min(self.train_losses_stored)
+            ymax = max(self.train_losses_stored)
+        else:
+            ymin, ymax = None, None
+        if len(self.val_losses_stored) > ylim_buffer_size:
+            ymin = min(ymin, min(self.val_losses_stored)) if ymin is not None else min(self.val_losses_stored)
+            ymax = max(ymax, max(self.val_losses_stored)) if ymax is not None else max(self.val_losses_stored)
+        plt.ylim(ymin=ymin, ymax=ymax)
         if self.tensorboard_writer is not None:
             export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
         h.savefig(os.path.join(self.out, 'val_train_loss.png'))
+
 
 
 def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):

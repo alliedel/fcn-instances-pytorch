@@ -626,14 +626,19 @@ class Trainer(object):
         figure_name = 'train/val losses'
         if train_loss is not None:
             self.train_losses_stored.append(train_loss)
+        else:
+            print('WARNING: train loss not computed; leaving off plot')
         if val_loss is not None:
             self.val_losses_stored.append(val_loss)
+        else:
+            print('WARNING: val loss not computed; leaving off plot')
 
         if self.joint_train_val_loss_mpl_figure is None:
             self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
             display_pyutils.set_my_rc_defaults()
 
         h = plt.figure(figure_name)
+        plt.clf()
         train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
             self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
         val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))

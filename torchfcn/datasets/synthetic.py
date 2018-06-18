@@ -91,8 +91,9 @@ class BlobExampleGenerator(object):
                         if self.one_dimension is not 'x' else (self.img_size[0] // 2)
 
                 random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[1],
-                                                (self.n_images, n_inst_this_sem_cls))\
-                    if self.one_dimension is not 'y' else (self.img_size[1] // 2)
+                                                (self.n_images, n_inst_this_sem_cls))
+                if self.one_dimension == 'y':
+                    random_cols[:] = (self.img_size[1] // 2)
 
                 if self.ordering == 'lr':
                     random_cols.sort(axis=1)

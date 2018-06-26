@@ -126,6 +126,8 @@ class FCN8sInstance(nn.Module):
         self.relu7 = nn.ReLU(inplace=True)
         self.drop7 = nn.Dropout2d()
 
+
+
         # H/32 x W/32 x n_semantic_cls
         INTERMEDIATE_CONV_CHANNEL_SIZE = 20
         intermediate_channel_size = self.bottleneck_channel_capacity if not self.add_conv8 else \

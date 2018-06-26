@@ -54,7 +54,7 @@ def write_relative_heatmaps_by_channel(list_of_relative_heatmap_averages, instan
         h = plt.figure(0, figsize=FIGSIZE)
         plt.clf()
         hm = list_of_relative_heatmap_averages[channel_idx]
-        list_of_subtitles = ['rel-to {}'.format(rel_ch_idx, channel_names[rel_ch_idx])
+        list_of_subtitles = ['rel-to {}'.format(channel_names[rel_ch_idx])
                              for rel_ch_idx in range(n_channels)]
         display_pyutils.display_list_of_images([hm[rel_ch_idx, :, :]
                                                 for rel_ch_idx in range(n_channels)],

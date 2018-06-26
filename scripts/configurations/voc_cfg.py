@@ -7,7 +7,6 @@ def get_default_config():
         dict(n_instances_per_class=3,
              set_extras_to_void=True,
              lr=1.0e-4,
-             size_average=True,
              dataset='voc',
              )
     )

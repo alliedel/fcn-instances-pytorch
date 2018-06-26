@@ -14,7 +14,7 @@ def build_example_model(**model_cfg_override_kwargs):
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
 
-    cfg = voc_cfg.default_config
+    cfg = voc_cfg.get_default_config()
     for k, v in model_cfg_override_kwargs.items():
         cfg[k] = v
     problem_config = script_utils.get_problem_config(ALL_VOC_CLASS_NAMES, 2, map_to_semantic=cfg['map_to_semantic'])
@@ -25,7 +25,7 @@ def build_example_model(**model_cfg_override_kwargs):
 
 def test_forward_hook():
     model = build_example_model()
-    cfg = voc_cfg.default_config
+    cfg = voc_cfg.get_default_config()
     print('Getting datasets')
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)

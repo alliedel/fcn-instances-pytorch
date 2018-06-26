@@ -62,7 +62,7 @@ def test_single_image_sampler(train_dataset, loader_kwargs, image_index=0):
 
 def main():
     # Setup
-    cfg = voc_cfg.default_config
+    cfg = voc_cfg.get_default_config()
     print('Getting datasets')
     train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, '/home/adelgior/data/datasets/')
     gpu = 0

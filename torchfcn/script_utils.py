@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import datetime
 import os
 import os.path as osp
@@ -18,7 +19,9 @@ from tensorboardX import SummaryWriter
 import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
+from scripts.configurations import synthetic_cfg, voc_cfg
 from scripts.configurations.sampler_cfg import sampler_cfgs
+from scripts.train_instances_filtered import str2bool
 from torchfcn import instance_utils
 from torchfcn.datasets import dataset_statistics, samplers
 from torchfcn.datasets.voc import VOC_ROOT
@@ -58,6 +61,8 @@ BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 
 CFG_ORDER = {}
 
+DEBUG_ASSERTS = True
+
 
 class TermColors:
     """
@@ -71,6 +76,101 @@ class TermColors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+
+def set_random_seeds(np_seed=1337, torch_seed=1337, torch_cuda_seed=1337):
+    if np_seed is not None:
+        np.random.seed(np_seed)
+    if torch_seed is not None:
+        torch.manual_seed(torch_seed)
+    if torch_cuda_seed is not None:
+        torch.cuda.manual_seed(torch_cuda_seed)
+
+
+def str_or_int(val):
+    try:
+        return int(val)
+    except ValueError:
+        return val
+
+
+def parse_args():
+    # Get initial parser
+    parser = get_parser(
+        voc_default=voc_cfg.get_default_config(),
+        voc_configs=voc_cfg.configurations,
+        synthetic_default=synthetic_cfg.get_default_config(),
+        synthetic_configs=synthetic_cfg.configurations,
+    )
+
+    args, argv = parser.parse_known_args()
+
+    # Config override parser
+    cfg_default = {'synthetic': synthetic_cfg.get_default_config(),
+                   'voc': voc_cfg.get_default_config()}[args.dataset]
+    cfg_override_parser = get_cfg_override_parser(cfg_default)
+
+    bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
+    assert len(bad_args) == 0, cfg_override_parser.error('bad_args: {}'.format(bad_args))
+
+    # Parse with list of options
+    override_cfg_args, leftovers = cfg_override_parser.parse_known_args(argv)
+    assert len(leftovers) == 0, ValueError('args not recognized: {}'.format(leftovers))
+    # apparently this is failing, so I'm going to have to screen this on my own:
+
+    # Remove options from namespace that weren't defined
+    unused_keys = [k for k in list(override_cfg_args.__dict__.keys()) if '--' + k not in argv and '-' + k not in argv]
+    for k in unused_keys:
+        delattr(override_cfg_args, k)
+
+    # Fix a few values
+    replace_attr_with_function_of_val(override_cfg_args, 'clip', lambda old_val: old_val if old_val > 0 else None,
+                                      error_if_attr_doesnt_exist=False)
+    replace_attr_with_function_of_val(override_cfg_args, 'semantic_subset',
+                                      lambda old_val: old_val if (old_val is None or old_val == '') else
+                                      [s.strip() for s in old_val.split(',')],
+                                      error_if_attr_doesnt_exist=False)
+
+    return args, override_cfg_args
+
+
+def replace_attr_with_function_of_val(namespace, attr, replacement_function, error_if_attr_doesnt_exist=True):
+    if attr in namespace.__dict__.keys():
+        setattr(namespace, attr, replacement_function(getattr(namespace, attr)))
+    elif error_if_attr_doesnt_exist:
+        raise Exception('attr {} does not exist in namespace'.format(attr))
+
+
+def get_parser(voc_default, voc_configs, synthetic_default, synthetic_configs):
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(help='dataset: voc, synthetic', dest='dataset')
+    dataset_parsers = {
+        'voc': subparsers.add_parser('voc', help='VOC dataset options',
+                                     epilog='\n\nOverride options:\n' + '\n'.join(
+                                         ['--{}: {}'.format(k, v) for k, v in voc_default.items()]),
+                                     formatter_class=argparse.RawTextHelpFormatter),
+        'synthetic': subparsers.add_parser('synthetic', help='synthetic dataset options')
+    }
+    for dataset_name, subparser in dataset_parsers.items():
+        cfg_choices = list({'synthetic': synthetic_configs,
+                            'voc': voc_configs}[dataset_name].keys())
+        subparser.add_argument('-c', '--config', type=str_or_int, default=0, choices=cfg_choices)
+        subparser.add_argument('-g', '--gpu', type=int, required=True)
+        subparser.add_argument('--resume', help='Checkpoint path')
+        subparser.add_argument('--semantic-init', help='Checkpoint path of semantic model (e.g. - '
+                                                       '\'~/data/models/pytorch/semantic_synthetic.pth\'', default=None)
+        subparser.add_argument('--single-image-index', type=int, help='Image index to use for train/validation set',
+                               default=None)
+        subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default='default',
+                               help='Sampler for dataset')
+    return parser
+
+
+def get_sampler_cfg(sampler_arg):
+    sampler_cfg = sampler_cfgs[sampler_arg]
+    if sampler_cfg['train_for_val'] is None:
+        sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
+    return sampler_cfg
 
 
 def prune_defaults_from_dict(default_dict, update_dict):
@@ -123,9 +223,8 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
     cfg_print = config_dict.copy()
     for key, replacement_key in config_key_replacements.items():
         if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
-            if config_dict['semantic_subset'] is not None:
-                cfg_print['semantic_subset'] = '_'.join([cls for cls in config_dict['semantic_subset']])
-                # cfg_print['semantic_subset'] = ''.join([cls[0] for cls in config_dict['semantic_subset']])
+            if 'semantic_subset' in config_dict.keys() and config_dict['semantic_subset'] is not None:
+                cfg_print['semantic_subset'] = '_'.join([cls.strip() for cls in config_dict['semantic_subset']])
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
 
@@ -155,6 +254,11 @@ def create_config_from_default(config_args, default_config):
     cfg = default_config.copy()
     cfg.update(config_args)
     return cfg
+
+
+def load_config_from_logdir(logdir):
+    cfg_file = osp.join(logdir, 'config.yaml')
+    return load_config(cfg_file)
 
 
 def load_config(config_path):
@@ -205,6 +309,9 @@ def get_log_dir(model_name, config_id=None, cfg=None, parent_directory='logs'):
             v = str(v)
             if '/' in v:
                 continue
+            if isinstance(v, list):
+                import ipdb; ipdb.set_trace()
+                v = '_'.join(v)
             name += '_%s-%s' % (k.upper(), v)
             for key, val in bad_char_replacements.items():
                 name = name.replace(key, val)
@@ -282,7 +389,7 @@ def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
     return trainer
 
 
-def get_optimizer(cfg, model, checkpoint=None):
+def get_optimizer(cfg, model, checkpoint_file=None):
     if cfg['optim'] == 'adam':
         optim = torch.optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     elif cfg['optim'] == 'sgd':
@@ -299,13 +406,14 @@ def get_optimizer(cfg, model, checkpoint=None):
             weight_decay=cfg['weight_decay'])
     else:
         raise Exception('optimizer {} not recognized.'.format(cfg['optim']))
-    if checkpoint:
+    if checkpoint_file:
+        checkpoint = torch.load(checkpoint_file)
         optim.load_state_dict(checkpoint['optim_state_dict'])
     return optim
 
 
 # val_dataset.class_names
-def get_problem_config(class_names, n_instances_per_class, map_to_semantic=False):
+def get_problem_config(class_names, n_instances_per_class: int, map_to_semantic=False):
     # 0. Problem setup (instance segmentation definition)
     class_names = class_names
     n_semantic_classes = len(class_names)
@@ -354,17 +462,19 @@ def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
     return model, start_epoch, start_iteration
 
 
-def get_synthetic_datasets(cfg):
-    synthetic_generator_n_instances_per_semantic_id = 2
-    dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id,
-                          map_to_single_instance_problem=cfg['single_instance'])
-    train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
-    val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
+def get_synthetic_datasets(cfg, transform=True):
+    dataset_kwargs = dict(transform=transform, n_max_per_class=cfg['synthetic_generator_n_instances_per_semantic_id'],
+                          map_to_single_instance_problem=cfg['single_instance'], ordering=cfg['ordering'],
+                          semantic_subset=cfg['semantic_subset'])
+    train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg.pop(
+        'n_images_train', None))
+    val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg.pop(
+        'n_images_val', None))
     return train_dataset, val_dataset
 
 
-def get_voc_datasets(cfg, voc_root):
-    dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
+def get_voc_datasets(cfg, voc_root, transform=True):
+    dataset_kwargs = dict(transform=transform, semantic_only_labels=cfg['semantic_only_labels'],
                           set_extras_to_void=cfg['set_extras_to_void'],
                           map_to_single_instance_problem=cfg['single_instance'],
                           ordering=cfg['ordering'])
@@ -435,8 +545,16 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
         train_dataset, val_dataset = get_synthetic_datasets(cfg)
     elif dataset_type == 'voc':
         train_dataset, val_dataset = get_voc_datasets(cfg, VOC_ROOT)
+        if cfg['semantic_subset'] is not None:
+            train_dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
+            val_dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
+        instance_cap = cfg['n_instances_per_class'] if cfg['dataset_instance_cap'] == 'match_model' else \
+            cfg['dataset_instance_cap']
+        if instance_cap is not None:
+            train_dataset.set_instance_cap(instance_cap)
+            val_dataset.set_instance_cap(instance_cap)
     else:
-        raise ValueError
+        raise ValueError('dataset_type={} not recognized'.format(dataset_type))
 
     # 2. samplers
     if sampler_cfg is None:
@@ -496,6 +614,13 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=1,
                                                        sampler=train_for_val_sampler, **loader_kwargs)
+
+    if DEBUG_ASSERTS:
+        try:
+            i, [sl, il] = [d for i, d in enumerate(train_loader) if i == 0][0]
+        except:
+            raise
+
     return {
         'train': train_loader,
         'val': val_loader,
@@ -517,8 +642,34 @@ def pop_without_del(dictionary, key, default):
     return val
 
 
-def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: torch.utils.data.Dataset,
-                             resume: str, semantic_init, out_dir: str) -> tuple:
+def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=False):
+    cfg = load_config_from_logdir(logdir)
+    dataset_name = cfg['dataset']
+    if dataset_name != os.path.basename(os.path.dirname(os.path.normpath(logdir))):
+        cfg_dataset_name = dataset_name
+        dataset_name = os.path.basename(os.path.dirname(os.path.normpath(logdir)))
+        print(color_text('cfg[\'dataset\'] was set to '
+                         '{} but I think based on the log directory it\'s actually '
+                         '{}'.format(cfg_dataset_name, dataset_name), TermColors.WARNING))
+    if dataset_name is None:
+        print(color_text(
+            'dataset not set in cfg -- this needs to be fixed for future experiments (supporting for '
+            'legacy experiments).  Interpreting dataset name from folder name now...', TermColors.WARNING))
+        dataset_name = os.path.basename(os.path.dirname(os.path.normpath(logdir)))
+    model_pth = osp.join(logdir, 'model_best.pth.tar')
+    out_dir = '/tmp'
+
+    problem_config, model, trainer, optim, dataloaders = load_everything_from_cfg(cfg, gpu, dataset_name,
+                                                                                  resume=model_pth, semantic_init=None,
+                                                                                  out_dir=out_dir)
+    if packed_as_dict:
+        return dict(cfg=cfg, model_pth=model_pth, out_dir=out_dir, problem_config=problem_config, model=model,
+                    trainer=trainer, optim=optim, dataloaders=dataloaders)
+    else:
+        return cfg, model_pth, out_dir, problem_config, model, trainer, optim, dataloaders
+
+
+def load_everything_from_cfg(cfg: dict, gpu: int, dataset_name: str, resume: str, semantic_init, out_dir: str) -> tuple:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
 
@@ -527,38 +678,35 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: t
     if cuda:
         torch.cuda.manual_seed(1337)
     print('Getting dataloaders...')
-    sampler_cfg = sampler_cfgs[sampler_args]
+    sampler_cfg = get_sampler_cfg(cfg['sampler'])
     try:
         sampler_cfg['train_for_val']
     except:
         sampler_cfg['train_for_val'] = None
-    if sampler_cfg['train_for_val'] is None:
+    if 'train_for_val' not in sampler_cfg.keys() or sampler_cfg['train_for_val'] is None:
         sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
-
-    dataloaders = get_dataloaders(cfg, dataset, cuda, sampler_cfg)
+    if 'n_images_train' in cfg.keys() and cfg['n_images_train'] is not None:
+        sampler_cfg['train']['n_images'] = cfg['n_images_train']
+    if 'n_images_val' in cfg.keys() and cfg['n_images_val'] is not None:
+        sampler_cfg['val']['n_images'] = cfg['n_images_val']
+    if 'n_images_train_for_val' in cfg.keys() and cfg['n_images_train_for_val'] is not None:
+        sampler_cfg['train_for_val']['n_images'] = cfg['n_images_train_for_val']
+    dataloaders = get_dataloaders(cfg, dataset_name, cuda, sampler_cfg)
     print('Done getting dataloaders')
     try:
         i, [sl, il] = [d for i, d in enumerate(dataloaders['train']) if i == 0][0]
     except:
         raise
-    synthetic_generator_n_instances_per_semantic_id = 2
-    n_instances_per_class = cfg['n_instances_per_class'] or \
-                            (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
+    n_instances_per_class = 1 if cfg['single_instance'] else cfg['n_instances_per_class']
+    assert n_instances_per_class is not None
 
-    # reduce dataloaders to semantic subset before running / generating problem config:
-    for key, dataloader in dataloaders.items():
-        dataloader.dataset.reduce_to_semantic_subset(cfg['semantic_subset'])
-        dataloader.dataset.set_instance_cap(n_instances_per_class)
     problem_config = get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
                                         map_to_semantic=cfg['map_to_semantic'])
 
-    if resume:
-        checkpoint = torch.load(resume)
-    else:
-        checkpoint = None
+    checkpoint_file = resume
 
     # 2. model
-    model, start_epoch, start_iteration = get_model(cfg, problem_config, checkpoint, semantic_init, cuda)
+    model, start_epoch, start_iteration = get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda)
 
     print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
@@ -566,7 +714,7 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: t
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
-    optim = get_optimizer(cfg, model, checkpoint)
+    optim = get_optimizer(cfg, model, checkpoint_file)
 
     if cfg['freeze_vgg']:
         for module_name, module in model.named_children():
@@ -578,3 +726,19 @@ def load_everything_from_cfg(cfg: dict, gpu: int, sampler_args: dict, dataset: t
     trainer.iteration = start_iteration
 
     return problem_config, model, trainer, optim, dataloaders
+
+
+def get_cfg_override_parser(cfg_default):
+    cfg_override_parser = argparse.ArgumentParser()
+
+    for arg, default_val in cfg_default.items():
+        if default_val is not None:
+            arg_type = str2bool if isinstance(default_val, bool) else type(default_val)
+            cfg_override_parser.add_argument('--' + arg, type=arg_type, default=default_val,
+                                             help='cfg override (only recommended for one-off experiments '
+                                                  '- set cfg in file instead)')
+        else:
+            cfg_override_parser.add_argument('--' + arg, default=default_val,
+                                             help='cfg override (only recommended for one-off experiments '
+                                                  '- set cfg in file instead)')
+    return cfg_override_parser

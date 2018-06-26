@@ -1,6 +1,8 @@
 import numpy as np
 import torch
+from torch.autograd import Variable
 from torch.nn import functional as F
+
 import torchfcn
 
 VGG_CHILDREN_NAMES = ['conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',

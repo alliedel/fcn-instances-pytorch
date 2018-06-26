@@ -5,10 +5,30 @@ import numpy as np
 import scipy.misc
 import scipy.ndimage
 import torch
+from torch.autograd import Variable
 
 # TODO(allie): Allow for augmentations
 
 DEBUG_ASSERT = True
+
+
+def prep_input_for_scoring(input_tensor, cuda):
+    """
+    n_semantic_classes only needed for augmenting.
+    """
+    if cuda:
+        input_tensor = input_tensor.cuda()
+    input_variable = Variable(input_tensor)
+    return input_variable
+
+
+def prep_inputs_for_scoring(img_tensor, sem_lbl_tensor, inst_lbl_tensor, cuda):
+    """
+    n_semantic_classes only needed for augmenting.
+    """
+    img_var, sem_lbl_var, inst_lbl_var = tuple(prep_input_for_scoring(x, cuda) for x in (img_tensor, sem_lbl_tensor,
+                                                                                         inst_lbl_tensor))
+    return img_var, sem_lbl_var, inst_lbl_var
 
 
 def assert_validation_images_arent_in_training_set(train_loader, val_loader):
@@ -261,6 +281,13 @@ def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out
             inst_lbl[np.logical_and(sem_lbl == sem_val, old_inst_lbl == old_inst_val)] = new_inst_val
     inst_lbl[inst_lbl == -1] = 255
     write_np_array_as_img_with_borrowed_colormap_pallete(inst_lbl, out_inst_lbl_file_ordered, inst_lbl_file_unordered)
+
+
+def get_image_center(img_size, floor=False):
+    if floor:
+        return [sz // 2 for sz in img_size]
+    else:
+        return [sz / 2 for sz in img_size]
 
 
 def compute_centroid_binary_mask(binary_mask):

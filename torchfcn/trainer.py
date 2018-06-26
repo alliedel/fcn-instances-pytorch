@@ -17,7 +17,8 @@ from torch.autograd import Variable
 import torchfcn
 from torchfcn import losses
 from torchfcn import metrics
-from torchfcn import visualization_utils, instance_utils
+from torchfcn import instance_utils
+from torchfcn.analysis import visualization_utils
 from torchfcn.datasets import dataset_utils
 from torchfcn.export_utils import log_images
 from torchfcn.models.model_utils import is_nan, any_nan
@@ -29,26 +30,6 @@ DEBUG_ASSERTS = True
 
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
-
-
-def permute_scores(score, pred_permutations):
-    score_permuted_to_match = score.clone()
-    for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
-        # batch size?
-        score_permuted_to_match[:, ch, :, :] = score[:, pred_permutations[:, ch], :, :]
-    return score_permuted_to_match
-
-
-def permute_labels(label_preds, permutations):
-    if torch.is_tensor(label_preds):
-        label_preds_permuted = label_preds.clone()
-    else:
-        label_preds_permuted = label_preds.copy()
-    for idx in range(permutations.shape[0]):
-        permutation = permutations[idx, :]
-        for new_channel, old_channel in enumerate(permutation):
-            label_preds_permuted[label_preds == old_channel] = new_channel
-    return label_preds_permuted
 
 
 def should_write_activations(iteration, epoch, interval_validate):
@@ -138,7 +119,7 @@ class Trainer(object):
             'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val, **metric_maker_kwargs)
         }
 
-    def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
+    def my_cross_entropy(self, score, sem_lbl, inst_lbl, val_matching_override=False, **kwargs):
         map_to_semantic = self.instance_problem.map_to_semantic
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                       score.size(3))):
@@ -151,7 +132,7 @@ class Trainer(object):
 
         semantic_instance_labels = self.instance_problem.semantic_instance_class_list
         instance_id_labels = self.instance_problem.instance_count_id_list
-        matching = self.matching_loss
+        matching = val_matching_override or self.matching_loss
 
         permutations, loss = losses.cross_entropy2d(
             score, sem_lbl, inst_lbl,
@@ -374,7 +355,7 @@ class Trainer(object):
             assert type(permutations) == list, \
                 NotImplementedError('I''m assuming permutations are a list of ndarrays from multiple batches, '
                                     'not type {}'.format(type(permutations)))
-            label_preds_permuted = [permute_labels(label_pred, perms)
+            label_preds_permuted = [instance_utils.permute_labels(label_pred, perms)
                                     for label_pred, perms in zip(label_preds, permutations)]
         else:
             label_preds_permuted = label_preds
@@ -442,7 +423,7 @@ class Trainer(object):
                                        Variable(sem_lbl), Variable(inst_lbl)
 
         score = self.model(full_data)
-        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=True)
         if is_nan(loss.data[0]):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(full_data)
@@ -551,7 +532,7 @@ class Trainer(object):
             self.optim.zero_grad()
 
             score = self.model(full_data)
-            pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+            pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=False)
             if is_nan(loss.data[0]):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('loss is nan while training')
@@ -562,7 +543,7 @@ class Trainer(object):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
+                self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
                                                    self.iteration)
             loss.backward()
             self.optim.step()
@@ -587,7 +568,8 @@ class Trainer(object):
                 if any_nan(new_score.data):
                     import ipdb; ipdb.set_trace()
                     raise ValueError('new_score became nan while training')
-                new_pred_permutations, new_loss = self.my_cross_entropy(new_score, sem_lbl, inst_lbl)
+                new_pred_permutations, new_loss = self.my_cross_entropy(new_score, sem_lbl, inst_lbl,
+                                                                        val_matching_override=False)
                 new_loss /= len(full_data)
                 loss_improvement = loss.data[0] - new_loss.data[0]
                 self.model.train()

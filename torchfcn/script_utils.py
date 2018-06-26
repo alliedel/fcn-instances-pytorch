@@ -485,6 +485,18 @@ def get_voc_datasets(cfg, voc_root, transform=True):
     return train_dataset, val_dataset
 
 
+def get_cityscapes_datasets(cfg, cityscapes_root, transform=True):
+    dataset_kwargs = dict(transform=transform, semantic_only_labels=cfg['semantic_only_labels'],
+                          set_extras_to_void=cfg['set_extras_to_void'],
+                          map_to_single_instance_problem=cfg['single_instance'],
+                          ordering=cfg['ordering'])
+    train_dataset_kwargs = dict()
+    train_dataset = torchfcn.datasets.cityscapes.CityscapesInstances(cityscapes_root, split='train', **dataset_kwargs,
+                                                                     **train_dataset_kwargs)
+    val_dataset = torchfcn.datasets.cityscapes.CityscapesInstances(cityscapes_root, split='valid', **dataset_kwargs)
+    return train_dataset, val_dataset
+
+
 def get_sampler(dataset_instance_stats, sequential, sem_cls=None, n_instances_range=None, n_images=None):
     valid_indices = [True for _ in range(len(dataset_instance_stats.dataset))]
     if n_instances_range is not None:

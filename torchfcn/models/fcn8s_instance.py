@@ -97,17 +97,9 @@ class FCN8sInstance(nn.Module):
             else:
                 fr_in_dim = 4096
             if self.use_attention_layer:
-                self.attn1 = attention.Self_Attn(in_dim=intermediate_channel_size, activation='relu')
+                self.attn1 = attention.Self_Attn(in_dim=fr_in_dim, activation='relu')
 
             self.score_fr = nn.Conv2d(fr_in_dim, intermediate_channel_size, kernel_size=1)
-
-            # # conv8 -- added
-            # self.conv8_1 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
-            # self.relu8_1 = nn.ReLU(inplace=True)
-            # self.conv8_2 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
-            # self.relu8_2 = nn.ReLU(inplace=True)
-            # self.conv8_3 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
-            # self.relu8_3 = nn.ReLU(inplace=True)
 
             # H/32 x W/32 x n_semantic_cls
             self.score_pool3 = nn.Conv2d(256, self.bottleneck_channel_capacity, 1)

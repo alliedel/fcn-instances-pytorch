@@ -33,52 +33,6 @@ class FCN8sInstance(nn.Module):
         """
         super(FCN8sInstance, self).__init__()
 
-        if include_instance_channel0:
-            raise NotImplementedError
-        if semantic_instance_class_list is None:
-            assert n_instance_classes is not None, \
-                ValueError('either n_classes or semantic_instance_class_list must be specified.')
-            assert not map_to_semantic, ValueError('need semantic_instance_class_list to map to semantic')
-        else:
-            assert n_instance_classes is None or n_instance_classes == len(semantic_instance_class_list)
-            n_instance_classes = len(semantic_instance_class_list)
-
-        if semantic_instance_class_list is None:
-            self.semantic_instance_class_list = list(range(n_instance_classes))
-        else:
-            self.semantic_instance_class_list = semantic_instance_class_list
-        self.n_instance_classes = n_instance_classes
-        self.at_once = at_once
-        self.map_to_semantic = map_to_semantic
-        self.score_multiplier_init = score_multiplier_init
-        self.instance_to_semantic_mapping_matrix = \
-            instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
-                self.semantic_instance_class_list, as_numpy=False, compose_transposed=True)
-        self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
-        self.n_output_channels = n_instance_classes if not map_to_semantic else self.n_semantic_classes
-        self.n_input_channels = n_input_channels
-        self.activations = None
-        self.activation_layers = []
-        self.my_forward_hooks = {}
-        self.use_attention_layer = use_attention_layer
-        self.clip = clip
-        self.use_conv8 = use_conv8
-
-        if bottleneck_channel_capacity is None:
-            self.bottleneck_channel_capacity = self.n_instance_classes
-        elif isinstance(bottleneck_channel_capacity, str):
-            assert bottleneck_channel_capacity == 'semantic', ValueError('Did not recognize '
-                                                                         'bottleneck_channel_capacity {}')
-            self.bottleneck_channel_capacity = self.n_semantic_classes
-        else:
-            assert bottleneck_channel_capacity == int(bottleneck_channel_capacity), ValueError(
-                'bottleneck_channel_capacity must be an int')
-            self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
-
-        self.build_architecture()
-
-        self._initialize_weights()
-
         def build_architecture(self):
             # conv1
             self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, kernel_size=3, padding=100)
@@ -172,6 +126,52 @@ class FCN8sInstance(nn.Module):
                 self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
                                                               out_channels=self.n_output_channels,
                                                               kernel_size=1, bias=False)
+
+        if include_instance_channel0:
+            raise NotImplementedError
+        if semantic_instance_class_list is None:
+            assert n_instance_classes is not None, \
+                ValueError('either n_classes or semantic_instance_class_list must be specified.')
+            assert not map_to_semantic, ValueError('need semantic_instance_class_list to map to semantic')
+        else:
+            assert n_instance_classes is None or n_instance_classes == len(semantic_instance_class_list)
+            n_instance_classes = len(semantic_instance_class_list)
+
+        if semantic_instance_class_list is None:
+            self.semantic_instance_class_list = list(range(n_instance_classes))
+        else:
+            self.semantic_instance_class_list = semantic_instance_class_list
+        self.n_instance_classes = n_instance_classes
+        self.at_once = at_once
+        self.map_to_semantic = map_to_semantic
+        self.score_multiplier_init = score_multiplier_init
+        self.instance_to_semantic_mapping_matrix = \
+            instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
+                self.semantic_instance_class_list, as_numpy=False, compose_transposed=True)
+        self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
+        self.n_output_channels = n_instance_classes if not map_to_semantic else self.n_semantic_classes
+        self.n_input_channels = n_input_channels
+        self.activations = None
+        self.activation_layers = []
+        self.my_forward_hooks = {}
+        self.use_attention_layer = use_attention_layer
+        self.clip = clip
+        self.use_conv8 = use_conv8
+
+        if bottleneck_channel_capacity is None:
+            self.bottleneck_channel_capacity = self.n_instance_classes
+        elif isinstance(bottleneck_channel_capacity, str):
+            assert bottleneck_channel_capacity == 'semantic', ValueError('Did not recognize '
+                                                                         'bottleneck_channel_capacity {}')
+            self.bottleneck_channel_capacity = self.n_semantic_classes
+        else:
+            assert bottleneck_channel_capacity == int(bottleneck_channel_capacity), ValueError(
+                'bottleneck_channel_capacity must be an int')
+            self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
+
+        build_architecture()
+
+        self._initialize_weights()
 
         def store_activation(self, layer, input, output, layer_name):
             if layer_name not in self.activation_layers:

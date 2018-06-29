@@ -55,7 +55,7 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'weight_by_instance': 'wt',
                                         'optim': 'o',
                                         'augment_semantic': 'augsem',
-                                        'add_conv8': 'conv8',
+                                        'use_conv8': 'conv8',
                                         }
 
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
@@ -402,7 +402,8 @@ def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
         semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
         map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
         bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'],
-        n_input_channels=n_input_channels, clip=cfg['clip'], add_conv8=cfg['add_conv8'])
+        n_input_channels=n_input_channels, clip=cfg['clip'], use_conv8=cfg['use_conv8'], use_attention_layer=cfg[
+            'use_attn_layer'])
     if checkpoint_file is not None:
         checkpoint = torch.load(checkpoint_file)
         model.load_state_dict(checkpoint['model_state_dict'])

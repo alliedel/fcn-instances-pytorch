@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torchfcn import instance_utils
 
-from torchfcn.models import model_utils
+from torchfcn.models import model_utils, attention
 
 DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
@@ -23,7 +23,7 @@ class FCN8sInstance(nn.Module):
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
-                 at_once=True, n_input_channels=3, clip=None, add_conv8=False):
+                 at_once=True, n_input_channels=3, clip=None, use_conv8=False, use_attention_layer=True):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -36,7 +36,7 @@ class FCN8sInstance(nn.Module):
         if include_instance_channel0:
             raise NotImplementedError
         if semantic_instance_class_list is None:
-            assert n_instance_classes is not None,\
+            assert n_instance_classes is not None, \
                 ValueError('either n_classes or semantic_instance_class_list must be specified.')
             assert not map_to_semantic, ValueError('need semantic_instance_class_list to map to semantic')
         else:
@@ -60,6 +60,9 @@ class FCN8sInstance(nn.Module):
         self.activations = None
         self.activation_layers = []
         self.my_forward_hooks = {}
+        self.use_attention_layer = use_attention_layer
+        self.clip = clip
+        self.use_conv8 = use_conv8
 
         if bottleneck_channel_capacity is None:
             self.bottleneck_channel_capacity = self.n_instance_classes
@@ -71,105 +74,111 @@ class FCN8sInstance(nn.Module):
             assert bottleneck_channel_capacity == int(bottleneck_channel_capacity), ValueError(
                 'bottleneck_channel_capacity must be an int')
             self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
-        self.add_conv8 = add_conv8
 
-        # conv1
-        self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, kernel_size=3, padding=100)
-        self.relu1_1 = nn.ReLU(inplace=True)
-        self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-        self.relu1_2 = nn.ReLU(inplace=True)
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # 1/2
+        self.build_architecture()
 
-        # conv2
-        self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.relu2_1 = nn.ReLU(inplace=True)
-        self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.relu2_2 = nn.ReLU(inplace=True)
-        self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/4
-
-        # conv3
-        self.conv3_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        self.relu3_1 = nn.ReLU(inplace=True)
-        self.conv3_2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.relu3_2 = nn.ReLU(inplace=True)
-        self.conv3_3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.relu3_3 = nn.ReLU(inplace=True)
-        self.pool3 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/8
-
-        # conv4
-        self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
-        self.relu4_1 = nn.ReLU(inplace=True)
-        self.conv4_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu4_2 = nn.ReLU(inplace=True)
-        self.conv4_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu4_3 = nn.ReLU(inplace=True)
-        self.pool4 = nn.MaxPool2d(
-            kernel_size=2, stride=2, ceil_mode=True)  # 1/16
-
-        # conv5
-        self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_1 = nn.ReLU(inplace=True)
-        self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_2 = nn.ReLU(inplace=True)
-        self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_3 = nn.ReLU(inplace=True)
-        self.pool5 = nn.MaxPool2d(
-            kernel_size=2, stride=2, ceil_mode=True)  # 1/32
-
-        # fc6
-        self.fc6 = nn.Conv2d(512, 4096, 7)
-        self.relu6 = nn.ReLU(inplace=True)
-        self.drop6 = nn.Dropout2d()
-
-        # fc7
-        self.fc7 = nn.Conv2d(4096, 4096, kernel_size=1)  # H/32 x W/32 x 4096
-        self.relu7 = nn.ReLU(inplace=True)
-        self.drop7 = nn.Dropout2d()
-
-
-
-        # H/32 x W/32 x n_semantic_cls
-        INTERMEDIATE_CONV_CHANNEL_SIZE = 20
-        intermediate_channel_size = self.bottleneck_channel_capacity if not self.add_conv8 else \
-            INTERMEDIATE_CONV_CHANNEL_SIZE
-        self.score_fr = nn.Conv2d(4096, intermediate_channel_size, kernel_size=1)
-
-        # # conv8 -- added
-        # self.conv8_1 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
-        # self.relu8_1 = nn.ReLU(inplace=True)
-        # self.conv8_2 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
-        # self.relu8_2 = nn.ReLU(inplace=True)
-        # self.conv8_3 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
-        # self.relu8_3 = nn.ReLU(inplace=True)
-
-        # H/32 x W/32 x n_semantic_cls
-        self.score_pool3 = nn.Conv2d(256, self.bottleneck_channel_capacity, 1)
-        # H/32 x W/32 x n_semantic_cls
-        self.score_pool4 = nn.Conv2d(512, self.bottleneck_channel_capacity, 1)
-
-        self.upscore2 = nn.ConvTranspose2d(  # H/16 x W/16 x n_semantic_cls
-            self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
-        self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
-            self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
-        self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
-            self.bottleneck_channel_capacity, self.n_instance_classes, kernel_size=16, stride=8, bias=False)
-        if self.score_multiplier_init is not None:
-            self.score_multiplier1x1 = nn.Conv2d(self.n_instance_classes, self.n_instance_classes,
-                                                 kernel_size=1, stride=1, bias=True)
-        self.clipping_function = None if clip is None else model_utils.get_clipping_function(min=-clip, max=clip)
-
-        if self.map_to_semantic:
-            self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
-                                                          out_channels=self.n_output_channels,
-                                                          kernel_size=1, bias=False)
         self._initialize_weights()
 
-    def store_activation(self, layer, input, output, layer_name):
-        if layer_name not in self.activation_layers:
-            self.activation_layers.append(layer_name)
-        if self.activations is None:
-            self.activations = {}
-        self.activations[layer_name] = output.data
+        def build_architecture(self):
+            # conv1
+            self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, kernel_size=3, padding=100)
+            self.relu1_1 = nn.ReLU(inplace=True)
+            self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+            self.relu1_2 = nn.ReLU(inplace=True)
+            self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # 1/2
+
+            # conv2
+            self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+            self.relu2_1 = nn.ReLU(inplace=True)
+            self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+            self.relu2_2 = nn.ReLU(inplace=True)
+            self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/4
+
+            # conv3
+            self.conv3_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+            self.relu3_1 = nn.ReLU(inplace=True)
+            self.conv3_2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+            self.relu3_2 = nn.ReLU(inplace=True)
+            self.conv3_3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+            self.relu3_3 = nn.ReLU(inplace=True)
+            self.pool3 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/8
+
+            # conv4
+            self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
+            self.relu4_1 = nn.ReLU(inplace=True)
+            self.conv4_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
+            self.relu4_2 = nn.ReLU(inplace=True)
+            self.conv4_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
+            self.relu4_3 = nn.ReLU(inplace=True)
+            self.pool4 = nn.MaxPool2d(
+                kernel_size=2, stride=2, ceil_mode=True)  # 1/16
+
+            # conv5
+            self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
+            self.relu5_1 = nn.ReLU(inplace=True)
+            self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
+            self.relu5_2 = nn.ReLU(inplace=True)
+            self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
+            self.relu5_3 = nn.ReLU(inplace=True)
+            self.pool5 = nn.MaxPool2d(
+                kernel_size=2, stride=2, ceil_mode=True)  # 1/32
+
+            # fc6
+            self.fc6 = nn.Conv2d(512, 4096, 7)
+            self.relu6 = nn.ReLU(inplace=True)
+            self.drop6 = nn.Dropout2d()
+
+            # fc7
+            self.fc7 = nn.Conv2d(4096, 4096, kernel_size=1)  # H/32 x W/32 x 4096
+            self.relu7 = nn.ReLU(inplace=True)
+            self.drop7 = nn.Dropout2d()
+
+            # H/32 x W/32 x n_semantic_cls
+            INTERMEDIATE_CONV_CHANNEL_SIZE = 20
+            intermediate_channel_size = self.bottleneck_channel_capacity if not self.add_conv8 else \
+                INTERMEDIATE_CONV_CHANNEL_SIZE
+            if self.use_conv8:
+                self.conv8 = nn.Conv2d(4096, intermediate_channel_size, kernel_size=3, padding=1)
+            if self.use_attention_layer:
+                self.attn1 = attention.Self_Attn(in_dim=intermediate_channel_size, activation='relu')
+            self.score_fr = nn.Conv2d(4096, intermediate_channel_size, kernel_size=1)
+
+            # # conv8 -- added
+            # self.conv8_1 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
+            # self.relu8_1 = nn.ReLU(inplace=True)
+            # self.conv8_2 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
+            # self.relu8_2 = nn.ReLU(inplace=True)
+            # self.conv8_3 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
+            # self.relu8_3 = nn.ReLU(inplace=True)
+
+            # H/32 x W/32 x n_semantic_cls
+            self.score_pool3 = nn.Conv2d(256, self.bottleneck_channel_capacity, 1)
+            # H/32 x W/32 x n_semantic_cls
+            self.score_pool4 = nn.Conv2d(512, self.bottleneck_channel_capacity, 1)
+
+            self.upscore2 = nn.ConvTranspose2d(  # H/16 x W/16 x n_semantic_cls
+                self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
+            self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
+                self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
+            self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
+                self.bottleneck_channel_capacity, self.n_instance_classes, kernel_size=16, stride=8, bias=False)
+            if self.score_multiplier_init is not None:
+                self.score_multiplier1x1 = nn.Conv2d(self.n_instance_classes, self.n_instance_classes,
+                                                     kernel_size=1, stride=1, bias=True)
+            self.clipping_function = None if self.clip is None else model_utils.get_clipping_function(min=-self.clip,
+                                                                                                      max=self.clip)
+
+            if self.map_to_semantic:
+                self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
+                                                              out_channels=self.n_output_channels,
+                                                              kernel_size=1, bias=False)
+
+        def store_activation(self, layer, input, output, layer_name):
+            if layer_name not in self.activation_layers:
+                self.activation_layers.append(layer_name)
+            if self.activations is None:
+                self.activations = {}
+            self.activations[layer_name] = output.data
 
     def add_forward_hook(self, layer_name):
         try:
@@ -232,6 +241,9 @@ class FCN8sInstance(nn.Module):
 
         h = self.relu7(self.fc7(h))
         h = self.drop7(h)
+
+        h, p1 = self.attn1(h)
+
         h = self.score_fr(h)
         # if self.add_conv8:
         #     h = self.intermediate_conv1(h)
@@ -255,8 +267,8 @@ class FCN8sInstance(nn.Module):
         else:
             h = self.score_pool3(pool3)
         h = h[:, :,
-              9:9 + upscore_pool4.size()[2],
-              9:9 + upscore_pool4.size()[3]]
+            9:9 + upscore_pool4.size()[2],
+            9:9 + upscore_pool4.size()[3]]
         score_pool3c = h  # 1/8
 
         h = upscore_pool4 + score_pool3c  # 1/8
@@ -406,7 +418,8 @@ class FCN8sInstance(nn.Module):
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not all(my_p.size()[c] == p_to_copy.size()[c]
                                for c in [0] + list(range(2, len(p_to_copy.size())))):
-                        import ipdb; ipdb.set_trace()
+                        import ipdb;
+                        ipdb.set_trace()
                         raise ValueError('semantic model formatted incorrectly for repeating params.')
 
                     for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
@@ -419,7 +432,8 @@ class FCN8sInstance(nn.Module):
                 for p_name, my_p in my_module.named_parameters():
                     p_to_copy = getattr(module_to_copy, p_name)
                     if not my_p.size() == p_to_copy.size():
-                        import ipdb; ipdb.set_trace()
+                        import ipdb;
+                        ipdb.set_trace()
                         raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
                     copy_tensor(src=p_to_copy.data, dest=my_p.data)
                     assert torch.equal(my_p.data, p_to_copy.data)
@@ -439,10 +453,12 @@ class FCN8sInstance(nn.Module):
             unsuccessfully_copied_modules = []
             for module_name, my_module in self.named_children():
                 if module_name in module_names_to_ignore:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb;
+                    ipdb.set_trace()
                     continue
                 module_to_copy = getattr(semantic_model, module_name)
-                for i, (my_p, p_to_copy) in enumerate(zip(my_module.named_parameters(), module_to_copy.named_parameters())):
+                for i, (my_p, p_to_copy) in enumerate(
+                        zip(my_module.named_parameters(), module_to_copy.named_parameters())):
                     assert my_p[0] == p_to_copy[0]
                     if torch.equal(my_p[1].data, p_to_copy[1].data):
                         successfully_copied_modules.append(module_name + ' ' + str(i))

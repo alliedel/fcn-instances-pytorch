@@ -27,6 +27,7 @@ from torchfcn import instance_utils
 from torchfcn.datasets import dataset_statistics, samplers
 from torchfcn.datasets.voc import VOC_ROOT
 from torchfcn.models import model_utils
+from torchfcn.models import attention
 
 here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'
@@ -327,6 +328,16 @@ def get_parameters(model, bias=False):
             # weight is frozen because it is just a bilinear upsampling
             if bias:
                 assert m.bias is None
+        elif isinstance(m, attention.Self_Attn):
+            if bias:
+                yield m.query_conv.bias
+                yield m.key_conv.bias
+                yield m.value_conv.bias
+            else:
+                yield m.query_conv.weight
+                yield m.key_conv.weight
+                yield m.value_conv.weight
+                yield m.gamma
         elif isinstance(m, modules_skipped):
             continue
         else:

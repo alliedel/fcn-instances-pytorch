@@ -33,7 +33,7 @@ class FCN8sInstance(nn.Module):
         """
         super(FCN8sInstance, self).__init__()
 
-        def build_architecture(self):
+        def build_architecture():
             # conv1
             self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, kernel_size=3, padding=100)
             self.relu1_1 = nn.ReLU(inplace=True)
@@ -89,7 +89,7 @@ class FCN8sInstance(nn.Module):
 
             # H/32 x W/32 x n_semantic_cls
             INTERMEDIATE_CONV_CHANNEL_SIZE = 20
-            intermediate_channel_size = self.bottleneck_channel_capacity if not self.add_conv8 else \
+            intermediate_channel_size = self.bottleneck_channel_capacity if not self.use_conv8 else \
                 INTERMEDIATE_CONV_CHANNEL_SIZE
             if self.use_conv8:
                 self.conv8 = nn.Conv2d(4096, intermediate_channel_size, kernel_size=3, padding=1)

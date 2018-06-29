@@ -98,6 +98,7 @@ class FCN8sInstance(nn.Module):
                 fr_in_dim = 4096
             if self.use_attention_layer:
                 self.attn1 = attention.Self_Attn(in_dim=fr_in_dim, activation='relu')
+                fr_in_dim = attention.Self_Attn.out_dim
 
             self.score_fr = nn.Conv2d(fr_in_dim, intermediate_channel_size, kernel_size=1)
 

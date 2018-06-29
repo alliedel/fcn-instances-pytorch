@@ -9,13 +9,16 @@ class Self_Attn(nn.Module):
         super(Self_Attn, self).__init__()
         self.channel_in = in_dim
         self.activation = activation
-
-        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
-        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+        self.out_dim = self.get_out_dim(in_dim)
+        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=self.out_dim, kernel_size=1)
+        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=self.out_dim, kernel_size=1)
         self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.gamma = nn.Parameter(torch.zeros(1))
 
         self.softmax = nn.Softmax(dim=-1)  #
+
+    def get_out_dim(self, in_dim):
+        return in_dim // 8
 
     def forward(self, x):
         """

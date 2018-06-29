@@ -93,9 +93,13 @@ class FCN8sInstance(nn.Module):
                 INTERMEDIATE_CONV_CHANNEL_SIZE
             if self.use_conv8:
                 self.conv8 = nn.Conv2d(4096, intermediate_channel_size, kernel_size=3, padding=1)
+                fr_in_dim = intermediate_channel_size
+            else:
+                fr_in_dim = 4096
             if self.use_attention_layer:
                 self.attn1 = attention.Self_Attn(in_dim=intermediate_channel_size, activation='relu')
-            self.score_fr = nn.Conv2d(4096, intermediate_channel_size, kernel_size=1)
+
+            self.score_fr = nn.Conv2d(fr_in_dim, intermediate_channel_size, kernel_size=1)
 
             # # conv8 -- added
             # self.conv8_1 = nn.Conv2d(512, 512, kernel_size=9, padding=3)
@@ -242,16 +246,14 @@ class FCN8sInstance(nn.Module):
         h = self.relu7(self.fc7(h))
         h = self.drop7(h)
 
+        h = self.score_fr(h)
+
         if self.use_conv8:
             h = self.conv8(h)
 
         if self.use_attention_layer:
             h, p1 = self.attn1(h)
 
-        h = self.score_fr(h)
-        # if self.add_conv8:
-        #     h = self.intermediate_conv1(h)
-        #     h = self.intermediate_conv2(h)
         h = self.upscore2(h)  # ConvTranspose2d, stride=2
         upscore2 = h  # 1/16
 

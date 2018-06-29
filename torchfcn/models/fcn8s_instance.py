@@ -242,7 +242,11 @@ class FCN8sInstance(nn.Module):
         h = self.relu7(self.fc7(h))
         h = self.drop7(h)
 
-        h, p1 = self.attn1(h)
+        if self.use_conv8:
+            h = self.conv8(h)
+
+        if self.use_attention_layer:
+            h, p1 = self.attn1(h)
 
         h = self.score_fr(h)
         # if self.add_conv8:

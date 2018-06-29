@@ -312,6 +312,7 @@ def get_parameters(model, bias=False):
         nn.MaxPool2d,
         nn.Dropout2d,
         nn.Sequential,
+        nn.Softmax,
         torchfcn.models.FCN32s,
         torchfcn.models.FCN16s,
         torchfcn.models.FCN8s,

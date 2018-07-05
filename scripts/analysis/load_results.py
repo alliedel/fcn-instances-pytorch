@@ -1,5 +1,8 @@
 import argparse
 import os.path as osp
+
+import torchfcn.utils.logs
+import torchfcn.utils.models
 from torchfcn import script_utils
 import torch
 from torchfcn.models import model_utils
@@ -87,11 +90,11 @@ if __name__ == '__main__':
     args = parse_args()
     logdir = args.logdir
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
-        script_utils.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
+        torchfcn.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     cuda = torch.cuda.is_available()
-    initial_model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                         checkpoint_file=None, semantic_init=None,
-                                                                         cuda=cuda)
+    initial_model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config,
+                                                                                  checkpoint_file=None, semantic_init=None,
+                                                                                  cuda=cuda)
 
     # main_check_freeze()
     # main_check_cost_matrix()

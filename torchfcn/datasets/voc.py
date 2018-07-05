@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 
-import collections
 import os.path as osp
 
 import numpy as np
 from torch.utils import data
 
-from torchfcn.datasets.dataset_utils import load_img_as_dtype, generate_per_sem_instance_file
-from . import dataset_utils
+from torchfcn.datasets import dataset_utils
 
 
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
@@ -16,6 +14,9 @@ from . import dataset_utils
 # You may also want to permute different semantic classes differently, though I'm pretty sure
 # the network shouldn't be able to understand that's going on (semantic classes are handled
 # separately)
+
+
+MEAN_BGR = np.array([104.00698793, 116.66876762, 122.67891434])
 
 
 def get_default_voc_root():
@@ -30,9 +31,6 @@ def get_default_voc_root():
 
 
 VOC_ROOT = get_default_voc_root()
-
-
-DEBUG_ASSERT = True
 
 ALL_VOC_CLASS_NAMES = np.array([
     'background',  # 0
@@ -59,228 +57,334 @@ ALL_VOC_CLASS_NAMES = np.array([
 ])
 
 
-class VOCClassSegBase(data.Dataset):
+class RawVOCBase(data.Dataset):
     class_names = ALL_VOC_CLASS_NAMES
-    mean_bgr = np.array([104.00698793, 116.66876762, 122.67891434])
 
-    def __init__(self, root, split='train', transform=False,
-                 map_other_classes_to_bground=True,
-                 permute_instance_order=False, set_extras_to_void=False,
-                 return_semantic_instance_tuple=None, semantic_only_labels=None,
-                 _im_a_copy=False, map_to_single_instance_problem=False, ordering=None):
-        """
-        semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
-        map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
-        return_semantic_instance_tuple : Generally only for debugging; instead of returning an
-        instance index as the target values, it'll return two targets: the semantic target and
-        the instance number: [0, n_instances_per_class[sem_idx])
-        filter_bground_images : most useful when you've run with semantic_subset != None -- will get rid of any
-        images that don't contain that semantic subset (which become just background images)
-        """
-
-        self.map_to_single_instance_problem = map_to_single_instance_problem
-        if return_semantic_instance_tuple is None:
-            return_semantic_instance_tuple = True if not semantic_only_labels else False
-        if semantic_only_labels is None:
-            semantic_only_labels = False
-        self.permute_instance_order = permute_instance_order
-        if permute_instance_order:
-            raise NotImplementedError
-        self.map_other_classes_to_bground = map_other_classes_to_bground
+    def __init__(self, root, split):
         self.root = root
         self.split = split
-        self._transform = transform
-        self.semantic_subset = None
-        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
-            semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
-        self.n_semantic_classes = len(self.class_names)
-        self._instance_to_semantic_mapping_matrix = None
-        assert xor(return_semantic_instance_tuple, semantic_only_labels)
-        self.n_classes = len(self.class_names)
-        self.set_extras_to_void = set_extras_to_void
-        self.return_semantic_instance_tuple = return_semantic_instance_tuple
-        self.semantic_only_labels = semantic_only_labels
-        self.n_inst_cap_per_class = None
-        self.ordering = ordering.upper() if ordering is not None else None
-
-        # VOC2011 and others are subset of VOC2012
-        year = 2012
-        dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC{}'.format(year))
-
-        # Get files
-        self.files = self.get_files(dataset_dir)
-        assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
-        if self.ordering is not None:
-            self.sem_instance_id_remapping = [None for _ in self.files]  # buffer to store remappings in later
+        self.files = self.get_files()
+        self.class_names = ALL_VOC_CLASS_NAMES
 
     def __len__(self):
-        return len(self.files[self.split])
+        return len(self.files)
 
     def __getitem__(self, index):
-        data_file = self.files[self.split][index]
-        img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
-                                                   sem_lbl_file=data_file['sem_lbl'],
-                                                   inst_lbl_file=data_file['inst_lbl'])
+        data_file = self.files[index]
+        img, lbl = load_voc_files(data_file['img'], data_file['sem_lbl'], data_file['inst_lbl'])
         return img, lbl
 
-    def set_instance_cap(self, n_inst_cap_per_class=None):
-        if not isinstance(n_inst_cap_per_class, int):
-            raise NotImplementedError('Haven\'t implemented dif cap per semantic class. Please use an int.')
-        self.n_inst_cap_per_class = n_inst_cap_per_class
+    def get_files(self):
+        dataset_dir = self.root
+        split = self.split
+        file_list = get_raw_voc_files(dataset_dir, split)
+        return file_list
 
-    def reset_instance_cap(self):
-        self.n_inst_cap_per_class = None
 
-    def reduce_to_semantic_subset(self, semantic_subset):
-        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
-            semantic_subset=semantic_subset, full_set=ALL_VOC_CLASS_NAMES)
+def get_raw_voc_files(dataset_dir, split):
+    imgsets_file = osp.join(
+        dataset_dir, 'ImageSets/Segmentation/%s.txt' % split)
+    files = []
+    for did in open(imgsets_file):
+        did = did.strip()
+        try:
+            img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
+            assert osp.isfile(img_file)
+        except AssertionError:
+            if not osp.isfile(img_file):
+                # VOC > 2007 has years in the name (VOC2007 doesn't).  Handling both.
+                for did_ext in ['{}_{}'.format(year, did) for year in range(2007, 2013)]:
+                    img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did_ext)
+                    if osp.isfile(img_file):
+                        did = did_ext
+                        break
+                if not osp.isfile(img_file):
+                    raise
+        sem_lbl_file = osp.join(
+            dataset_dir, 'SegmentationClass/%s.png' % did)
+        if not osp.isfile(sem_lbl_file):
+            raise Exception('This image does not exist')
+        # TODO(allie) -- allow functionality for permuting instance labels
+        inst_absolute_lbl_file = osp.join(
+            dataset_dir, 'SegmentationObject/%s.png' % did)
+        inst_lbl_file_unordered = osp.join(
+            dataset_dir, 'SegmentationObject/%s_per_sem_cls.png' % did)
+        if not osp.isfile(inst_lbl_file_unordered):
+            if not osp.isfile(inst_absolute_lbl_file):
+                raise Exception('This image does not exist')
+            dataset_utils.generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file_unordered)
 
-    def clear_semantic_subset(self):
-        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
-            semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
+        files.append({
+            'img': img_file,
+            'sem_lbl': sem_lbl_file,
+            'inst_lbl': inst_lbl_file_unordered,
+            'inst_absolute_lbl': inst_absolute_lbl_file,
+        })
+    assert len(files) > 0, "No images found from list {}".format(imgsets_file)
+    return files
 
-    def get_files(self, dataset_dir):
-        files = collections.defaultdict(list)
-        for split in ['train', 'val'] + ([] if self.split in ['train', 'val'] else [self.split]):
-            imgsets_file = osp.join(
-                dataset_dir, 'ImageSets/Segmentation/%s.txt' % split)
-            for did in open(imgsets_file):
-                did = did.strip()
-                try:
-                    img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
-                    assert osp.isfile(img_file)
-                except AssertionError:
-                    if not osp.isfile(img_file):
-                        # VOC > 2007 has years in the name (VOC2007 doesn't).  Handling both.
-                        for did_ext in ['{}_{}'.format(year, did) for year in range(2007, 2013)]:
-                            img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did_ext)
-                            if osp.isfile(img_file):
-                                did = did_ext
-                                break
-                        if not osp.isfile(img_file):
-                            raise
-                sem_lbl_file = osp.join(
-                    dataset_dir, 'SegmentationClass/%s.png' % did)
-                if not osp.isfile(sem_lbl_file):
-                    raise Exception('This image does not exist')
-                # TODO(allie) -- allow functionality for permuting instance labels
-                inst_absolute_lbl_file = osp.join(
-                    dataset_dir, 'SegmentationObject/%s.png' % did)
-                inst_lbl_file_unordered = osp.join(
-                    dataset_dir, 'SegmentationObject/%s_per_sem_cls.png' % did)
-                if not osp.isfile(inst_lbl_file_unordered):
-                    if not osp.isfile(inst_absolute_lbl_file):
-                        raise Exception('This image does not exist')
-                    generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file_unordered)
 
-                # Generate ordered instance ids
-                if self.ordering is None:
-                    inst_lbl_file = inst_lbl_file_unordered
-                elif self.ordering == 'LR':
-                    inst_lbl_file = inst_lbl_file_unordered.replace('.png', '_ordered_lr.png')
-                    if not osp.isfile(inst_lbl_file):
-                        dataset_utils.generate_lr_ordered_instance_file(inst_lbl_file_unordered,
-                                                                        sem_lbl_file, inst_lbl_file)
+def load_transformed_voc_files(self, img_file, sem_lbl_file, inst_lbl_file, transform=True):
+    img, lbl = load_voc_files(img_file, sem_lbl_file, inst_lbl_file)
+    if self.transformation is not None and transform:
+        img, lbl = self.transformation.transform(img, lbl)
+    return img, lbl
 
-                else:
-                    raise ValueError('ordering={} not recognized'.format(self.ordering))
-                files[split].append({
-                    'img': img_file,
-                    'sem_lbl': sem_lbl_file,
-                    'inst_absolute_lbl': inst_absolute_lbl_file,
-                    'inst_lbl': inst_lbl_file,
-                    'inst_lbl_unordered': inst_lbl_file_unordered,
-                })
-            assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
-        return files
 
-    def transform_img(self, img):
-        return dataset_utils.transform_img(img, self.mean_bgr, resized_sz=None)
+def load_voc_files(img_file, sem_lbl_file, inst_lbl_file=None, return_semantic_only=False):
+    img = dataset_utils.load_img_as_dtype(img_file, np.uint8)
+    sem_lbl = dataset_utils.load_img_as_dtype(sem_lbl_file, np.int32)
+    sem_lbl[sem_lbl == 255] = -1
 
-    @staticmethod
-    def transform_lbl(lbl):
-        return dataset_utils.transform_lbl(lbl)
+    # load instance label
+    if return_semantic_only:
+        assert inst_lbl_file is None, ValueError
+        lbl = sem_lbl
+    else:
+        inst_lbl = dataset_utils.load_img_as_dtype(inst_lbl_file, np.int32)
+        inst_lbl[inst_lbl == 255] = -1
+        inst_lbl[sem_lbl == -1] = -1
+        lbl = (sem_lbl, inst_lbl)
 
-    def transform(self, img, lbl):
-        img = self.transform_img(img)
-        lbl = self.transform_lbl(lbl)
+    return img, lbl
+
+
+class TransformedVOC(RawVOCBase):
+
+    def __init__(self, root, split, precomputed_file_transformation=None, runtime_transformation=None):
+        super(TransformedVOC, self).__init__(root, split=split)  # populates self.files
+        self.precomputed_file_transformation = precomputed_file_transformation
+        self.runtime_transformation = runtime_transformation
+        self.should_use_precompute_transform = True
+        self.should_use_runtime_transform = True
+
+    def __getitem__(self, index):
+        """
+        Note: Overrides base class method
+        """
+        data_file = self.files[index]  # self.files populated when RawVOCBase was instantiated
+        img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file['inst_lbl']
+        if self.precomputed_file_transformation is not None:
+            img_file, sem_lbl_file, inst_lbl_file = \
+                self.precomputed_file_transformation.transform(img_file=img_file, sem_lbl_file=sem_lbl_file,
+                                                               inst_lbl_file=inst_lbl_file)
+
+        img, lbl = load_voc_files(img_file, sem_lbl_file, inst_lbl_file)
+        if self.runtime_transformation is not None:
+            img, lbl = self.runtime_transformation.transform(img, lbl)
         return img, lbl
 
-    def untransform(self, img, lbl):
-        img = self.untransform_img(img)
-        lbl = self.untransform_lbl(lbl)
-        return img, lbl
-
-    def untransform_img(self, img):
-        return dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
-
-    def untransform_lbl(self, lbl):
-        return dataset_utils.untransform_lbl(lbl)
-
-    def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
-        raise NotImplementedError('we need to pass or create the instance config class to make this work properly')
-
-    def load_and_process_sem_lbl(self, sem_lbl_file):
-        sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
-        sem_lbl[sem_lbl == 255] = -1
-        if self._transform:
-            sem_lbl = self.transform_lbl(sem_lbl)
-        # map to reduced class set
-        sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
-        return sem_lbl
-
-    def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file, gt_sem_inst_ordering_tuple_list=None):
-        img = load_img_as_dtype(img_file, np.uint8)
-        if self._transform:
-            img = self.transform_img(img)
-
-        # load semantic label
-        sem_lbl = self.load_and_process_sem_lbl(sem_lbl_file)
-
-        # load instance label
-        if self.semantic_only_labels:
-            lbl = sem_lbl
-        else:
-            inst_lbl = load_img_as_dtype(inst_lbl_file, np.int32)
-            inst_lbl[inst_lbl == 255] = -1
-            if self.map_to_single_instance_problem:
-                inst_lbl[inst_lbl != -1] = 1
-            if self._transform:
-                inst_lbl = self.transform_lbl(inst_lbl)
-            inst_lbl[sem_lbl == -1] = -1
-
-            if self.n_inst_cap_per_class is not None:
-                inst_lbl[inst_lbl > self.n_inst_cap_per_class] = -1
-
-            inst_lbl[inst_lbl == 0] = -1  # sanity check
-            inst_lbl[sem_lbl == 0] = 0  # needed for when we map other semantic classes to background.
-            sem_lbl[inst_lbl == -1] = -1
-            if self.return_semantic_instance_tuple:
-                lbl = [sem_lbl, inst_lbl]
-            else:
-                lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
-
-        return img, lbl
-
-    def remap_to_reduced_semantic_classes(self, sem_lbl):
-        return dataset_utils.remap_to_reduced_semantic_classes(
-            sem_lbl, reduced_class_idxs=self.idxs_into_all_voc,
-            map_other_classes_to_bground=self.map_other_classes_to_bground)
+    # def __len__(self):  # explicit
+    #     return super(TransformedVOC, self).__len__()
+    # OR
+    #     return len(self.files)
 
 
-class VOC2011ClassSeg(VOCClassSegBase):
-
-    def __init__(self, root, split='train', transform=False, **kwargs):
-        super(VOC2011ClassSeg, self).__init__(
-            root, split=split, transform=transform, **kwargs)
-
-
-class VOC2012ClassSeg(VOCClassSegBase):
-    url = 'http://host.robots.ox.ac.uk/pascal/VOC/voc2012/VOCtrainval_11-May-2012.tar'  # NOQA
-
-    def __init__(self, root, split='train', transform=False, **kwargs):
-        super(VOC2012ClassSeg, self).__init__(
-            root, split=split, transform=transform, **kwargs)
+# class VOCClassSegBase(data.Dataset):
+#
+#     def __init__(self, root, split='train', transform=False,
+#                  map_other_classes_to_bground=True,
+#                  permute_instance_order=False, set_extras_to_void=False,
+#                  return_semantic_instance_tuple=None, semantic_only_labels=None,
+#                  _im_a_copy=False, map_to_single_instance_problem=False, ordering=None):
+#         """
+#         semantic_subset: if None, use all classes.  Else, reduce the classes to this list set.
+#         map_other_classes_to_bground: if False, will error if classes in the training set are outside semantic_subset.
+#         return_semantic_instance_tuple : Generally only for debugging; instead of returning an
+#         instance index as the target values, it'll return two targets: the semantic target and
+#         the instance number: [0, n_instances_per_class[sem_idx])
+#         filter_bground_images : most useful when you've run with semantic_subset != None -- will get rid of any
+#         images that don't contain that semantic subset (which become just background images)
+#         """
+#
+#         self.map_to_single_instance_problem = map_to_single_instance_problem
+#         if return_semantic_instance_tuple is None:
+#             return_semantic_instance_tuple = True if not semantic_only_labels else False
+#         if semantic_only_labels is None:
+#             semantic_only_labels = False
+#         self.permute_instance_order = permute_instance_order
+#         if permute_instance_order:
+#             raise NotImplementedError
+#         self.map_other_classes_to_bground = map_other_classes_to_bground
+#         self.root = root
+#         self.split = split
+#         self._transform = transform
+#         self.semantic_subset = None
+#         self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+#             semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
+#         self.n_semantic_classes = len(self.class_names)
+#         self._instance_to_semantic_mapping_matrix = None
+#         assert xor(return_semantic_instance_tuple, semantic_only_labels)
+#         self.n_classes = len(self.class_names)
+#         self.set_extras_to_void = set_extras_to_void
+#         self.return_semantic_instance_tuple = return_semantic_instance_tuple
+#         self.semantic_only_labels = semantic_only_labels
+#         self.n_inst_cap_per_class = None
+#         self.ordering = ordering.upper() if ordering is not None else None
+#
+#         # VOC2011 and others are subset of VOC2012
+#         year = 2012
+#         dataset_dir = osp.join(self.root, 'VOC/VOCdevkit/VOC{}'.format(year))
+#
+#         # Get files
+#         self.files = self.get_files(dataset_dir)
+#         assert len(self) > 0, 'files[self.split={}] came up empty'.format(self.split)
+#         if self.ordering is not None:
+#             self.sem_instance_id_remapping = [None for _ in self.files]  # buffer to store remappings in later
+#
+#     def __len__(self):
+#         return len(self.files[self.split])
+#
+#     def __getitem__(self, index):
+#         data_file = self.files[self.split][index]
+#         img, lbl = self.load_and_process_voc_files(img_file=data_file['img'],
+#                                                    sem_lbl_file=data_file['sem_lbl'],
+#                                                    inst_lbl_file=data_file['inst_lbl'])
+#         return img, lbl
+#
+# def set_instance_cap(self, n_inst_cap_per_class=None):
+#     if not isinstance(n_inst_cap_per_class, int):
+#         raise NotImplementedError('Haven\'t implemented dif cap per semantic class. Please use an int.')
+#     self.n_inst_cap_per_class = n_inst_cap_per_class
+#
+# def reset_instance_cap(self):
+#     self.n_inst_cap_per_class = None
+#
+# def reduce_to_semantic_subset(self, semantic_subset):
+#     self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+#         semantic_subset=semantic_subset, full_set=ALL_VOC_CLASS_NAMES)
+#
+# def clear_semantic_subset(self):
+#     self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+#         semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
+#
+# def get_files(self, dataset_dir):
+#     files = collections.defaultdict(list)
+#     for split in ['train', 'val'] + ([] if self.split in ['train', 'val'] else [self.split]):
+#         imgsets_file = osp.join(
+#             dataset_dir, 'ImageSets/Segmentation/%s.txt' % split)
+#         for did in open(imgsets_file):
+#             did = did.strip()
+#             try:
+#                 img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did)
+#                 assert osp.isfile(img_file)
+#             except AssertionError:
+#                 if not osp.isfile(img_file):
+#                     # VOC > 2007 has years in the name (VOC2007 doesn't).  Handling both.
+#                     for did_ext in ['{}_{}'.format(year, did) for year in range(2007, 2013)]:
+#                         img_file = osp.join(dataset_dir, 'JPEGImages/%s.jpg' % did_ext)
+#                         if osp.isfile(img_file):
+#                             did = did_ext
+#                             break
+#                     if not osp.isfile(img_file):
+#                         raise
+#             sem_lbl_file = osp.join(
+#                 dataset_dir, 'SegmentationClass/%s.png' % did)
+#             if not osp.isfile(sem_lbl_file):
+#                 raise Exception('This image does not exist')
+#             # TODO(allie) -- allow functionality for permuting instance labels
+#             inst_absolute_lbl_file = osp.join(
+#                 dataset_dir, 'SegmentationObject/%s.png' % did)
+#             inst_lbl_file_unordered = osp.join(
+#                 dataset_dir, 'SegmentationObject/%s_per_sem_cls.png' % did)
+#             if not osp.isfile(inst_lbl_file_unordered):
+#                 if not osp.isfile(inst_absolute_lbl_file):
+#                     raise Exception('This image does not exist')
+#                 generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file_unordered)
+#
+#             # Generate ordered instance ids
+#             if self.ordering is None:
+#                 inst_lbl_file = inst_lbl_file_unordered
+#             elif self.ordering == 'LR':
+#                 inst_lbl_file = inst_lbl_file_unordered.replace('.png', '_ordered_lr.png')
+#                 if not osp.isfile(inst_lbl_file):
+#                     dataset_utils.generate_lr_ordered_instance_file(inst_lbl_file_unordered,
+#                                                                     sem_lbl_file, inst_lbl_file)
+#
+#             else:
+#                 raise ValueError('ordering={} not recognized'.format(self.ordering))
+#             files[split].append({
+#                 'img': img_file,
+#                 'sem_lbl': sem_lbl_file,
+#                 'inst_absolute_lbl': inst_absolute_lbl_file,
+#                 'inst_lbl': inst_lbl_file,
+#                 'inst_lbl_unordered': inst_lbl_file_unordered,
+#             })
+#         assert len(files[split]) > 0, "No images found from list {}".format(imgsets_file)
+#     return files
+#
+# def transform_img(self, img):
+#     return dataset_utils.transform_img(img, self.mean_bgr, resized_sz=None)
+#
+# @staticmethod
+# def transform_lbl(lbl):
+#     return dataset_utils.transform_lbl(lbl)
+#
+# def transform(self, img, lbl):
+#     img = self.transform_img(img)
+#     lbl = self.transform_lbl(lbl)
+#     return img, lbl
+#
+# def untransform(self, img, lbl):
+#     img = self.untransform_img(img)
+#     lbl = self.untransform_lbl(lbl)
+#     return img, lbl
+#
+# def untransform_img(self, img):
+#     return dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
+#
+# def untransform_lbl(self, lbl):
+#     return dataset_utils.untransform_lbl(lbl)
+#
+# def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
+#     raise NotImplementedError('we need to pass or create the instance config class to make this work properly')
+#
+# def load_and_process_sem_lbl(self, sem_lbl_file):
+#     sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
+#     sem_lbl[sem_lbl == 255] = -1
+#     if self._transform:
+#         sem_lbl = self.transform_lbl(sem_lbl)
+#     # map to reduced class set
+#     sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
+#     return sem_lbl
+#
+# def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file):
+#     img = load_img_as_dtype(img_file, np.uint8)
+#     if self._transform:
+#         img = self.transform_img(img)
+#
+#     # load semantic label
+#     sem_lbl = self.load_and_process_sem_lbl(sem_lbl_file)
+#
+#     # load instance label
+#     if self.semantic_only_labels:
+#         lbl = sem_lbl
+#     else:
+#         inst_lbl = load_img_as_dtype(inst_lbl_file, np.int32)
+#         inst_lbl[inst_lbl == 255] = -1
+#         if self.map_to_single_instance_problem:
+#             inst_lbl[inst_lbl != -1] = 1
+#         if self._transform:
+#             inst_lbl = self.transform_lbl(inst_lbl)
+#         inst_lbl[sem_lbl == -1] = -1
+#
+#         if self.n_inst_cap_per_class is not None:
+#             inst_lbl[inst_lbl > self.n_inst_cap_per_class] = -1
+#
+#         inst_lbl[inst_lbl == 0] = -1  # sanity check
+#         inst_lbl[sem_lbl == 0] = 0  # needed for when we map other semantic classes to background.
+#         sem_lbl[inst_lbl == -1] = -1
+#         if self.return_semantic_instance_tuple:
+#             lbl = [sem_lbl, inst_lbl]
+#         else:
+#             lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
+#
+#     return img, lbl
+#
+# def remap_to_reduced_semantic_classes(self, sem_lbl):
+#     return dataset_utils.remap_to_reduced_semantic_classes(
+#         sem_lbl, reduced_class_idxs=self.idxs_into_all_voc,
+#         map_other_classes_to_bground=self.map_other_classes_to_bground)
 
 
 def xor(a, b):

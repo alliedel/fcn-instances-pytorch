@@ -104,6 +104,7 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
     def __init__(self, reduced_class_idxs, map_other_classes_to_bground=True):
         self.reduced_class_idxs = reduced_class_idxs
         self.map_other_classes_to_bground = map_other_classes_to_bground
+        self.original_semantic_class_names = None
 
     def transform(self, img, lbl):
         sem_fcn = lambda sem_lbl: dataset_utils.remap_to_reduced_semantic_classes(
@@ -114,6 +115,13 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
     def untransform(self, img, lbl):
         raise NotImplementedError('Implement here if needed.')
+
+    def transform_semantic_class_names(self, original_semantic_class_names):
+        self.original_semantic_class_names = original_semantic_class_names
+        return [self.original_semantic_class_names[idx] for idx in self.reduced_class_idxs]
+
+    def untransform_semantic_class_names(self):
+        return self.original_semantic_class_names
 
 
 class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):

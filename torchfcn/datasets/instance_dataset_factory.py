@@ -6,7 +6,7 @@ def get_dataset_with_transformations(dataset_type, split, root=None, transform=T
                                      map_other_classes_to_bground=True, map_to_single_instance_problem=False,
                                      ordering=None, mean_bgr='default', semantic_subset=None,
                                      n_inst_cap_per_class=None, **kwargs):
-    if kwargs is not None:
+    if kwargs:
         print('extra arguments while generating dataset: {}'.format(kwargs))
     if semantic_subset is not None:
         class_names, reduced_class_idxs = dataset_utils.get_semantic_names_and_idxs(

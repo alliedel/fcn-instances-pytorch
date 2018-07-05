@@ -5,7 +5,7 @@ import os.path as osp
 import numpy as np
 from torch.utils import data
 
-from torchfcn.datasets import dataset_utils
+from torchfcn.datasets import dataset_utils, dataset_runtime_transformations
 
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
 #  multiple times with the assigned permutation.  That way you can train in batches that have
@@ -164,10 +164,21 @@ class TransformedVOC(data.Dataset):
         self.runtime_transformation = runtime_transformation
         self.should_use_precompute_transform = True
         self.should_use_runtime_transform = True
+        self.semantic_class_names = self.get_semantic_class_names()
 
-    @property
-    def semantic_class_names(self):
-        return self.raw_dataset.semantic_class_names
+    def get_semantic_class_names(self):
+        """
+        If we changed the semantic subset, we have to account for that change in the semantic class name list.
+        """
+        if self.should_use_runtime_transform and self.runtime_transformation is not None:
+            transformation_list = self.runtime_transformation.transformer_sequence if isinstance(
+                self.runtime_transformation, dataset_runtime_transformations.RuntimeDatasetTransformerSequence) else \
+                [self.runtime_transformation]
+            for transformer in transformation_list:
+                if hasattr(transformer, 'transform_semantic_class_names'):
+                    transformer.transform_semantic_class_names(self.raw_dataset.semantic_class_names)
+        else:
+            return self.raw_dataset.semantic_class_names
 
     def __getitem__(self, index):
         img, lbl = self.get_item(index,

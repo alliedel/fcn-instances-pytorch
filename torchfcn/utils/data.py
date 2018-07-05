@@ -62,11 +62,13 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
         sem_cls_filter = pop_without_del(train_sampler_cfg, 'sem_cls_filter', None)
         if sem_cls_filter is not None:
             if isinstance(sem_cls_filter[0], str):
+                raw_train_dataset = train_dataset.raw_dataset if cfg['semantic_subset'] is not None \
+                    else train_dataset
                 try:
-                    sem_cls_filter = [train_dataset.semantic_class_names.index(class_name)
+                    sem_cls_filter = [raw_train_dataset.semantic_class_names.index(class_name)
                                       for class_name in sem_cls_filter]
                 except:
-                    sem_cls_filter = [int(np.where(train_dataset.semantic_class_names == class_name)[0][0])
+                    sem_cls_filter = [int(np.where(raw_train_dataset.semantic_class_names == class_name)[0][0])
                                       for class_name in sem_cls_filter]
         train_instance_count_file = os.path.join(VOC_ROOT, 'train_instance_counts.npy')
         train_sampler = get_configured_sampler(dataset_type, train_dataset, sequential=True,
@@ -81,12 +83,14 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
         else:
             sem_cls_filter = pop_without_del(val_sampler_cfg, 'sem_cls_filter', None)
             if sem_cls_filter is not None:
+                raw_val_dataset = val_dataset.raw_dataset if cfg['semantic_subset'] is not None \
+                    else val_dataset
                 if isinstance(sem_cls_filter[0], str):
                     try:
-                        sem_cls_filter = [val_dataset.semantic_class_names.index(class_name)
+                        sem_cls_filter = [raw_val_dataset.semantic_class_names.index(class_name)
                                           for class_name in sem_cls_filter]
                     except:
-                        sem_cls_filter = [int(np.where(val_dataset.semantic_class_names == class_name)[0][0])
+                        sem_cls_filter = [int(np.where(raw_val_dataset.semantic_class_names == class_name)[0][0])
                                           for class_name in sem_cls_filter]
             val_instance_count_file = os.path.join(VOC_ROOT, 'val_instance_counts.npy')
             val_sampler = get_configured_sampler(dataset_type, val_dataset, sequential=True,

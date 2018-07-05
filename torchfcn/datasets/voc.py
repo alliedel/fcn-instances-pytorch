@@ -174,9 +174,12 @@ class TransformedVOC(data.Dataset):
             transformation_list = self.runtime_transformation.transformer_sequence if isinstance(
                 self.runtime_transformation, dataset_runtime_transformations.RuntimeDatasetTransformerSequence) else \
                 [self.runtime_transformation]
+            semantic_class_names = self.raw_dataset.semantic_class_names
             for transformer in transformation_list:
                 if hasattr(transformer, 'transform_semantic_class_names'):
-                    transformer.transform_semantic_class_names(self.raw_dataset.semantic_class_names)
+                    semantic_class_names = transformer.transform_semantic_class_names(
+                        semantic_class_names)
+            return semantic_class_names
         else:
             return self.raw_dataset.semantic_class_names
 

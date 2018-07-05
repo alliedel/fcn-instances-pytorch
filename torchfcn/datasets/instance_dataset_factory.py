@@ -10,7 +10,7 @@ def get_dataset_with_transformations(dataset_type, split, root=None, transform=T
         print('extra arguments while generating dataset: {}'.format(kwargs))
     if semantic_subset is not None:
         class_names, reduced_class_idxs = dataset_utils.get_semantic_names_and_idxs(
-            semantic_subset=None, full_set=voc.ALL_VOC_CLASS_NAMES)
+            semantic_subset=semantic_subset, full_set=voc.ALL_VOC_CLASS_NAMES)
     else:
         reduced_class_idxs = None
 

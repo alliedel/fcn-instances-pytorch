@@ -1,4 +1,3 @@
-import argparse
 import os
 import os.path as osp
 
@@ -16,18 +15,6 @@ from torchfcn.analysis import visualization_utils
 from torchfcn.models import model_utils
 
 here = osp.dirname(osp.abspath(__file__))
-
-
-def str2bool(v):
-    """
-    https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
-    """
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def parse_args():
@@ -87,7 +74,8 @@ def main():
 
     # reduce dataloaders to semantic subset before running / generating problem config:
     n_instances_per_class = cfg['n_instances_per_class']
-    problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
+    problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
+                                                     n_instances_per_class,
                                                      map_to_semantic=cfg['map_to_semantic'])
 
     if args.resume:
@@ -96,8 +84,8 @@ def main():
         checkpoint = None
 
     # 2. model
-    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, args.resume, args.semantic_init,
-                                                                          args.cuda)
+    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, args.resume,
+                                                                          args.semantic_init, args.cuda)
 
     print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(

@@ -5,7 +5,7 @@ from os import path as osp
 import yaml
 
 import torchfcn
-from scripts.train_instances_filtered import str2bool
+from local_pyutils import str2bool
 
 
 def make_ordered_cfg(cfg, start_arg_order=('dataset', 'sampler'), end_arg_order=()):

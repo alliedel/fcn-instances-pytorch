@@ -14,7 +14,8 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
                                 map_other_classes_to_bground=True, map_to_single_instance_problem=False,
                                 n_inst_cap_per_class=None):
     # Basic transformation (numpy array to torch tensor; resizing and centering)
-    transformer_sequence = [BasicRuntimeDatasetTransformer(resize=resize, resize_size=resize_size, mean_bgr=mean_bgr)]
+    transformer_sequence = [ResizeRuntimeDatasetTransformer(resize_size=resize_size if resize else None),
+                            BasicRuntimeDatasetTransformer(mean_bgr=mean_bgr)]
 
     # Image transformations
 
@@ -38,7 +39,7 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
     elif len(transformer_sequence) == 1:
         return transformer_sequence[0]
     else:
-        return GenericSequenceRuntimeDatasetTransformer(transformer_sequence=transformer_sequence)
+        return RuntimeDatasetTransformerSequence(transformer_sequence=transformer_sequence)
 
 
 class SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
@@ -56,6 +57,19 @@ class SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer(RuntimeDataset
         inst_lbl[sem_lbl == 0] = 0  # needed after we map other semantic classes to background.
         sem_lbl[inst_lbl == -1] = -1  # void semantic should always match void instance.
         return inst_lbl
+
+
+class ResizeRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
+    def __init__(self, resize_size=None):
+        self.resize_size = resize_size
+
+    def transform(self, img, lbl):
+        img = dataset_utils.resize_img(img, self.resize_size)
+        lbl = dataset_utils.resize_lbl(lbl, self.resize_size)
+        return img, lbl
+
+    def untransform(self, img, lbl):
+        raise NotImplementedError('Possible to implement (assuming we store original sizes? Haven\'t yet.')
 
 
 class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
@@ -103,12 +117,10 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
 class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
     """
-    Resizes, centers, and converts to torch tensor
+    centers and converts to torch tensor
     """
 
-    def __init__(self, resize=True, resize_size=(512, 1024), mean_bgr=None):
-        self.resize = resize
-        self.resize_size = resize_size
+    def __init__(self, mean_bgr=None):
         self.mean_bgr = mean_bgr
 
     def transform(self, img, lbl):
@@ -118,23 +130,26 @@ class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         return self.untransform_img(img), self.untransform_lbl(lbl)
 
     def transform_img(self, img):
-        return dataset_utils.transform_img(img, mean_bgr=self.mean_bgr,
-                                           resized_sz=self.resize_size)
+        return dataset_utils.convert_img_to_torch_tensor(img, mean_bgr=self.mean_bgr)
 
     def transform_lbl(self, lbl):
-        lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resize_size)
+        if isinstance(lbl, tuple):
+            assert len(lbl) == 2, 'Should be semantic, instance label tuple'
+            lbl = tuple(dataset_utils.convert_lbl_to_torch_tensor(l) for l in lbl)
+        else:
+            lbl = dataset_utils.convert_lbl_to_torch_tensor(lbl)
         return lbl
 
     def untransform_lbl(self, lbl):
-        lbl = dataset_utils.untransform_lbl(lbl)
+        lbl = dataset_utils.convert_torch_lbl_to_numpy(lbl)
         return lbl
 
     def untransform_img(self, img):
-        img = dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
+        img = dataset_utils.convert_torch_img_to_numpy(img, self.mean_bgr)
         return img
 
 
-class GenericSequenceRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
+class RuntimeDatasetTransformerSequence(RuntimeDatasetTransformerBase):
     def __init__(self, transformer_sequence):
         """
         :param transformer_sequence:   list of functions of type transform(img, lbl)

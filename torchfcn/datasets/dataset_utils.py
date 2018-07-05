@@ -40,43 +40,50 @@ def assert_validation_images_arent_in_training_set(train_loader, val_loader):
                                                                                       train_idx))
 
 
-def transform_lbl(lbl, resized_sz=None):
-    # Resizing is tricky (we may lose classes to sub-pixel downsample)
-    if resized_sz is not None:
-        lbl = lbl.astype(float)
-        lbl = scipy.misc.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
+def convert_img_to_torch_tensor(img, mean_bgr=None):
+    img = img.astype(np.float64)
+    img = img[:, :, ::-1]  # RGB -> BGR
+    try:
+        if mean_bgr is not None:
+            img -= mean_bgr
+    except:
+        import ipdb; ipdb.set_trace()
 
+    # NHWC -> NCWH
+    img = img.transpose(2, 0, 1)
+    img = torch.from_numpy(img).float()
+
+
+def convert_lbl_to_torch_tensor(lbl):
     lbl = torch.from_numpy(lbl).long()  # NOTE(allie): lbl.float() (?)
     return lbl
 
 
-def transform_img(img, mean_bgr=None, resized_sz=None):
-    img = img[:, :, ::-1]  # RGB -> BGR
-    if resized_sz is not None:
-        img = scipy.misc.imresize(img, (resized_sz[0], resized_sz[1]))
-    img = img.astype(np.float64)
-    if mean_bgr is not None:
-        img -= mean_bgr
-    # NHWC -> NCWH
-    img = img.transpose(2, 0, 1)
-    img = torch.from_numpy(img).float()
-    return img
-
-
-def untransform_lbl(lbl):
+def convert_torch_lbl_to_numpy(lbl):
     lbl = lbl.numpy()
     return lbl
 
 
-def untransform_img(img, mean_bgr=None, original_size=None):
-    if original_size is not None:
-        raise NotImplementedError
+def convert_torch_img_to_numpy(img, mean_bgr=None):
     img = img.numpy()
     img = img.transpose(1, 2, 0)
     if mean_bgr is not None:
         img += mean_bgr
     img = img.astype(np.uint8)
     img = img[:, :, ::-1]
+    return img
+
+
+def resize_lbl(lbl, resized_sz):
+    if resized_sz is not None:
+        lbl = lbl.astype(float)
+        lbl = scipy.misc.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
+    return lbl
+
+
+def resize_img(img, resized_sz):
+    if resized_sz is not None:
+        img = scipy.misc.imresize(img, (resized_sz[0], resized_sz[1]))
     return img
 
 

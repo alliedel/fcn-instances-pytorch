@@ -31,10 +31,12 @@ class BlobExampleGenerator(object):
                  n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
-                 n_images=None, mean_bgr=Defaults.mean_bgr,
+                 n_images=None, mean_bgr=None,
                  transform=Defaults.transform, _im_a_copy=False,
                  map_to_single_instance_problem=False,
                  ordering=None, semantic_subset=None):
+        if mean_bgr is None:
+            mean_bgr = Defaults.mean_bgr
         n_images = n_images or Defaults.n_images
         assert semantic_subset is None or all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset]), \
             ValueError('semantic_subset={} is incorrect. Must be a list of semantic classes in {}'.format(
@@ -170,15 +172,15 @@ class BlobExampleGenerator(object):
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 
     def transform(self, img, lbl):
-        img = dataset_utils.transform_img(img, self.mean_bgr)
-        lbl = dataset_utils.transform_lbl(lbl)
+        img = self.transform_img(img)
+        lbl = self.transform_lbl(lbl)
         return img, lbl
 
     def transform_img(self, img):
-        return dataset_utils.transform_img(img, self.mean_bgr)
+        return dataset_utils.convert_img_to_torch_tensor(img, self.mean_bgr)
 
     def transform_lbl(self, lbl):
-        return dataset_utils.transform_lbl(lbl)
+        return dataset_utils.convert_lbl_to_torch_tensor(lbl)
 
     def untransform(self, img, lbl):
         img = dataset_utils.untransform_img(img, self.mean_bgr)

@@ -153,8 +153,10 @@ class BlobExampleGenerator(object):
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 
     def transform(self, img, lbl):
-        img = dataset_utils.transform_img(img, self.mean_bgr)
-        lbl = dataset_utils.transform_lbl(lbl)
+        if self.mean_bgr is not None:
+            img -= self.mean_bgr
+        img = dataset_utils.convert_img_to_torch_tensor(img)
+        lbl = dataset_utils.convert_lbl_to_torch_tensor(lbl)
         return img, lbl
 
     def untransform(self, img, lbl):

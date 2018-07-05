@@ -8,7 +8,8 @@ def _fast_hist(label_true, label_pred, n_class):
             n_class * label_true[mask].astype(int) +
             label_pred[mask], minlength=n_class ** 2).reshape(n_class, n_class)
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         raise
     return hist
 
@@ -32,10 +33,9 @@ def label_accuracy_score(label_trues, label_preds, n_class=None):
     try:
         iu = np.diag(hist) / (hist.sum(axis=1) + hist.sum(axis=0) - np.diag(hist))
     except RuntimeWarning:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
     mean_iu = np.nanmean(iu)
     freq = hist.sum(axis=1) / hist.sum()
     fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
     return acc, acc_cls, mean_iu, fwavacc
-
-

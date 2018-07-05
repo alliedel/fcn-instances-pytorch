@@ -3,9 +3,8 @@ import os
 import numpy as np
 import torch
 
-import torchfcn
-from torchfcn.datasets import samplers, instance_dataset_factory
-from torchfcn.datasets.voc import VOC_ROOT
+from torchfcn.datasets import samplers, dataset_utils, voc, \
+    dataset_precomputed_file_transformations, dataset_runtime_transformations
 from torchfcn.script_utils import DEBUG_ASSERTS
 from torchfcn.utils.samplers import get_configured_sampler
 
@@ -14,9 +13,9 @@ def get_synthetic_datasets(cfg, transform=True):
     dataset_kwargs = dict(transform=transform, n_max_per_class=cfg['synthetic_generator_n_instances_per_semantic_id'],
                           map_to_single_instance_problem=cfg['single_instance'], ordering=cfg['ordering'],
                           semantic_subset=cfg['semantic_subset'])
-    train_dataset = torchfcn.datasets.instance_dataset_factory.get_dataset_with_transformations(
+    train_dataset = get_dataset_with_transformations(
         dataset_type='synthetic', split='train', **dataset_kwargs, n_images=cfg.pop('n_images_train', None))
-    val_dataset = torchfcn.datasets.instance_dataset_factory.get_dataset_with_transformations(
+    val_dataset = get_dataset_with_transformations(
         **dataset_kwargs, n_images=cfg.pop('n_images_val', None))
 
     # train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg.pop(
@@ -26,16 +25,31 @@ def get_synthetic_datasets(cfg, transform=True):
     return train_dataset, val_dataset
 
 
-def get_voc_datasets(cfg, voc_root, transform=True):
+def get_voc_datasets(cfg, transform=True):
     dataset_kwargs = dict(transform=transform,
                           map_to_single_instance_problem=cfg['single_instance'],
                           ordering=cfg['ordering'], semantic_subset=cfg['semantic_subset'],
                           n_inst_cap_per_class=cfg['dataset_instance_cap'])
     train_dataset_kwargs = dict()
-    train_dataset = torchfcn.datasets.instance_dataset_factory.get_dataset_with_transformations(
-        dataset_type='voc', root=voc_root, split='train', **dataset_kwargs, **train_dataset_kwargs)
-    val_dataset = torchfcn.datasets.instance_dataset_factory.get_dataset_with_transformations(
-        dataset_type='voc', root=voc_root, split='seg11valid', **dataset_kwargs)
+    train_dataset = get_dataset_with_transformations(
+        dataset_type='voc', split='train', **dataset_kwargs, **train_dataset_kwargs)
+    val_dataset = get_dataset_with_transformations(
+        dataset_type='voc', split='seg11valid', **dataset_kwargs)
+    return train_dataset, val_dataset
+
+
+def get_cityscapes_datasets(cfg, transform=True):
+    dataset_kwargs = dict(
+        transform=transform,
+        # map_to_single_instance_problem=cfg['single_instance'],
+        # ordering=cfg['ordering'], semantic_subset=cfg['semantic_subset'],
+        # n_inst_cap_per_class=cfg['dataset_instance_cap']
+    )
+    train_dataset_kwargs = dict()
+    train_dataset = get_dataset_with_transformations(
+        dataset_type='cityscapes', root=cityscapes_root, split='train', **dataset_kwargs, **train_dataset_kwargs)
+    val_dataset = get_dataset_with_transformations(
+        dataset_type='cityscapes', root=cityscapes_root, split='seg11valid', **dataset_kwargs)
     return train_dataset, val_dataset
 
 
@@ -44,7 +58,9 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     if dataset_type == 'synthetic':
         train_dataset, val_dataset = get_synthetic_datasets(cfg)
     elif dataset_type == 'voc':
-        train_dataset, val_dataset = get_voc_datasets(cfg, VOC_ROOT)
+        train_dataset, val_dataset = get_voc_datasets(cfg)
+    elif dataset_type == 'cityscapes':
+        train_dataset, val_dataset = get_cityscapes_datasets(cfg)
     else:
         raise ValueError('dataset_type={} not recognized'.format(dataset_type))
 
@@ -130,3 +146,45 @@ def pop_without_del(dictionary, key, default):
     val = dictionary.pop(key, default)
     dictionary[key] = val
     return val
+
+
+def get_dataset_with_transformations(dataset_type, split, transform=True, resize=None, resize_size=None,
+                                     map_other_classes_to_bground=True, map_to_single_instance_problem=False,
+                                     ordering=None, mean_bgr='default', semantic_subset=None,
+                                     n_inst_cap_per_class=None, **kwargs):
+    if kwargs:
+        print('extra arguments while generating dataset: {}'.format(kwargs))
+    if semantic_subset is not None:
+        class_names, reduced_class_idxs = dataset_utils.get_semantic_names_and_idxs(
+            semantic_subset=semantic_subset, full_set=voc.ALL_VOC_CLASS_NAMES)
+    else:
+        reduced_class_idxs = None
+
+    precomputed_file_transformation = dataset_precomputed_file_transformations.precomputed_file_transformer_factory(
+        ordering=ordering)
+
+    if mean_bgr == 'default':
+        if dataset_type == 'voc':
+            mean_bgr = None
+        elif dataset_type == 'synthetic':
+            mean_bgr = None
+        else:
+            print('Must set default mean_bgr for dataset {}'.format(dataset_type))
+
+    runtime_transformation = dataset_runtime_transformations.runtime_transformer_factory(
+        resize=resize, resize_size=resize_size, mean_bgr=mean_bgr, reduced_class_idxs=reduced_class_idxs,
+        map_other_classes_to_bground=map_other_classes_to_bground,
+        map_to_single_instance_problem=map_to_single_instance_problem, n_inst_cap_per_class=n_inst_cap_per_class)
+
+    if dataset_type == 'voc':
+        dataset = voc.TransformedVOC(root=voc.VOC_ROOT, split=split,
+                                     precomputed_file_transformation=precomputed_file_transformation,
+                                     runtime_transformation=runtime_transformation)
+    else:
+        raise NotImplementedError('I don\'t know dataset of type {}'.format(dataset_type))
+
+    if not transform:
+        dataset.should_use_precompute_transform = False
+        dataset.should_use_runtime_transform = False
+
+    return dataset

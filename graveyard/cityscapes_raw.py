@@ -1,11 +1,10 @@
 import collections
-from glob import glob
-import numpy as np
 import os.path
-import PIL.Image
-from torch.utils import data
+from glob import glob
 
-from torchfcn.datasets import dataset_utils, instance_dataset_factory
+import PIL.Image
+import numpy as np
+from torch.utils import data
 
 # TODO(allie): Allow some classes to get mapped onto background
 # TODO(allie): Allow shuffling within the dataset here (instead of with train_loader)
@@ -47,14 +46,9 @@ class CityscapesRawBase(data.Dataset):
             assert os.path.isfile(sem_lbl_file), '{} does not exist'.format(sem_lbl_file)
             assert os.path.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
 
-            files[split].append({'img': img_file, 'sem_lbl': sem_lbl_file, 'inst_lbl':
-                inst_lbl_file})
+            files[split].append({'img': img_file, 'sem_lbl': sem_lbl_file, 'inst_lbl': inst_lbl_file})
         assert len(files[split]) > 0, "No images found in directory {}".format(images_base)
         return files
-
-
-CityscapesWithTransformations = instance_dataset_factory.factory_dataset_with_transformations(
-    CityscapesRawBase, mean_bgr=CITYSCAPES_MEAN_BGR)
 
 
 def load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file):

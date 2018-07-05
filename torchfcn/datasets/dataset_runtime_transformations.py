@@ -191,7 +191,7 @@ def generate_transformer_from_functions(img_transform_function=None, sem_lbl_tra
     if lbl_untransform_function is not None:
         assert inst_lbl_untransform_function is None and sem_lbl_untransform_function is None
 
-    class RuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
+    class CustomRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         can_untransform = all([transform_fnc is None or untransform_fnc is not None
                                for transform_fnc, untransform_fnc
                                in zip([img_transform_function, lbl_transform_function,
@@ -225,5 +225,5 @@ def generate_transformer_from_functions(img_transform_function=None, sem_lbl_tra
                     lbl[1] = sem_lbl_transform_function(lbl[1])
             return img, lbl
 
-    transformer = RuntimeDatasetTransformer()
-    return transformer
+    transformer_type = CustomRuntimeDatasetTransformer
+    return transformer_type

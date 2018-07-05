@@ -41,8 +41,8 @@ def assert_validation_images_arent_in_training_set(train_loader, val_loader):
 
 
 def convert_img_to_torch_tensor(img, mean_bgr=None):
-    img = img.astype(np.float64)
     img = img[:, :, ::-1]  # RGB -> BGR
+    img = img.astype(np.float64)
     try:
         if mean_bgr is not None:
             img -= mean_bgr
@@ -52,6 +52,7 @@ def convert_img_to_torch_tensor(img, mean_bgr=None):
     # NHWC -> NCWH
     img = img.transpose(2, 0, 1)
     img = torch.from_numpy(img).float()
+    return img
 
 
 def convert_lbl_to_torch_tensor(lbl):

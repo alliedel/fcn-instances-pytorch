@@ -160,8 +160,8 @@ class BlobExampleGenerator(object):
         return img, lbl
 
     def untransform(self, img, lbl):
-        img = dataset_utils.untransform_img(img, self.mean_bgr)
-        lbl = dataset_utils.untransform_lbl(lbl)
+        img = dataset_utils.convert_torch_img_to_numpy(img, self.mean_bgr)
+        lbl = dataset_utils.convert_torch_lbl_to_numpy(lbl)
         return img, lbl
 
     @staticmethod

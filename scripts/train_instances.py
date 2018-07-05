@@ -9,6 +9,7 @@ import torch
 import torchfcn.utils.configs
 import torchfcn.utils.data
 import torchfcn.utils.models
+import torchfcn.utils.trainers
 from scripts.configurations import synthetic_cfg, voc_cfg
 from torchfcn import script_utils
 from torchfcn.analysis import visualization_utils
@@ -83,7 +84,7 @@ def main():
     # TODO(allie): something is wrong with adam... fix it.
     optim = script_utils.get_optimizer(cfg, model, checkpoint)
 
-    trainer = script_utils.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
+    trainer = torchfcn.utils.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

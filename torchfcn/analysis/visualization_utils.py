@@ -17,6 +17,8 @@ import six
 import skimage.color
 
 
+DEBUG_ASSERTS = True
+
 # -----------------------------------------------------------------------------
 # Chainer Util
 # -----------------------------------------------------------------------------
@@ -339,6 +341,11 @@ def visualize_segmentation(**kwargs):
 
     if lbl_true is None and lbl_pred is None:
         raise ValueError('lbl_true or lbl_pred must be not None.')
+    if DEBUG_ASSERTS:
+        if lbl_true is not None and lbl_pred is not None:
+            assert lbl_pred.shape == lbl_true.shape, 'lbl_pred shape and lbl_true shape should match: {}, ' \
+                                                     '{}.  Note the image size is {}'.format(
+                lbl_pred.shape, lbl_true.shape, img.shape)
 
     # Generate funky pixels for void class
     mask_unlabeled = None

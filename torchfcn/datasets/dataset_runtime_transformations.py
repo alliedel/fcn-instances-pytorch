@@ -73,7 +73,8 @@ class ResizeRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
 
 class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
-    def __init__(self, n_inst_cap_per_class):
+    def __init__(self, n_inst_cap_per_class: int):
+        assert n_inst_cap_per_class >= 0
         self.n_inst_cap_per_class = n_inst_cap_per_class
 
     def transform(self, img, lbl):
@@ -141,7 +142,11 @@ class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         return lbl
 
     def untransform_lbl(self, lbl):
-        lbl = dataset_utils.convert_torch_lbl_to_numpy(lbl)
+        if isinstance(lbl, tuple):
+            assert len(lbl) == 2, 'Should be semantic, instance label tuple'
+            lbl = tuple(dataset_utils.convert_torch_lbl_to_numpy(l) for l in lbl)
+        else:
+            lbl = dataset_utils.convert_torch_lbl_to_numpy(lbl)
         return lbl
 
     def untransform_img(self, img):

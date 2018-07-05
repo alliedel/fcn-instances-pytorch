@@ -23,6 +23,7 @@ from torchfcn.datasets import dataset_utils
 from torchfcn.export_utils import log_images
 from torchfcn.models.model_utils import is_nan, any_nan
 from torchfcn.datasets import dataset_runtime_transformations
+import torchfcn.utils.misc
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -48,7 +49,8 @@ class Trainer(object):
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),
-                 write_activation_condition=should_write_activations):
+                 write_activation_condition=should_write_activations,
+                 write_instance_metrics=True):
         self.cuda = cuda
 
         self.model = model
@@ -73,6 +75,7 @@ class Trainer(object):
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
+        self.write_instance_metrics = write_instance_metrics
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -180,7 +183,8 @@ class Trainer(object):
             False.
         """
         val_metrics = None
-        write_instance_metrics = (split == 'val') if write_instance_metrics is None else write_instance_metrics
+        write_instance_metrics = (split == 'val') and self.write_instance_metrics \
+            if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -360,8 +364,8 @@ class Trainer(object):
                                     for label_pred, perms in zip(label_preds, permutations)]
         else:
             label_preds_permuted = label_preds
-        metrics_list = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted,
-                                                           n_class=self.n_combined_class)
+        metrics_list = torchfcn.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
+                                                                n_class=self.n_combined_class)
         return metrics_list
 
     def write_metrics(self, metrics, loss, split):
@@ -434,18 +438,16 @@ class Trainer(object):
 
         # TODO(allie): convert to sem, inst visualizations.
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
+        if DEBUG_ASSERTS:
+            assert inst_lbl_pred.shape == lbl_true_inst.shape
         for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
             # runtime_transformation needs to still run the resize, even for untransformed img, lbl pair
-            if data_loader.dataset.runtime_transformation is None:
-                runtime_transformation = None
-            else:
-                runtime_transformation = dataset_runtime_transformations.RuntimeDatasetTransformerSequence(
+            if data_loader.dataset.runtime_transformation is not None:
+                runtime_transformation_undo = dataset_runtime_transformations.RuntimeDatasetTransformerSequence(
                         [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
-                         if isinstance(t, dataset_runtime_transformations.ResizeRuntimeDatasetTransformer)])
-            img_untransformed, lbl_untransformed = data_loader.dataset.get_item(
-                idx,
-                precomputed_file_transformation=data_loader.dataset.precomputed_file_transformation,
-                runtime_transformation=runtime_transformation)
+                         if isinstance(t, dataset_runtime_transformations.BasicRuntimeDatasetTransformer)])
+                img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))
+
             sem_lbl_np = lbl_untransformed[0]
             inst_lbl_np = lbl_untransformed[1]
 
@@ -455,6 +457,7 @@ class Trainer(object):
             pred_labels.append(lp)
             if should_visualize:
                 # Segmentations
+
                 viz = visualization_utils.visualize_segmentation(
                     lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img_untransformed,
                     n_class=self.n_combined_class, overlay=False)

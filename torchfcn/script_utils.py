@@ -14,11 +14,7 @@ import pytz
 import torch
 import torch.utils.data
 import yaml
-from tensorboardX import SummaryWriter
 
-import torchfcn
-import torchfcn.datasets.synthetic
-import torchfcn.datasets.voc
 from scripts.configurations import synthetic_cfg, voc_cfg
 from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn import instance_utils
@@ -293,30 +289,6 @@ def get_log_dir(model_name, config_id=None, cfg=None, parent_directory='logs'):
 def save_config(log_dir, cfg):
     with open(osp.join(log_dir, 'config.yaml'), 'w') as f:
         yaml.safe_dump(cfg, f, default_flow_style=False)
-
-
-def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
-    writer = SummaryWriter(log_dir=out_dir)
-    trainer = torchfcn.Trainer(
-        cuda=cuda,
-        model=model,
-        optimizer=optim,
-        train_loader=dataloaders['train'],
-        val_loader=dataloaders['val'],
-        train_loader_for_val=dataloaders['train_for_val'],
-        instance_problem=problem_config,
-        out=out_dir,
-        max_iter=cfg['max_iteration'],
-        interval_validate=cfg.get('interval_validate', len(dataloaders['train'])),
-        tensorboard_writer=writer,
-        matching_loss=cfg['matching'],
-        loader_semantic_lbl_only=cfg['semantic_only_labels'],
-        size_average=cfg['size_average'],
-        augment_input_with_semantic_masks=cfg['augment_semantic'],
-        export_activations=cfg['export_activations'],
-        activation_layers_to_export=cfg['activation_layers_to_export']
-    )
-    return trainer
 
 
 def get_optimizer(cfg, model, checkpoint_file=None):

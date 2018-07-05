@@ -9,6 +9,7 @@ import torch.utils.data
 import torchfcn.utils.configs
 import torchfcn.utils.data
 import torchfcn.utils.models
+import torchfcn.utils.trainers
 from scripts.configurations import synthetic_cfg, voc_cfg
 from torchfcn import script_utils
 from torchfcn.analysis import visualization_utils
@@ -55,6 +56,8 @@ def main():
     cfg, cfg_to_print = get_cfgs(dataset=args.dataset, config_idx=config_idx, cfg_override_args=cfg_override_args)
     assert cfg['dataset'] == args.dataset, 'Debug Error: cfg[\'dataset\']: {}, args.dataset: {}'.format(cfg['dataset'],
                                                                                                         args.dataset)
+    if cfg['dataset_instance_cap'] == 'match_model':
+        cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
     sampler_cfg = script_utils.get_sampler_cfg(args.sampler)
 
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
@@ -103,7 +106,7 @@ def main():
     if not cfg['map_to_semantic']:
         cfg['activation_layers_to_export'] = tuple([x for x in cfg[
             'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
-    trainer = script_utils.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
+    trainer = torchfcn.utils.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

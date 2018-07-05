@@ -20,13 +20,14 @@ _default_config = dict(
     activation_layers_to_export=('conv1_1',
                                  'pool3', 'pool4', 'pool5', 'drop6', 'fc7', 'drop7',
                                  'upscore8', 'conv1x1_instance_to_semantic'),
+    write_instance_metrics=True,
 
     # Dataset
     dataset=None,
     dataset_instance_cap='match_model',
     sampler=None,
     single_instance=False,  # map_to_single_instance_problem
-    semantic_only_labels=False,
+    # semantic_only_labels=False,
     semantic_subset=None,
 
     # Precomputed transformations

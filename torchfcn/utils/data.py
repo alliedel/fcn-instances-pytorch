@@ -27,9 +27,10 @@ def get_synthetic_datasets(cfg, transform=True):
 
 
 def get_voc_datasets(cfg, voc_root, transform=True):
-    dataset_kwargs = dict(transform=transform, semantic_only_labels=cfg['semantic_only_labels'],
+    dataset_kwargs = dict(transform=transform,
                           map_to_single_instance_problem=cfg['single_instance'],
-                          ordering=cfg['ordering'])
+                          ordering=cfg['ordering'], semantic_subset=cfg['semantic_subset'],
+                          n_inst_cap_per_class=cfg['dataset_instance_cap'])
     train_dataset_kwargs = dict()
     train_dataset = torchfcn.datasets.instance_dataset_factory.get_dataset_with_transformations(
         dataset_type='voc', root=voc_root, split='train', **dataset_kwargs, **train_dataset_kwargs)

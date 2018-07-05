@@ -10,7 +10,7 @@ from tensorboardX import SummaryWriter
 
 import torchfcn
 from torchfcn.script_utils import get_log_dir
-from torchfcn.script_utils import get_parameters
+from torchfcn.utils.configs import get_parameters
 
 configurations = {
     # same configuration as original work

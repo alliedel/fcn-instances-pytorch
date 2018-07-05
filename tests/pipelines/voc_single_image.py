@@ -11,6 +11,7 @@ from tensorboardX import SummaryWriter
 
 import torchfcn
 import torchfcn.datasets.voc
+import torchfcn.utils.configs
 from torchfcn import script_utils, instance_utils
 
 default_config = dict(
@@ -75,7 +76,7 @@ def main():
     gpu = args.gpu
     config_idx = args.config
 
-    cfg = script_utils.create_config_from_default(configurations[config_idx], default_config)
+    cfg = torchfcn.utils.configs.create_config_from_default(configurations[config_idx], default_config)
     if args.image_index is not None:
         cfg['image_index'] = args.image_index
 
@@ -137,8 +138,8 @@ def main():
     elif cfg['optim'] == 'sgd':
         optim = torch.optim.SGD(
             [
-                {'params': script_utils.get_parameters(model, bias=False)},
-                {'params': script_utils.get_parameters(model, bias=True),
+                {'params': torchfcn.utils.configs.get_parameters(model, bias=False)},
+                {'params': torchfcn.utils.configs.get_parameters(model, bias=True),
                  #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
                  #                model, bias=False))},
                  #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(

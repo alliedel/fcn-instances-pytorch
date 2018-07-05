@@ -1,3 +1,7 @@
+import torchfcn.utils.configs
+import torchfcn.utils.data
+import torchfcn.utils.models
+
 try:
     import argcomplete
 except ImportError:
@@ -117,9 +121,9 @@ def get_configured_sampler(dataset_type, dataset, sequential, n_instances_range,
 def get_dataloaders(cfg, dataset_type, cuda, sampler_args):
     # 1. dataset
     if dataset_type == 'synthetic':
-        train_dataset, val_dataset = script_utils.get_synthetic_datasets(cfg)
+        train_dataset, val_dataset = torchfcn.utils.data.get_synthetic_datasets(cfg)
     elif dataset_type == 'voc':
-        train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, script_utils.VOC_ROOT)
+        train_dataset, val_dataset = torchfcn.utils.data.get_voc_datasets(cfg, script_utils.VOC_ROOT)
     else:
         raise ValueError
 
@@ -207,7 +211,7 @@ def main():
                    'voc': voc_cfg.get_default_config()}[args.dataset]
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[args.dataset]
-    cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)
+    cfg = torchfcn.utils.configs.create_config_from_default(cfg_options[config_idx], cfg_default)
     non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg_options[config_idx])
     print('non-default cfg values: {}'.format(non_default_options))
     cfg_to_print = {
@@ -231,14 +235,14 @@ def main():
     # 1. dataset
     dataset_type = args.dataset
     if dataset_type == 'synthetic':
-        train_dataset, val_dataset = script_utils.get_synthetic_datasets(cfg)
+        train_dataset, val_dataset = torchfcn.utils.data.get_synthetic_datasets(cfg)
     elif dataset_type == 'voc':
-        train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, script_utils.VOC_ROOT)
+        train_dataset, val_dataset = torchfcn.utils.data.get_voc_datasets(cfg, script_utils.VOC_ROOT)
     else:
         raise ValueError
     problem_config = script_utils.get_problem_config(train_dataset.class_names, 2)
-    model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                 checkpoint_file=None, semantic_init=None, cuda=args.cuda)
+    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config,
+                                                                          checkpoint_file=None, semantic_init=None, cuda=args.cuda)
 
 
 if __name__ == '__main__':

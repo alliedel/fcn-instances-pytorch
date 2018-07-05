@@ -239,6 +239,11 @@ def write_np_array_as_img_with_borrowed_colormap_pallete(arr, filename, filename
 
 
 def generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
+    """
+    Nominally VOC-specific, though may be useful for other datasets.
+    Converts instance labels so they start from 1 for every semantic class (instead of person 1, person 2, car 3,
+    etc. -- remaps to person 1, person 2, car 1)
+    """
     print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
     sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
     sem_lbl[sem_lbl == 255] = -1

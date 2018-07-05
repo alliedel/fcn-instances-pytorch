@@ -1,0 +1,91 @@
+from torchfcn.datasets import dataset_utils
+import os.path as osp
+
+
+class PrecomputedDatasetFileTransformerBase(object):
+    def transform(self, img_file, sem_lbl_file, inst_lbl_file):
+        # return img_file, sem_lbl_file, inst_lbl_file
+        raise NotImplementedError
+
+    def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
+        # return img_file, sem_lbl_file, inst_lbl_file
+        raise NotImplementedError
+
+
+def precomputed_file_transformer_factory(ordering=None):
+    # Basic transformation (numpy array to torch tensor; resizing and centering)
+    transformer_sequence = []
+
+    # Image transformations
+
+    # Semantic label transformations
+
+    # Instance label transformations
+    if ordering is not None:
+        transformer_sequence.append(InstanceOrderingPrecomputedDatasetFileTransformation(ordering=ordering))
+
+    # Stitching them together in a sequence
+    if len(transformer_sequence) == 0:
+        return None
+    elif len(transformer_sequence) == 1:
+        return transformer_sequence[0]
+    else:
+        return GenericSequencePrecomputedDatasetFileTransformer(transformer_sequence=transformer_sequence)
+
+
+class InstanceOrderingPrecomputedDatasetFileTransformation(PrecomputedDatasetFileTransformerBase):
+    postfix = '_ordered_lr'
+
+    def __init__(self, ordering=None):
+        self.ordering = ordering  # 'lr'
+
+    def transform(self, img_file, sem_lbl_file, inst_lbl_file):
+        inst_lbl_file_unordered = inst_lbl_file
+        if self.ordering is None:
+            inst_lbl_file_ordered = inst_lbl_file_unordered
+        elif self.ordering.lower() == 'lr':
+            inst_lbl_file_ordered = inst_lbl_file_unordered.replace('.png', self.postfix + '.png')
+            if not osp.isfile(inst_lbl_file_ordered):
+                dataset_utils.generate_lr_ordered_instance_file(inst_lbl_file_unordered,
+                                                                sem_lbl_file, inst_lbl_file_ordered)
+        else:
+            raise ValueError('ordering={} not recognized'.format(self.ordering))
+        return img_file, sem_lbl_file, inst_lbl_file_ordered
+
+    def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
+        inst_lbl_file_ordered = inst_lbl_file
+        if self.ordering is None:
+            inst_lbl_file_unordered = inst_lbl_file_ordered
+        elif self.ordering.lower() == 'lr':
+            inst_lbl_file_unordered = inst_lbl_file_ordered.replace(self.postfix + '.png', '.png')
+            if not osp.isfile(inst_lbl_file_ordered):
+                raise FileNotFoundError('Cannot find the original file, {}'.format(inst_lbl_file_unordered))
+        else:
+            raise ValueError('ordering={} not recognized'.format(self.ordering))
+        return img_file, sem_lbl_file, inst_lbl_file_unordered
+
+
+class GenericSequencePrecomputedDatasetFileTransformer(PrecomputedDatasetFileTransformerBase):
+    def __init__(self, transformer_sequence):
+        """
+        :param transformer_sequence:   list of functions of type transform(img, lbl)
+                                                or RuntimeDatasetTransformerBase objects
+        """
+        self.transformer_sequence = transformer_sequence
+
+    def transform(self, img_file, sem_lbl_file, inst_lbl_file):
+        for transformer in self.transformer_sequence:
+            if callable(transformer):
+                img_file, sem_lbl_file, inst_lbl_file = transformer(img_file, sem_lbl_file, inst_lbl_file)
+            elif isinstance(transformer, PrecomputedDatasetFileTransformerBase):
+                img_file, sem_lbl_file, inst_lbl_file = transformer.transform(img_file, sem_lbl_file, inst_lbl_file)
+        return img_file, sem_lbl_file, inst_lbl_file
+
+    def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
+        assert all([isinstance(transformer, PrecomputedDatasetFileTransformerBase)
+                    for transformer in self.transformer_sequence]), \
+            ValueError('If you want to call untransform, your transform functions must be placed in a '
+                       'PrecomputedDatasetFileTransformerBase class with an untransform function.')
+        for transformer in self.transformer_sequence[::-1]:
+            img_file, sem_lbl_file, inst_lbl_file = transformer.untransform(img_file, sem_lbl_file, inst_lbl_file)
+        return img_file, sem_lbl_file, inst_lbl_file

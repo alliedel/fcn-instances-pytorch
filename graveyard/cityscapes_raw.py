@@ -5,11 +5,14 @@ import os.path
 import PIL.Image
 from torch.utils import data
 
-import dataset_utils
+from torchfcn.datasets import dataset_utils, instance_dataset_factory
 
 # TODO(allie): Allow some classes to get mapped onto background
 # TODO(allie): Allow shuffling within the dataset here (instead of with train_loader)
 # TODO(allie): Make CityscapesWithTransformations inherit from Raw
+
+
+CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
 
 
 class CityscapesRawBase(data.Dataset):
@@ -50,35 +53,8 @@ class CityscapesRawBase(data.Dataset):
         return files
 
 
-class CityscapesWithTransformations(CityscapesRawBase):
-    mean_bgr = np.array([73.15835921, 82.90891754, 72.39239876])
-
-    def __init__(self, root, split, resize=True, resize_size=(512, 1024)):
-        super(CityscapesWithTransformations, self).__init__(root, split)
-        self.resize = resize
-        self.resize_size = resize_size
-
-    def __getitem__(self, index):
-        img, (sem_lbl, inst_lbl) = super(CityscapesWithTransformations, self).__getitem__(index)
-        img = self.transform_img(img)
-        lbl = (self.transform_lbl(sem_lbl), self.transform_lbl(inst_lbl))
-        return img, lbl
-
-    def transform_img(self, img):
-        return dataset_utils.transform_img(img, mean_bgr=self.mean_bgr,
-                                           resized_sz=self.resize_size)
-
-    def transform_lbl(self, lbl):
-        lbl = dataset_utils.transform_lbl(lbl, resized_sz=self.resize_size)
-        return lbl
-
-    def untransform_lbl(self, lbl):
-        lbl = dataset_utils.untransform_lbl(lbl)
-        return lbl
-
-    def untransform_img(self, img):
-        img = dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
-        return img
+CityscapesWithTransformations = instance_dataset_factory.factory_dataset_with_transformations(
+    CityscapesRawBase, mean_bgr=CITYSCAPES_MEAN_BGR)
 
 
 def load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file):

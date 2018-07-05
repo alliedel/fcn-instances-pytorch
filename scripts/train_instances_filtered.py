@@ -7,6 +7,9 @@ import skimage.io
 import torch
 import torch.utils.data
 
+import torchfcn.utils.configs
+import torchfcn.utils.data
+import torchfcn.utils.models
 from scripts.configurations import synthetic_cfg, voc_cfg
 from torchfcn import script_utils
 from torchfcn.analysis import visualization_utils
@@ -38,7 +41,7 @@ def get_cfgs(dataset, config_idx, cfg_override_args):
                    'voc': voc_cfg.get_default_config()}[dataset]
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[dataset]
-    cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)
+    cfg = torchfcn.utils.configs.create_config_from_default(cfg_options[config_idx], cfg_default)
     non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg)
     for key, override_val in cfg_override_args.__dict__.items():
         old_val = cfg.pop(key)
@@ -52,7 +55,7 @@ def get_cfgs(dataset, config_idx, cfg_override_args):
                                   script_utils.TermColors.OKBLUE))
     cfg_to_print = non_default_options
     cfg_to_print = script_utils.create_config_copy(cfg_to_print)
-    cfg_to_print = script_utils.make_ordered_cfg(cfg_to_print)
+    cfg_to_print = torchfcn.utils.configs.make_ordered_cfg(cfg_to_print)
 
     return cfg, cfg_to_print
 
@@ -79,7 +82,7 @@ def main():
     script_utils.set_random_seeds()
 
     print('Getting dataloaders...')
-    dataloaders = script_utils.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
+    dataloaders = torchfcn.utils.data.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
     print('Done getting dataloaders')
 
     # reduce dataloaders to semantic subset before running / generating problem config:
@@ -93,8 +96,8 @@ def main():
         checkpoint = None
 
     # 2. model
-    model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config, args.resume, args.semantic_init,
-                                                                 args.cuda)
+    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, args.resume, args.semantic_init,
+                                                                          args.cuda)
 
     print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(

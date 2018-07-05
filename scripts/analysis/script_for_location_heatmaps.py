@@ -4,6 +4,7 @@ import display_pyutils
 import matplotlib.pyplot as plt
 import torch
 
+import torchfcn.utils.logs
 from torchfcn import script_utils
 from torchfcn.analysis import score_heatmaps
 
@@ -108,7 +109,7 @@ def main():
 
     # Load directory
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
-        script_utils.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
+        torchfcn.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     model.eval()
     for split in ['train', 'val']:
         # NOTE(allie): At the moment, clims is not synced.  Need to get the min/max and pass them in.

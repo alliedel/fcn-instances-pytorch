@@ -6,6 +6,9 @@ import numpy as np
 import skimage.io
 import torch
 
+import torchfcn.utils.configs
+import torchfcn.utils.data
+import torchfcn.utils.models
 from scripts.configurations import synthetic_cfg, voc_cfg
 from torchfcn import script_utils
 from torchfcn.analysis import visualization_utils
@@ -45,7 +48,7 @@ def main():
                    'voc': voc_cfg.get_default_config()}[args.dataset]
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[args.dataset]
-    cfg = script_utils.create_config_from_default(cfg_options[config_idx], cfg_default)
+    cfg = torchfcn.utils.configs.create_config_from_default(cfg_options[config_idx], cfg_default)
     non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg_options[config_idx])
     print('non-default cfg values: {}'.format(non_default_options))
     out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
@@ -60,7 +63,7 @@ def main():
     if args.cuda:
         torch.cuda.manual_seed(1337)
 
-    dataloaders = script_utils.get_dataloaders(cfg, args.dataset, args.cuda, args.single_image_index)
+    dataloaders = torchfcn.utils.data.get_dataloaders(cfg, args.dataset, args.cuda, args.single_image_index)
     
     synthetic_generator_n_instances_per_semantic_id = 2
     n_instances_per_class = cfg['n_instances_per_class'] or \
@@ -73,8 +76,8 @@ def main():
         checkpoint = None
 
     # 2. model
-    model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config, args.resume, args.semantic_init,
-                                                                 args.cuda)
+    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, args.resume, args.semantic_init,
+                                                                          args.cuda)
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.

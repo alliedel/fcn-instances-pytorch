@@ -2,6 +2,9 @@ import copy
 import torch
 import os
 import os.path as osp
+
+import torchfcn.utils.data
+import torchfcn.utils.models
 from scripts.configurations import voc_cfg
 from torchfcn import script_utils
 from torchfcn.datasets.voc import ALL_VOC_CLASS_NAMES
@@ -21,8 +24,8 @@ def test(frozen=True):
         cfg[k] = v
 
     problem_config = script_utils.get_problem_config(ALL_VOC_CLASS_NAMES, cfg['n_instances_per_class'])
-    model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                 checkpoint_file=None, semantic_init=None, cuda=cuda)
+    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config,
+                                                                          checkpoint_file=None, semantic_init=None, cuda=cuda)
     initial_model = copy.deepcopy(model)
     # script_utils.check_clean_work_tree()
     if frozen:
@@ -34,7 +37,7 @@ def test(frozen=True):
     sampler_cfg['train']['n_images'] = 1
     sampler_cfg['train_for_val']['n_images'] = 1
     sampler_cfg['val']['n_images'] = 1
-    dataloaders = script_utils.get_dataloaders(cfg, 'voc', cuda, sampler_cfg)
+    dataloaders = torchfcn.utils.data.get_dataloaders(cfg, 'voc', cuda, sampler_cfg)
 
     optim = script_utils.get_optimizer(cfg, model, None)
     out_dir = '/tmp/{}'.format(osp.basename(__file__))

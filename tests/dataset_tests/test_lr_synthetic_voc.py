@@ -1,3 +1,4 @@
+import torchfcn.utils.data
 from scripts.configurations import synthetic_cfg
 from scripts.configurations import voc_cfg
 from torchfcn import script_utils
@@ -37,23 +38,23 @@ def test_lr_of_dataset(dataset_name):
         # unordered
         cfg['ordering'] = None
         script_utils.set_random_seeds()
-        train_dataset_unordered, _ = script_utils.get_voc_datasets(cfg, '/home/adelgior/data/datasets/', transform=False)
+        train_dataset_unordered, _ = torchfcn.utils.data.get_voc_datasets(cfg, '/home/adelgior/data/datasets/', transform=False)
 
         # ordered
         cfg['ordering'] = 'LR'
         script_utils.set_random_seeds()
-        train_dataset_ordered, _ = script_utils.get_voc_datasets(cfg, '/home/adelgior/data/datasets/', transform=False)
+        train_dataset_ordered, _ = torchfcn.utils.data.get_voc_datasets(cfg, '/home/adelgior/data/datasets/', transform=False)
     elif dataset_name == 'synthetic':
         cfg = synthetic_cfg.get_default_config()
         # unordered
         cfg['ordering'] = None
         script_utils.set_random_seeds()
-        train_dataset_unordered, _ = script_utils.get_synthetic_datasets(cfg, transform=False)
+        train_dataset_unordered, _ = torchfcn.utils.data.get_synthetic_datasets(cfg, transform=False)
 
         # ordered
         cfg['ordering'] = 'LR'
         script_utils.set_random_seeds()
-        train_dataset_ordered, _ = script_utils.get_synthetic_datasets(cfg, transform=False)
+        train_dataset_ordered, _ = torchfcn.utils.data.get_synthetic_datasets(cfg, transform=False)
     else:
         raise ValueError
 

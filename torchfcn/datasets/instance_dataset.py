@@ -19,13 +19,17 @@ class InstanceDatasetBase(data.Dataset):
 class TransformedInstanceDataset(InstanceDatasetBase):
     __metaclass__ = data.Dataset
 
-    def __init__(self, raw_dataset, raw_type, precomputed_file_transformation=None,
+    def __init__(self, raw_dataset, raw_dataset_returns_images=False, precomputed_file_transformation=None,
                  runtime_transformation=None):
-        assert raw_type in ['files', 'images'], ValueError
-        if raw_type == 'images':
+        """
+        :param raw_dataset_returns_images: Set to false for standard datasets that load from files; set to true for
+        synthetic datasets that directly return images and labels.
+        """
+
+        if raw_dataset_returns_images:
             assert precomputed_file_transformation is None, 'Cannot do precomputed file transformation on datasets ' \
                                                             'of type \'images\' (generated on the fly).'
-        self.raw_type = raw_type
+        self.raw_dataset_returns_images = raw_dataset_returns_images
         self.raw_dataset = raw_dataset
         self.precomputed_file_transformation = precomputed_file_transformation
         self.runtime_transformation = runtime_transformation
@@ -81,14 +85,12 @@ class TransformedInstanceDataset(InstanceDatasetBase):
         return img, lbl
 
     def get_item(self, index, precomputed_file_transformation=None, runtime_transformation=None):
-        if self.raw_type == 'files':
+        if not self.raw_dataset_returns_images:
             img, lbl = self.get_item_from_files(index, precomputed_file_transformation)
-        elif self.raw_type == 'images':
+        else:
             img, lbl = self.raw_dataset.__getitem__(index)
             assert precomputed_file_transformation is None, 'Cannot do precomputed file transformation on datasets ' \
                                                             'of type \'images\' (generated on the fly).'
-        else:
-            raise NotImplementedError
         if runtime_transformation is not None:
             img, lbl = runtime_transformation.transform(img, lbl)
 

@@ -53,8 +53,21 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
                                                        precomputed_file_transformation=precomputed_file_transformation,
                                                        runtime_transformation=runtime_transformation)
     elif dataset_type == 'synthetic':
-        train_dataset = synthetic.BlobExampleGenerator(n_images=cfg.pop('n_images_train', None))
-        val_dataset = synthetic.BlobExampleGenerator(n_images=cfg.pop('n_images_train', None))
+        if isinstance(precomputed_file_transformation,
+                      dataset_precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):
+            precomputed_file_transformation = None  # Remove it, because we're going to order them when generating
+            # the images instead.
+        if precomputed_file_transformation is not None:
+            raise ValueError('Cannot perform file transformations on the synthetic dataset.')
+        train_dataset = synthetic.TransformedInstanceDataset(
+            raw_dataset=synthetic.BlobExampleGenerator(n_images=cfg.pop('n_images_train', None),
+                                                       ordering=cfg['ordering']),
+            raw_dataset_returns_images=True,
+            runtime_transformation=runtime_transformation)
+        val_dataset = synthetic.TransformedInstanceDataset(
+            raw_dataset=synthetic.BlobExampleGenerator(n_images=cfg.pop('n_images_train', None),
+                                                       ordering=cfg['ordering']),
+            runtime_transformation=runtime_transformation)
     else:
         raise NotImplementedError('I don\'t know dataset of type {}'.format(dataset_type))
 

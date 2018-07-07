@@ -2,7 +2,6 @@ import numpy as np
 
 from torchfcn.datasets import dataset_utils
 from torchfcn.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
-from torchfcn.datasets.dataset_runtime_transformations import GenericSequenceRuntimeDatasetTransformer
 
 PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
 BLUE_RGB = (0, 0, 224)

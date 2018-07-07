@@ -3,7 +3,7 @@ class PARAM_CLASSIFICATIONS(object):
     export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics'}
     loss = {'matching', 'size_average'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
-            'dataset_instance_cap'}
+            'dataset_instance_cap', 'resize', 'resize_size'}
     problem_config = {'n_instances_per_class', 'single_instance'}
     model = {'initialize_from_semantic', 'bottleneck_channel_capacity', 'score_multiplier', 'freeze_vgg',
              'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer'}
@@ -67,9 +67,14 @@ def get_default_config():
 def assert_all_cfg_keys_classified():
     keys = list(_default_config.keys())
     param_groups = [x for x in list(PARAM_CLASSIFICATIONS.__dict__.keys()) if x[0] != '_']
+    unclassified_keys = []
     for k in keys:
-        assert any([k in getattr(PARAM_CLASSIFICATIONS, param_group)
-                    for param_group in param_groups])
+        if not any([k in getattr(PARAM_CLASSIFICATIONS, param_group)
+                    for param_group in param_groups]):
+            unclassified_keys.append(k)
+    if len(unclassified_keys) > 0:
+        raise Exception('The following parameters have not yet been classified in PARAM_CLASSIFICATIONS: {}'.format(
+            unclassified_keys))
 
 
 assert_all_cfg_keys_classified()

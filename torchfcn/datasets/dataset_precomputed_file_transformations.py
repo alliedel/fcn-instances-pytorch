@@ -32,7 +32,6 @@ class PrecomputedDatasetFileTransformerBase(object):
     #     return self.original_semantic_class_names
 
 
-
 def precomputed_file_transformer_factory(ordering=None):
     # Basic transformation (numpy array to torch tensor; resizing and centering)
     transformer_sequence = []

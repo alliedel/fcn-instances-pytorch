@@ -9,6 +9,7 @@ from scripts.configurations import voc_cfg
 from torchfcn import script_utils
 from torchfcn.datasets.voc import ALL_VOC_CLASS_NAMES
 from torchfcn.models import model_utils
+from torchfcn.utils import trainers
 from scripts.configurations.sampler_cfg import sampler_cfgs
 
 
@@ -41,7 +42,7 @@ def test(frozen=True):
 
     optim = script_utils.get_optimizer(cfg, model, None)
     out_dir = '/tmp/{}'.format(osp.basename(__file__))
-    trainer = script_utils.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir=out_dir)
+    trainer = trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir=out_dir)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

@@ -38,12 +38,12 @@ def test_lr_of_dataset(dataset_name):
         # unordered
         cfg['ordering'] = None
         script_utils.set_random_seeds()
-        train_dataset_unordered, _ = torchfcn.utils.data.get_voc_datasets(cfg, '/home/adelgior/data/datasets/', transform=False)
+        train_dataset_unordered, _ = torchfcn.utils.data.get_voc_datasets(cfg, transform=False)
 
         # ordered
         cfg['ordering'] = 'LR'
         script_utils.set_random_seeds()
-        train_dataset_ordered, _ = torchfcn.utils.data.get_voc_datasets(cfg, '/home/adelgior/data/datasets/', transform=False)
+        train_dataset_ordered, _ = torchfcn.utils.data.get_voc_datasets(cfg, transform=False)
     elif dataset_name == 'synthetic':
         cfg = synthetic_cfg.get_default_config()
         # unordered

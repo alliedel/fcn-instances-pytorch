@@ -1,6 +1,7 @@
 import os
 import os.path as osp
 
+import local_pyutils
 import numpy as np
 import skimage.io
 import torch
@@ -49,7 +50,7 @@ def get_cfgs(dataset, config_idx, cfg_override_args):
 
 
 def main():
-    script_utils.check_clean_work_tree()
+    local_pyutils.check_clean_work_tree()
     args, cfg_override_args = parse_args()
     gpu = args.gpu
     config_idx = args.config

@@ -1,5 +1,4 @@
 import numpy as np
-from PIL import ImageDraw
 
 from torchfcn.datasets import dataset_utils
 
@@ -34,13 +33,18 @@ class BlobExampleGenerator(object):
                  n_images=None, mean_bgr=None,
                  transform=Defaults.transform, _im_a_copy=False,
                  map_to_single_instance_problem=False,
-                 ordering=None, semantic_subset=None):
+                 ordering=None, semantic_subset=None,
+                 one_dimension=None):
+        """
+        one_dimension: {'x', 'y', None}
+        """
         if mean_bgr is None:
             mean_bgr = Defaults.mean_bgr
         n_images = n_images or Defaults.n_images
         assert semantic_subset is None or all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset]), \
             ValueError('semantic_subset={} is incorrect. Must be a list of semantic classes in {}'.format(
                 semantic_subset, ALL_BLOB_CLASS_NAMES))
+        assert one_dimension in [None, 'x', 'y'], ValueError
         self.map_to_single_instance_problem = map_to_single_instance_problem
         self.img_size = img_size
         assert len(self.img_size) == 2
@@ -60,6 +64,7 @@ class BlobExampleGenerator(object):
             self.semantic_subset)
         self.n_instances_per_sem_cls = [0] + [n_max_per_class for _ in range(len(self.semantic_classes) - 1)]
         self.ordering = ordering.lower() if ordering is not None else None
+        self.one_dimension = one_dimension
 
         # Blob dynamics
         self.location_generation_type = Defaults.location_generation_type

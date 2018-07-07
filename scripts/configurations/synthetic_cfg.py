@@ -14,6 +14,8 @@ def get_default_config():
         dataset='synthetic',
         n_images_train=100,
         n_images_val=100,
+        infinite_synthetic=False,
+        one_dimension=None,  # {'x', 'y'}
     )
     return _default_config
 

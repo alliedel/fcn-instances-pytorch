@@ -23,10 +23,10 @@ def log_images(writer, tag, images, step, numbers=None, bgr=False):
 
 def log_plots(writer, tag, plot_handles, step, numbers=None):
     """Logs a list of images."""
-    assert len(numbers) == len(plot_handles), 'len(plot_handles): {}; numbers: {}'.format(len(
-        plot_handles), numbers)
     if numbers is None:
         numbers = range(len(plot_handles))
+    assert len(numbers) == len(plot_handles), 'len(plot_handles): {}; numbers: {}'.format(len(
+        plot_handles), numbers)
     for nr, plot_handle in enumerate(plot_handles):
         # Write the image to a string
         h = plt.figure(plot_handle.number)

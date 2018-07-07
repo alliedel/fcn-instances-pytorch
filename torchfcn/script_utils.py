@@ -15,6 +15,7 @@ import torch
 import torch.utils.data
 import yaml
 
+from local_pyutils import TermColors
 from scripts.configurations import synthetic_cfg, voc_cfg
 from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn import instance_utils
@@ -47,7 +48,7 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'weight_by_instance': 'wt',
                                         'optim': 'o',
                                         'augment_semantic': 'augsem',
-                                        'add_conv8': 'conv8',
+                                        'use_conv8': 'conv8',
                                         }
 
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
@@ -55,20 +56,6 @@ BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 CFG_ORDER = {}
 
 DEBUG_ASSERTS = True
-
-
-class TermColors:
-    """
-    https://stackoverflow.com/questions/287871/print-in-terminal-with-colors
-    """
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
 
 
 def set_random_seeds(np_seed=1337, torch_seed=1337, torch_cuda_seed=1337):

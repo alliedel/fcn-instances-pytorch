@@ -20,10 +20,8 @@ from torchfcn import metrics
 from torchfcn import instance_utils
 from torchfcn.analysis import visualization_utils
 from torchfcn.datasets import dataset_utils
-from torchfcn.export_utils import log_images
+from torchfcn import export_utils
 from torchfcn.models.model_utils import is_nan, any_nan
-from torchfcn.datasets import dataset_runtime_transformations
-import torchfcn.utils.misc
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -49,8 +47,7 @@ class Trainer(object):
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),
-                 write_activation_condition=should_write_activations,
-                 write_instance_metrics=True):
+                 write_activation_condition=should_write_activations):
         self.cuda = cuda
 
         self.model = model
@@ -75,7 +72,6 @@ class Trainer(object):
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
-        self.write_instance_metrics = write_instance_metrics
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -183,8 +179,7 @@ class Trainer(object):
             False.
         """
         val_metrics = None
-        write_instance_metrics = (split == 'val') and self.write_instance_metrics \
-            if write_instance_metrics is None else write_instance_metrics
+        write_instance_metrics = (split == 'val') if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -511,6 +506,11 @@ class Trainer(object):
         # n_class = self.model.n_classes
         last_score, last_last_score, last_loss, last_last_loss = None, None, None, None
 
+        if self.generate_new_synthetic_data_each_epoch:
+            seed = np.random.randint(100)
+            self.train_loader.dataset.initialize_locations_per_image(seed)
+            self.train_loader_for_val.dataset.initialize_locations_per_image(seed)
+
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):
@@ -519,9 +519,20 @@ class Trainer(object):
                 continue  # for resuming
             self.iteration = iteration
             if self.iteration % self.interval_validate == 0:
+                val_metrics, _ = self.validate()
+                val_loss = self.last_val_loss
                 if self.train_loader_for_val is not None:
-                    self.validate('train')
-                self.validate()
+                    train_metrics, _ = self.validate('train')
+                    train_loss = self.last_val_loss
+                else:
+                    print('Warning: cannot generate train vs. val plots if we dont have access to the training loss '
+                          'via train_for_val dataloader')
+                    train_loss = None
+                if train_loss is not None:
+                    self.update_mpl_joint_train_val_loss_figure(train_loss, val_loss)
+                    if self.tensorboard_writer is not None:
+                        self.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
+                                                           self.iteration)
 
             assert self.model.training
             if not self.loader_semantic_lbl_only:
@@ -610,6 +621,55 @@ class Trainer(object):
             if self.iteration >= self.max_iter:
                 break
 
+    def update_mpl_joint_train_val_loss_figure(self, train_loss, val_loss):
+        assert train_loss is not None, ValueError
+        assert val_loss is not None, ValueError
+        figure_name = 'train/val losses'
+        ylim_buffer_size = 3
+        self.train_losses_stored.append(train_loss)
+        self.val_losses_stored.append(val_loss)
+
+        self.iterations_for_losses_stored.append(self.iteration)
+        if self.joint_train_val_loss_mpl_figure is None:
+            self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
+            display_pyutils.set_my_rc_defaults()
+
+        h = plt.figure(figure_name)
+
+        plt.clf()
+        train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
+            self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
+        val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))
+
+        plt.plot(self.train_losses_stored, label=train_label, color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
+        plt.plot(self.val_losses_stored, label=val_label, color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
+        plt.legend()
+        # Set y limits for just the last 10 datapoints
+        last_x = max(len(self.train_losses_stored), len(self.val_losses_stored))
+        if last_x >= 0:
+            ymin = min(min(self.train_losses_stored[(last_x - ylim_buffer_size - 1):]),
+                       min(self.val_losses_stored[(last_x - ylim_buffer_size - 1):]))
+            ymax = max(max(self.train_losses_stored[(last_x - ylim_buffer_size - 1):]),
+                       max(self.val_losses_stored[(last_x - ylim_buffer_size - 1):]))
+        else:
+            ymin, ymax = None, None
+        if self.tensorboard_writer is not None:
+            export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
+        filename = os.path.join(self.out, 'val_train_loss.png')
+        h.savefig(filename)
+
+        # zoom
+        zoom_filename = os.path.join(self.out, 'val_train_loss_zoom_last_{}.png'.format(ylim_buffer_size))
+        if ymin is not None:
+            plt.ylim(ymin=ymin, ymax=ymax)
+            plt.xlim(xmin=(last_x - ylim_buffer_size - 1), xmax=last_x)
+            if self.tensorboard_writer is not None:
+                export_utils.log_plots(self.tensorboard_writer, 'joint_loss_last_{}'.format(ylim_buffer_size),
+                                       [h], self.iteration)
+            h.savefig(zoom_filename)
+        else:
+            shutil.copyfile(filename, zoom_filename)
+
 
 def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):
     if not osp.exists(outdir):
@@ -619,7 +679,7 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
                                                      margin_size=50)
         tag = '{}images'.format(basename)
         if tensorboard_writer is not None:
-            log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
+            export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
         out_subdir = osp.join(outdir, tag)
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)

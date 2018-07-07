@@ -6,6 +6,7 @@ import yaml
 
 import torchfcn
 from local_pyutils import str2bool
+from torchfcn.models import attention
 
 
 def make_ordered_cfg(cfg, start_arg_order=('dataset', 'sampler'), end_arg_order=()):
@@ -51,6 +52,7 @@ def get_parameters(model, bias=False):
         nn.MaxPool2d,
         nn.Dropout2d,
         nn.Sequential,
+        nn.Softmax,
         torchfcn.models.FCN32s,
         torchfcn.models.FCN16s,
         torchfcn.models.FCN8s,
@@ -67,6 +69,16 @@ def get_parameters(model, bias=False):
             # weight is frozen because it is just a bilinear upsampling
             if bias:
                 assert m.bias is None
+        elif isinstance(m, attention.Self_Attn):
+            if bias:
+                yield m.query_conv.bias
+                yield m.key_conv.bias
+                yield m.value_conv.bias
+            else:
+                yield m.query_conv.weight
+                yield m.key_conv.weight
+                yield m.value_conv.weight
+                yield m.gamma
         elif isinstance(m, modules_skipped):
             continue
         else:

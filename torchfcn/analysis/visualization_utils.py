@@ -513,3 +513,5 @@ def get_text_color(bg_color):
     if bg_color[0] * 0.299 + bg_color[1] * 0.587 + bg_color[2] * 0.114 > 170:
         return (0, 0, 0)
     return (255, 255, 255)
+
+

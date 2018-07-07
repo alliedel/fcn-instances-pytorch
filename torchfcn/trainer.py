@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import shutil
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytz
 import scipy.misc
@@ -15,13 +16,16 @@ from local_pyutils import flatten_dict
 from torch.autograd import Variable
 
 import torchfcn
+from torchfcn import instance_utils
 from torchfcn import losses
 from torchfcn import metrics
-from torchfcn import instance_utils
 from torchfcn.analysis import visualization_utils
 from torchfcn.datasets import dataset_utils
 from torchfcn import export_utils
 from torchfcn.models.model_utils import is_nan, any_nan
+from torchfcn.datasets import dataset_runtime_transformations
+import torchfcn.utils.misc
+import display_pyutils
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -47,7 +51,9 @@ class Trainer(object):
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),
-                 write_activation_condition=should_write_activations):
+                 write_activation_condition=should_write_activations,
+                 write_instance_metrics=True, bool_compute_instance_metrics=True,
+                 generate_new_synthetic_data_each_epoch=False):
         self.cuda = cuda
 
         self.model = model
@@ -67,11 +73,21 @@ class Trainer(object):
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
         self.use_semantic_loss = use_semantic_loss
         self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
+        self.generate_new_synthetic_data_each_epoch = generate_new_synthetic_data_each_epoch
 
         # Writing activations
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
+        self.write_instance_metrics = write_instance_metrics
+        self.bool_compute_instance_metrics = bool_compute_instance_metrics
+
+        # Stored values
+        self.last_val_loss = None
+        self.val_losses_stored = []
+        self.train_losses_stored = []
+        self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
+        self.iterations_for_losses_stored = []
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -179,7 +195,10 @@ class Trainer(object):
             False.
         """
         val_metrics = None
-        write_instance_metrics = (split == 'val') if write_instance_metrics is None else write_instance_metrics
+        write_instance_metrics = (split == 'val') and self.write_instance_metrics \
+            if write_instance_metrics is None else write_instance_metrics
+        write_instance_metrics = self.bool_compute_instance_metrics and (split == 'val') \
+            if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -246,6 +265,7 @@ class Trainer(object):
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
 
         val_loss /= len(data_loader)
+        self.last_val_loss = val_loss
 
         if should_compute_basic_metrics:
             val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
@@ -337,14 +357,10 @@ class Trainer(object):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
                                                                   self.iteration, bins='auto')
                         elif metric is None:
-                            import ipdb;
-                            ipdb;
-                            ipdb.set_trace()
+                            import ipdb; ipdb.set_trace()
                             pass
                         else:
-                            import ipdb;
-                            ipdb;
-                            ipdb.set_trace()
+                            import ipdb; ipdb.set_trace()
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              ' '.format(type(metric), name))
 
@@ -692,7 +708,7 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
             os.makedirs(out_subdir)
         for img_idx, out_img in enumerate(visualizations):
             if tensorboard_writer is not None:
-                log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
+                export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
             out_subsubdir = osp.join(out_subdir, str(img_idx))
             if not osp.exists(out_subsubdir):
                 os.makedirs(out_subsubdir)

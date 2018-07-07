@@ -78,7 +78,7 @@ class BlobExampleGenerator(object):
                     self.random_rows[:, sem_idx, :n_inst_this_sem_cls] = \
                         np.random.randint(0, self.img_size[0] - self.blob_size[0], (n_images, n_inst_this_sem_cls))
                     random_cols = np.random.randint(0, self.img_size[1] - self.blob_size[1],
-                                                              (n_images, n_inst_this_sem_cls))
+                                                    (n_images, n_inst_this_sem_cls))
                     if self.ordering == 'lr':
                         random_cols.sort(axis=1)
                     elif self.ordering is None:
@@ -135,7 +135,7 @@ class BlobExampleGenerator(object):
         img = np.zeros(self.img_size + (3,), dtype=float)
         sem_lbl = np.zeros(self.img_size, dtype=int)
         inst_lbl = np.zeros(self.img_size, dtype=int)
-        
+
         for semantic_idx, semantic_class in enumerate(self.semantic_classes):
             for instance_idx in range(self.n_instances_per_sem_cls[semantic_idx]):
                 r, c = self.get_blob_coordinates(image_index, semantic_idx, instance_idx=instance_idx)
@@ -188,15 +188,15 @@ class BlobExampleGenerator(object):
         return dataset_utils.convert_lbl_to_torch_tensor(lbl)
 
     def untransform(self, img, lbl):
-        img = dataset_utils.untransform_img(img, self.mean_bgr)
-        lbl = dataset_utils.untransform_lbl(lbl)
+        img = self.untransform_img(img)
+        lbl = self.untransform_img(lbl)
         return img, lbl
 
     def untransform_img(self, img):
-        return dataset_utils.untransform_img(img, self.mean_bgr)
+        return dataset_utils.convert_torch_img_to_numpy(img, self.mean_bgr)
 
     def untransform_lbl(self, lbl):
-        return dataset_utils.untransform_lbl(lbl)
+        return dataset_utils.convert_torch_lbl_to_numpy(lbl)
 
     @staticmethod
     def get_semantic_names_and_idxs(semantic_subset):
@@ -302,7 +302,6 @@ def valid_ellipse_locations(img_shape, center_r, center_c, b, a):
     c = np.arange(img_shape[1])
     in_ellipse = ((c - center_c) / a) ** 2 + ((r - center_r) / b) ** 2 <= 1
     return in_ellipse
-
 
 # def draw_ellipse_on_pil_img(img, start_r, start_c, end_r, end_c, clr):
 #     draw = ImageDraw.Draw(image)

@@ -23,7 +23,7 @@ class FCN8sInstance(nn.Module):
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
-                 at_once=True, n_input_channels=3, clip=None, use_conv8=False, use_attention_layer=True):
+                 at_once=True, n_input_channels=3, clip=None, use_conv8=False, use_attention_layer=False):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
@@ -98,7 +98,7 @@ class FCN8sInstance(nn.Module):
                 fr_in_dim = 4096
             if self.use_attention_layer:
                 self.attn1 = attention.Self_Attn(in_dim=fr_in_dim, activation='relu')
-                fr_in_dim = attention.Self_Attn.out_dim
+                # fr_in_dim = self.attn1.out_dim
 
             self.score_fr = nn.Conv2d(fr_in_dim, intermediate_channel_size, kernel_size=1)
 
@@ -239,13 +239,13 @@ class FCN8sInstance(nn.Module):
         h = self.relu7(self.fc7(h))
         h = self.drop7(h)
 
-        h = self.score_fr(h)
-
         if self.use_conv8:
             h = self.conv8(h)
 
         if self.use_attention_layer:
             h, p1 = self.attn1(h)
+
+        h = self.score_fr(h)
 
         h = self.upscore2(h)  # ConvTranspose2d, stride=2
         upscore2 = h  # 1/16

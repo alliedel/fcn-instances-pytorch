@@ -6,6 +6,7 @@ import numpy as np
 from torch.utils import data
 
 from torchfcn.datasets import dataset_utils, dataset_runtime_transformations
+from torchfcn.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
 #  multiple times with the assigned permutation.  That way you can train in batches that have
@@ -57,7 +58,7 @@ ALL_VOC_CLASS_NAMES = np.array([
 ])
 
 
-class RawVOCBase(data.Dataset):
+class RawVOCBase(InstanceDatasetBase):
     semantic_class_names = ALL_VOC_CLASS_NAMES
 
     def __init__(self, root, split):
@@ -153,58 +154,14 @@ def load_voc_files(img_file, sem_lbl_file, inst_lbl_file=None, return_semantic_o
     return img, lbl
 
 
-class TransformedVOC(data.Dataset):
+class TransformedVOC(TransformedInstanceDataset):
     """
     Has a raw dataset
     """
 
     def __init__(self, root, split, precomputed_file_transformation=None, runtime_transformation=None):
-        self.raw_dataset = RawVOCBase(root, split=split)
-        self.precomputed_file_transformation = precomputed_file_transformation
-        self.runtime_transformation = runtime_transformation
-        self.should_use_precompute_transform = True
-        self.should_use_runtime_transform = True
-        self.semantic_class_names = self.get_semantic_class_names()
+        raw_dataset = RawVOCBase(root, split=split)
+        super(TransformedVOC, self).__init__(raw_dataset, precomputed_file_transformation, runtime_transformation)
 
-    def get_semantic_class_names(self):
-        """
-        If we changed the semantic subset, we have to account for that change in the semantic class name list.
-        """
-        if self.should_use_runtime_transform and self.runtime_transformation is not None:
-            transformation_list = self.runtime_transformation.transformer_sequence if isinstance(
-                self.runtime_transformation, dataset_runtime_transformations.GenericSequenceRuntimeDatasetTransformer) else \
-                [self.runtime_transformation]
-            semantic_class_names = self.raw_dataset.semantic_class_names
-            for transformer in transformation_list:
-                if hasattr(transformer, 'transform_semantic_class_names'):
-                    semantic_class_names = transformer.transform_semantic_class_names(
-                        semantic_class_names)
-            return semantic_class_names
-        else:
-            return self.raw_dataset.semantic_class_names
-
-    def __getitem__(self, index):
-        img, lbl = self.get_item(index,
-                                 precomputed_file_transformation=self.precomputed_file_transformation,
-                                 runtime_transformation=self.runtime_transformation)
-        return img, lbl
-
-    def __len__(self):  # explicit
-        return len(self.raw_dataset)
-
-    def get_item(self, index, precomputed_file_transformation=None, runtime_transformation=None):
-        data_file = self.raw_dataset.files[index]  # files populated when RawVOCBase was instantiated
-        img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file['inst_lbl']
-
-        # Get the right file
-        if precomputed_file_transformation is not None:
-            img_file, sem_lbl_file, inst_lbl_file = \
-                precomputed_file_transformation.transform(img_file=img_file, sem_lbl_file=sem_lbl_file,
-                                                          inst_lbl_file=inst_lbl_file)
-
-        # Run data through transformation
-        img, lbl = load_voc_files(img_file, sem_lbl_file, inst_lbl_file)
-        if runtime_transformation is not None:
-            img, lbl = runtime_transformation.transform(img, lbl)
-
-        return img, lbl
+    def load_files(self, img_file, sem_lbl_file, inst_lbl_file):
+        return load_voc_files(img_file, sem_lbl_file, inst_lbl_file)

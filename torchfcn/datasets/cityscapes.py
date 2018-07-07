@@ -4,11 +4,9 @@ from glob import glob
 import PIL.Image
 import numpy as np
 
-from torchfcn.datasets.dataset_precomputed_file_transformations import GenericSequencePrecomputedDatasetFileTransformer
-from torchfcn.datasets.dataset_runtime_transformations import GenericSequenceRuntimeDatasetTransformer
 from . import labels_table_cityscapes
 from .cityscapes_transformations import CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer
-from torchfcn.datasets.dataset_utils import InstanceDatasetBase
+from torchfcn.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 
 CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
@@ -107,62 +105,16 @@ def load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file):
     return img, (sem_lbl, inst_lbl)
 
 
-class TransformedCityscapes(InstanceDatasetBase):
+class TransformedCityscapes(TransformedInstanceDataset):
     """
     Has a raw dataset
     """
 
     def __init__(self, root, split, precomputed_file_transformation=None, runtime_transformation=None):
-        self.raw_dataset = RawCityscapesBase(root, split=split)
-        self.precomputed_file_transformation = precomputed_file_transformation
-        self.runtime_transformation = runtime_transformation
-        self.should_use_precompute_transform = True
-        self.should_use_runtime_transform = True
-        self.semantic_class_names = self.get_semantic_class_names()
+        raw_dataset = RawCityscapesBase(root, split=split)
+        super(TransformedCityscapes, self).__init__(raw_dataset, precomputed_file_transformation,
+                                                    runtime_transformation)
 
-    def get_semantic_class_names(self):
-        """
-        If we changed the semantic subset, we have to account for that change in the semantic class name list.
-        """
-        if self.should_use_runtime_transform and self.runtime_transformation is not None:
-            runtime_transformation_list = self.runtime_transformation.transformer_sequence if isinstance(
-                self.runtime_transformation, GenericSequenceRuntimeDatasetTransformer) else \
-                [self.runtime_transformation]
-            precomputed_transformation_list = self.precomputed_file_transformation.transformer_sequence if isinstance(
-                self.precomputed_file_transformation, GenericSequencePrecomputedDatasetFileTransformer) else \
-                [self.precomputed_file_transformation]
-            transformation_list = runtime_transformation_list + precomputed_transformation_list
-            semantic_class_names = self.raw_dataset.semantic_class_names
-            for transformer in transformation_list:
-                if hasattr(transformer, 'transform_semantic_class_names'):
-                    semantic_class_names = transformer.transform_semantic_class_names(
-                        semantic_class_names)
-            return semantic_class_names
-        else:
-            return self.raw_dataset.semantic_class_names
+    def load_files(self, img_file, sem_lbl_file, inst_lbl_file):
+        return load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file)
 
-    def __getitem__(self, index):
-        img, lbl = self.get_item(index,
-                                 precomputed_file_transformation=self.precomputed_file_transformation,
-                                 runtime_transformation=self.runtime_transformation)
-        return img, lbl
-
-    def __len__(self):  # explicit
-        return len(self.raw_dataset)
-
-    def get_item(self, index, precomputed_file_transformation=None, runtime_transformation=None):
-        data_file = self.raw_dataset.files[index]  # files populated when RawVOCBase was instantiated
-        img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file['inst_lbl']
-
-        # Get the right file
-        if precomputed_file_transformation is not None:
-            img_file, sem_lbl_file, inst_lbl_file = \
-                precomputed_file_transformation.transform(img_file=img_file, sem_lbl_file=sem_lbl_file,
-                                                          inst_lbl_file=inst_lbl_file)
-
-        # Run data through transformation
-        img, lbl = load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file)
-        if runtime_transformation is not None:
-            img, lbl = runtime_transformation.transform(img, lbl)
-
-        return img, lbl

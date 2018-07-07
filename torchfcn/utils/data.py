@@ -10,7 +10,7 @@ from torchfcn.script_utils import DEBUG_ASSERTS
 from torchfcn.utils.samplers import get_configured_sampler
 
 
-def get_datasets_with_transformations(dataset_type, cfg):
+def get_datasets_with_transformations(dataset_type, cfg, transform=True):
     # Get transformation parameters
     semantic_subset = cfg['semantic_subset']
     if semantic_subset is not None:
@@ -58,7 +58,7 @@ def get_datasets_with_transformations(dataset_type, cfg):
     else:
         raise NotImplementedError('I don\'t know dataset of type {}'.format(dataset_type))
 
-    if not cfg['transform']:
+    if not transform:
         for dataset in [train_dataset, val_dataset]:
             dataset.should_use_precompute_transform = False
             dataset.should_use_runtime_transform = False
@@ -68,7 +68,7 @@ def get_datasets_with_transformations(dataset_type, cfg):
 
 def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     # 1. dataset
-    train_dataset, val_dataset = get_datasets_with_transformations(dataset_type, cfg)
+    train_dataset, val_dataset = get_datasets_with_transformations(dataset_type, cfg, transform=True)
 
     # 2. samplers
     if sampler_cfg is None:

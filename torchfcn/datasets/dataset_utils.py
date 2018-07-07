@@ -6,10 +6,24 @@ import scipy.misc
 import scipy.ndimage
 import torch
 from torch.autograd import Variable
+from torch.utils import data
+import abc
 
 # TODO(allie): Allow for augmentations
 
 DEBUG_ASSERT = True
+
+
+class InstanceDatasetBase(data.Dataset):
+
+    @property
+    def semantic_class_names(self):
+        raise NotImplementedError('semantic_class_names must be defined for an instance dataset')
+
+    # __getitem__(self, index) enforced by data.Dataset
+    # __len__(self) enforced by data.Dataset
+
+
 
 
 def prep_input_for_scoring(input_tensor, cuda):

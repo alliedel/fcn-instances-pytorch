@@ -3,12 +3,13 @@ from glob import glob
 
 import PIL.Image
 import numpy as np
-from torch.utils import data
 
 from torchfcn.datasets.dataset_precomputed_file_transformations import GenericSequencePrecomputedDatasetFileTransformer
 from torchfcn.datasets.dataset_runtime_transformations import GenericSequenceRuntimeDatasetTransformer
 from . import labels_table_cityscapes
 from .cityscapes_transformations import CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer
+from torchfcn.datasets.dataset_utils import InstanceDatasetBase
+
 
 CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
 
@@ -28,7 +29,7 @@ def get_default_cityscapes_root():
 CITYSCAPES_ROOT = get_default_cityscapes_root()
 
 
-class RawCityscapesBase(data.Dataset):
+class RawCityscapesBase(InstanceDatasetBase):
     def __init__(self, root, split):
         self.root = root
         self.split = split
@@ -106,7 +107,7 @@ def load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file):
     return img, (sem_lbl, inst_lbl)
 
 
-class TransformedCityscapes(data.Dataset):
+class TransformedCityscapes(InstanceDatasetBase):
     """
     Has a raw dataset
     """

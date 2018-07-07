@@ -443,7 +443,7 @@ class Trainer(object):
         for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
             # runtime_transformation needs to still run the resize, even for untransformed img, lbl pair
             if data_loader.dataset.runtime_transformation is not None:
-                runtime_transformation_undo = dataset_runtime_transformations.RuntimeDatasetTransformerSequence(
+                runtime_transformation_undo = dataset_runtime_transformations.GenericSequenceRuntimeDatasetTransformer(
                         [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
                          if isinstance(t, dataset_runtime_transformations.BasicRuntimeDatasetTransformer)])
                 img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))

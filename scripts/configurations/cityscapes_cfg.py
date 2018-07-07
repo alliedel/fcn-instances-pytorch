@@ -8,6 +8,8 @@ def get_default_config():
              set_extras_to_void=True,
              lr=1.0e-4,
              dataset='cityscapes',
+             resize=True,
+             resize_size=(512, 1024)
              )
     )
     return default_cfg

@@ -2,11 +2,22 @@ from torchfcn.datasets import dataset_utils
 
 
 class RuntimeDatasetTransformerBase(object):
+    # def __init__(self):
+    #    self.original_semantic_class_names = None
+
     def transform(self, img, lbl):
         raise NotImplementedError
 
     def untransform(self, img, lbl):
         raise NotImplementedError
+
+    # def transform_semantic_class_names(self, original_semantic_class_names):
+    # """ If exists, gets called whenever the dataset's semantic class names are queried. """
+    #     self.original_semantic_class_names = original_semantic_class_names
+    #     return fcn(self.original_semantic_class_names)
+    #
+    # def untransform_semantic_class_names(self):
+    #     return self.original_semantic_class_names
 
 
 # noinspection PyTypeChecker
@@ -39,7 +50,7 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
     elif len(transformer_sequence) == 1:
         return transformer_sequence[0]
     else:
-        return RuntimeDatasetTransformerSequence(transformer_sequence=transformer_sequence)
+        return GenericSequenceRuntimeDatasetTransformer(transformer_sequence=transformer_sequence)
 
 
 class SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
@@ -73,13 +84,20 @@ class ResizeRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
 
 class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
-    def __init__(self, n_inst_cap_per_class: int):
+    def __init__(self, n_inst_cap_per_class: int, instance_id_for_excluded_instances=-1):
+        """
+        :param n_inst_cap_per_class:
+        :param instance_id_for_excluded_instances: usually you either want it to be 0 or -1.
+        -1 will ensure it's not counted toward the loss; 0 will put it into the 'extras' channel (or the 'semantic'
+        channel if we've mapped everything to the semantic problem instead)
+        """
         assert n_inst_cap_per_class >= 0
         self.n_inst_cap_per_class = n_inst_cap_per_class
+        self.instance_id_for_excluded_instances = instance_id_for_excluded_instances
 
     def transform(self, img, lbl):
         new_inst_lbl = lbl[1]
-        new_inst_lbl[new_inst_lbl > self.n_inst_cap_per_class] = -1
+        new_inst_lbl[new_inst_lbl > self.n_inst_cap_per_class] = self.instance_id_for_excluded_instances
         return img, (lbl[0], new_inst_lbl)
 
     def untransform(self, img, lbl):
@@ -162,7 +180,7 @@ class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         return img
 
 
-class RuntimeDatasetTransformerSequence(RuntimeDatasetTransformerBase):
+class GenericSequenceRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
     def __init__(self, transformer_sequence):
         """
         :param transformer_sequence:   list of functions of type transform(img, lbl)
@@ -240,3 +258,5 @@ def generate_transformer_from_functions(img_transform_function=None, sem_lbl_tra
 
     transformer_type = CustomRuntimeDatasetTransformer
     return transformer_type
+
+

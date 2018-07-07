@@ -3,13 +3,34 @@ import os.path as osp
 
 
 class PrecomputedDatasetFileTransformerBase(object):
+    # def __init__(self):
+    #    self.original_semantic_class_names = None
+
     def transform(self, img_file, sem_lbl_file, inst_lbl_file):
-        # return img_file, sem_lbl_file, inst_lbl_file
+        ## Template:
+        # new_sem_lbl_file = osp.isfile(sem_lbl_file.replace(<ext>, <new_file_ext>)
+        # if not osp.isfile(new_sem_lbl_file ):
+        #   assert osp.isfile(sem_lbl_file)
+        #   <create_new_sem_file()>
+
+        # return img_file, new_sem_lbl_file, inst_lbl_file
         raise NotImplementedError
 
     def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
-        # return img_file, sem_lbl_file, inst_lbl_file
+        ## Template:
+        # old_sem_lbl_file = osp.isfile(sem_lbl_file.replace(<new_file_ext>, <ext>)
+        # assert osp.isfile(old_sem_lbl_file)
+        # return img_file, old_sem_lbl_file, inst_lbl_file
         raise NotImplementedError
+
+    # def transform_semantic_class_names(self, original_semantic_class_names):
+    # """ If exists, gets called whenever the dataset's semantic class names are queried. """
+    #     self.original_semantic_class_names = original_semantic_class_names
+    #     return fcn(self.original_semantic_class_names)
+    #
+    # def untransform_semantic_class_names(self):
+    #     return self.original_semantic_class_names
+
 
 
 def precomputed_file_transformer_factory(ordering=None):

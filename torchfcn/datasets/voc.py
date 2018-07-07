@@ -172,7 +172,7 @@ class TransformedVOC(data.Dataset):
         """
         if self.should_use_runtime_transform and self.runtime_transformation is not None:
             transformation_list = self.runtime_transformation.transformer_sequence if isinstance(
-                self.runtime_transformation, dataset_runtime_transformations.RuntimeDatasetTransformerSequence) else \
+                self.runtime_transformation, dataset_runtime_transformations.GenericSequenceRuntimeDatasetTransformer) else \
                 [self.runtime_transformation]
             semantic_class_names = self.raw_dataset.semantic_class_names
             for transformer in transformation_list:

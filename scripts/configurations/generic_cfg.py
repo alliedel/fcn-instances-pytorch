@@ -27,8 +27,10 @@ _default_config = dict(
     dataset_instance_cap='match_model',
     sampler=None,
     single_instance=False,  # map_to_single_instance_problem
-    # semantic_only_labels=False,
     semantic_subset=None,
+    resize=False,
+    resize_size=None,
+    # semantic_only_labels=False,
 
     # Precomputed transformations
     ordering=None,  # 'lr'

@@ -3,7 +3,7 @@ import os
 import numpy as np
 import torch
 
-from torchfcn.datasets import samplers, dataset_utils, voc, \
+from torchfcn.datasets import samplers, dataset_utils, voc, cityscapes, \
     dataset_precomputed_file_transformations, dataset_runtime_transformations
 from torchfcn.script_utils import DEBUG_ASSERTS
 from torchfcn.utils.samplers import get_configured_sampler
@@ -15,8 +15,8 @@ def get_synthetic_datasets(cfg, transform=True):
                           semantic_subset=cfg['semantic_subset'])
     train_dataset = get_dataset_with_transformations(
         dataset_type='synthetic', split='train', **dataset_kwargs, n_images=cfg.pop('n_images_train', None))
-    val_dataset = get_dataset_with_transformations(
-        **dataset_kwargs, n_images=cfg.pop('n_images_val', None))
+    val_dataset = get_dataset_with_transformations(dataset_type='synthetic', split='valid',
+                                                   **dataset_kwargs, n_images=cfg.pop('n_images_val', None))
 
     # train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs, n_images=cfg.pop(
     #     'n_images_train', None))
@@ -29,7 +29,8 @@ def get_voc_datasets(cfg, transform=True):
     dataset_kwargs = dict(transform=transform,
                           map_to_single_instance_problem=cfg['single_instance'],
                           ordering=cfg['ordering'], semantic_subset=cfg['semantic_subset'],
-                          n_inst_cap_per_class=cfg['dataset_instance_cap'])
+                          n_inst_cap_per_class=cfg['dataset_instance_cap'],
+                          resize=cfg['resize'], resize_size=cfg['resize_size'])
     train_dataset_kwargs = dict()
     train_dataset = get_dataset_with_transformations(
         dataset_type='voc', split='train', **dataset_kwargs, **train_dataset_kwargs)
@@ -41,15 +42,16 @@ def get_voc_datasets(cfg, transform=True):
 def get_cityscapes_datasets(cfg, transform=True):
     dataset_kwargs = dict(
         transform=transform,
-        # map_to_single_instance_problem=cfg['single_instance'],
-        # ordering=cfg['ordering'], semantic_subset=cfg['semantic_subset'],
-        # n_inst_cap_per_class=cfg['dataset_instance_cap']
+        map_to_single_instance_problem=cfg['single_instance'],
+        ordering=cfg['ordering'], semantic_subset=cfg['semantic_subset'],
+        n_inst_cap_per_class=cfg['dataset_instance_cap'],
+        resize=cfg['resize'], resize_size=cfg['resize_size']
     )
     train_dataset_kwargs = dict()
     train_dataset = get_dataset_with_transformations(
-        dataset_type='cityscapes', root=cityscapes_root, split='train', **dataset_kwargs, **train_dataset_kwargs)
+        dataset_type='cityscapes', split='train', **dataset_kwargs, **train_dataset_kwargs)
     val_dataset = get_dataset_with_transformations(
-        dataset_type='cityscapes', root=cityscapes_root, split='seg11valid', **dataset_kwargs)
+        dataset_type='cityscapes', split='valid', **dataset_kwargs)
     return train_dataset, val_dataset
 
 
@@ -86,7 +88,11 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
                 except:
                     sem_cls_filter = [int(np.where(raw_train_dataset.semantic_class_names == class_name)[0][0])
                                       for class_name in sem_cls_filter]
-        train_instance_count_file = os.path.join(VOC_ROOT, 'train_instance_counts.npy')
+        if dataset_type == 'voc':
+            dataset_path = voc.get_default_voc_root()
+        elif dataset_type == 'cityscapes':
+            dataset_path = cityscapes.get_default_cityscapes_root()
+        train_instance_count_file = os.path.join(dataset_path, 'train_instance_counts.npy')
         train_sampler = get_configured_sampler(dataset_type, train_dataset, sequential=True,
                                                n_instances_range=pop_without_del(train_sampler_cfg,
                                                                                  'n_instances_range', None),
@@ -108,7 +114,7 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
                     except:
                         sem_cls_filter = [int(np.where(raw_val_dataset.semantic_class_names == class_name)[0][0])
                                           for class_name in sem_cls_filter]
-            val_instance_count_file = os.path.join(VOC_ROOT, 'val_instance_counts.npy')
+            val_instance_count_file = os.path.join(voc.VOC_ROOT, 'val_instance_counts.npy')
             val_sampler = get_configured_sampler(dataset_type, val_dataset, sequential=True,
                                                  n_instances_range=pop_without_del(val_sampler_cfg,
                                                                                    'n_instances_range', None),
@@ -168,6 +174,8 @@ def get_dataset_with_transformations(dataset_type, split, transform=True, resize
             mean_bgr = None
         elif dataset_type == 'synthetic':
             mean_bgr = None
+        elif dataset_type == 'cityscapes':
+            mean_bgr = None
         else:
             print('Must set default mean_bgr for dataset {}'.format(dataset_type))
 
@@ -180,6 +188,10 @@ def get_dataset_with_transformations(dataset_type, split, transform=True, resize
         dataset = voc.TransformedVOC(root=voc.VOC_ROOT, split=split,
                                      precomputed_file_transformation=precomputed_file_transformation,
                                      runtime_transformation=runtime_transformation)
+    elif dataset_type == 'cityscapes':
+        dataset = cityscapes.TransformedCityscapes(split=split,
+                                                   precomputed_file_transformation=precomputed_file_transformation,
+                                                   runtime_transformation=runtime_transformation)
     else:
         raise NotImplementedError('I don\'t know dataset of type {}'.format(dataset_type))
 

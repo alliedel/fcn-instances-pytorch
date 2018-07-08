@@ -3,6 +3,7 @@ import os
 import numpy as np
 import torch
 
+from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn.datasets import samplers, dataset_statistics
 
 
@@ -62,3 +63,10 @@ def get_configured_sampler(dataset_type, dataset, sequential, n_instances_range,
 
 def pairwise_and(list1, list2):
     return [a and b for a, b in zip(list1, list2)]
+
+
+def get_sampler_cfg(sampler_arg):
+    sampler_cfg = sampler_cfgs[sampler_arg]
+    if sampler_cfg['train_for_val'] is None:
+        sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
+    return sampler_cfg

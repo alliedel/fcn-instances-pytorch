@@ -5,7 +5,6 @@ import tqdm
 
 import torchfcn.utils.data
 from scripts.configurations import voc_cfg
-from torchfcn import script_utils
 from torchfcn.datasets import samplers
 
 

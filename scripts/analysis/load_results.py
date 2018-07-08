@@ -1,9 +1,9 @@
 import argparse
 import os.path as osp
 
+import torchfcn.utils.configs
 import torchfcn.utils.logs
 import torchfcn.utils.models
-from torchfcn import script_utils
 import torch
 from torchfcn.models import model_utils
 import local_pyutils
@@ -30,7 +30,7 @@ def main_check_freeze():
         'model_state_dict': initial_model.state_dict(),
         'best_mean_iu': 0,
     }, osp.join(init_logdir, 'model_best.pth.tar'))
-    script_utils.save_config(init_logdir, cfg)
+    torchfcn.utils.configs.save_config(init_logdir, cfg)
     print('matching:')
     print(matching_modules)
     print('non-matching:')

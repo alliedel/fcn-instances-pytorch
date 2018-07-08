@@ -5,8 +5,8 @@ import os.path as osp
 
 import torchfcn.utils.data
 import torchfcn.utils.models
+import torchfcn.utils.optimizer
 from scripts.configurations import voc_cfg
-from torchfcn import script_utils
 from torchfcn.datasets.voc import ALL_VOC_CLASS_NAMES
 from torchfcn.models import model_utils
 from torchfcn.utils import trainers
@@ -24,7 +24,7 @@ def test(frozen=True):
         cfg.pop(k)  # ensures the key actually existed before
         cfg[k] = v
 
-    problem_config = script_utils.get_problem_config(ALL_VOC_CLASS_NAMES, cfg['n_instances_per_class'])
+    problem_config = torchfcn.utils.models.get_problem_config(ALL_VOC_CLASS_NAMES, cfg['n_instances_per_class'])
     model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config,
                                                                           checkpoint_file=None, semantic_init=None, cuda=cuda)
     initial_model = copy.deepcopy(model)
@@ -40,7 +40,7 @@ def test(frozen=True):
     sampler_cfg['val']['n_images'] = 1
     dataloaders = torchfcn.utils.data.get_dataloaders(cfg, 'voc', cuda, sampler_cfg)
 
-    optim = script_utils.get_optimizer(cfg, model, None)
+    optim = torchfcn.utils.optimizer.get_optimizer(cfg, model, None)
     out_dir = '/tmp/{}'.format(osp.basename(__file__))
     trainer = trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir=out_dir)
     trainer.epoch = start_epoch

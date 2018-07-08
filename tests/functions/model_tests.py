@@ -5,7 +5,6 @@ import torch
 import torchfcn.utils.data
 import torchfcn.utils.models
 from scripts.configurations import voc_cfg
-from torchfcn import script_utils
 from torchfcn.datasets.voc import ALL_VOC_CLASS_NAMES
 from torchfcn.models import model_utils
 
@@ -19,7 +18,7 @@ def build_example_model(**model_cfg_override_kwargs):
     cfg = voc_cfg.get_default_config()
     for k, v in model_cfg_override_kwargs.items():
         cfg[k] = v
-    problem_config = script_utils.get_problem_config(ALL_VOC_CLASS_NAMES, 2, map_to_semantic=cfg['map_to_semantic'])
+    problem_config = torchfcn.utils.models.get_problem_config(ALL_VOC_CLASS_NAMES, 2, map_to_semantic=cfg['map_to_semantic'])
     model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config,
                                                                           checkpoint_file=None, semantic_init=None, cuda=cuda)
     return model

@@ -3,6 +3,7 @@ import os
 import torch
 
 import torchfcn
+from torchfcn import instance_utils
 from torchfcn.models import model_utils
 
 
@@ -51,3 +52,14 @@ def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
     if cfg['freeze_vgg']:
         model_utils.freeze_vgg_module_subset(model)
     return model, start_epoch, start_iteration
+
+
+def get_problem_config(class_names, n_instances_per_class: int, map_to_semantic=False):
+    # 0. Problem setup (instance segmentation definition)
+    class_names = class_names
+    n_semantic_classes = len(class_names)
+    n_instances_by_semantic_id = [1] + [n_instances_per_class for _ in range(1, n_semantic_classes)]
+    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id,
+                                                          map_to_semantic=map_to_semantic)
+    problem_config.set_class_names(class_names)
+    return problem_config

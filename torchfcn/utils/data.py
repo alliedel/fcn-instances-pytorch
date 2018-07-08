@@ -6,8 +6,11 @@ import torch.utils.data
 
 from torchfcn.datasets import samplers, dataset_utils, voc, cityscapes, synthetic, \
     dataset_precomputed_file_transformations, dataset_runtime_transformations
-from torchfcn.script_utils import DEBUG_ASSERTS
+from torchfcn.utils.scripts import DEBUG_ASSERTS
 from torchfcn.utils.samplers import get_configured_sampler
+
+
+REGISTERED_DATASET_TYPES = ['cityscapes', 'voc', 'synthetic']
 
 
 def get_datasets_with_transformations(dataset_type, cfg, transform=True):
@@ -70,7 +73,11 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
             raw_dataset_returns_images=True,
             runtime_transformation=runtime_transformation)
     else:
-        raise NotImplementedError('I don\'t know dataset of type {}'.format(dataset_type))
+        if dataset_type in REGISTERED_DATASET_TYPES:
+            raise NotImplementedError('Dataset type {} is registered, but I don\'t know how to instantiate it.'.format(
+                dataset_type))
+        else:
+            raise NotImplementedError('I don\'t know of dataset type {}.  It\'s not registered.'.format(dataset_type))
 
     if not transform:
         for dataset in [train_dataset, val_dataset]:

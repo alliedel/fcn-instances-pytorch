@@ -1,7 +1,7 @@
 import torchfcn.utils.data
+import torchfcn.utils.scripts
 from scripts.configurations import synthetic_cfg
 from scripts.configurations import voc_cfg
-from torchfcn import script_utils
 import numpy as np
 from torchfcn.datasets import dataset_utils
 
@@ -37,23 +37,23 @@ def test_lr_of_dataset(dataset_name):
         cfg = voc_cfg.get_default_config()
         # unordered
         cfg['ordering'] = None
-        script_utils.set_random_seeds()
+        torchfcn.utils.scripts.set_random_seeds()
         train_dataset_unordered, _ = torchfcn.utils.data.get_voc_datasets(cfg, transform=False)
 
         # ordered
         cfg['ordering'] = 'LR'
-        script_utils.set_random_seeds()
+        torchfcn.utils.scripts.set_random_seeds()
         train_dataset_ordered, _ = torchfcn.utils.data.get_voc_datasets(cfg, transform=False)
     elif dataset_name == 'synthetic':
         cfg = synthetic_cfg.get_default_config()
         # unordered
         cfg['ordering'] = None
-        script_utils.set_random_seeds()
+        torchfcn.utils.scripts.set_random_seeds()
         train_dataset_unordered, _ = torchfcn.utils.data.get_synthetic_datasets(cfg, transform=False)
 
         # ordered
         cfg['ordering'] = 'LR'
-        script_utils.set_random_seeds()
+        torchfcn.utils.scripts.set_random_seeds()
         train_dataset_ordered, _ = torchfcn.utils.data.get_synthetic_datasets(cfg, transform=False)
     else:
         raise ValueError

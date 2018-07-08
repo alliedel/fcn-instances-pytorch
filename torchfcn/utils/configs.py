@@ -101,3 +101,51 @@ def get_cfg_override_parser(cfg_default):
                                              help='cfg override (only recommended for one-off experiments '
                                                   '- set cfg in file instead)')
     return cfg_override_parser
+
+
+CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
+                                        'weight_decay': 'decay',
+                                        'n_training_imgs': 'n_train',
+                                        'n_validation_imgs': 'n_val',
+                                        'recompute_optimal_loss': 'recomp',
+                                        'size_average': 'sa',
+                                        'map_to_semantic': 'mts',
+                                        'interval_validate': 'val',
+                                        'resize_size': 'sz',
+                                        'n_max_per_class': 'n_per',
+                                        'semantic_subset': 'sset',
+                                        'val_on_train': 'VOT',
+                                        'matching': 'ma',
+                                        'set_extras_to_void': 'void',
+                                        'momentum': 'mo',
+                                        'n_instances_per_class': 'nper',
+                                        'semantic_only_labels': 'sem_ls',
+                                        'initialize_from_semantic': 'init_sem',
+                                        'bottleneck_channel_capacity': 'bcc',
+                                        'single_instance': '1inst',
+                                        'score_multiplier': 'sm',
+                                        'weight_by_instance': 'wt',
+                                        'optim': 'o',
+                                        'augment_semantic': 'augsem',
+                                        'use_conv8': 'conv8',
+                                        }
+
+
+def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME,
+                       reverse_replacements=False):
+    if reverse_replacements:
+        config_key_replacements = {v: k for k, v in config_key_replacements.items()}
+    cfg_print = config_dict.copy()
+    for key, replacement_key in config_key_replacements.items():
+        if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
+            if 'semantic_subset' in config_dict.keys() and config_dict['semantic_subset'] is not None:
+                cfg_print['semantic_subset'] = '_'.join([cls.strip() for cls in config_dict['semantic_subset']])
+        if key in cfg_print:
+            cfg_print[replacement_key] = cfg_print.pop(key)
+
+    return cfg_print
+
+
+def save_config(log_dir, cfg):
+    with open(osp.join(log_dir, 'config.yaml'), 'w') as f:
+        yaml.safe_dump(cfg, f, default_flow_style=False)

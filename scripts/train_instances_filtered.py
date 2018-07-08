@@ -8,11 +8,12 @@ import torch
 import torch.utils.data
 
 import torchfcn.utils.configs
-import torchfcn.utils.data
+import torchfcn.utils.logs
 import torchfcn.utils.models
-import torchfcn.utils.trainers
+import torchfcn.utils.optimizer
+import torchfcn.utils.scripts
+from torchfcn.utils import configs, data, models, trainers, samplers, scripts
 from scripts.configurations import synthetic_cfg, voc_cfg
-from torchfcn import script_utils
 from torchfcn.analysis import visualization_utils
 from torchfcn.models import model_utils
 
@@ -20,7 +21,7 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def parse_args():
-    args, cfg_override_args = script_utils.parse_args()
+    args, cfg_override_args = torchfcn.utils.scripts.parse_args()
     return args, cfg_override_args
 
 
@@ -31,20 +32,20 @@ def get_cfgs(dataset, config_idx, cfg_override_args):
     cfg_options = {'synthetic': synthetic_cfg.configurations,
                    'voc': voc_cfg.configurations}[dataset]
     cfg = torchfcn.utils.configs.create_config_from_default(cfg_options[config_idx], cfg_default)
-    non_default_options = script_utils.prune_defaults_from_dict(cfg_default, cfg)
+    non_default_options = torchfcn.utils.scripts.prune_defaults_from_dict(cfg_default, cfg)
     for key, override_val in cfg_override_args.__dict__.items():
         old_val = cfg.pop(key)
         if override_val != old_val:
-            print(script_utils.color_text('Overriding value for {}: {} --> {}'.format(key, old_val, override_val),
-                                          script_utils.TermColors.WARNING))
+            print(torchfcn.utils.scripts.color_text('Overriding value for {}: {} --> {}'.format(key, old_val, override_val),
+                                                    torchfcn.utils.scripts.TermColors.WARNING))
         cfg[key] = override_val
         non_default_options[key] = override_val
 
-    print(script_utils.color_text('non-default cfg values: {}'.format(non_default_options),
-                                  script_utils.TermColors.OKBLUE))
+    print(torchfcn.utils.scripts.color_text('non-default cfg values: {}'.format(non_default_options),
+                                            scripts.TermColors.OKBLUE))
     cfg_to_print = non_default_options
-    cfg_to_print = script_utils.create_config_copy(cfg_to_print)
-    cfg_to_print = torchfcn.utils.configs.make_ordered_cfg(cfg_to_print)
+    cfg_to_print = torchfcn.utils.configs.create_config_copy(cfg_to_print)
+    cfg_to_print = configs.make_ordered_cfg(cfg_to_print)
 
     return cfg, cfg_to_print
 
@@ -59,18 +60,18 @@ def main():
                                                                                                         args.dataset)
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
-    sampler_cfg = script_utils.get_sampler_cfg(args.sampler)
+    sampler_cfg = samplers.get_sampler_cfg(args.sampler)
 
-    out_dir = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
-                                       cfg_to_print,
-                                       parent_directory=os.path.join(here, 'logs', args.dataset))
-    script_utils.save_config(out_dir, cfg)
-    print(script_utils.color_text('logdir: {}'.format(out_dir), script_utils.TermColors.OKGREEN))
+    out_dir = torchfcn.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
+                                              cfg_to_print,
+                                              parent_directory=os.path.join(here, 'logs', args.dataset))
+    torchfcn.utils.configs.save_config(out_dir, cfg)
+    print(torchfcn.utils.scripts.color_text('logdir: {}'.format(out_dir), torchfcn.utils.scripts.TermColors.OKGREEN))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     args.cuda = torch.cuda.is_available()
 
-    script_utils.set_random_seeds()
+    torchfcn.utils.scripts.set_random_seeds()
 
     print('Getting dataloaders...')
     dataloaders = torchfcn.utils.data.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
@@ -78,9 +79,9 @@ def main():
 
     # reduce dataloaders to semantic subset before running / generating problem config:
     n_instances_per_class = cfg['n_instances_per_class']
-    problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
-                                                     n_instances_per_class,
-                                                     map_to_semantic=cfg['map_to_semantic'])
+    problem_config = torchfcn.utils.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
+                                                              n_instances_per_class,
+                                                              map_to_semantic=cfg['map_to_semantic'])
 
     if args.resume:
         checkpoint = torch.load(args.resume)
@@ -97,7 +98,7 @@ def main():
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
-    optim = script_utils.get_optimizer(cfg, model, checkpoint)
+    optim = torchfcn.utils.optimizer.get_optimizer(cfg, model, checkpoint)
 
     if cfg['freeze_vgg']:
         for module_name, module in model.named_children():

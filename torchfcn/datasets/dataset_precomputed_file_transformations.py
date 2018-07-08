@@ -8,7 +8,7 @@ class PrecomputedDatasetFileTransformerBase(object):
 
     def transform(self, img_file, sem_lbl_file, inst_lbl_file):
         ## Template:
-        # new_sem_lbl_file = osp.isfile(sem_lbl_file.replace(<ext>, <new_file_ext>)
+        # new_sem_lbl_file = sem_lbl_file.replace(<ext>, <new_file_ext>)
         # if not osp.isfile(new_sem_lbl_file ):
         #   assert osp.isfile(sem_lbl_file)
         #   <create_new_sem_file()>
@@ -18,7 +18,7 @@ class PrecomputedDatasetFileTransformerBase(object):
 
     def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
         ## Template:
-        # old_sem_lbl_file = osp.isfile(sem_lbl_file.replace(<new_file_ext>, <ext>)
+        # old_sem_lbl_file = sem_lbl_file.replace(<new_file_ext>, <ext>)
         # assert osp.isfile(old_sem_lbl_file)
         # return img_file, old_sem_lbl_file, inst_lbl_file
         raise NotImplementedError

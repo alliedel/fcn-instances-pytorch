@@ -1,9 +1,50 @@
 from . import labels_table_cityscapes
-from .dataset_runtime_transformations import RuntimeDatasetTransformerBase
 from .dataset_precomputed_file_transformations import PrecomputedDatasetFileTransformerBase
 import numpy as np
 import os.path as osp
+import os
 from . import dataset_utils
+import PIL.Image
+
+
+class ConvertLblstoPModePILImages(PrecomputedDatasetFileTransformerBase):
+    old_sem_file_tag = '.png'
+    new_sem_file_tag = '_mode_p.png'
+    old_inst_file_tag = '.png'
+    new_inst_file_tag = '_mode_p.png'
+
+    def __init__(self, palette=None):
+        self.palette = palette or labels_table_cityscapes.get_pil_palette()
+
+    def transform(self, img_file, sem_lbl_file, inst_lbl_file):
+        assert sem_lbl_file in self.old_sem_file_tag and inst_lbl_file in self.old_sem_file_tag
+        new_sem_lbl_file = sem_lbl_file.replace(self.old_sem_file_tag, self.new_sem_file_tag)
+        if not osp.isfile(new_sem_lbl_file):
+            assert osp.isfile(sem_lbl_file), '{} does not exist'.format(sem_lbl_file)
+            self.convert_to_p_mode_file(sem_lbl_file, new_sem_lbl_file)
+        new_inst_lbl_file = inst_lbl_file.replace(self.old_inst_file_tag, self.new_inst_file_tag)
+        if not osp.isfile(new_inst_lbl_file):
+            assert osp.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
+            self.convert_to_p_mode_file(inst_lbl_file, new_inst_lbl_file)
+        return img_file, new_sem_lbl_file, inst_lbl_file
+
+    def convert_to_p_mode_file(self, old_file, new_file):
+        im = PIL.Image.open(old_file)
+        if im.mode == 'P':  # already mode p.  symlink so we dont go through this again.
+            os.symlink(old_file, new_file)
+        # elif im.mode == 'RGB':
+        else:
+            converted = im.quantize(palette=self.palette)
+            converted.save(new_file)
+        # elif im.mode == 'I':
+        #     arr = np.array(im)
+        #     dataset_utils.write_np_array_as_img_with_colormap_palette(arr, new_file, self.palette)
+
+    def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
+        old_sem_lbl_file = sem_lbl_file.replace(self.new_sem_file_tag, self.old_sem_file_tag)
+        old_inst_lbl_file = sem_lbl_file.replace(self.new_inst_file_tag, self.old_inst_file_tag)
+        assert osp.isfile(old_sem_lbl_file)
+        return img_file, old_sem_lbl_file, old_inst_lbl_file
 
 
 class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedDatasetFileTransformerBase):
@@ -22,20 +63,21 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         self.original_semantic_class_names = None
 
     def transform(self, img_file, sem_lbl_file, inst_lbl_file):
-        new_sem_lbl_file = osp.isfile(sem_lbl_file.replace(self.old_sem_file_tag, self.new_sem_file_tag))
+        new_sem_lbl_file = sem_lbl_file.replace(self.old_sem_file_tag, self.new_sem_file_tag)
         if not osp.isfile(new_sem_lbl_file):
             assert osp.isfile(sem_lbl_file), '{} does not exist'.format(sem_lbl_file)
             self.generate_train_id_semantic_file(sem_lbl_file, new_sem_lbl_file)
-        new_inst_lbl_file = osp.isfile(inst_lbl_file.replace(self.old_inst_file_tag, self.new_inst_file_tag))
+        new_inst_lbl_file = inst_lbl_file.replace(self.old_inst_file_tag, self.new_inst_file_tag)
         if not osp.isfile(new_inst_lbl_file):
             assert osp.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
             self.generate_train_id_semantic_file(inst_lbl_file, new_inst_lbl_file)
         return img_file, new_sem_lbl_file, inst_lbl_file
 
     def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
-        old_sem_lbl_file = osp.isfile(sem_lbl_file.replace(self.new_sem_file_tag, self.old_sem_file_tag))
+        old_sem_lbl_file = sem_lbl_file.replace(self.new_sem_file_tag, self.old_sem_file_tag)
+        old_inst_lbl_file = sem_lbl_file.replace(self.new_inst_file_tag, self.old_inst_file_tag)
         assert osp.isfile(old_sem_lbl_file)
-        return img_file, old_sem_lbl_file, inst_lbl_file
+        return img_file, old_sem_lbl_file, old_inst_lbl_file
 
     def raw_inst_to_train_inst_labels(self, inst_lbl, sem_lbl):
         """
@@ -58,7 +100,7 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         sem_lbl = dataset_utils.load_img_as_dtype(sem_lbl_file, np.int32)
         inst_lbl = dataset_utils.load_img_as_dtype(raw_format_inst_lbl_file, np.int32)
         inst_lbl = self.raw_inst_to_train_inst_labels(inst_lbl, sem_lbl)
-        dataset_utils.write_np_array_as_img_with_borrowed_colormap_pallete(
+        dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
             inst_lbl, new_format_inst_lbl_file, filename_for_colormap=raw_format_inst_lbl_file)
 
     def generate_train_id_semantic_file(self, raw_id_sem_lbl_file, new_train_id_sem_lbl_file):
@@ -67,7 +109,7 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         print('Generating per-semantic instance file: {}'.format(new_train_id_sem_lbl_file))
         sem_lbl = dataset_utils.load_img_as_dtype(raw_id_sem_lbl_file, np.int32)
         sem_lbl = map_raw_sem_ids_to_train_ids(sem_lbl, old_values=raw_ids, new_values_from_old_values=train_ids)
-        dataset_utils.write_np_array_as_img_with_borrowed_colormap_pallete(sem_lbl, new_train_id_sem_lbl_file,
+        dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(sem_lbl, new_train_id_sem_lbl_file,
                                                                            filename_for_colormap=raw_id_sem_lbl_file)
 
     def transform_semantic_class_names(self, original_semantic_class_names):

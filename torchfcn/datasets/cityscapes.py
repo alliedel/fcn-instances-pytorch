@@ -31,8 +31,8 @@ class RawCityscapesBase(InstanceDatasetBase):
     def __init__(self, root, split):
         self.root = root
         self.split = split
-        self.files = self.get_files()
         self.precomputed_file_transformer = CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer()
+        self.files = self.get_files()
         self.original_semantic_class_names = labels_table_cityscapes.class_names  # by id (not trainId)
 
     def __len__(self):
@@ -51,7 +51,9 @@ class RawCityscapesBase(InstanceDatasetBase):
             file_list = []
             for i, data_files in enumerate(orig_file_list):
                 img_file, sem_lbl_file, raw_inst_lbl_file = self.precomputed_file_transformer.transform(
-                    img_file=data_files['img'], sem_lbl_file=data_files['sem_lbl'], inst_lbl_file=['inst_lbl'])
+                    img_file=data_files['img'],
+                    sem_lbl_file=data_files['sem_lbl'],
+                    inst_lbl_file=data_files['inst_lbl'])
                 file_list.append({
                     'img': img_file,
                     'sem_lbl': sem_lbl_file,

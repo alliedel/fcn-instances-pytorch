@@ -239,10 +239,15 @@ def write_np_array_as_img(arr, filename):
     im.save(filename)
 
 
-def write_np_array_as_img_with_borrowed_colormap_pallete(arr, filename, filename_for_colormap):
-    im = PIL.Image.fromarray(arr.astype(np.uint8))
+def write_np_array_as_img_with_borrowed_colormap_palette(arr, filename, filename_for_colormap):
     colormap_src = PIL.Image.open(filename_for_colormap)
-    converted = im.quantize(palette=colormap_src)
+    write_np_array_as_img_with_colormap_palette(arr, filename, palette=colormap_src)
+
+
+def write_np_array_as_img_with_colormap_palette(arr, filename, palette):
+    im = PIL.Image.fromarray(arr.astype(np.uint8))
+    write_np_array_as_img_with_colormap_palette(arr, filename, palette)
+    converted = im.quantize(palette=palette)
     converted.save(filename)
 
 
@@ -265,16 +270,22 @@ def generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lb
             first_instance_idx = inst_lbl[sem_lbl == sem_val].min()
             inst_lbl[sem_lbl == sem_val] -= (first_instance_idx - 1)
         inst_lbl[inst_lbl == -1] = 255
-        write_np_array_as_img_with_borrowed_colormap_pallete(inst_lbl, inst_lbl_file, sem_lbl_file)
+        write_np_array_as_img_with_borrowed_colormap_palette(inst_lbl, inst_lbl_file, sem_lbl_file)
 
 
 def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out_inst_lbl_file_ordered):
     print('Generating LR-ordered instance file: {}'.format(out_inst_lbl_file_ordered))
     sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
-    unique_sem_lbls = np.unique(sem_lbl)
     inst_lbl = load_img_as_dtype(inst_lbl_file_unordered, np.int32)
     inst_lbl[inst_lbl == 255] = -1
+    make_lr_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl)
+    inst_lbl[inst_lbl == -1] = 255
+    write_np_array_as_img_with_borrowed_colormap_palette(inst_lbl, out_inst_lbl_file_ordered, inst_lbl_file_unordered)
+
+
+def make_lr_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl):
     old_inst_lbl = inst_lbl.copy()
+    unique_sem_lbls = np.unique(sem_lbl)
     for sem_val in unique_sem_lbls[unique_sem_lbls > 0]:
         unique_instance_idxs = np.unique(old_inst_lbl[sem_lbl == sem_val])
         if DEBUG_ASSERT:
@@ -292,8 +303,7 @@ def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out
         for new_inst_val_minus_1, old_inst_val in enumerate(old_inst_vals):
             new_inst_val = new_inst_val_minus_1 + 1
             inst_lbl[np.logical_and(sem_lbl == sem_val, old_inst_lbl == old_inst_val)] = new_inst_val
-    inst_lbl[inst_lbl == -1] = 255
-    write_np_array_as_img_with_borrowed_colormap_pallete(inst_lbl, out_inst_lbl_file_ordered, inst_lbl_file_unordered)
+    return inst_lbl
 
 
 def get_image_center(img_size, floor=False):

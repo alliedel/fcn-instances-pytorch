@@ -524,8 +524,8 @@ class Trainer(object):
 
         if self.generate_new_synthetic_data_each_epoch:
             seed = np.random.randint(100)
-            self.train_loader.dataset.initialize_locations_per_image(seed)
-            self.train_loader_for_val.dataset.initialize_locations_per_image(seed)
+            self.train_loader.dataset.raw_dataset.initialize_locations_per_image(seed)
+            self.train_loader_for_val.dataset.raw_dataset.initialize_locations_per_image(seed)
 
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),

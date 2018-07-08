@@ -60,13 +60,14 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
         if precomputed_file_transformation is not None:
             raise ValueError('Cannot perform file transformations on the synthetic dataset.')
         train_dataset = synthetic.TransformedInstanceDataset(
-            raw_dataset=synthetic.BlobExampleGenerator(n_images=cfg.pop('n_images_train', None),
+            raw_dataset=synthetic.BlobExampleGenerator(n_images=pop_without_del(cfg, 'n_images_train', None),
                                                        ordering=cfg['ordering']),
             raw_dataset_returns_images=True,
             runtime_transformation=runtime_transformation)
         val_dataset = synthetic.TransformedInstanceDataset(
-            raw_dataset=synthetic.BlobExampleGenerator(n_images=cfg.pop('n_images_train', None),
+            raw_dataset=synthetic.BlobExampleGenerator(n_images=pop_without_del(cfg, 'n_images_train', None),
                                                        ordering=cfg['ordering']),
+            raw_dataset_returns_images=True,
             runtime_transformation=runtime_transformation)
     else:
         raise NotImplementedError('I don\'t know dataset of type {}'.format(dataset_type))

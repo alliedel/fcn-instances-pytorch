@@ -9,7 +9,7 @@ import torchfcn
 import torchfcn.utils
 from torchfcn.datasets import dataset_registry
 from torchfcn.models import attention
-from . import scripts
+from . import misc
 
 CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'weight_decay': 'decay',
@@ -157,20 +157,31 @@ def get_cfgs(dataset_name, config_idx, cfg_override_args):
     cfg_default = dataset_registry.REGISTRY[dataset_name].default_config
     cfg_options = dataset_registry.REGISTRY[dataset_name].config_options
     cfg = create_config_from_default(cfg_options[config_idx], cfg_default)
-    non_default_options = scripts.prune_defaults_from_dict(cfg_default, cfg)
+    non_default_options = prune_defaults_from_dict(cfg_default, cfg)
     for key, override_val in cfg_override_args.__dict__.items():
         old_val = cfg.pop(key)
         if override_val != old_val:
-            print(scripts.color_text(
+            print(misc.color_text(
                 'Overriding value for {}: {} --> {}'.format(key, old_val, override_val),
-                scripts.TermColors.WARNING))
+                misc.TermColors.WARNING))
         cfg[key] = override_val
         non_default_options[key] = override_val
 
-    print(scripts.color_text('non-default cfg values: {}'.format(non_default_options),
-                             scripts.TermColors.OKBLUE))
+    print(misc.color_text('non-default cfg values: {}'.format(non_default_options),
+                          misc.TermColors.OKBLUE))
     cfg_to_print = non_default_options
     cfg_to_print = create_config_copy(cfg_to_print)
     cfg_to_print = make_ordered_cfg(cfg_to_print)
 
     return cfg, cfg_to_print
+
+
+def prune_defaults_from_dict(default_dict, update_dict):
+    non_defaults = update_dict.copy()
+    keys_to_pop = []
+    for key in update_dict.keys():
+        if key in default_dict and update_dict[key] == default_dict[key]:
+            keys_to_pop.append(key)
+    for key in keys_to_pop:
+        non_defaults.pop(key)
+    return non_defaults

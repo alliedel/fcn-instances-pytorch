@@ -14,6 +14,7 @@ import torchfcn
 import torchfcn.datasets.voc
 import torchfcn.utils.configs
 import torchfcn.utils.logs
+import torchfcn.utils.misc
 import torchfcn.utils.scripts
 from torchfcn import instance_utils
 
@@ -195,9 +196,9 @@ def main():
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
     if metrics[2] < 80:
-        print(torchfcn.utils.scripts.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + torchfcn.utils.scripts.TermColors.ENDC)
+        print(torchfcn.utils.misc.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + torchfcn.utils.misc.TermColors.ENDC)
     else:
-        print(torchfcn.utils.scripts.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + torchfcn.utils.scripts.TermColors.ENDC)
+        print(torchfcn.utils.misc.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + torchfcn.utils.misc.TermColors.ENDC)
 
 
 if __name__ == '__main__':

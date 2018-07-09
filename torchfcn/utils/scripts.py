@@ -8,43 +8,14 @@ import torch.utils.data
 
 from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn.datasets import dataset_registry
-from torchfcn.utils.configs import get_cfg_override_parser
-
+import torchfcn.utils.configs
+from torchfcn.utils.misc import TermColors
 
 here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 CFG_ORDER = {}
 DEBUG_ASSERTS = True
-
-
-class TermColors:
-    """
-    https://stackoverflow.com/questions/287871/print-in-terminal-with-colors
-    """
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-
-def color_text(text, color):
-    """
-    color can either be a string, like 'OKGREEN', or the value itself, like TermColors.OKGREEN
-    """
-    color_keys = TermColors.__dict__.keys()
-    color_vals = [getattr(TermColors, k) for k in color_keys]
-    if color in color_keys:
-        color = getattr(TermColors, color)
-    elif color in color_vals:
-        pass
-    else:
-        raise Exception('color not recognized: {}\nChoose from: {}, {}'.format(color, color_keys, color_vals))
-    return color + text + TermColors.ENDC
 
 
 def set_random_seeds(np_seed=1337, torch_seed=1337, torch_cuda_seed=1337):
@@ -54,17 +25,6 @@ def set_random_seeds(np_seed=1337, torch_seed=1337, torch_cuda_seed=1337):
         torch.manual_seed(torch_seed)
     if torch_cuda_seed is not None:
         torch.cuda.manual_seed(torch_cuda_seed)
-
-
-def prune_defaults_from_dict(default_dict, update_dict):
-    non_defaults = update_dict.copy()
-    keys_to_pop = []
-    for key in update_dict.keys():
-        if key in default_dict and update_dict[key] == default_dict[key]:
-            keys_to_pop.append(key)
-    for key in keys_to_pop:
-        non_defaults.pop(key)
-    return non_defaults
 
 
 def check_clean_work_tree(exit_on_error=False, interactive=True):
@@ -125,7 +85,7 @@ def parse_args():
 
     # Config override parser
     cfg_default = dataset_registry.REGISTRY[args.dataset].default_config
-    cfg_override_parser = get_cfg_override_parser(cfg_default)
+    cfg_override_parser = torchfcn.utils.configs.get_cfg_override_parser(cfg_default)
 
     bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
     assert len(bad_args) == 0, cfg_override_parser.error('bad_args: {}'.format(bad_args))

@@ -39,3 +39,32 @@ def label_accuracy_score(label_trues, label_preds, n_class=None):
     freq = hist.sum(axis=1) / hist.sum()
     fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
     return acc, acc_cls, mean_iu, fwavacc
+
+
+class TermColors:
+    """
+    https://stackoverflow.com/questions/287871/print-in-terminal-with-colors
+    """
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
+def color_text(text, color):
+    """
+    color can either be a string, like 'OKGREEN', or the value itself, like TermColors.OKGREEN
+    """
+    color_keys = TermColors.__dict__.keys()
+    color_vals = [getattr(TermColors, k) for k in color_keys]
+    if color in color_keys:
+        color = getattr(TermColors, color)
+    elif color in color_vals:
+        pass
+    else:
+        raise Exception('color not recognized: {}\nChoose from: {}, {}'.format(color, color_keys, color_vals))
+    return color + text + TermColors.ENDC

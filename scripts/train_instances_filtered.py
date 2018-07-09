@@ -9,6 +9,7 @@ import torch.utils.data
 import torchfcn.utils.configs
 import torchfcn.utils.data
 import torchfcn.utils.logs
+import torchfcn.utils.misc
 import torchfcn.utils.models
 import torchfcn.utils.optimizer
 import torchfcn.utils.samplers
@@ -42,7 +43,7 @@ def main():
                                               cfg_to_print,
                                               parent_directory=os.path.join(here, 'logs', args.dataset))
     torchfcn.utils.configs.save_config(out_dir, cfg)
-    print(torchfcn.utils.scripts.color_text('logdir: {}'.format(out_dir), torchfcn.utils.scripts.TermColors.OKGREEN))
+    print(torchfcn.utils.misc.color_text('logdir: {}'.format(out_dir), torchfcn.utils.misc.TermColors.OKGREEN))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     args.cuda = torch.cuda.is_available()

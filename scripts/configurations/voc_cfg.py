@@ -1,4 +1,5 @@
 from . import generic_cfg
+from torchfcn.datasets import voc
 
 
 def get_default_config():
@@ -7,6 +8,7 @@ def get_default_config():
         dict(n_instances_per_class=3,
              lr=1.0e-4,
              dataset='voc',
+             dataset_path=voc.get_default_voc_root()
              )
     )
     return default_cfg

@@ -3,7 +3,7 @@ class PARAM_CLASSIFICATIONS(object):
     export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics'}
     loss = {'matching', 'size_average'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
-            'dataset_instance_cap', 'resize', 'resize_size'}
+            'dataset_instance_cap', 'resize', 'resize_size', 'dataset_path'}
     problem_config = {'n_instances_per_class', 'single_instance'}
     model = {'initialize_from_semantic', 'bottleneck_channel_capacity', 'score_multiplier', 'freeze_vgg',
              'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer'}
@@ -35,6 +35,7 @@ _default_config = dict(
 
     # data
     dataset=None,
+    dataset_path=None,
     dataset_instance_cap='match_model',  #
     semantic_subset=None,
     ordering=None,  # 'lr'

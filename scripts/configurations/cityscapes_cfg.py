@@ -1,4 +1,5 @@
 from . import generic_cfg
+from torchfcn.datasets import cityscapes
 
 
 def get_default_config():
@@ -9,7 +10,8 @@ def get_default_config():
              lr=1.0e-4,
              dataset='cityscapes',
              resize=True,
-             resize_size=(281, 500)  # (512, 1024)
+             resize_size=(281, 500),  # (512, 1024)
+             dataset_path=cityscapes.get_default_cityscapes_root()
              )
     )
     return default_cfg

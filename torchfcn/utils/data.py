@@ -42,17 +42,17 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
         n_inst_cap_per_class=n_inst_cap_per_class)
 
     if dataset_type == 'voc':
-        train_dataset = voc.TransformedVOC(root=voc.VOC_ROOT, split='train',
+        train_dataset = voc.TransformedVOC(root=cfg['dataset_path'], split='train',
                                            precomputed_file_transformation=precomputed_file_transformation,
                                            runtime_transformation=runtime_transformation)
-        val_dataset = voc.TransformedVOC(root=voc.VOC_ROOT, split='seg11valid',
+        val_dataset = voc.TransformedVOC(root=cfg['dataset_path'], split='seg11valid',
                                          precomputed_file_transformation=precomputed_file_transformation,
                                          runtime_transformation=runtime_transformation)
     elif dataset_type == 'cityscapes':
-        train_dataset = cityscapes.TransformedCityscapes(root=cityscapes.CITYSCAPES_ROOT, split='train',
+        train_dataset = cityscapes.TransformedCityscapes(root=cfg['dataset_path'], split='train',
                                                          precomputed_file_transformation=precomputed_file_transformation,
                                                          runtime_transformation=runtime_transformation)
-        val_dataset = cityscapes.TransformedCityscapes(root=cityscapes.CITYSCAPES_ROOT, split='val',
+        val_dataset = cityscapes.TransformedCityscapes(root=cfg['dataset_path'], split='val',
                                                        precomputed_file_transformation=precomputed_file_transformation,
                                                        runtime_transformation=runtime_transformation)
     elif dataset_type == 'synthetic':
@@ -64,12 +64,14 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
             raise ValueError('Cannot perform file transformations on the synthetic dataset.')
         train_dataset = synthetic.TransformedInstanceDataset(
             raw_dataset=synthetic.BlobExampleGenerator(n_images=pop_without_del(cfg, 'n_images_train', None),
-                                                       ordering=cfg['ordering']),
+                                                       ordering=cfg['ordering'],
+                                                       intermediate_write_path=cfg['dataset_path']),
             raw_dataset_returns_images=True,
             runtime_transformation=runtime_transformation)
         val_dataset = synthetic.TransformedInstanceDataset(
             raw_dataset=synthetic.BlobExampleGenerator(n_images=pop_without_del(cfg, 'n_images_train', None),
-                                                       ordering=cfg['ordering']),
+                                                       ordering=cfg['ordering'],
+                                                       intermediate_write_path=cfg['dataset_path']),
             raw_dataset_returns_images=True,
             runtime_transformation=runtime_transformation)
     else:

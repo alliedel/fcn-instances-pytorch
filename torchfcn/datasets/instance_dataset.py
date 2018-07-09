@@ -76,6 +76,7 @@ class TransformedInstanceDataset(InstanceDatasetBase):
 
         # Get the right file
         if precomputed_file_transformation is not None:
+            import ipdb; ipdb.set_trace()
             img_file, sem_lbl_file, inst_lbl_file = \
                 precomputed_file_transformation.transform(img_file=img_file, sem_lbl_file=sem_lbl_file,
                                                           inst_lbl_file=inst_lbl_file)

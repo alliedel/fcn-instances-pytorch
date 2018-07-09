@@ -7,42 +7,57 @@ from . import dataset_utils
 import PIL.Image
 
 
+def convert_to_p_mode_file(old_file, new_file, palette, assert_inside_palette_range=True):
+    im = PIL.Image.open(old_file)
+    if assert_inside_palette_range:
+        max_palette_val = int(len(palette.getpalette()) / 3 - 1)
+        min_val, max_val = im.getextrema()
+        assert min_val >= 0
+        assert max_val <= max_palette_val, '{}:\nmax value, {}, > palette max, {}'.format(old_file, max_val,
+                                                                                          max_palette_val)
+
+    if im.mode == 'P':  # already mode p.  symlink so we dont go through this again.
+        os.symlink(old_file, new_file)
+    elif im.mode == 'I':
+        arr = np.array(im)
+        dataset_utils.write_np_array_as_img_with_colormap_palette(arr, new_file, palette)
+    else:  # if im.mode == 'RGB':
+        converted = im.quantize(palette=palette)
+        converted.save(new_file)
+
+
 class ConvertLblstoPModePILImages(PrecomputedDatasetFileTransformerBase):
     old_sem_file_tag = '.png'
     new_sem_file_tag = '_mode_p.png'
     old_inst_file_tag = '.png'
     new_inst_file_tag = '_mode_p.png'
 
-    def __init__(self, palette=None):
-        self.palette = palette or labels_table_cityscapes.get_pil_palette()
+    def __init__(self):
+        self.semantic_palette = \
+            labels_table_cityscapes.get_semantic_palette_image()
+        self.instance_palette = \
+            labels_table_cityscapes.get_instance_palette_image()
 
     def transform(self, img_file, sem_lbl_file, inst_lbl_file):
-        assert sem_lbl_file in self.old_sem_file_tag and inst_lbl_file in self.old_sem_file_tag
+        assert self.old_sem_file_tag in sem_lbl_file and self.old_sem_file_tag in inst_lbl_file
         new_sem_lbl_file = sem_lbl_file.replace(self.old_sem_file_tag, self.new_sem_file_tag)
         if not osp.isfile(new_sem_lbl_file):
             assert osp.isfile(sem_lbl_file), '{} does not exist'.format(sem_lbl_file)
-            self.convert_to_p_mode_file(sem_lbl_file, new_sem_lbl_file)
+            print('Creating {} from {}'.format(new_sem_lbl_file, sem_lbl_file))
+            convert_to_p_mode_file(sem_lbl_file, new_sem_lbl_file, palette=self.semantic_palette,
+                                   assert_inside_palette_range=True)
         new_inst_lbl_file = inst_lbl_file.replace(self.old_inst_file_tag, self.new_inst_file_tag)
         if not osp.isfile(new_inst_lbl_file):
             assert osp.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
-            self.convert_to_p_mode_file(inst_lbl_file, new_inst_lbl_file)
+            print('Creating {} from {}'.format(new_inst_lbl_file, inst_lbl_file))
+            convert_to_p_mode_file(inst_lbl_file, new_inst_lbl_file, palette=self.instance_palette,
+                                   assert_inside_palette_range=True)
         return img_file, new_sem_lbl_file, inst_lbl_file
 
-    def convert_to_p_mode_file(self, old_file, new_file):
-        im = PIL.Image.open(old_file)
-        if im.mode == 'P':  # already mode p.  symlink so we dont go through this again.
-            os.symlink(old_file, new_file)
-        # elif im.mode == 'RGB':
-        else:
-            converted = im.quantize(palette=self.palette)
-            converted.save(new_file)
-        # elif im.mode == 'I':
-        #     arr = np.array(im)
-        #     dataset_utils.write_np_array_as_img_with_colormap_palette(arr, new_file, self.palette)
 
-    def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
+def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
         old_sem_lbl_file = sem_lbl_file.replace(self.new_sem_file_tag, self.old_sem_file_tag)
-        old_inst_lbl_file = sem_lbl_file.replace(self.new_inst_file_tag, self.old_inst_file_tag)
+        old_inst_lbl_file = inst_lbl_file.replace(self.new_inst_file_tag, self.old_inst_file_tag)
         assert osp.isfile(old_sem_lbl_file)
         return img_file, old_sem_lbl_file, old_inst_lbl_file
 
@@ -70,8 +85,8 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         new_inst_lbl_file = inst_lbl_file.replace(self.old_inst_file_tag, self.new_inst_file_tag)
         if not osp.isfile(new_inst_lbl_file):
             assert osp.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
-            self.generate_train_id_semantic_file(inst_lbl_file, new_inst_lbl_file)
-        return img_file, new_sem_lbl_file, inst_lbl_file
+            self.generate_train_id_instance_file(inst_lbl_file, new_inst_lbl_file, sem_lbl_file)
+        return img_file, new_sem_lbl_file, new_inst_lbl_file
 
     def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
         old_sem_lbl_file = sem_lbl_file.replace(self.new_sem_file_tag, self.old_sem_file_tag)
@@ -100,8 +115,17 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         sem_lbl = dataset_utils.load_img_as_dtype(sem_lbl_file, np.int32)
         inst_lbl = dataset_utils.load_img_as_dtype(raw_format_inst_lbl_file, np.int32)
         inst_lbl = self.raw_inst_to_train_inst_labels(inst_lbl, sem_lbl)
-        dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
-            inst_lbl, new_format_inst_lbl_file, filename_for_colormap=raw_format_inst_lbl_file)
+        orig_lbl = PIL.Image.open(raw_format_inst_lbl_file)
+        if orig_lbl.mode == 'P':
+            dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
+                inst_lbl, new_format_inst_lbl_file, filename_for_colormap=raw_format_inst_lbl_file)
+        elif orig_lbl.mode == 'I':
+            new_img_data = PIL.Image.fromarray(inst_lbl, mode='I')
+            new_lbl_img = orig_lbl.copy()
+            new_lbl_img.paste(new_img_data)
+            new_lbl_img.save(new_format_inst_lbl_file)
+        else:
+            raise NotImplementedError
 
     def generate_train_id_semantic_file(self, raw_id_sem_lbl_file, new_train_id_sem_lbl_file):
         train_ids = self._raw_id_to_train_id
@@ -220,7 +244,7 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
     Warning: inst_lbl must be an int/long for this to work
     """
     inst_lbl[inst_lbl < 1000] = 0
-    inst_lbl -= (inst_lbl / 1000) * 1000  # more efficient mod(inst_lbl, 1000)
+    inst_lbl -= np.int32((inst_lbl / 1000)) * np.int32(1000)  # more efficient
     return inst_lbl
 
 

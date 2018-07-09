@@ -5,7 +5,9 @@ import PIL.Image
 import numpy as np
 
 from . import labels_table_cityscapes
-from .cityscapes_transformations import CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer
+from .cityscapes_transformations import CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer, \
+    ConvertLblstoPModePILImages
+from torchfcn.datasets.dataset_precomputed_file_transformations import GenericSequencePrecomputedDatasetFileTransformer
 from torchfcn.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 
@@ -31,7 +33,9 @@ class RawCityscapesBase(InstanceDatasetBase):
     def __init__(self, root, split):
         self.root = root
         self.split = split
-        self.precomputed_file_transformer = CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer()
+        self.precomputed_file_transformer = GenericSequencePrecomputedDatasetFileTransformer(
+            [CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(),
+             ConvertLblstoPModePILImages()])
         self.files = self.get_files()
         self.original_semantic_class_names = labels_table_cityscapes.class_names  # by id (not trainId)
 
@@ -114,8 +118,9 @@ class TransformedCityscapes(TransformedInstanceDataset):
 
     def __init__(self, root, split, precomputed_file_transformation=None, runtime_transformation=None):
         raw_dataset = RawCityscapesBase(root, split=split)
-        super(TransformedCityscapes, self).__init__(raw_dataset, precomputed_file_transformation,
-                                                    runtime_transformation)
+        super(TransformedCityscapes, self).__init__(raw_dataset=raw_dataset, raw_dataset_returns_images=False,
+                                                    precomputed_file_transformation=precomputed_file_transformation,
+                                                    runtime_transformation=runtime_transformation)
 
     def load_files(self, img_file, sem_lbl_file, inst_lbl_file):
         return load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file)

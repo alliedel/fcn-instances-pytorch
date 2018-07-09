@@ -246,7 +246,6 @@ def write_np_array_as_img_with_borrowed_colormap_palette(arr, filename, filename
 
 def write_np_array_as_img_with_colormap_palette(arr, filename, palette):
     im = PIL.Image.fromarray(arr.astype(np.uint8))
-    write_np_array_as_img_with_colormap_palette(arr, filename, palette)
     converted = im.quantize(palette=palette)
     converted.save(filename)
 

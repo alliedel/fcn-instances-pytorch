@@ -1,5 +1,6 @@
 from scripts.configurations import cityscapes_cfg
 import torchfcn.utils.data
+import tqdm
 
 
 if __name__ == '__main__':
@@ -11,7 +12,6 @@ if __name__ == '__main__':
     print('Loaded {}/{}'.format(0, num_images))
     import ipdb; ipdb.set_trace()
     train_dataset.__getitem__(0)
-    for idx, (img, (sem_lbl, inst_lbl)) in enumerate(train_dataset):
-        if divmod(idx+1, 100)[1] == 0:
-            print('Loaded {}/{}'.format(idx+1, num_images))
-    print('Loaded {}/{}'.format(num_images, num_images))
+    for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(train_dataset), desc='Loading Cityscape images',
+                                                     total=len(train_dataset)):
+        pass

@@ -6,9 +6,8 @@ import torch.utils.data
 
 from torchfcn.datasets import samplers, dataset_utils, voc, cityscapes, synthetic, \
     dataset_precomputed_file_transformations, dataset_runtime_transformations
-from torchfcn.utils.scripts import DEBUG_ASSERTS
 from torchfcn.utils.samplers import get_configured_sampler
-
+from torchfcn.utils.scripts import DEBUG_ASSERTS
 
 REGISTERED_DATASET_TYPES = ['cityscapes', 'voc', 'synthetic']
 
@@ -49,12 +48,14 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
                                          precomputed_file_transformation=precomputed_file_transformation,
                                          runtime_transformation=runtime_transformation)
     elif dataset_type == 'cityscapes':
-        train_dataset = cityscapes.TransformedCityscapes(root=cfg['dataset_path'], split='train',
-                                                         precomputed_file_transformation=precomputed_file_transformation,
-                                                         runtime_transformation=runtime_transformation)
-        val_dataset = cityscapes.TransformedCityscapes(root=cfg['dataset_path'], split='val',
-                                                       precomputed_file_transformation=precomputed_file_transformation,
-                                                       runtime_transformation=runtime_transformation)
+        train_dataset = cityscapes.TransformedCityscapes(
+            root=cfg['dataset_path'], split='train',
+            precomputed_file_transformation=precomputed_file_transformation,
+            runtime_transformation=runtime_transformation)
+        val_dataset = cityscapes.TransformedCityscapes(
+            root=cfg['dataset_path'], split='val',
+            precomputed_file_transformation=precomputed_file_transformation,
+            runtime_transformation=runtime_transformation)
     elif dataset_type == 'synthetic':
         if isinstance(precomputed_file_transformation,
                       dataset_precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):

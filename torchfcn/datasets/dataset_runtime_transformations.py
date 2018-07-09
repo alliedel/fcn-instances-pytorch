@@ -76,7 +76,12 @@ class ResizeRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
     def transform(self, img, lbl):
         img = dataset_utils.resize_img(img, self.resize_size)
-        lbl = dataset_utils.resize_lbl(lbl, self.resize_size)
+        if isinstance(lbl, tuple):
+            assert len(lbl) == 2, 'Should be semantic, instance label tuple'
+            lbl = tuple(dataset_utils.resize_lbl(l, self.resize_size) for l in lbl)
+        else:
+            lbl = dataset_utils.resize_lbl(lbl, self.resize_size)
+
         return img, lbl
 
     def untransform(self, img, lbl):

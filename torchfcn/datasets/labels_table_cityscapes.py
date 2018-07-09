@@ -1,8 +1,30 @@
 import PIL.ImagePalette
+import PIL.Image
 import numpy as np
+import six.moves
 
 labels_keys = ['name', 'id', 'train_ids', 'category', 'category_id', 'has_instances',
                'ignore_in_eval', 'color']
+
+
+def bitget(byteval, idx):
+    return ((byteval & (1 << idx)) != 0)
+
+
+def label_colormap(N=256):
+    cmap = np.zeros((N, 3))
+    for i in six.moves.range(0, N):
+        id = i
+        r, g, b = 0, 0, 0
+        for j in six.moves.range(0, 8):
+            r = np.bitwise_or(r, (bitget(id, 0) << 7 - j))
+            g = np.bitwise_or(g, (bitget(id, 1) << 7 - j))
+            b = np.bitwise_or(b, (bitget(id, 2) << 7 - j))
+            id = (id >> 3)
+        cmap[i, 0] = r
+        cmap[i, 1] = g
+        cmap[i, 2] = b
+    return cmap
 
 
 def Label(*args):
@@ -58,10 +80,11 @@ ignore_in_eval = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LA
 is_void = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]
 
 
-def get_rgb_palette_array(vals, corresponding_rgb_colors, unassigned_rgb_color=(0, 0, 0)):
+def get_rgb_semantic_palette_array(vals, corresponding_rgb_colors, unassigned_rgb_color=(0, 0, 0)):
     # Some quick input checks: make sure vals are legal P mode values; make sure assignments don't overlap in the
     # one-to-many sense.
-    assert all(vals >= 0) and len(vals) == len(corresponding_rgb_colors)
+    # assert all([v >= 0 for v in vals]), 'vals cannot contain negatives: {}'.format([v for v in vals if v < 0])
+    assert len(vals) == len(corresponding_rgb_colors)
     sorted_idxs = np.argsort(vals)
     old_val, old_clr = None, None
     for val, clr in zip([vals[i] for i in sorted_idxs], [corresponding_rgb_colors[i] for i in sorted_idxs]):
@@ -76,15 +99,38 @@ def get_rgb_palette_array(vals, corresponding_rgb_colors, unassigned_rgb_color=(
 
 def convert_palette_array_to_list_for_imagepalette_class(rgb_palette_array):
     palette_list = []
-    for i in range(rgb_palette_array.size(0)):
+    for i in range(rgb_palette_array.shape[0]):
         palette_list += list(rgb_palette_array[i, :])
     return palette_list
 
 
-def get_pil_palette():
-    palette_array = get_rgb_palette_array(train_ids, colors)
-    # derive the color palette from the table
+def get_semantic_palette(rgb255=(0, 0, 0)):
+    bool_not_255 = [train_id != 255 for train_id in train_ids]
+    train_ids_to_map = [train_id for idx, train_id in enumerate(train_ids) if bool_not_255[idx]]
+    colors_to_map = [color for idx, color in enumerate(colors) if bool_not_255[idx]]
+    palette_array = get_rgb_semantic_palette_array(train_ids_to_map + [255], colors_to_map + [rgb255])
     color_palette = PIL.ImagePalette.ImagePalette(mode='RGB',
                                                   palette=convert_palette_array_to_list_for_imagepalette_class(
                                                       palette_array), size=0)  # NOTE(allie): mode='RGB' or 'P'?
     return color_palette
+
+
+def get_instance_palette_image(n_colors=256, rgb255=(50, 50, 50), rgb0=(0, 0, 0)):
+    palette_array = label_colormap(n_colors).astype(int)
+    palette_array[-1, :] = rgb255
+    palette_array[0, :] = rgb0
+    palette_list = convert_palette_array_to_list_for_imagepalette_class(palette_array)
+    im = PIL.Image.new('P', (palette_array.shape[0], 1))
+    im.putpalette(palette_list)
+    return im
+
+
+def get_semantic_palette_image(rgb255=(0, 0, 0)):
+    bool_not_255 = [train_id != 255 for train_id in train_ids]
+    train_ids_to_map = [train_id for idx, train_id in enumerate(train_ids) if bool_not_255[idx]]
+    colors_to_map = [color for idx, color in enumerate(colors) if bool_not_255[idx]]
+    palette_array = get_rgb_semantic_palette_array(train_ids_to_map + [255], colors_to_map + [rgb255]).astype(int)
+    palette_list = convert_palette_array_to_list_for_imagepalette_class(palette_array)
+    im = PIL.Image.new('P', (palette_array.shape[0], 1))
+    im.putpalette(palette_list)
+    return im

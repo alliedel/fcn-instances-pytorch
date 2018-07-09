@@ -1,23 +1,21 @@
 import argparse
-import datetime
-import os
-import os.path as osp
-import shlex
 import subprocess
-from collections import OrderedDict
-from glob import glob
 from os import path as osp
 
 import numpy as np
-import pytz
 import torch
 import torch.utils.data
-import yaml
 
-from scripts.configurations import synthetic_cfg, voc_cfg
 from scripts.configurations.sampler_cfg import sampler_cfgs
-from torchfcn import instance_utils
-from torchfcn.utils.configs import get_parameters, get_cfg_override_parser
+from torchfcn.datasets import dataset_registry
+from torchfcn.utils.configs import get_cfg_override_parser
+
+
+here = osp.dirname(osp.abspath(__file__))
+MY_TIMEZONE = 'America/New_York'
+BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
+CFG_ORDER = {}
+DEBUG_ASSERTS = True
 
 
 class TermColors:
@@ -86,19 +84,27 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
     return exit_code, stdout
 
 
-def get_parser(voc_default, voc_configs, synthetic_default, synthetic_configs):
+def get_parser():
+    # voc_default=voc_cfg.get_default_config(),
+    # voc_configs=voc_cfg.configurations,
+    # synthetic_default=synthetic_cfg.get_default_config(),
+    # synthetic_configs=synthetic_cfg.configurations,
+
+    # voc_default, voc_configs, synthetic_default, synthetic_configs
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(help='dataset: voc, synthetic', dest='dataset')
+    dataset_names = dataset_registry.REGISTRY.keys()
+    subparsers = parser.add_subparsers(help='dataset: {}'.format(dataset_names), dest='dataset')
     dataset_parsers = {
-        'voc': subparsers.add_parser('voc', help='VOC dataset options',
-                                     epilog='\n\nOverride options:\n' + '\n'.join(
-                                         ['--{}: {}'.format(k, v) for k, v in voc_default.items()]),
-                                     formatter_class=argparse.RawTextHelpFormatter),
-        'synthetic': subparsers.add_parser('synthetic', help='synthetic dataset options')
+        dataset_name:
+            subparsers.add_parser(dataset_name, help='{} dataset options'.format(dataset_name),
+                                  epilog='\n\nOverride options:\n' + '\n'.join(
+                                      ['--{}: {}'.format(k, v)
+                                       for k, v in dataset_registry.REGISTRY[dataset_name].default_config.items()]),
+                                  formatter_class=argparse.RawTextHelpFormatter)
+        for dataset_name in dataset_names
     }
     for dataset_name, subparser in dataset_parsers.items():
-        cfg_choices = list({'synthetic': synthetic_configs,
-                            'voc': voc_configs}[dataset_name].keys())
+        cfg_choices = list(dataset_registry.REGISTRY[dataset_name].config_options.keys())
         subparser.add_argument('-c', '--config', type=str_or_int, default=0, choices=cfg_choices)
         subparser.add_argument('-g', '--gpu', type=int, required=True)
         subparser.add_argument('--resume', help='Checkpoint path')
@@ -113,18 +119,12 @@ def get_parser(voc_default, voc_configs, synthetic_default, synthetic_configs):
 
 def parse_args():
     # Get initial parser
-    parser = get_parser(
-        voc_default=voc_cfg.get_default_config(),
-        voc_configs=voc_cfg.configurations,
-        synthetic_default=synthetic_cfg.get_default_config(),
-        synthetic_configs=synthetic_cfg.configurations,
-    )
+    parser = get_parser()
 
     args, argv = parser.parse_known_args()
 
     # Config override parser
-    cfg_default = {'synthetic': synthetic_cfg.get_default_config(),
-                   'voc': voc_cfg.get_default_config()}[args.dataset]
+    cfg_default = dataset_registry.REGISTRY[args.dataset].default_config
     cfg_override_parser = get_cfg_override_parser(cfg_default)
 
     bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
@@ -163,10 +163,3 @@ def str_or_int(val):
         return int(val)
     except ValueError:
         return val
-
-
-here = osp.dirname(osp.abspath(__file__))
-MY_TIMEZONE = 'America/New_York'
-BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
-CFG_ORDER = {}
-DEBUG_ASSERTS = True

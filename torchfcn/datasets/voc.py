@@ -5,7 +5,7 @@ import os.path as osp
 import numpy as np
 from torch.utils import data
 
-from torchfcn.datasets import dataset_utils, dataset_runtime_transformations
+from torchfcn.datasets import dataset_utils, runtime_transformations
 from torchfcn.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename

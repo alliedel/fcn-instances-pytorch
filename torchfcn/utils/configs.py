@@ -9,6 +9,34 @@ from local_pyutils import str2bool
 from torchfcn.models import attention
 
 
+CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
+                                        'weight_decay': 'decay',
+                                        'n_training_imgs': 'n_train',
+                                        'n_validation_imgs': 'n_val',
+                                        'recompute_optimal_loss': 'recomp',
+                                        'size_average': 'sa',
+                                        'map_to_semantic': 'mts',
+                                        'interval_validate': 'val',
+                                        'resize_size': 'sz',
+                                        'n_max_per_class': 'n_per',
+                                        'semantic_subset': 'sset',
+                                        'val_on_train': 'VOT',
+                                        'matching': 'ma',
+                                        'set_extras_to_void': 'void',
+                                        'momentum': 'mo',
+                                        'n_instances_per_class': 'nper',
+                                        'semantic_only_labels': 'sem_ls',
+                                        'initialize_from_semantic': 'init_sem',
+                                        'bottleneck_channel_capacity': 'bcc',
+                                        'single_instance': '1inst',
+                                        'score_multiplier': 'sm',
+                                        'weight_by_instance': 'wt',
+                                        'optim': 'o',
+                                        'augment_semantic': 'augsem',
+                                        'use_conv8': 'conv8',
+                                        }
+
+
 def make_ordered_cfg(cfg, start_arg_order=('dataset', 'sampler'), end_arg_order=()):
     """
     Returns an ordered copy of cfg, with start, <alphabetical>, and end ordering.
@@ -101,34 +129,6 @@ def get_cfg_override_parser(cfg_default):
                                              help='cfg override (only recommended for one-off experiments '
                                                   '- set cfg in file instead)')
     return cfg_override_parser
-
-
-CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
-                                        'weight_decay': 'decay',
-                                        'n_training_imgs': 'n_train',
-                                        'n_validation_imgs': 'n_val',
-                                        'recompute_optimal_loss': 'recomp',
-                                        'size_average': 'sa',
-                                        'map_to_semantic': 'mts',
-                                        'interval_validate': 'val',
-                                        'resize_size': 'sz',
-                                        'n_max_per_class': 'n_per',
-                                        'semantic_subset': 'sset',
-                                        'val_on_train': 'VOT',
-                                        'matching': 'ma',
-                                        'set_extras_to_void': 'void',
-                                        'momentum': 'mo',
-                                        'n_instances_per_class': 'nper',
-                                        'semantic_only_labels': 'sem_ls',
-                                        'initialize_from_semantic': 'init_sem',
-                                        'bottleneck_channel_capacity': 'bcc',
-                                        'single_instance': '1inst',
-                                        'score_multiplier': 'sm',
-                                        'weight_by_instance': 'wt',
-                                        'optim': 'o',
-                                        'augment_semantic': 'augsem',
-                                        'use_conv8': 'conv8',
-                                        }
 
 
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME,

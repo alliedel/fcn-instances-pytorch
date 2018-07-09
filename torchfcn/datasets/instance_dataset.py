@@ -1,7 +1,7 @@
 import abc
 
 from torch.utils import data
-from .dataset_runtime_transformations import GenericSequenceRuntimeDatasetTransformer
+from .runtime_transformations import GenericSequenceRuntimeDatasetTransformer
 
 
 class InstanceDatasetBase(data.Dataset):

@@ -4,12 +4,11 @@ import numpy as np
 import torch
 import torch.utils.data
 
+from torchfcn.datasets import dataset_registry
 from torchfcn.datasets import samplers, dataset_utils, voc, cityscapes, synthetic, \
-    dataset_precomputed_file_transformations, dataset_runtime_transformations
+    precomputed_file_transformations, runtime_transformations
 from torchfcn.utils.samplers import get_configured_sampler
 from torchfcn.utils.scripts import DEBUG_ASSERTS
-
-REGISTERED_DATASET_TYPES = ['cityscapes', 'voc', 'synthetic']
 
 
 def get_datasets_with_transformations(dataset_type, cfg, transform=True):
@@ -17,7 +16,7 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
     semantic_subset = cfg['semantic_subset']
     if semantic_subset is not None:
         class_names, reduced_class_idxs = dataset_utils.get_semantic_names_and_idxs(
-            semantic_subset=semantic_subset, full_set=voc.ALL_VOC_CLASS_NAMES)
+            semantic_subset=semantic_subset, full_set=dataset_registry.REGISTRY['voc'].original_semantic_class_names)
     else:
         reduced_class_idxs = None
     try:
@@ -33,9 +32,9 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
                                                                           type(cfg['n_instances_per_class']))
         n_inst_cap_per_class = cfg['dataset_instance_cap']
 
-    precomputed_file_transformation = dataset_precomputed_file_transformations.precomputed_file_transformer_factory(
+    precomputed_file_transformation = precomputed_file_transformations.precomputed_file_transformer_factory(
         ordering=cfg['ordering'])
-    runtime_transformation = dataset_runtime_transformations.runtime_transformer_factory(
+    runtime_transformation = runtime_transformations.runtime_transformer_factory(
         resize=cfg['resize'], resize_size=cfg['resize_size'], mean_bgr=mean_bgr, reduced_class_idxs=reduced_class_idxs,
         map_other_classes_to_bground=True, map_to_single_instance_problem=cfg['single_instance'],
         n_inst_cap_per_class=n_inst_cap_per_class)
@@ -58,7 +57,7 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
             runtime_transformation=runtime_transformation)
     elif dataset_type == 'synthetic':
         if isinstance(precomputed_file_transformation,
-                      dataset_precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):
+                      precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):
             precomputed_file_transformation = None  # Remove it, because we're going to order them when generating
             # the images instead.
         if precomputed_file_transformation is not None:
@@ -76,7 +75,7 @@ def get_datasets_with_transformations(dataset_type, cfg, transform=True):
             raw_dataset_returns_images=True,
             runtime_transformation=runtime_transformation)
     else:
-        if dataset_type in REGISTERED_DATASET_TYPES:
+        if dataset_type in list(dataset_registry.REGISTRY.keys()):
             raise NotImplementedError('Dataset type {} is registered, but I don\'t know how to instantiate it.'.format(
                 dataset_type))
         else:
@@ -116,14 +115,7 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
                 except:
                     sem_cls_filter = [int(np.where(raw_train_dataset.semantic_class_names == class_name)[0][0])
                                       for class_name in sem_cls_filter]
-        if dataset_type == 'voc':
-            dataset_path = voc.get_default_voc_root()
-        elif dataset_type == 'cityscapes':
-            dataset_path = cityscapes.get_default_cityscapes_root()
-        elif dataset_type == 'synthetic':
-            dataset_path = '/tmp/'
-        else:
-            raise Exception('dataset_path not set for {}')
+        dataset_path = dataset_registry.REGISTRY[dataset_type].dataset_path
         train_instance_count_file = os.path.join(dataset_path, 'train_instance_counts.npy')
         train_sampler = get_configured_sampler(dataset_type, train_dataset, sequential=True,
                                                n_instances_range=pop_without_del(train_sampler_cfg,

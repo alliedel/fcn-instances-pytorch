@@ -7,7 +7,7 @@ import numpy as np
 from . import labels_table_cityscapes
 from .cityscapes_transformations import CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer, \
     ConvertLblstoPModePILImages
-from torchfcn.datasets.dataset_precomputed_file_transformations import GenericSequencePrecomputedDatasetFileTransformer
+from torchfcn.datasets.precomputed_file_transformations import GenericSequencePrecomputedDatasetFileTransformer
 from torchfcn.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 
@@ -30,14 +30,16 @@ CITYSCAPES_ROOT = get_default_cityscapes_root()
 
 
 class RawCityscapesBase(InstanceDatasetBase):
+
+    original_semantic_class_names = labels_table_cityscapes.class_names  # by id (not trainId)
+    precomputed_file_transformer = GenericSequencePrecomputedDatasetFileTransformer(
+        [CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(),
+         ConvertLblstoPModePILImages()])
+
     def __init__(self, root, split):
         self.root = root
         self.split = split
-        self.precomputed_file_transformer = GenericSequencePrecomputedDatasetFileTransformer(
-            [CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(),
-             ConvertLblstoPModePILImages()])
         self.files = self.get_files()
-        self.original_semantic_class_names = labels_table_cityscapes.class_names  # by id (not trainId)
 
     def __len__(self):
         return len(self.files)
@@ -67,12 +69,24 @@ class RawCityscapesBase(InstanceDatasetBase):
             file_list = orig_file_list
         return file_list
 
+    @classmethod
     @property
-    def semantic_class_names(self):
-        if self.precomputed_file_transformer is None:
-            return self.original_semantic_class_names
+    def semantic_class_names(cls):
+        """
+        If we changed the semantic subset, we have to account for that change in the semantic class name list.
+        """
+        if cls.precomputed_file_transformer is not None:
+            transformation_list = cls.precomputed_file_transformer.transformer_sequence if isinstance(
+                cls.precomputed_file_transformer, GenericSequencePrecomputedDatasetFileTransformer) else \
+                [cls.precomputed_file_transformer]
+            semantic_class_names = cls.original_semantic_class_names
+            for transformer in transformation_list:
+                if hasattr(transformer, 'transform_semantic_class_names'):
+                    semantic_class_names = transformer.transform_semantic_class_names(
+                        semantic_class_names)
+            return semantic_class_names
         else:
-            return self.precomputed_file_transformer.transform_semantic_class_names(self.original_semantic_class_names)
+            return cls.original_semantic_class_names
 
     @property
     def n_semantic_classes(self):

@@ -1,5 +1,5 @@
 from . import labels_table_cityscapes
-from .dataset_precomputed_file_transformations import PrecomputedDatasetFileTransformerBase
+from .precomputed_file_transformations import PrecomputedDatasetFileTransformerBase
 import numpy as np
 import os.path as osp
 import os
@@ -54,8 +54,7 @@ class ConvertLblstoPModePILImages(PrecomputedDatasetFileTransformerBase):
                                    assert_inside_palette_range=True)
         return img_file, new_sem_lbl_file, inst_lbl_file
 
-
-def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
+    def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
         old_sem_lbl_file = sem_lbl_file.replace(self.new_sem_file_tag, self.old_sem_file_tag)
         old_inst_lbl_file = inst_lbl_file.replace(self.new_inst_file_tag, self.old_inst_file_tag)
         assert osp.isfile(old_sem_lbl_file)

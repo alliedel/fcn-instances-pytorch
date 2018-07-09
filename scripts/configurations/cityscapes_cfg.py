@@ -27,4 +27,13 @@ configurations = {
         single_instance=True,
         n_instances_per_class=None,
     ),
+    'person_noaug_sem': dict(
+        semantic_subset=['person', 'background'],
+        interval_validate=1000,
+        max_iteration=100000,
+        n_instances_per_class=3,
+        freeze_vgg=False,
+        augment_semantic=False,
+        map_to_semantic=True
+    ),
 }

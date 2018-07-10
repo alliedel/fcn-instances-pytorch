@@ -11,11 +11,12 @@ All packages I have are listed in the requirements.txt file; not all are actuall
 
 ## Scripts
 Each of the scripts requires an argument for the GPU number to run on.  If you'd like to run on CPU, set -g to -1.
+
 ### Run a synthetic example:
-`python examples/pink_blobs/train_fcn8s_pink_blobs.py -g 0`
+`python scripts/train_instances_filtered.py synthetic -g 0`
 
 ### Run on PASCAL VOC:
-`python examples/voc/train_fcn8s_all_voc_instances.py -g 0`
+`python scripts/train_instances_filtered.py voc -g 0`
 
 ## Pointers to the interesting parts of the code
 **Matching loss**: torchfcn/losses.py

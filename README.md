@@ -19,7 +19,7 @@ Each of the scripts requires an argument for the GPU number to run on.  If you'd
 `python scripts/train_instances_filtered.py voc -g 0`
 
 ## Pointers to the interesting parts of the code
-**Matching loss**: [torchfcn/models/fcn8s_instance.py](torchfcn/losses.py)
+**Matching loss**: [torchfcn/losses.py](torchfcn/losses.py)
 
 **Network architecture**: [torchfcn/models/fcn8s_instance.py](torchfcn/models/fcn8s_instance.py)
 

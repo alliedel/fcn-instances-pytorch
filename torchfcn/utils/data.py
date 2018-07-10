@@ -56,8 +56,7 @@ def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
         # Get 'clean' datasets for instance counting
         default_train_dataset, default_val_dataset, transformer_tag = \
             dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type)
-        import ipdb; ipdb.set_trace()
-
+        
         # train sampler
         train_sampler = sampler_generator_helper(dataset_type, train_dataset, default_train_dataset,
                                                  sampler_cfg, 'train', transformer_tag)

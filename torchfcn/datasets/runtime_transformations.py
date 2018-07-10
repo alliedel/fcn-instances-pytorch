@@ -1,4 +1,5 @@
 from torchfcn.datasets import dataset_utils
+import inspect
 
 
 class RuntimeDatasetTransformerBase(object):
@@ -10,6 +11,11 @@ class RuntimeDatasetTransformerBase(object):
 
     def untransform(self, img, lbl):
         raise NotImplementedError
+
+    def get_attribute_items(self):
+        attributes = inspect.getmembers(self, lambda a: not(inspect.isroutine(a)))
+        attributes = [a for a in attributes if not(a[0].startswith('__') and a[0].endswith('__')) and not callable(a)]
+        return attributes
 
     # def transform_semantic_class_names(self, original_semantic_class_names):
     # """ If exists, gets called whenever the dataset's semantic class names are queried. """
@@ -25,8 +31,12 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
                                 map_other_classes_to_bground=True, map_to_single_instance_problem=False,
                                 n_inst_cap_per_class=None):
     # Basic transformation (numpy array to torch tensor; resizing and centering)
-    transformer_sequence = [ResizeRuntimeDatasetTransformer(resize_size=resize_size if resize else None),
-                            BasicRuntimeDatasetTransformer(mean_bgr=mean_bgr)]
+    transformer_sequence = []
+
+    if resize:
+        transformer_sequence.append(ResizeRuntimeDatasetTransformer(resize_size=resize_size if resize else None))
+
+    transformer_sequence.append(BasicRuntimeDatasetTransformer(mean_bgr=mean_bgr))
 
     # Image transformations
 
@@ -209,6 +219,13 @@ class GenericSequenceRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
             img, lbl = transformer.untransform(img, lbl)
         return img, lbl
 
+    def get_attribute_items(self):
+        attributes = []
+        for transformer in self.transformer_sequence:
+            a = transformer.get_attribute_items()
+            attributes += a
+        return attributes
+
 
 def generate_transformer_from_functions(img_transform_function=None, sem_lbl_transform_function=None,
                                         inst_lbl_transform_function=None, img_untransform_function=None,
@@ -263,5 +280,3 @@ def generate_transformer_from_functions(img_transform_function=None, sem_lbl_tra
 
     transformer_type = CustomRuntimeDatasetTransformer
     return transformer_type
-
-

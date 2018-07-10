@@ -1,8 +1,9 @@
+from scripts.configurations import voc_cfg, cityscapes_cfg
 from torchfcn.datasets import dataset_utils
 from torchfcn.datasets import precomputed_file_transformations, runtime_transformations
 from torchfcn.datasets import voc, synthetic, cityscapes
 from torchfcn.utils.misc import pop_without_del
-from scripts.configurations import voc_cfg, synthetic_cfg, cityscapes_cfg
+from torchfcn.utils.misc import value_as_string
 
 
 def get_default_datasets_for_instance_counts(dataset_type):
@@ -11,19 +12,26 @@ def get_default_datasets_for_instance_counts(dataset_type):
     """
     if dataset_type == 'voc':
         default_cfg = voc_cfg.get_default_config()
+        precomputed_file_transformation, runtime_transformation = get_transformations(default_cfg)
         train_dataset, val_dataset = get_voc_datasets(
-            dataset_path=default_cfg['dataset_path'], precomputed_file_transformation=None,
-            runtime_transformation=None)
+            dataset_path=default_cfg['dataset_path'], precomputed_file_transformation=precomputed_file_transformation,
+            runtime_transformation=runtime_transformation)
     elif dataset_type == 'cityscapes':
         default_cfg = cityscapes_cfg.get_default_config()
+        precomputed_file_transformation, runtime_transformation = get_transformations(default_cfg)
         train_dataset, val_dataset = get_cityscapes_datasets(default_cfg['dataset_path'],
-                                                             precomputed_file_transformation=None,
-                                                             runtime_transformation=None)
+                                                             precomputed_file_transformation=
+                                                             precomputed_file_transformation,
+                                                             runtime_transformation=runtime_transformation)
     elif dataset_type == 'synthetic':
         raise NotImplementedError('synthetic is different every time -- cannot save instance counts in between')
     else:
         raise ValueError
-    return train_dataset, val_dataset
+    transformer_tag = ''
+    for tr in [precomputed_file_transformation, runtime_transformation]:
+        attributes = tr.get_attribute_items() if tr is not None else {}.items()
+        transformer_tag += '__'.join(['{}-{}'.format(k, value_as_string(v)) for k, v in attributes])
+    return train_dataset, val_dataset, transformer_tag
 
 
 def get_dataset(dataset_type, cfg, transform=True):
@@ -98,7 +106,6 @@ def get_voc_datasets(dataset_path, precomputed_file_transformation, runtime_tran
 
 
 def get_cityscapes_datasets(dataset_path, precomputed_file_transformation, runtime_transformation, transform=True):
-
     train_dataset = cityscapes.TransformedCityscapes(
         root=dataset_path, split='train',
         precomputed_file_transformation=precomputed_file_transformation,

@@ -1,5 +1,6 @@
 from torchfcn.datasets import dataset_utils
 import os.path as osp
+import inspect
 
 
 class PrecomputedDatasetFileTransformerBase(object):
@@ -22,6 +23,11 @@ class PrecomputedDatasetFileTransformerBase(object):
         # assert osp.isfile(old_sem_lbl_file)
         # return img_file, old_sem_lbl_file, inst_lbl_file
         raise NotImplementedError
+
+    def get_attribute_items(self):
+        attributes = inspect.getmembers(self, lambda a: not(inspect.isroutine(a)))
+        attributes = [a for a in attributes if not(a[0].startswith('__') and a[0].endswith('__')) and not callable(a)]
+        return attributes
 
     # def transform_semantic_class_names(self, original_semantic_class_names):
     # """ If exists, gets called whenever the dataset's semantic class names are queried. """
@@ -109,3 +115,11 @@ class GenericSequencePrecomputedDatasetFileTransformer(PrecomputedDatasetFileTra
         for transformer in self.transformer_sequence[::-1]:
             img_file, sem_lbl_file, inst_lbl_file = transformer.untransform(img_file, sem_lbl_file, inst_lbl_file)
         return img_file, sem_lbl_file, inst_lbl_file
+
+    def get_attribute_items(self):
+        attributes = []
+        for transformer in self.transformer_sequence:
+            a = transformer.get_attribute_items()
+            attributes += a
+        return attributes
+

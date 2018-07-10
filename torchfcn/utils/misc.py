@@ -74,3 +74,10 @@ def pop_without_del(dictionary, key, default):
     val = dictionary.pop(key, default)
     dictionary[key] = val
     return val
+
+
+def value_as_string(value):
+    if isinstance(value, tuple):
+        return ','.join(value_as_string(p) for p in value)
+    else:
+        return '{}'.format(value)

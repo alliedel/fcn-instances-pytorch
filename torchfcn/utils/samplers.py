@@ -16,11 +16,12 @@ def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, n_
         AssertionError('Bug here.  Assumed same set of images (untransformed).')
 
     if sem_cls_filter is not None or n_instances_range is not None:
-        print('Reading from instance counts file {}'.format(instance_count_file))
         if not os.path.isfile(instance_count_file):
+            print('Generating file {}'.format(instance_count_file))
             stats = dataset_statistics.InstanceDatasetStatistics(dataset_configured_for_stats)
             stats.compute_statistics(filename_to_write_instance_counts=instance_count_file)
         else:
+            print('Reading from instance counts file {}'.format(instance_count_file))
             stats = dataset_statistics.InstanceDatasetStatistics(dataset_configured_for_stats,
                                                                  existing_instance_count_file=instance_count_file)
         valid_indices = stats.get_valid_indices(n_instances_range, sem_cls_filter, n_images)

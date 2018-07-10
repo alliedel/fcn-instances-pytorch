@@ -49,6 +49,10 @@ class TransformedInstanceDataset(InstanceDatasetBase):
     def semantic_class_names(self):
         return self.get_semantic_class_names()
 
+    @property
+    def n_semantic_classes(self):
+        return len(self.semantic_class_names)
+
     def get_semantic_class_names(self):
         """
         If we changed the semantic subset, we have to account for that change in the semantic class name list.

@@ -68,3 +68,9 @@ def color_text(text, color):
     else:
         raise Exception('color not recognized: {}\nChoose from: {}, {}'.format(color, color_keys, color_vals))
     return color + text + TermColors.ENDC
+
+
+def pop_without_del(dictionary, key, default):
+    val = dictionary.pop(key, default)
+    dictionary[key] = val
+    return val

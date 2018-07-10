@@ -69,9 +69,12 @@ class RawCityscapesBase(InstanceDatasetBase):
             file_list = orig_file_list
         return file_list
 
-    @classmethod
     @property
-    def semantic_class_names(cls):
+    def semantic_class_names(self):
+        return self.__class__.get_semantic_class_names()
+
+    @classmethod
+    def get_semantic_class_names(cls):
         """
         If we changed the semantic subset, we have to account for that change in the semantic class name list.
         """

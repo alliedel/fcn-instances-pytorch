@@ -48,7 +48,11 @@ def precomputed_file_transformer_factory(ordering=None):
 
     # Instance label transformations
     if ordering is not None:
-        transformer_sequence.append(InstanceOrderingPrecomputedDatasetFileTransformation(ordering=ordering))
+        if isinstance(ordering, str):
+            transformer_sequence.append(InstanceOrderingPrecomputedDatasetFileTransformation(ordering=ordering))
+        else:  # iterable
+            for order in ordering:
+                transformer_sequence.append(InstanceOrderingPrecomputedDatasetFileTransformation(ordering=order))
 
     # Stitching them together in a sequence
     if len(transformer_sequence) == 0:

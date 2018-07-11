@@ -270,7 +270,7 @@ def generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lb
             first_instance_idx = inst_lbl[sem_lbl == sem_val].min()
             inst_lbl[sem_lbl == sem_val] -= (first_instance_idx - 1)
         inst_lbl[inst_lbl == -1] = 255
-        write_np_array_as_img_with_borrowed_colormap_palette(inst_lbl, inst_lbl_file, sem_lbl_file)
+        write_np_array_as_img_with_borrowed_colormap_palette(inst_lbl, inst_lbl_file, inst_absolute_lbl_file)
 
 
 def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out_inst_lbl_file_ordered):

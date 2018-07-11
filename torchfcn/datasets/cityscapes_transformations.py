@@ -137,10 +137,10 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         sem_lbl = dataset_utils.load_img_as_dtype(raw_id_sem_lbl_file, np.int32)
         sem_lbl = map_raw_sem_ids_to_train_ids(sem_lbl, old_values=self._raw_id_list,
                                                new_values_from_old_values=self._raw_id_to_train_id)
-        old_mode = PIL.Image.open(new_train_id_sem_lbl_file).mode
+        old_mode = PIL.Image.open(raw_id_sem_lbl_file).mode
         if old_mode == 'P':
-            dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(sem_lbl, new_train_id_sem_lbl_file,
-                                                                               filename_for_colormap=raw_id_sem_lbl_file)
+            dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
+                sem_lbl, new_train_id_sem_lbl_file, filename_for_colormap=raw_id_sem_lbl_file)
         elif old_mode == 'L':
             im = PIL.Image.fromarray(sem_lbl.astype(np.uint8))
             converted = im.convert(mode='L')

@@ -40,9 +40,13 @@ class TransformedInstanceDataset(InstanceDatasetBase):
         return len(self.raw_dataset)
 
     def __getitem__(self, index):
+        precomputed_file_transformation = self.precomputed_file_transformation if \
+                self.should_use_precompute_transform else None
+        runtime_transformation = self.runtime_transformation if \
+            self.should_use_runtime_transform else None
         img, lbl = self.get_item(index,
-                                 precomputed_file_transformation=self.precomputed_file_transformation,
-                                 runtime_transformation=self.runtime_transformation)
+                                 precomputed_file_transformation=precomputed_file_transformation,
+                                 runtime_transformation=runtime_transformation)
         return img, lbl
 
     @property
@@ -75,7 +79,7 @@ class TransformedInstanceDataset(InstanceDatasetBase):
         raise NotImplementedError
 
     def get_item_from_files(self, index, precomputed_file_transformation=None):
-        data_file = self.raw_dataset.files[index]  # files populated when RawVOCBase was instantiated
+        data_file = self.raw_dataset.files[index]  # files populated when raw_dataset was instantiated
         img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file['inst_lbl']
 
         # Get the right file

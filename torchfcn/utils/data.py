@@ -56,7 +56,7 @@ def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
         # Get 'clean' datasets for instance counting
         default_train_dataset, default_val_dataset, transformer_tag = \
             dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type)
-        
+
         # train sampler
         train_sampler = sampler_generator_helper(dataset_type, train_dataset, default_train_dataset,
                                                  sampler_cfg, 'train', transformer_tag)
@@ -85,12 +85,12 @@ def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_cfg
     sem_cls_filter_values = convert_sem_cls_filter_from_names_to_values(
         sem_cls_filter, default_dataset.semantic_class_names) \
         if isinstance(sem_cls_filter[0], str) else sem_cls_filter
-    train_sampler = get_configured_sampler(
+    sampler = get_configured_sampler(
         dataset, default_dataset, sequential=True,
         n_instances_range=pop_without_del(sampler_cfg[sampler_type], 'n_instances_range', None),
         n_images=pop_without_del(sampler_cfg[sampler_type], 'n_images', None),
         sem_cls_filter=sem_cls_filter_values, instance_count_file=instance_count_file)
-    return train_sampler
+    return sampler
 
 
 def convert_sem_cls_filter_from_names_to_values(sem_cls_filter, semantic_class_names):

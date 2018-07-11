@@ -6,18 +6,29 @@ from torchfcn.utils.misc import pop_without_del
 from torchfcn.utils.misc import value_as_string
 
 
+def get_transformer_identifier_tag(precomputed_file_transformation, runtime_transformation):
+    transformer_tag = ''
+    for tr in [precomputed_file_transformation, runtime_transformation]:
+        attributes = tr.get_attribute_items() if tr is not None else {}.items()
+        transformer_tag += '__'.join(['{}-{}'.format(k, value_as_string(v)) for k, v in attributes])
+    return transformer_tag
+
+
 def get_default_datasets_for_instance_counts(dataset_type):
     """
     Dataset before any of the precomputed_file_transformation, runtime_transformation runs on it
     """
     if dataset_type == 'voc':
         default_cfg = voc_cfg.get_default_config()
-        precomputed_file_transformation, runtime_transformation = get_transformations(default_cfg)
+        default_cfg['n_instances_per_class'] = None  # don't want to cap instances when running stats
+        precomputed_file_transformation, runtime_transformation = get_transformations(default_cfg,
+                                                                                      voc.ALL_VOC_CLASS_NAMES)
         train_dataset, val_dataset = get_voc_datasets(
             dataset_path=default_cfg['dataset_path'], precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation)
     elif dataset_type == 'cityscapes':
         default_cfg = cityscapes_cfg.get_default_config()
+        default_cfg['n_instances_per_class'] = None  # don't want to cap instances when running stats
         precomputed_file_transformation, runtime_transformation = get_transformations(default_cfg)
         train_dataset, val_dataset = get_cityscapes_datasets(default_cfg['dataset_path'],
                                                              precomputed_file_transformation=
@@ -27,27 +38,26 @@ def get_default_datasets_for_instance_counts(dataset_type):
         raise NotImplementedError('synthetic is different every time -- cannot save instance counts in between')
     else:
         raise ValueError
-    transformer_tag = ''
-    for tr in [precomputed_file_transformation, runtime_transformation]:
-        attributes = tr.get_attribute_items() if tr is not None else {}.items()
-        transformer_tag += '__'.join(['{}-{}'.format(k, value_as_string(v)) for k, v in attributes])
+    transformer_tag = get_transformer_identifier_tag(precomputed_file_transformation, runtime_transformation)
     return train_dataset, val_dataset, transformer_tag
 
 
 def get_dataset(dataset_type, cfg, transform=True):
     if dataset_type == 'voc':
-        precomputed_file_transformation, runtime_transformation = get_transformations(cfg)
+        precomputed_file_transformation, runtime_transformation = get_transformations(cfg, voc.ALL_VOC_CLASS_NAMES)
         dataset_path = cfg['dataset_path']
         train_dataset, val_dataset = get_voc_datasets(
             dataset_path=dataset_path, precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation, transform=transform)
     elif dataset_type == 'cityscapes':
         dataset_path = cfg['dataset_path']
-        precomputed_file_transformation, runtime_transformation = get_transformations(cfg)
+        precomputed_file_transformation, runtime_transformation = get_transformations(
+            cfg, cityscapes.RawCityscapesBase.get_semantic_class_names())
         train_dataset, val_dataset = get_cityscapes_datasets(dataset_path, precomputed_file_transformation,
                                                              runtime_transformation, transform=transform)
     elif dataset_type == 'synthetic':
-        precomputed_file_transformation, runtime_transformation = get_transformations(cfg)
+        precomputed_file_transformation, runtime_transformation = get_transformations(
+            cfg, synthetic.ALL_BLOB_CLASS_NAMES)
         n_images_train = pop_without_del(cfg, 'n_images_train', None)
         n_images_val = pop_without_del(cfg, 'n_images_val', None)
         ordering = cfg['ordering']
@@ -62,12 +72,13 @@ def get_dataset(dataset_type, cfg, transform=True):
     return train_dataset, val_dataset
 
 
-def get_transformations(cfg):
+def get_transformations(cfg, original_semantic_class_names=None):
     # Get transformation parameters
     semantic_subset = cfg['semantic_subset']
     if semantic_subset is not None:
+        assert original_semantic_class_names is not None
         class_names, reduced_class_idxs = dataset_utils.get_semantic_names_and_idxs(
-            semantic_subset=semantic_subset, full_set=voc.ALL_VOC_CLASS_NAMES)
+            semantic_subset=semantic_subset, full_set=original_semantic_class_names)
     else:
         reduced_class_idxs = None
 

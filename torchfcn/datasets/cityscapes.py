@@ -87,9 +87,11 @@ class RawCityscapesBase(InstanceDatasetBase):
                 if hasattr(transformer, 'transform_semantic_class_names'):
                     semantic_class_names = transformer.transform_semantic_class_names(
                         semantic_class_names)
-            return semantic_class_names
         else:
-            return cls.original_semantic_class_names
+            semantic_class_names = cls.original_semantic_class_names
+        assert AssertionError('There must be a bug somewhere.  The first semantic class name should always be '
+                              'background.')
+        return semantic_class_names
 
     @property
     def n_semantic_classes(self):

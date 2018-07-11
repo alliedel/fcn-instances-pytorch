@@ -32,8 +32,10 @@ def Label(*args):
     return dict(zip(labels_keys, args))
 
 
+# NOTE(allie): We have to add 1 to the train id's because 0 is reserved for background.
+
 CITYSCAPES_LABELS_TABLE = [
-    #       name                     id    trainId   category            catId     hasInstances   ignoreInEval   color
+    #       name   id    trainId-1   category            catId     hasInstances   ignoreInEval   color
     Label('unlabeled', 0, 255, 'void', 0, False, True, (0, 0, 0)),
     Label('ego vehicle', 1, 255, 'void', 0, False, True, (0, 0, 0)),
     Label('rectification border', 2, 255, 'void', 0, False, True, (0, 0, 0)),

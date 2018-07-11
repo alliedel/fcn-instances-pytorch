@@ -66,6 +66,8 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
     new_sem_file_tag = 'TrainIds'
     old_inst_file_tag = 'Ids'
     new_inst_file_tag = 'TrainIds'
+    void_value = 255
+    background_value = 0
 
     def __init__(self):
         # Get dictionary of raw id assignments (semantic, instance, void, background)
@@ -73,7 +75,8 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
 
         # Set list of corresponding training ids, and get training id assignments
         self._raw_id_to_train_id, self.train_id_list, self.train_id_assignments = \
-            get_train_id_assignments(self._raw_id_assignments, void_value=-1, background_value=0)
+            get_train_id_assignments(self._raw_id_assignments, void_value=self.void_value,
+                                     background_value=self.background_value)
         self.original_semantic_class_names = None
 
     def transform(self, img_file, sem_lbl_file, inst_lbl_file):
@@ -127,11 +130,10 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
             raise NotImplementedError
 
     def generate_train_id_semantic_file(self, raw_id_sem_lbl_file, new_train_id_sem_lbl_file):
-        train_ids = self._raw_id_to_train_id
-        raw_ids = self._raw_id_list
         print('Generating per-semantic instance file: {}'.format(new_train_id_sem_lbl_file))
         sem_lbl = dataset_utils.load_img_as_dtype(raw_id_sem_lbl_file, np.int32)
-        sem_lbl = map_raw_sem_ids_to_train_ids(sem_lbl, old_values=raw_ids, new_values_from_old_values=train_ids)
+        sem_lbl = map_raw_sem_ids_to_train_ids(sem_lbl, old_values=self._raw_id_list,
+                                               new_values_from_old_values=self._raw_id_to_train_id)
         dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(sem_lbl, new_train_id_sem_lbl_file,
                                                                            filename_for_colormap=raw_id_sem_lbl_file)
 
@@ -140,18 +142,22 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         # preserve for later
         self.original_semantic_class_names = original_semantic_class_names
 
-        class_names = []
-        for train_id in self.train_id_list:
+        semantic_class_names = []
+        # import ipdb; ipdb.set_trace()
+        train_ids_for_semantic_list = [train_id for train_id in self.train_id_list if train_id != self.void_value]
+        assert all([a == b for a, b in zip(train_ids_for_semantic_list, range(len(train_ids_for_semantic_list)))]), \
+            AssertionError('We need the semantic class name indices to match their values.  Bug somewhere.')
+        for train_id in train_ids_for_semantic_list:
+            if train_id == self.void_value:
+                continue
             raw_ids_mapped_to_this = [raw_id for raw_id in self._raw_id_list
                                       if self._raw_id_to_train_id[raw_id] == train_id]
             class_name = ','.join([labels_table_cityscapes.class_names[i] for i in
                                    raw_ids_mapped_to_this])
-            class_names.append(class_name)
-
-        semantic_class_names = [name for name, train_id in zip(labels_table_cityscapes.class_names,
-                                                               labels_table_cityscapes.train_ids)
-                                if -1 < train_id < 255]
-        assert len(semantic_class_names) == 19, 'I expected raw Cityscapes to have 19 classes'
+            if train_id == self.background_value:
+                class_name = 'background'
+            semantic_class_names.append(class_name)
+        # assert len(semantic_class_names) == 19, 'I expected raw Cityscapes to have 19 classes'
         return semantic_class_names
 
     def untransform_semantic_class_names(self):
@@ -167,7 +173,7 @@ def get_train_id_assignments(raw_id_assignments, void_value, background_value=0)
                                                           'semantic classes'
     assert background_value == 0, NotImplementedError
     # Each semantic class get its own value
-    train_ids = [void_value, background_value] + list(range(n_semantic_classes))
+    train_ids = [void_value, background_value] + list(range(1, n_semantic_classes))
 
     # Map raw ids to unique train ids
     sem_cls = 0
@@ -220,7 +226,7 @@ def get_raw_id_assignments():
       void because we evaluate on it)
     """
     raw_id_list = labels_table_cityscapes.ids
-    is_background = [name == 'unlabeled'
+    is_background = [name == 'unlabeled' or name == 'background'
                      for c, name in enumerate(labels_table_cityscapes.class_names)]
     is_semantic = [not is_void or is_background[ci] for ci, is_void in enumerate(
         labels_table_cityscapes.is_void)]

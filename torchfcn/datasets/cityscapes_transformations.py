@@ -260,15 +260,18 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
         # Check if instance values are consecutive, starting from 1.  If not, shift them all.
         consecutive_instance_values = list(range(1, max_lbl + 1))
         is_present = [bool((inst_lbl == val).sum() > 0) for val in consecutive_instance_values]
+
+        # Shift if needed
         if not all(is_present):
+            old_instance_values = [val for val, p in zip(consecutive_instance_values, is_present) if p]
+            num_present = sum([1 for p in is_present if p])
+            new_instance_values = list(range(1, num_present + 1))
+            assert num_present < len(consecutive_instance_values), AssertionError('debug')
+            assert num_present == len(new_instance_values) == len(old_instance_values), AssertionError('debug')
             print(misc.color_text('Instance values were in a weird format! Values present: {}'.format(
                 [consecutive_instance_values[present] for present in is_present]), misc.TermColors.WARNING))
-        num_present = sum([1 for p in is_present if p])
-        new_instance_values = list(range(1, num_present + 1))
-        old_instance_values = [val for val, p in zip(consecutive_instance_values, is_present) if p]
-        assert len(new_instance_values) == len(old_instance_values)
-        for old_val, new_val in zip(old_instance_values, new_instance_values):
-            inst_lbl[inst_lbl == old_val] = new_val
+            for old_val, new_val in zip(old_instance_values, new_instance_values):
+                inst_lbl[inst_lbl == old_val] = new_val
 
     return inst_lbl
 

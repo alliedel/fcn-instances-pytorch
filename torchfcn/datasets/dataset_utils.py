@@ -241,6 +241,7 @@ def write_np_array_as_img(arr, filename):
 
 def write_np_array_as_img_with_borrowed_colormap_palette(arr, filename, filename_for_colormap):
     colormap_src = PIL.Image.open(filename_for_colormap)
+    assert colormap_src.mode == 'P', '{} is mode {}, not P'.format(filename_for_colormap, colormap_src.mode)
     write_np_array_as_img_with_colormap_palette(arr, filename, palette=colormap_src)
 
 

@@ -82,7 +82,6 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
 
     def transform(self, img_file, sem_lbl_file, inst_lbl_file):
         new_sem_lbl_file = sem_lbl_file.replace(self.old_sem_file_tag, self.new_sem_file_tag)
-        import ipdb; ipdb.set_trace()
         if not osp.isfile(new_sem_lbl_file):
             assert osp.isfile(sem_lbl_file), '{} does not exist'.format(sem_lbl_file)
             self.generate_train_id_semantic_file(sem_lbl_file, new_sem_lbl_file)

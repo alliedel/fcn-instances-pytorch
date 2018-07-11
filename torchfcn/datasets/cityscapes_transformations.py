@@ -269,7 +269,7 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
             assert num_present < len(consecutive_instance_values), AssertionError('debug')
             assert num_present == len(new_instance_values) == len(old_instance_values), AssertionError('debug')
             print(misc.color_text('Instance values were in a weird format! Values present: {}'.format(
-                [consecutive_instance_values[present] for present in is_present]), misc.TermColors.WARNING))
+                old_instance_values), misc.TermColors.WARNING))
             for old_val, new_val in zip(old_instance_values, new_instance_values):
                 inst_lbl[inst_lbl == old_val] = new_val
 

@@ -88,6 +88,9 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         if not osp.isfile(new_inst_lbl_file):
             assert osp.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
             self.generate_train_id_instance_file(inst_lbl_file, new_inst_lbl_file, sem_lbl_file)
+        inst_absolute_lbl_file = new_inst_lbl_file
+        dataset_utils.generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, new_inst_lbl_file)
+
         return img_file, new_sem_lbl_file, new_inst_lbl_file
 
     def untransform(self, img_file, sem_lbl_file, inst_lbl_file):
@@ -250,6 +253,8 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
     """
     inst_lbl[inst_lbl < 1000] = 0
     inst_lbl -= np.int32((inst_lbl / 1000)) * np.int32(1000)  # more efficient
+    if (inst_lbl > 0).sum() > 0:
+        assert (inst_lbl == 1).sum() > 0, 'Problem: instance identifier 1 does not exist!'
     return inst_lbl
 
 

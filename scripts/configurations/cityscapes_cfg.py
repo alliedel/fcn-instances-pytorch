@@ -51,11 +51,11 @@ configurations = {
         dataset_instance_cap=None,
     ),
     'car_instance': dict(
-        n_instances_per_class=1,
         max_iteration=1000000,
-        single_instance=True,
         interval_validate=4000,
         semantic_subset=None,
-        dataset_instance_cap=None,
+        dataset_instance_cap=3,
+        n_instances_per_class=3,
+        ordering='lr'
     )
 }

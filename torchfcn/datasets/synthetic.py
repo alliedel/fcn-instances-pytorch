@@ -1,6 +1,7 @@
 import numpy as np
 
 from torchfcn.datasets import dataset_utils
+from torchfcn.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
 BLUE_RGB = (0, 0, 224)
@@ -24,27 +25,26 @@ class Defaults(object):
     transform = True
 
 
-class BlobExampleGenerator(object):
+class BlobExampleGenerator(InstanceDatasetBase):
     def __init__(self, img_size=Defaults.img_size, blob_size=Defaults.blob_size,
                  clrs=Defaults.clrs,
                  n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
-                 n_images=None,
-                 mean_bgr=Defaults.mean_bgr,
+                 n_images=None, mean_bgr=None,
                  transform=Defaults.transform, _im_a_copy=False,
-                 map_to_single_instance_problem=False,
-                 ordering=None, semantic_subset=None,
-                 one_dimension=None):
+                 one_dimension=None, semantic_subset_to_generate=None, ordering=None, intermediate_write_path='/tmp/'):
         """
         one_dimension: {'x', 'y', None}
         """
+        if mean_bgr is None:
+            mean_bgr = Defaults.mean_bgr
         n_images = n_images or Defaults.n_images
-        assert semantic_subset is None or all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset]), \
+        assert semantic_subset_to_generate is None \
+               or all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset_to_generate]), \
             ValueError('semantic_subset={} is incorrect. Must be a list of semantic classes in {}'.format(
-                semantic_subset, ALL_BLOB_CLASS_NAMES))
+                semantic_subset_to_generate, ALL_BLOB_CLASS_NAMES))
         assert one_dimension in [None, 'x', 'y'], ValueError
-        self.map_to_single_instance_problem = map_to_single_instance_problem
         self.img_size = img_size
         assert len(self.img_size) == 2
         self.blob_size = blob_size
@@ -56,11 +56,11 @@ class BlobExampleGenerator(object):
         self.n_images = n_images
         self.mean_bgr = mean_bgr
         self._transform = transform
-        self.semantic_subset = semantic_subset
+        self.semantic_subset = semantic_subset_to_generate
         # TODO(allie): change the line below to allow dif. blob types
-        self.semantic_classes = semantic_subset or ALL_BLOB_CLASS_NAMES
-        self.class_names, self.idxs_into_all_blobs = self.get_semantic_names_and_idxs(
-            self.semantic_subset)
+        self.semantic_classes = semantic_subset_to_generate or ALL_BLOB_CLASS_NAMES
+        self.class_names, self.idxs_into_all_blobs = dataset_utils.get_semantic_names_and_idxs(
+            semantic_subset=semantic_subset_to_generate, full_set=ALL_BLOB_CLASS_NAMES)
         self.n_instances_per_sem_cls = [0] + [n_max_per_class for _ in range(len(self.semantic_classes) - 1)]
         self.ordering = ordering.lower() if ordering is not None else None
         self.one_dimension = one_dimension
@@ -109,15 +109,14 @@ class BlobExampleGenerator(object):
 
     def __getitem__(self, image_index):
         img, (sem_lbl, inst_lbl) = self.generate_img_lbl_pair(image_index)
-        if self.map_to_single_instance_problem:
-            inst_lbl[inst_lbl > 1] = 1
-        if self._transform:
-            img, (sem_lbl, inst_lbl) = self.transform_img(img), (self.transform_lbl(sem_lbl),
-                                                                 self.transform_lbl(inst_lbl))
         return img, (sem_lbl, inst_lbl)
 
     def __len__(self):
         return self.n_images
+
+    @property
+    def semantic_class_names(self):
+        return self.class_names
 
     def copy(self, modified_length=10):
         my_copy = BlobExampleGenerator(_im_a_copy=True)
@@ -193,32 +192,11 @@ class BlobExampleGenerator(object):
         return paint_square(lbl_img, r, c, self.blob_size[0], self.blob_size[0], instance_label,
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 
-    def transform(self, img, lbl):
-        img = dataset_utils.transform_img(img, self.mean_bgr)
-        lbl = dataset_utils.transform_lbl(lbl)
-        return img, lbl
 
-    def transform_img(self, img):
-        return dataset_utils.transform_img(img, self.mean_bgr)
-
-    def transform_lbl(self, lbl):
-        return dataset_utils.transform_lbl(lbl)
-
-    def untransform(self, img, lbl):
-        img = dataset_utils.untransform_img(img, self.mean_bgr)
-        lbl = dataset_utils.untransform_lbl(lbl)
-        return img, lbl
-
-    def untransform_img(self, img):
-        return dataset_utils.untransform_img(img, self.mean_bgr)
-
-    def untransform_lbl(self, lbl):
-        return dataset_utils.untransform_lbl(lbl)
-
-    @staticmethod
-    def get_semantic_names_and_idxs(semantic_subset):
-        return dataset_utils.get_semantic_names_and_idxs(semantic_subset=semantic_subset,
-                                                         full_set=ALL_BLOB_CLASS_NAMES)
+class TransformedBlobExampleGenerator(TransformedInstanceDataset):
+    def __init__(self, raw_synthetic_dataset, precomputed_file_transformation=None, runtime_transformation=None):
+        super(TransformedBlobExampleGenerator, self).__init__(raw_synthetic_dataset, precomputed_file_transformation,
+                                                              runtime_transformation)
 
 
 def paint_square(img, start_r, start_c, w, h, clr, allow_overflow=True, row_col_dims=(0, 1),

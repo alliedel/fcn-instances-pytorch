@@ -3,7 +3,7 @@ class PARAM_CLASSIFICATIONS(object):
     export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics'}
     loss = {'matching', 'size_average'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
-            'dataset_instance_cap'}
+            'dataset_instance_cap', 'resize', 'resize_size', 'dataset_path'}
     problem_config = {'n_instances_per_class', 'single_instance'}
     model = {'initialize_from_semantic', 'bottleneck_channel_capacity', 'score_multiplier', 'freeze_vgg',
              'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer'}
@@ -13,6 +13,10 @@ class PARAM_CLASSIFICATIONS(object):
 # this one.  Ran into issues not copying this dictionary when I started changing it, and it changes all the config
 # dictionaries.
 _default_config = dict(
+    # loss
+    matching=True,
+    size_average=True,
+
     # optim
     optim='sgd',
     max_iteration=100000,
@@ -29,18 +33,17 @@ _default_config = dict(
                                  'upscore8', 'conv1x1_instance_to_semantic'),
     write_instance_metrics=True,
 
-    # loss
-    matching=True,
-    size_average=True,
-
     # data
-    semantic_only_labels=False,
-    set_extras_to_void=True,
+    dataset=None,
+    dataset_path=None,
+    dataset_instance_cap='match_model',  #
     semantic_subset=None,
     ordering=None,  # 'lr'
     sampler=None,
-    dataset=None,
-    dataset_instance_cap='match_model',  #
+    resize=False,
+    resize_size=None,
+    # semantic_only_labels=False,
+    # set_extras_to_void=True,
 
     # problem_config
     n_instances_per_class=None,
@@ -65,9 +68,14 @@ def get_default_config():
 def assert_all_cfg_keys_classified():
     keys = list(_default_config.keys())
     param_groups = [x for x in list(PARAM_CLASSIFICATIONS.__dict__.keys()) if x[0] != '_']
+    unclassified_keys = []
     for k in keys:
-        assert any([k in getattr(PARAM_CLASSIFICATIONS, param_group)
-                    for param_group in param_groups])
+        if not any([k in getattr(PARAM_CLASSIFICATIONS, param_group)
+                    for param_group in param_groups]):
+            unclassified_keys.append(k)
+    if len(unclassified_keys) > 0:
+        raise Exception('The following parameters have not yet been classified in PARAM_CLASSIFICATIONS: {}'.format(
+            unclassified_keys))
 
 
 assert_all_cfg_keys_classified()

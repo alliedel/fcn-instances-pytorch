@@ -12,7 +12,11 @@ from tensorboardX import SummaryWriter
 
 import torchfcn
 import torchfcn.datasets.voc
-from torchfcn import script_utils, instance_utils
+import torchfcn.utils.configs
+import torchfcn.utils.logs
+import torchfcn.utils.misc
+import torchfcn.utils.scripts
+from torchfcn import instance_utils
 
 default_config = dict(
     max_iteration=100000,
@@ -76,12 +80,12 @@ def main():
     gpu = args.gpu
     config_idx = args.config
 
-    cfg = script_utils.create_config_from_default(configurations[config_idx], default_config)
+    cfg = torchfcn.utils.configs.create_config_from_default(configurations[config_idx], default_config)
     if args.image_index is not None:
         cfg['image_index'] = args.image_index
 
-    out = script_utils.get_log_dir(osp.basename(__file__).replace(
-        '.py', ''), config_idx, script_utils.create_config_copy(cfg),
+    out = torchfcn.utils.logs.get_log_dir(osp.basename(__file__).replace(
+        '.py', ''), config_idx, torchfcn.utils.configs.create_config_copy(cfg),
         parent_directory=osp.dirname(osp.abspath(__file__)))
 
     print('logdir: {}'.format(out))
@@ -138,8 +142,8 @@ def main():
     elif cfg['optim'] == 'sgd':
         optim = torch.optim.SGD(
             [
-                {'params': script_utils.get_parameters(model, bias=False)},
-                {'params': script_utils.get_parameters(model, bias=True),
+                {'params': torchfcn.utils.configs.get_parameters(model, bias=False)},
+                {'params': torchfcn.utils.configs.get_parameters(model, bias=True),
                  #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
                  #                model, bias=False))},
                  #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
@@ -192,9 +196,9 @@ def main():
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
     if metrics[2] < 80:
-        print(script_utils.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + script_utils.TermColors.ENDC)
+        print(torchfcn.utils.misc.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + torchfcn.utils.misc.TermColors.ENDC)
     else:
-        print(script_utils.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + script_utils.TermColors.ENDC)
+        print(torchfcn.utils.misc.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + torchfcn.utils.misc.TermColors.ENDC)
 
 
 if __name__ == '__main__':

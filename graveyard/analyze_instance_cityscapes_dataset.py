@@ -9,9 +9,9 @@ import torch
 import tqdm
 
 import torchfcn
-from torchfcn import instance_utils
+from examples.script_utils import get_log_dir
+from torchfcn.datasets import cityscapes
 from torchfcn.datasets import dataset_utils
-from torchfcn.datasets import voc
 
 configurations = {
     # same configuration as original work
@@ -52,9 +52,9 @@ def main():
 
     # 1. dataset
     semantic_subset = None  # ['background', 'person']
-    root = osp.expanduser('~/data/datasets')
+    root = osp.expanduser('~/data/cityscapes/')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    train_dataset = torchfcn.datasets.VOC2012ClassSeg(root, split='train', transform=True,
+    train_dataset = torchfcn.datasets.CityscapesClassSegBase(root, split='train', transform=True,
                                                       semantic_subset=semantic_subset,
                                                       n_max_per_class=n_max_per_class,
                                                       permute_instance_order=False,
@@ -68,7 +68,7 @@ def main():
     except:
         raise
 
-    val_dataset = torchfcn.datasets.VOC2012ClassSeg(root, split='val', transform=True,
+    val_dataset = torchfcn.datasets.CityscapesClassSegBase(root, split='val', transform=True,
                                                     semantic_subset=semantic_subset,
                                                     n_max_per_class=n_max_per_class,
                                                     permute_instance_order=False,
@@ -77,10 +77,14 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False, **kwargs)
 
-    val_dataset_summary, val_key = create_dataset_summary(val_dataset, n_max_per_class=22)
+    try:
+        [img, lbl] = val_loader.dataset[0]
+    except:
+        raise
+    val_dataset_summary, val_key = create_dataset_summary(val_dataset, n_max_per_class=None)
     np.savez('/tmp/val_dataset_summary.npz', **val_dataset_summary)
     np.savez('/tmp/val_key.npz', **val_key)
-    train_dataset_summary, train_key = create_dataset_summary(train_dataset, n_max_per_class=39)
+    train_dataset_summary, train_key = create_dataset_summary(train_dataset, n_max_per_class=None)
     np.savez('/tmp/train_dataset_summary.npz', **train_dataset_summary)
     np.savez('/tmp/train_key.npz', **train_key)
 
@@ -94,20 +98,20 @@ def get_n_max_per_class_from_dataset(dataset):
             leave=False):
         n_max_per_class = max(n_max_per_class, torch.max(inst_target)) + 1
         max_sem_idx = max(max_sem_idx, torch.max(sem_target))
-    assert max_sem_idx == len(voc.ALL_VOC_CLASS_NAMES) - 1, 'The dataset contains fewer / more ' \
+    assert max_sem_idx == len(cityscapes.ALL_CITYSCAPES_CLASS_NAMES) - 1, 'The dataset contains fewer / more ' \
                                                             'than the semantic classes I thought'
     print('\n Max instances: {}'.format(n_max_per_class))
     return n_max_per_class
 
 
-def create_dataset_summary(dataset, all_semantic_class_names, n_max_per_class=None):
+def create_dataset_summary(dataset, n_max_per_class=None):
     # Get # max instances
     if n_max_per_class is None:
         n_max_per_class = get_n_max_per_class_from_dataset(dataset)
     dataset.update_n_max_per_class(n_max_per_class)
 
     # Get some stats
-    semantic_classes = all_semantic_class_names
+    semantic_classes = cityscapes.ALL_CITYSCAPES_CLASS_NAMES
     semantic_instance_mapping = dataset.get_instance_to_semantic_mapping()
     per_instance_semantic_names = dataset.get_instance_semantic_labels()
     n_imgs = len(dataset)
@@ -138,8 +142,9 @@ def create_dataset_summary(dataset, all_semantic_class_names, n_max_per_class=No
         number_of_total_instances[idx] = np.sum(number_of_instances_per_semantic_class[idx, :])
         number_of_void_pixels[idx] = torch.sum(sem_target == -1)
         # The function below overwrites the inst_target, so gotta be careful!
-        full_instance_target = instance_utils.combine_semantic_and_instance_labels(sem_target, inst_target,
-                                                                                   n_max_per_class)
+        full_instance_target = dataset_utils.combine_semantic_and_instance_labels(sem_target,
+                                                                                  inst_target,
+                                                                                  n_max_per_class)
         number_of_pixels_per_semantic_instance[idx, :] = [torch.sum(full_instance_target ==
                                                                     sem_inst_cls)
                                                           for sem_inst_cls in

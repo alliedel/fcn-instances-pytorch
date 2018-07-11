@@ -4,6 +4,7 @@ from . import generic_cfg
 def get_default_config():
     _default_config = generic_cfg.get_default_config()
     _default_config.update(
+        dataset_path='/tmp/',
         max_iteration=10000,
         interval_validate=100,
         lr=1.0e-4,

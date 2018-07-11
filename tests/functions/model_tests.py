@@ -2,8 +2,9 @@ import os
 
 import torch
 
+import torchfcn.utils.data
+import torchfcn.utils.models
 from scripts.configurations import voc_cfg
-from torchfcn import script_utils
 from torchfcn.datasets.voc import ALL_VOC_CLASS_NAMES
 from torchfcn.models import model_utils
 
@@ -17,9 +18,9 @@ def build_example_model(**model_cfg_override_kwargs):
     cfg = voc_cfg.get_default_config()
     for k, v in model_cfg_override_kwargs.items():
         cfg[k] = v
-    problem_config = script_utils.get_problem_config(ALL_VOC_CLASS_NAMES, 2, map_to_semantic=cfg['map_to_semantic'])
-    model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                 checkpoint_file=None, semantic_init=None, cuda=cuda)
+    problem_config = torchfcn.utils.models.get_problem_config(ALL_VOC_CLASS_NAMES, 2, map_to_semantic=cfg['map_to_semantic'])
+    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config,
+                                                                          checkpoint_file=None, semantic_init=None, cuda=cuda)
     return model
 
 
@@ -33,7 +34,7 @@ def test_forward_hook():
     torch.manual_seed(1337)
     if cuda:
         torch.cuda.manual_seed(1337)
-    dataloaders = script_utils.get_dataloaders(cfg, 'voc', cuda, sampler_cfg=None)
+    dataloaders = torchfcn.utils.data.get_dataloaders(cfg, 'voc', cuda, sampler_cfg=None)
 
     layer_names = ['conv1x1_instance_to_semantic'] if model.map_to_semantic else []
     layer_names += ['upscore8', 'score_pool4']

@@ -13,8 +13,9 @@ from torch.autograd import Variable
 import torchfcn
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
+import torchfcn.utils.logs
 from torchfcn import losses
-from torchfcn import script_utils, instance_utils, trainer
+from torchfcn import instance_utils, trainer
 from torchfcn.analysis import visualization_utils
 
 here = osp.dirname(osp.abspath(__file__))
@@ -149,9 +150,9 @@ def main():
         'xaxis': args.xaxis,
     }
 
-    out = script_utils.get_log_dir(osp.basename(__file__).replace('.py', ''), config_id=None,
-                                   cfg=cfg,
-                                   parent_directory=os.path.join(here, 'logs', 'synthetic'))
+    out = torchfcn.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_id=None,
+                                          cfg=cfg,
+                                          parent_directory=os.path.join(here, 'logs', 'synthetic'))
     print('Log in {}'.format(out))
     cuda = True  # torch.cuda.is_available()
     gpu = 0

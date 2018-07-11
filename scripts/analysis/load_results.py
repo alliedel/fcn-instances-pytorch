@@ -1,6 +1,9 @@
 import argparse
 import os.path as osp
-from torchfcn import script_utils
+
+import torchfcn.utils.configs
+import torchfcn.utils.logs
+import torchfcn.utils.models
 import torch
 from torchfcn.models import model_utils
 import local_pyutils
@@ -27,7 +30,7 @@ def main_check_freeze():
         'model_state_dict': initial_model.state_dict(),
         'best_mean_iu': 0,
     }, osp.join(init_logdir, 'model_best.pth.tar'))
-    script_utils.save_config(init_logdir, cfg)
+    torchfcn.utils.configs.save_config(init_logdir, cfg)
     print('matching:')
     print(matching_modules)
     print('non-matching:')
@@ -87,11 +90,11 @@ if __name__ == '__main__':
     args = parse_args()
     logdir = args.logdir
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
-        script_utils.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
+        torchfcn.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     cuda = torch.cuda.is_available()
-    initial_model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config,
-                                                                         checkpoint_file=None, semantic_init=None,
-                                                                         cuda=cuda)
+    initial_model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config,
+                                                                                  checkpoint_file=None, semantic_init=None,
+                                                                                  cuda=cuda)
 
     # main_check_freeze()
     # main_check_cost_matrix()

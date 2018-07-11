@@ -23,6 +23,8 @@ from torchfcn.analysis import visualization_utils
 from torchfcn.datasets import dataset_utils
 from torchfcn import export_utils
 from torchfcn.models.model_utils import is_nan, any_nan
+from torchfcn.datasets import runtime_transformations
+import torchfcn.utils.misc
 import display_pyutils
 
 MY_TIMEZONE = 'America/New_York'
@@ -50,7 +52,7 @@ class Trainer(object):
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),
                  write_activation_condition=should_write_activations,
-                 bool_compute_instance_metrics=True,
+                 write_instance_metrics=True, bool_compute_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False):
         self.cuda = cuda
 
@@ -77,6 +79,7 @@ class Trainer(object):
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
+        self.write_instance_metrics = write_instance_metrics
         self.bool_compute_instance_metrics = bool_compute_instance_metrics
 
         # Stored values
@@ -192,7 +195,8 @@ class Trainer(object):
             False.
         """
         val_metrics = None
-        bool_compute_instance_metrics = self.bool_compute_instance_metrics
+        write_instance_metrics = (split == 'val') and self.write_instance_metrics \
+            if write_instance_metrics is None else write_instance_metrics
         write_instance_metrics = self.bool_compute_instance_metrics and (split == 'val') \
             if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
@@ -371,8 +375,8 @@ class Trainer(object):
                                     for label_pred, perms in zip(label_preds, permutations)]
         else:
             label_preds_permuted = label_preds
-        metrics_list = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted,
-                                                           n_class=self.n_combined_class)
+        metrics_list = torchfcn.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
+                                                                n_class=self.n_combined_class)
         return metrics_list
 
     def write_metrics(self, metrics, loss, split):
@@ -445,25 +449,29 @@ class Trainer(object):
 
         # TODO(allie): convert to sem, inst visualizations.
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
+        if DEBUG_ASSERTS:
+            assert inst_lbl_pred.shape == lbl_true_inst.shape
         for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
-            img = data_loader.dataset.untransform_img(img)
-            pp = pred_permutations[idx, :]
-            try:
-                (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
-                                       data_loader.dataset.untransform_lbl(inst_lbl))
-            except:
-                import ipdb;
-                ipdb.set_trace()
-                raise
+            # runtime_transformation needs to still run the resize, even for untransformed img, lbl pair
+            if data_loader.dataset.runtime_transformation is not None:
+                runtime_transformation_undo = runtime_transformations.GenericSequenceRuntimeDatasetTransformer(
+                        [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
+                         if isinstance(t, runtime_transformations.BasicRuntimeDatasetTransformer)])
+                img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))
 
-            lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
+            sem_lbl_np = lbl_untransformed[0]
+            inst_lbl_np = lbl_untransformed[1]
+
+            pp = pred_permutations[idx, :]
+            lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
             true_labels.append(lt_combined)
             pred_labels.append(lp)
             if should_visualize:
                 # Segmentations
+
                 viz = visualization_utils.visualize_segmentation(
-                    lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img, n_class=self.n_combined_class,
-                    overlay=False)
+                    lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img_untransformed,
+                    n_class=self.n_combined_class, overlay=False)
                 segmentation_visualizations.append(viz)
                 # Scores
                 sp = softmax_scores[idx, :, :, :]
@@ -496,7 +504,7 @@ class Trainer(object):
                                                              score_vis_normalizer=sp.max(),
                                                              channel_labels=channel_labels,
                                                              channels_to_visualize=channels_to_visualize,
-                                                             input_image=img)
+                                                             input_image=img_untransformed)
                 score_visualizations.append(viz)
         return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
                score_visualizations
@@ -516,8 +524,8 @@ class Trainer(object):
 
         if self.generate_new_synthetic_data_each_epoch:
             seed = np.random.randint(100)
-            self.train_loader.dataset.initialize_locations_per_image(seed)
-            self.train_loader_for_val.dataset.initialize_locations_per_image(seed)
+            self.train_loader.dataset.raw_dataset.initialize_locations_per_image(seed)
+            self.train_loader_for_val.dataset.raw_dataset.initialize_locations_per_image(seed)
 
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),

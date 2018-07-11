@@ -4,9 +4,9 @@ import os.path as osp
 import display_pyutils
 import matplotlib.pyplot as plt
 import torch
-import subprocess
 
-from torchfcn import script_utils
+import torchfcn.utils.logs
+import torchfcn.utils.scripts
 from torchfcn.analysis import score_heatmaps
 
 
@@ -111,7 +111,7 @@ def compute_relative_per_sem_class_heatmaps(list_of_relative_heatmap_averages, i
 def main():
     args = parse_args()
     logdir = args.logdir
-    script_utils.set_random_seeds()
+    torchfcn.utils.scripts.set_random_seeds()
     display_pyutils.set_my_rc_defaults()
     cuda = torch.cuda.is_available()
     if display_pyutils.check_for_emptied_workspace():
@@ -121,7 +121,7 @@ def main():
 
     # Load directory
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
-        script_utils.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
+        torchfcn.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     model.eval()
 
     # Write log directory name to folder

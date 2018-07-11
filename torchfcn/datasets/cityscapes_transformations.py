@@ -91,7 +91,6 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
             print('Generating {}'.format(new_inst_lbl_file))
             assert osp.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
             self.generate_train_id_instance_file(inst_lbl_file, new_inst_lbl_file, sem_lbl_file)
-            dataset_utils.generate_per_sem_instance_file(new_inst_lbl_file, sem_lbl_file, new_inst_lbl_file)
         if 1:
             assert osp.isfile(new_inst_lbl_file)
             assert osp.isfile(new_sem_lbl_file)
@@ -260,7 +259,6 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
     inst_lbl -= np.int32((inst_lbl / 1000)) * np.int32(1000)  # more efficient
     max_lbl = inst_lbl.max()
     if max_lbl > 0:
-
         # Check if instance values are consecutive, starting from 1.  If not, shift them all.
         consecutive_instance_values = list(range(1, max_lbl + 1))
         is_present = [bool((inst_lbl == val).sum() > 0) for val in consecutive_instance_values]

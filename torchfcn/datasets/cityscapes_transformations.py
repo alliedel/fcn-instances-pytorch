@@ -121,32 +121,16 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         inst_lbl = dataset_utils.load_img_as_dtype(raw_format_inst_lbl_file, np.int32)
         inst_lbl = self.raw_inst_to_train_inst_labels(inst_lbl, sem_lbl)
         orig_lbl = PIL.Image.open(raw_format_inst_lbl_file)
-        if orig_lbl.mode == 'P':
-            dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
-                inst_lbl, new_format_inst_lbl_file, filename_for_colormap=raw_format_inst_lbl_file)
-        elif orig_lbl.mode == 'I':
-            new_img_data = PIL.Image.fromarray(inst_lbl, mode='I')
-            new_lbl_img = orig_lbl.copy()
-            new_lbl_img.paste(new_img_data)
-            new_lbl_img.save(new_format_inst_lbl_file)
-        else:
-            raise NotImplementedError
+        dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
+            inst_lbl, new_format_inst_lbl_file, filename_for_colormap=raw_format_inst_lbl_file)
 
     def generate_train_id_semantic_file(self, raw_id_sem_lbl_file, new_train_id_sem_lbl_file):
         print('Generating per-semantic instance file: {}'.format(new_train_id_sem_lbl_file))
         sem_lbl = dataset_utils.load_img_as_dtype(raw_id_sem_lbl_file, np.int32)
         sem_lbl = map_raw_sem_ids_to_train_ids(sem_lbl, old_values=self._raw_id_list,
                                                new_values_from_old_values=self._raw_id_to_train_id)
-        old_mode = PIL.Image.open(raw_id_sem_lbl_file).mode
-        if old_mode == 'P':
-            dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
-                sem_lbl, new_train_id_sem_lbl_file, filename_for_colormap=raw_id_sem_lbl_file)
-        elif old_mode == 'L':
-            im = PIL.Image.fromarray(sem_lbl.astype(np.uint8))
-            converted = im.convert(mode='L')
-            converted.save(new_train_id_sem_lbl_file)
-        else:
-            raise NotImplementedError
+        dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
+            sem_lbl, new_train_id_sem_lbl_file, filename_for_colormap=raw_id_sem_lbl_file)
 
     def transform_semantic_class_names(self, original_semantic_class_names):
         assert len(original_semantic_class_names) == len(self._raw_id_list)

@@ -259,13 +259,14 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
 
         # Check if instance values are consecutive, starting from 1.  If not, shift them all.
         consecutive_instance_values = list(range(1, max_lbl + 1))
-        is_present = [(inst_lbl == val).sum() > 0 for val in consecutive_instance_values]
+        is_present = [bool((inst_lbl == val).sum() > 0) for val in consecutive_instance_values]
         if not all(is_present):
             print(misc.color_text('Instance values were in a weird format! Values present: {}'.format(
                 [consecutive_instance_values[present] for present in is_present]), misc.TermColors.WARNING))
-
-        new_instance_values = list(range(1, sum(is_present)))
+        num_present = sum([1 for p in is_present if p])
+        new_instance_values = list(range(1, num_present + 1))
         old_instance_values = [consecutive_instance_values[p] for p in is_present]
+        assert len(new_instance_values) == len(old_instance_values)
         for old_val, new_val in zip(old_instance_values, new_instance_values):
             inst_lbl[inst_lbl == old_val] = new_val
 

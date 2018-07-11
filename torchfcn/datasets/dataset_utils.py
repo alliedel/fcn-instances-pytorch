@@ -244,9 +244,8 @@ def write_np_array_as_img_with_borrowed_colormap_palette(arr, filename, filename
     if colormap_src.mode == 'P':
         write_np_array_as_img_with_colormap_palette(arr, filename, palette=colormap_src)
     elif colormap_src.mode in ['I', 'L']:
-        new_img_data = PIL.Image.fromarray(arr, mode=colormap_src.mode)
-        new_lbl_img = new_img_data.copy()
-        new_lbl_img.paste(new_img_data)
+        new_lbl_img = PIL.Image.fromarray(arr)
+        new_lbl_img.convert(mode=colormap_src.mode)
         new_lbl_img.save(filename)
     else:
         raise NotImplementedError

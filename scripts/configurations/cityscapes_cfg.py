@@ -56,6 +56,6 @@ configurations = {
         semantic_subset=None,
         dataset_instance_cap=3,
         n_instances_per_class=3,
-        ordering='lr'
+        ordering=None
     )
 }

@@ -36,4 +36,11 @@ configurations = {
         augment_semantic=False,
         map_to_semantic=True
     ),
+    'semantic': dict(
+        n_instances_per_class=1,
+        max_iteration=1000000,
+        single_instance=True,
+        interval_validate=4000,
+        semantic_subset=None
+    )
 }

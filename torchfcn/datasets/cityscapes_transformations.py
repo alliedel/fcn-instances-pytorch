@@ -265,7 +265,7 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
                 [consecutive_instance_values[present] for present in is_present]), misc.TermColors.WARNING))
         num_present = sum([1 for p in is_present if p])
         new_instance_values = list(range(1, num_present + 1))
-        old_instance_values = [consecutive_instance_values[p] for p in is_present]
+        old_instance_values = [val for val, p in zip(consecutive_instance_values, is_present) if p]
         assert len(new_instance_values) == len(old_instance_values)
         for old_val, new_val in zip(old_instance_values, new_instance_values):
             inst_lbl[inst_lbl == old_val] = new_val

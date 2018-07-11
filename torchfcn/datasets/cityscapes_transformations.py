@@ -83,10 +83,12 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
     def transform(self, img_file, sem_lbl_file, inst_lbl_file):
         new_sem_lbl_file = sem_lbl_file.replace(self.old_sem_file_tag, self.new_sem_file_tag)
         if not osp.isfile(new_sem_lbl_file):
+            print('Generating {}'.format(new_sem_lbl_file))
             assert osp.isfile(sem_lbl_file), '{} does not exist'.format(sem_lbl_file)
             self.generate_train_id_semantic_file(sem_lbl_file, new_sem_lbl_file)
         new_inst_lbl_file = inst_lbl_file.replace(self.old_inst_file_tag, self.new_inst_file_tag)
         if not osp.isfile(new_inst_lbl_file):
+            print('Generating {}'.format(new_inst_lbl_file))
             assert osp.isfile(inst_lbl_file), '{} does not exist'.format(inst_lbl_file)
             self.generate_train_id_instance_file(inst_lbl_file, new_inst_lbl_file, sem_lbl_file)
             dataset_utils.generate_per_sem_instance_file(new_inst_lbl_file, sem_lbl_file, new_inst_lbl_file)

@@ -263,7 +263,6 @@ def generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lb
     Converts instance labels so they start from 1 for every semantic class (instead of person 1, person 2, car 3,
     etc. -- remaps to person 1, person 2, car 1)
     """
-    print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
     sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
     sem_lbl[sem_lbl == 255] = -1
     unique_sem_lbls = np.unique(sem_lbl)

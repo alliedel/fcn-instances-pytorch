@@ -117,6 +117,7 @@ def get_raw_voc_files(dataset_dir, split):
         if not osp.isfile(inst_lbl_file_unordered):
             if not osp.isfile(inst_absolute_lbl_file):
                 raise Exception('This image does not exist')
+            print('Generating per-semantic instance file: {}'.format(inst_lbl_file_unordered))
             dataset_utils.generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file_unordered)
 
         files.append({

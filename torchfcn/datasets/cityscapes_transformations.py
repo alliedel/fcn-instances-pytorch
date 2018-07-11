@@ -5,6 +5,7 @@ import os.path as osp
 import os
 from . import dataset_utils
 import PIL.Image
+from torchfcn.utils import misc
 
 
 def convert_to_p_mode_file(old_file, new_file, palette, assert_inside_palette_range=True):
@@ -121,8 +122,16 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         inst_lbl = dataset_utils.load_img_as_dtype(raw_format_inst_lbl_file, np.int32)
         inst_lbl = self.raw_inst_to_train_inst_labels(inst_lbl, sem_lbl)
         orig_lbl = PIL.Image.open(raw_format_inst_lbl_file)
-        dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
-            inst_lbl, new_format_inst_lbl_file, filename_for_colormap=raw_format_inst_lbl_file)
+        if orig_lbl.mode == 'P':
+            dataset_utils.write_np_array_as_img_with_borrowed_colormap_palette(
+                inst_lbl, new_format_inst_lbl_file, filename_for_colormap=raw_format_inst_lbl_file)
+        elif orig_lbl.mode == 'I':
+            new_img_data = PIL.Image.fromarray(inst_lbl, mode='I')
+            new_lbl_img = orig_lbl.copy()
+            new_lbl_img.paste(new_img_data)
+            new_lbl_img.save(new_format_inst_lbl_file)
+        else:
+            raise NotImplementedError
 
     def generate_train_id_semantic_file(self, raw_id_sem_lbl_file, new_train_id_sem_lbl_file):
         print('Generating per-semantic instance file: {}'.format(new_train_id_sem_lbl_file))
@@ -245,8 +254,21 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
     """
     inst_lbl[inst_lbl < 1000] = 0
     inst_lbl -= np.int32((inst_lbl / 1000)) * np.int32(1000)  # more efficient
-    if (inst_lbl > 0).sum() > 0:
-        assert (inst_lbl == 1).sum() > 0, 'Problem: instance identifier 1 does not exist!'
+    max_lbl = inst_lbl.max()
+    if max_lbl > 0:
+
+        # Check if instance values are consecutive, starting from 1.  If not, shift them all.
+        consecutive_instance_values = list(range(1, max_lbl + 1))
+        is_present = [[inst_lbl == val].sum() for val in consecutive_instance_values]
+        if not all(is_present):
+            print(misc.color_text('Instance values were in a weird format! Values present: {}'.format(
+                [consecutive_instance_values[present] for present in is_present]), misc.TermColors.WARNING))
+
+        new_instance_values = list(range(1, sum(is_present)))
+        old_instance_values = [consecutive_instance_values[p] for p in is_present]
+        for old_val, new_val in zip(old_instance_values, new_instance_values):
+            inst_lbl[inst_lbl == old_val] = new_val
+
     return inst_lbl
 
 

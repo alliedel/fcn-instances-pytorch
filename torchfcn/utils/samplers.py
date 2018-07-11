@@ -12,6 +12,8 @@ def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, n_
         useful if you're going to get rid of semantic classes, etc. but want to still sample images that have them.
         If it matches dataset, just pass dataset in for this parameter as well.
     """
+    assert dataset_configured_for_stats is not None, 'Missing a dataset for generating stats.  Likely you need to ' \
+                                                     'provide a method for creating a default dataset in the registry.'
     assert len(dataset_configured_for_stats) == len(dataset), \
         AssertionError('Bug here.  Assumed same set of images (untransformed).')
 

@@ -35,7 +35,8 @@ def get_default_datasets_for_instance_counts(dataset_type):
                                                              precomputed_file_transformation,
                                                              runtime_transformation=runtime_transformation)
     elif dataset_type == 'synthetic':
-        raise NotImplementedError('synthetic is different every time -- cannot save instance counts in between')
+        return None, None, None
+        # raise NotImplementedError('synthetic is different every time -- cannot save instance counts in between')
     else:
         raise ValueError
     transformer_tag = get_transformer_identifier_tag(precomputed_file_transformation, runtime_transformation)

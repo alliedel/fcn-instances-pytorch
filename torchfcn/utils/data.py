@@ -84,7 +84,7 @@ def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_cfg
     sem_cls_filter = pop_without_del(sampler_cfg[sampler_type], 'sem_cls_filter', None)
     sem_cls_filter_values = convert_sem_cls_filter_from_names_to_values(
         sem_cls_filter, default_dataset.semantic_class_names) \
-        if isinstance(sem_cls_filter[0], str) else sem_cls_filter
+        if sem_cls_filter is not None and isinstance(sem_cls_filter[0], str) else sem_cls_filter
     sampler = get_configured_sampler(
         dataset, default_dataset, sequential=True,
         n_instances_range=pop_without_del(sampler_cfg[sampler_type], 'n_instances_range', None),

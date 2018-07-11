@@ -27,20 +27,27 @@ configurations = {
         single_instance=True,
         n_instances_per_class=None,
     ),
-    'person_noaug_sem': dict(
-        semantic_subset=['person', 'background'],
+    'car_only__single_instance_semantic': dict(
+        semantic_subset=['car', 'background'],
         interval_validate=1000,
         max_iteration=100000,
-        n_instances_per_class=3,
-        freeze_vgg=False,
-        augment_semantic=False,
-        map_to_semantic=True
+        n_instances_per_class=1,
+        single_instance=True,
+        map_to_semantic=True,
+        dataset_instance_cap=None,
     ),
-    'semantic': dict(
+    'car_only__mapped_semantic': dict(
         n_instances_per_class=1,
         max_iteration=1000000,
         single_instance=True,
         interval_validate=4000,
-        semantic_subset=None
+        semantic_subset=None,
+        map_to_semantic=True,
+        dataset_instance_cap=None,
+    ),
+    'semantic': dict(
+        single_instance=True,
+        n_instances_per_class=1,
+        dataset_instance_cap=None,
     )
 }

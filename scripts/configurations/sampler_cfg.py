@@ -101,7 +101,39 @@ sampler_cfgs = {
         'train_for_val':  {
             'n_images': None
         }
-    }
+    },
+    'car_2_4inst_allimg_realval': {
+        'train':
+            {'n_images': None,
+             'sem_cls_filter': ['car'],
+             'n_instances_range': (2, 4),
+             },
+        'val':
+            {'n_images': None,
+             'sem_cls_filter': ['car'],
+             'n_instances_range': (2, 4),
+             },
+        'train_for_val':  # just configures what should be processed during val
+            {
+                'n_images': None
+            }
+    },
+    'car_2inst_allimg_realval': {
+        'train':
+            {'n_images': None,
+             'sem_cls_filter': ['car'],
+             'n_instances_range': (2, None),
+             },
+        'val':
+            {'n_images': None,
+             'sem_cls_filter': ['car'],
+             'n_instances_range': (2, None),
+             },
+        'train_for_val':  # just configures what should be processed during val
+            {
+                'n_images': None
+            }
+    },
 }
 
 sampler_cfgs[None] = sampler_cfgs['default']

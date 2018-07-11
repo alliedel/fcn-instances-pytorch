@@ -272,9 +272,12 @@ def map_raw_sem_ids_to_train_ids(sem_lbl, old_values, new_values_from_old_values
     old_values = [old_values[i] for i in new_value_sorted_idxs]
     new_values_from_old_values = [new_values_from_old_values[i] for i in new_value_sorted_idxs]
     assert len(old_values) == len(new_values_from_old_values)
-    assert all([new <= old for old, new in zip(old_values, new_values_from_old_values)]), \
-        NotImplementedError('I\'ve got to do something smarter when assigning...')
-    # map ids to train_ids (e.g. - tunnel (id=16) is unused, so maps to 255.
-    for old_val, new_val in zip(old_values, new_values_from_old_values):
-        sem_lbl[sem_lbl == old_val] = new_val
+    if all([new <= old for old, new in zip(old_values, new_values_from_old_values)]):
+        # map ids to train_ids (e.g. - tunnel (id=16) is unused, so maps to 255.
+        for old_val, new_val in zip(old_values, new_values_from_old_values):
+            sem_lbl[sem_lbl == old_val] = new_val
+    else:  # less efficient method
+        sem_lbl_old = sem_lbl.copy()
+        for old_val, new_val in zip(old_values, new_values_from_old_values):
+            sem_lbl[sem_lbl_old == old_val] = new_val
     return sem_lbl

@@ -60,10 +60,9 @@ def precomputed_file_transformer_factory(ordering=None):
 
 
 class InstanceOrderingPrecomputedDatasetFileTransformation(PrecomputedDatasetFileTransformerBase):
-    postfix = '_ordered_lr'
 
     def __init__(self, ordering=None):
-        self.ordering = ordering  # 'lr'
+        self.ordering = ordering  # 'lr', 'big_to_small'
 
     def transform(self, img_file, sem_lbl_file, inst_lbl_file):
         inst_lbl_file_unordered = inst_lbl_file
@@ -72,8 +71,15 @@ class InstanceOrderingPrecomputedDatasetFileTransformation(PrecomputedDatasetFil
         elif self.ordering.lower() == 'lr':
             inst_lbl_file_ordered = inst_lbl_file_unordered.replace('.png', self.postfix + '.png')
             if not osp.isfile(inst_lbl_file_ordered):
-                dataset_utils.generate_lr_ordered_instance_file(inst_lbl_file_unordered,
-                                                                sem_lbl_file, inst_lbl_file_ordered)
+                dataset_utils.generate_ordered_instance_file(inst_lbl_file_unordered,
+                                                             sem_lbl_file, inst_lbl_file_ordered, ordering='lr',
+                                                             increasing='True')
+        elif self.ordering.lower() == 'big_to_small':
+            inst_lbl_file_ordered = inst_lbl_file_unordered.replace('.png', self.postfix + '.png')
+            if not osp.isfile(inst_lbl_file_ordered):
+                dataset_utils.generate_ordered_instance_file(inst_lbl_file_unordered,
+                                                             sem_lbl_file, inst_lbl_file_ordered,
+                                                             ordering='size', increasing=False)
         else:
             raise ValueError('ordering={} not recognized'.format(self.ordering))
         return img_file, sem_lbl_file, inst_lbl_file_ordered
@@ -89,6 +95,10 @@ class InstanceOrderingPrecomputedDatasetFileTransformation(PrecomputedDatasetFil
         else:
             raise ValueError('ordering={} not recognized'.format(self.ordering))
         return img_file, sem_lbl_file, inst_lbl_file_unordered
+
+    @property
+    def postfix(self):
+        return '_ordered_{}'.format(self.ordering)
 
 
 class GenericSequencePrecomputedDatasetFileTransformer(PrecomputedDatasetFileTransformerBase):

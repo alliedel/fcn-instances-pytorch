@@ -280,17 +280,20 @@ def generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lb
         write_np_array_as_img_with_borrowed_colormap_palette(inst_lbl, inst_lbl_file, inst_absolute_lbl_file)
 
 
-def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out_inst_lbl_file_ordered):
-    print('Generating LR-ordered instance file: {}'.format(out_inst_lbl_file_ordered))
+def generate_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out_inst_lbl_file_ordered, ordering,
+                                   increasing):
+    print('Generating {}-ordered instance file: {}'.format(ordering, out_inst_lbl_file_ordered))
     sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
     inst_lbl = load_img_as_dtype(inst_lbl_file_unordered, np.int32)
     inst_lbl[inst_lbl == 255] = -1
-    make_lr_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl)
+
+    inst_lbl = make_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl, ordering, increasing)
+
     inst_lbl[inst_lbl == -1] = 255
     write_np_array_as_img_with_borrowed_colormap_palette(inst_lbl, out_inst_lbl_file_ordered, inst_lbl_file_unordered)
 
 
-def make_lr_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl):
+def make_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl, ordering, increasing):
     old_inst_lbl = inst_lbl.copy()
     unique_sem_lbls = np.unique(sem_lbl)
     for sem_val in unique_sem_lbls[unique_sem_lbls > 0]:
@@ -298,19 +301,33 @@ def make_lr_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl):
         if DEBUG_ASSERT:
             assert not np.any(unique_instance_idxs == 0)
         unique_instance_idxs = unique_instance_idxs[unique_instance_idxs > 0]  # don't remap void
-        coms = []
+        attribute_values = []
         for old_inst_val in unique_instance_idxs:
-            com = compute_centroid_binary_mask(np.logical_and(sem_lbl == sem_val, old_inst_lbl == old_inst_val))
-            coms.append(com)
-        left_right_ordering = [x for x in np.argsort([com[1] for com in coms])]
-        if not all([x == y for x, y in zip(left_right_ordering, list(range(len(left_right_ordering))))]):
+            if ordering == 'size':
+                ordering_attribute = get_instance_size(sem_lbl, sem_val, old_inst_lbl, old_inst_val)
+            elif ordering == 'lr':
+                ordering_attribute = get_instance_centroid(sem_lbl, sem_val, old_inst_lbl, old_inst_val)
+            else:
+                raise NotImplementedError
+            attribute_values.append(ordering_attribute)
+        increasing_ordering = [x for x in np.argsort([com[1] for com in attribute_values])]
+        size_ordering = increasing_ordering if increasing else increasing_ordering[::-1]
+        if not all([x == y for x, y in zip(size_ordering, list(range(len(size_ordering))))]):
             print('debug: confirmed we reordered at least one instance')
-        old_inst_vals = [unique_instance_idxs[x] for x in left_right_ordering]
+        old_inst_vals = [unique_instance_idxs[x] for x in size_ordering]
 
         for new_inst_val_minus_1, old_inst_val in enumerate(old_inst_vals):
             new_inst_val = new_inst_val_minus_1 + 1
             inst_lbl[np.logical_and(sem_lbl == sem_val, old_inst_lbl == old_inst_val)] = new_inst_val
     return inst_lbl
+
+
+def get_instance_centroid(sem_lbl, sem_val, inst_lbl, inst_val):
+    return compute_centroid_binary_mask(np.logical_and(sem_lbl == sem_val, inst_lbl == inst_val))
+
+
+def get_instance_size(sem_lbl, sem_val, inst_lbl, inst_val):
+    return (np.logical_and(sem_lbl == sem_val, inst_lbl == inst_val)).sum()
 
 
 def get_image_center(img_size, floor=False):

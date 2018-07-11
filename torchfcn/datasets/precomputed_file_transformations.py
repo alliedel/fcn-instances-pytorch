@@ -78,7 +78,7 @@ class InstanceOrderingPrecomputedDatasetFileTransformation(PrecomputedDatasetFil
                 dataset_utils.generate_ordered_instance_file(inst_lbl_file_unordered,
                                                              sem_lbl_file, inst_lbl_file_ordered, ordering='lr',
                                                              increasing='True')
-        elif self.ordering.lower() == 'big_to_small':
+        elif self.ordering.lower() == 'big_to_small' or self.ordering.lower() == 'bigsmall':
             inst_lbl_file_ordered = inst_lbl_file_unordered.replace('.png', self.postfix + '.png')
             if not osp.isfile(inst_lbl_file_ordered):
                 dataset_utils.generate_ordered_instance_file(inst_lbl_file_unordered,

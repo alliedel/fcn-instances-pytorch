@@ -296,19 +296,21 @@ def make_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl, ordering, increasing):
     unique_sem_lbls = np.unique(sem_lbl)
     for sem_val in unique_sem_lbls[unique_sem_lbls > 0]:
         unique_instance_idxs = np.unique(old_inst_lbl[sem_lbl == sem_val])
-        if DEBUG_ASSERT:
-            assert not np.any(unique_instance_idxs == 0)
-        unique_instance_idxs = unique_instance_idxs[unique_instance_idxs > 0]  # don't remap void
+        # TODO(allie): Verify it's okay that we get rid of this assert statement
+        # if DEBUG_ASSERT:
+        #     assert not np.any(unique_instance_idxs == 0)
+        unique_instance_idxs = unique_instance_idxs[np.logical_and(unique_instance_idxs > 0, unique_instance_idxs <
+                                                                   255)]  # don't remap void
         attribute_values = []
         for old_inst_val in unique_instance_idxs:
             if ordering == 'size':
                 ordering_attribute = get_instance_size(sem_lbl, sem_val, old_inst_lbl, old_inst_val)
             elif ordering == 'lr':
-                ordering_attribute = get_instance_centroid(sem_lbl, sem_val, old_inst_lbl, old_inst_val)
+                ordering_attribute = get_instance_centroid(sem_lbl, sem_val, old_inst_lbl, old_inst_val)[1]
             else:
                 raise NotImplementedError
             attribute_values.append(ordering_attribute)
-        increasing_ordering = [x for x in np.argsort([com[1] for com in attribute_values])]
+        increasing_ordering = [x for x in np.argsort([val for val in attribute_values])]
         size_ordering = increasing_ordering if increasing else increasing_ordering[::-1]
         if not all([x == y for x, y in zip(size_ordering, list(range(len(size_ordering))))]):
             print('debug: confirmed we reordered at least one instance')

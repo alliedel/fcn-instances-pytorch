@@ -36,6 +36,9 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'optim': 'o',
                                         'augment_semantic': 'augsem',
                                         'use_conv8': 'conv8',
+                                        'dataset_instance_cap': 'datacap',
+                                        'export_activations': 'exp_act',
+                                        'write_instance_metrics': 'wr_instmet'
                                         }
 
 

@@ -1,4 +1,5 @@
-# Instance Segmentation, built on top of pytorch-fcn
+# Instance Segmentation
+An in-progess repository by Allie Del Giorno (Carnegie Mellon University) investigating instance segmentation approaches
 
 ## Installation
 Not third-party friendly at the moment (sorry!).  But still should be possible --
@@ -8,19 +9,26 @@ You'll have to clone this and add it to your python path: https://bitbucket.org/
 
 All packages I have are listed in the requirements.txt file; not all are actually required, so you could alternatively just install packages and rerun until it's happy :)
 
-If you're trying to run on PASCAL, you're likely to run into some hard-coded paths.  Hopefully simply pointing it to the right place resolves that (but I'm not super confident)
-
 ## Scripts
 Each of the scripts requires an argument for the GPU number to run on.  If you'd like to run on CPU, set -g to -1.
+
 ### Run a synthetic example:
-`python examples/pink_blobs/train_fcn8s_pink_blobs.py -g 0`
+`python scripts/train_instances_filtered.py synthetic -g 0`
 
 ### Run on PASCAL VOC:
-`python examples/voc/train_fcn8s_all_voc_instances.py -g 0`
+`python scripts/train_instances_filtered.py voc -g 0`
 
 ## Pointers to the interesting parts of the code
-Matching loss:
-torchfcn/losses.py
+**Matching loss**: [torchfcn/losses.py](torchfcn/losses.py)
 
-Network architecture:
-torchfcn/models/fcn8s_instance.py
+**Network architecture**: [torchfcn/models/fcn8s_instance.py](torchfcn/models/fcn8s_instance.py)
+
+## TODOs for GitHub users
+- Make directory changes and other per-machine configurations easy
+- Put local_pyutils functions in torchfcn/utils/misc.py instead
+- Rename torchfcn directory (no longer an apt name, but delaying the refactor until the code is stable)
+- More tests -- dataset loading
+- Basic examples (one synthetic; one saved-model-with-real-image)
+
+## Credit
+This project was originally built on top of [pytorch-fcn](https://github.com/wkentaro/pytorch-fcn "pytorch-fcn"), but now you may not see much resemblance...

@@ -1,3 +1,5 @@
+tqdm
+scipy
 numpy
 ipdb
 PyYAML

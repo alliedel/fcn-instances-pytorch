@@ -5,10 +5,30 @@ import numpy as np
 import scipy.misc
 import scipy.ndimage
 import torch
+from torch.autograd import Variable
 
 # TODO(allie): Allow for augmentations
 
 DEBUG_ASSERT = True
+
+
+def prep_input_for_scoring(input_tensor, cuda):
+    """
+    n_semantic_classes only needed for augmenting.
+    """
+    if cuda:
+        input_tensor = input_tensor.cuda()
+    input_variable = Variable(input_tensor)
+    return input_variable
+
+
+def prep_inputs_for_scoring(img_tensor, sem_lbl_tensor, inst_lbl_tensor, cuda):
+    """
+    n_semantic_classes only needed for augmenting.
+    """
+    img_var, sem_lbl_var, inst_lbl_var = tuple(prep_input_for_scoring(x, cuda) for x in (img_tensor, sem_lbl_tensor,
+                                                                                         inst_lbl_tensor))
+    return img_var, sem_lbl_var, inst_lbl_var
 
 
 def assert_validation_images_arent_in_training_set(train_loader, val_loader):
@@ -20,43 +40,51 @@ def assert_validation_images_arent_in_training_set(train_loader, val_loader):
                                                                                       train_idx))
 
 
-def transform_lbl(lbl, resized_sz=None):
-    # Resizing is tricky (we may lose classes to sub-pixel downsample)
-    if resized_sz is not None:
-        lbl = lbl.astype(float)
-        lbl = scipy.misc.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
-
-    lbl = torch.from_numpy(lbl).long()  # NOTE(allie): lbl.float() (?)
-    return lbl
-
-
-def transform_img(img, mean_bgr=None, resized_sz=None):
+def convert_img_to_torch_tensor(img, mean_bgr=None):
     img = img[:, :, ::-1]  # RGB -> BGR
-    if resized_sz is not None:
-        img = scipy.misc.imresize(img, (resized_sz[0], resized_sz[1]))
     img = img.astype(np.float64)
-    if mean_bgr is not None:
-        img -= mean_bgr
+    try:
+        if mean_bgr is not None:
+            img -= mean_bgr
+    except:
+        import ipdb; ipdb.set_trace()
+
     # NHWC -> NCWH
     img = img.transpose(2, 0, 1)
     img = torch.from_numpy(img).float()
     return img
 
 
-def untransform_lbl(lbl):
+def convert_lbl_to_torch_tensor(lbl):
+    lbl = torch.from_numpy(lbl).long()  # NOTE(allie): lbl.float() (?)
+    return lbl
+
+
+def convert_torch_lbl_to_numpy(lbl):
     lbl = lbl.numpy()
     return lbl
 
 
-def untransform_img(img, mean_bgr=None, original_size=None):
-    if original_size is not None:
-        raise NotImplementedError
+def convert_torch_img_to_numpy(img, mean_bgr=None):
     img = img.numpy()
     img = img.transpose(1, 2, 0)
     if mean_bgr is not None:
         img += mean_bgr
     img = img.astype(np.uint8)
     img = img[:, :, ::-1]
+    return img
+
+
+def resize_lbl(lbl, resized_sz):
+    if resized_sz is not None:
+        lbl = lbl.astype(float)
+        lbl = scipy.misc.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
+    return lbl
+
+
+def resize_img(img, resized_sz):
+    if resized_sz is not None:
+        img = scipy.misc.imresize(img, (resized_sz[0], resized_sz[1]))
     return img
 
 
@@ -211,14 +239,23 @@ def write_np_array_as_img(arr, filename):
     im.save(filename)
 
 
-def write_np_array_as_img_with_borrowed_colormap_pallete(arr, filename, filename_for_colormap):
-    im = PIL.Image.fromarray(arr.astype(np.uint8))
+def write_np_array_as_img_with_borrowed_colormap_palette(arr, filename, filename_for_colormap):
     colormap_src = PIL.Image.open(filename_for_colormap)
-    converted = im.quantize(palette=colormap_src)
+    write_np_array_as_img_with_colormap_palette(arr, filename, palette=colormap_src)
+
+
+def write_np_array_as_img_with_colormap_palette(arr, filename, palette):
+    im = PIL.Image.fromarray(arr.astype(np.uint8))
+    converted = im.quantize(palette=palette)
     converted.save(filename)
 
 
 def generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file):
+    """
+    Nominally VOC-specific, though may be useful for other datasets.
+    Converts instance labels so they start from 1 for every semantic class (instead of person 1, person 2, car 3,
+    etc. -- remaps to person 1, person 2, car 1)
+    """
     print('Generating per-semantic instance file: {}'.format(inst_lbl_file))
     sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
     sem_lbl[sem_lbl == 255] = -1
@@ -232,16 +269,22 @@ def generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lb
             first_instance_idx = inst_lbl[sem_lbl == sem_val].min()
             inst_lbl[sem_lbl == sem_val] -= (first_instance_idx - 1)
         inst_lbl[inst_lbl == -1] = 255
-        write_np_array_as_img_with_borrowed_colormap_pallete(inst_lbl, inst_lbl_file, sem_lbl_file)
+        write_np_array_as_img_with_borrowed_colormap_palette(inst_lbl, inst_lbl_file, sem_lbl_file)
 
 
 def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out_inst_lbl_file_ordered):
     print('Generating LR-ordered instance file: {}'.format(out_inst_lbl_file_ordered))
     sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
-    unique_sem_lbls = np.unique(sem_lbl)
     inst_lbl = load_img_as_dtype(inst_lbl_file_unordered, np.int32)
     inst_lbl[inst_lbl == 255] = -1
+    make_lr_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl)
+    inst_lbl[inst_lbl == -1] = 255
+    write_np_array_as_img_with_borrowed_colormap_palette(inst_lbl, out_inst_lbl_file_ordered, inst_lbl_file_unordered)
+
+
+def make_lr_ordered_copy_of_inst_lbl(inst_lbl, sem_lbl):
     old_inst_lbl = inst_lbl.copy()
+    unique_sem_lbls = np.unique(sem_lbl)
     for sem_val in unique_sem_lbls[unique_sem_lbls > 0]:
         unique_instance_idxs = np.unique(old_inst_lbl[sem_lbl == sem_val])
         if DEBUG_ASSERT:
@@ -259,8 +302,14 @@ def generate_lr_ordered_instance_file(inst_lbl_file_unordered, sem_lbl_file, out
         for new_inst_val_minus_1, old_inst_val in enumerate(old_inst_vals):
             new_inst_val = new_inst_val_minus_1 + 1
             inst_lbl[np.logical_and(sem_lbl == sem_val, old_inst_lbl == old_inst_val)] = new_inst_val
-    inst_lbl[inst_lbl == -1] = 255
-    write_np_array_as_img_with_borrowed_colormap_pallete(inst_lbl, out_inst_lbl_file_ordered, inst_lbl_file_unordered)
+    return inst_lbl
+
+
+def get_image_center(img_size, floor=False):
+    if floor:
+        return [sz // 2 for sz in img_size]
+    else:
+        return [sz / 2 for sz in img_size]
 
 
 def compute_centroid_binary_mask(binary_mask):

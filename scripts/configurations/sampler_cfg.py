@@ -1,3 +1,6 @@
+# TODO(allie): Make it easier to generate and override sampler_cfgs (like it is to generate the others)
+
+
 sampler_cfgs = {
     'default': {
         'train':
@@ -68,7 +71,9 @@ sampler_cfgs = {
              'n_instances_range': (2, None),
              },
         'val': 'copy_train',
-        'train_for_val': 'copy_train'
+        'train_for_val':  {
+            'n_images': None
+        }
     },
     'person_2_4inst_allimg_realval': {
         'train':
@@ -98,3 +103,5 @@ sampler_cfgs = {
         }
     }
 }
+
+sampler_cfgs[None] = sampler_cfgs['default']

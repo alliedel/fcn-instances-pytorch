@@ -9,7 +9,7 @@ import torch
 import tqdm
 
 import torchfcn
-from examples.voc.script_utils import get_log_dir
+from torchfcn import instance_utils
 from torchfcn.datasets import dataset_utils
 from torchfcn.datasets import voc
 
@@ -100,14 +100,14 @@ def get_n_max_per_class_from_dataset(dataset):
     return n_max_per_class
 
 
-def create_dataset_summary(dataset, n_max_per_class=None):
+def create_dataset_summary(dataset, all_semantic_class_names, n_max_per_class=None):
     # Get # max instances
     if n_max_per_class is None:
         n_max_per_class = get_n_max_per_class_from_dataset(dataset)
     dataset.update_n_max_per_class(n_max_per_class)
 
     # Get some stats
-    semantic_classes = voc.ALL_VOC_CLASS_NAMES
+    semantic_classes = all_semantic_class_names
     semantic_instance_mapping = dataset.get_instance_to_semantic_mapping()
     per_instance_semantic_names = dataset.get_instance_semantic_labels()
     n_imgs = len(dataset)
@@ -138,9 +138,8 @@ def create_dataset_summary(dataset, n_max_per_class=None):
         number_of_total_instances[idx] = np.sum(number_of_instances_per_semantic_class[idx, :])
         number_of_void_pixels[idx] = torch.sum(sem_target == -1)
         # The function below overwrites the inst_target, so gotta be careful!
-        full_instance_target = dataset_utils.combine_semantic_and_instance_labels(sem_target,
-                                                                                  inst_target,
-                                                                                  n_max_per_class)
+        full_instance_target = instance_utils.combine_semantic_and_instance_labels(sem_target, inst_target,
+                                                                                   n_max_per_class)
         number_of_pixels_per_semantic_instance[idx, :] = [torch.sum(full_instance_target ==
                                                                     sem_inst_cls)
                                                           for sem_inst_cls in

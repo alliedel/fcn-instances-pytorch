@@ -5,6 +5,10 @@ import PIL.Image
 import numpy as np
 import scipy.io
 
+from torchfcn.datasets import dataset_utils
+from torchfcn.datasets.dataset_utils import load_img_as_dtype
+from torchfcn.datasets.voc import ALL_VOC_CLASS_NAMES
+
 from . import voc
 
 
@@ -45,4 +49,93 @@ class SBDClassSeg(voc.VOCClassSegBase):
             return self.transform(img, lbl)
         else:
             return img, lbl
+
+    def set_instance_cap(self, n_inst_cap_per_class=None):
+        if not isinstance(n_inst_cap_per_class, int):
+            raise NotImplementedError('Haven\'t implemented dif cap per semantic class. Please use an int.')
+        self.n_inst_cap_per_class = n_inst_cap_per_class
+
+    def reset_instance_cap(self):
+        self.n_inst_cap_per_class = None
+
+    def reduce_to_semantic_subset(self, semantic_subset):
+        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+            semantic_subset=semantic_subset, full_set=ALL_VOC_CLASS_NAMES)
+
+    def clear_semantic_subset(self):
+        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+            semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
+
+    def transform_img(self, img):
+        return dataset_utils.transform_img(img, self.mean_bgr, resized_sz=None)
+
+    @staticmethod
+    def transform_lbl(lbl):
+        return dataset_utils.transform_lbl(lbl)
+
+    def transform(self, img, lbl):
+        img = self.transform_img(img)
+        lbl = self.transform_lbl(lbl)
+        return img, lbl
+
+    def untransform(self, img, lbl):
+        img = self.untransform_img(img)
+        lbl = self.untransform_lbl(lbl)
+        return img, lbl
+
+    def untransform_img(self, img):
+        return dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
+
+    def untransform_lbl(self, lbl):
+        return dataset_utils.untransform_lbl(lbl)
+
+    def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
+        raise NotImplementedError('we need to pass or create the instance config class to make this work properly')
+
+    def load_and_process_sem_lbl(self, sem_lbl_file):
+        sem_lbl = load_img_as_dtype(sem_lbl_file, np.int32)
+        sem_lbl[sem_lbl == 255] = -1
+        if self._transform:
+            sem_lbl = self.transform_lbl(sem_lbl)
+        # map to reduced class set
+        sem_lbl = self.remap_to_reduced_semantic_classes(sem_lbl)
+        return sem_lbl
+
+    def load_and_process_voc_files(self, img_file, sem_lbl_file, inst_lbl_file, gt_sem_inst_ordering_tuple_list=None):
+        img = load_img_as_dtype(img_file, np.uint8)
+        if self._transform:
+            img = self.transform_img(img)
+
+        # load semantic label
+        sem_lbl = self.load_and_process_sem_lbl(sem_lbl_file)
+
+        # load instance label
+        if self.semantic_only_labels:
+            lbl = sem_lbl
+        else:
+            inst_lbl = load_img_as_dtype(inst_lbl_file, np.int32)
+            inst_lbl[inst_lbl == 255] = -1
+            if self.map_to_single_instance_problem:
+                inst_lbl[inst_lbl != -1] = 1
+            if self._transform:
+                inst_lbl = self.transform_lbl(inst_lbl)
+            inst_lbl[sem_lbl == -1] = -1
+
+            if self.n_inst_cap_per_class is not None:
+                inst_lbl[inst_lbl > self.n_inst_cap_per_class] = -1
+
+            inst_lbl[inst_lbl == 0] = -1  # sanity check
+            inst_lbl[sem_lbl == 0] = 0  # needed for when we map other semantic classes to background.
+            sem_lbl[inst_lbl == -1] = -1
+            if self.return_semantic_instance_tuple:
+                lbl = [sem_lbl, inst_lbl]
+            else:
+                lbl = self.combine_semantic_and_instance_labels(sem_lbl, inst_lbl)
+
+        return img, lbl
+
+    def remap_to_reduced_semantic_classes(self, sem_lbl):
+        return dataset_utils.remap_to_reduced_semantic_classes(
+            sem_lbl, reduced_class_idxs=self.idxs_into_all_voc,
+            map_other_classes_to_bground=self.map_other_classes_to_bground)
 

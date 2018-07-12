@@ -22,6 +22,8 @@ class InstanceProblemConfig(object):
         """
         if semantic_vals is not None:
             assert len(semantic_vals) == len(n_instances_by_semantic_id)
+        assert n_instances_by_semantic_id is not None, ValueError
+
         self.map_to_semantic = map_to_semantic
         self.class_names = class_names
         self.semantic_vals = semantic_vals or range(len(n_instances_by_semantic_id))
@@ -186,3 +188,23 @@ def get_instance_to_semantic_mapping(n_instances_by_semantic_id, as_numpy=False)
     """
     semantic_instance_class_list = get_semantic_instance_class_list(n_instances_by_semantic_id)
     return get_instance_to_semantic_mapping_from_sem_inst_class_list(semantic_instance_class_list, as_numpy)
+
+
+def permute_scores(score, pred_permutations):
+    score_permuted_to_match = score.clone()
+    for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
+        # batch size?
+        score_permuted_to_match[:, ch, :, :] = score[:, pred_permutations[:, ch], :, :]
+    return score_permuted_to_match
+
+
+def permute_labels(label_preds, permutations):
+    if torch.is_tensor(label_preds):
+        label_preds_permuted = label_preds.clone()
+    else:
+        label_preds_permuted = label_preds.copy()
+    for idx in range(permutations.shape[0]):
+        permutation = permutations[idx, :]
+        for new_channel, old_channel in enumerate(permutation):
+            label_preds_permuted[label_preds == old_channel] = new_channel
+    return label_preds_permuted

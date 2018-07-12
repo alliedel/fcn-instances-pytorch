@@ -3,8 +3,8 @@ import os
 import torch.utils.data
 import tqdm
 
+import torchfcn.utils.data
 from scripts.configurations import voc_cfg
-from torchfcn import script_utils
 from torchfcn.datasets import samplers
 
 
@@ -62,9 +62,9 @@ def test_single_image_sampler(train_dataset, loader_kwargs, image_index=0):
 
 def main():
     # Setup
-    cfg = voc_cfg.default_config
+    cfg = voc_cfg.get_default_config()
     print('Getting datasets')
-    train_dataset, val_dataset = script_utils.get_voc_datasets(cfg, '/home/adelgior/data/datasets/')
+    train_dataset, val_dataset = torchfcn.utils.data.get_voc_datasets(cfg, '/home/adelgior/data/datasets/')
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()

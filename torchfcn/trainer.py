@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import shutil
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytz
 import scipy.misc
@@ -15,12 +16,16 @@ from local_pyutils import flatten_dict
 from torch.autograd import Variable
 
 import torchfcn
+from torchfcn import instance_utils
 from torchfcn import losses
 from torchfcn import metrics
-from torchfcn import visualization_utils, instance_utils
+from torchfcn.analysis import visualization_utils
 from torchfcn.datasets import dataset_utils
-from torchfcn.export_utils import log_images
+from torchfcn import export_utils
 from torchfcn.models.model_utils import is_nan, any_nan
+from torchfcn.datasets import runtime_transformations
+import torchfcn.utils.misc
+import display_pyutils
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -29,26 +34,6 @@ DEBUG_ASSERTS = True
 
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
-
-
-def permute_scores(score, pred_permutations):
-    score_permuted_to_match = score.clone()
-    for ch in range(score.size(1)):  # NOTE(allie): iterating over channels, but maybe should iterate over
-        # batch size?
-        score_permuted_to_match[:, ch, :, :] = score[:, pred_permutations[:, ch], :, :]
-    return score_permuted_to_match
-
-
-def permute_labels(label_preds, permutations):
-    if torch.is_tensor(label_preds):
-        label_preds_permuted = label_preds.clone()
-    else:
-        label_preds_permuted = label_preds.copy()
-    for idx in range(permutations.shape[0]):
-        permutation = permutations[idx, :]
-        for new_channel, old_channel in enumerate(permutation):
-            label_preds_permuted[label_preds == old_channel] = new_channel
-    return label_preds_permuted
 
 
 def should_write_activations(iteration, epoch, interval_validate):
@@ -66,7 +51,9 @@ class Trainer(object):
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),
-                 write_activation_condition=should_write_activations):
+                 write_activation_condition=should_write_activations,
+                 write_instance_metrics=True, bool_compute_instance_metrics=True,
+                 generate_new_synthetic_data_each_epoch=False):
         self.cuda = cuda
 
         self.model = model
@@ -86,11 +73,21 @@ class Trainer(object):
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
         self.use_semantic_loss = use_semantic_loss
         self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
+        self.generate_new_synthetic_data_each_epoch = generate_new_synthetic_data_each_epoch
 
         # Writing activations
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
+        self.write_instance_metrics = write_instance_metrics
+        self.bool_compute_instance_metrics = bool_compute_instance_metrics
+
+        # Stored values
+        self.last_val_loss = None
+        self.val_losses_stored = []
+        self.train_losses_stored = []
+        self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
+        self.iterations_for_losses_stored = []
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -138,7 +135,7 @@ class Trainer(object):
             'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val, **metric_maker_kwargs)
         }
 
-    def my_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
+    def my_cross_entropy(self, score, sem_lbl, inst_lbl, val_matching_override=False, **kwargs):
         map_to_semantic = self.instance_problem.map_to_semantic
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                       score.size(3))):
@@ -151,7 +148,7 @@ class Trainer(object):
 
         semantic_instance_labels = self.instance_problem.semantic_instance_class_list
         instance_id_labels = self.instance_problem.instance_count_id_list
-        matching = self.matching_loss
+        matching = val_matching_override or self.matching_loss
 
         permutations, loss = losses.cross_entropy2d(
             score, sem_lbl, inst_lbl,
@@ -198,7 +195,10 @@ class Trainer(object):
             False.
         """
         val_metrics = None
-        write_instance_metrics = (split == 'val') if write_instance_metrics is None else write_instance_metrics
+        write_instance_metrics = (split == 'val') and self.write_instance_metrics \
+            if write_instance_metrics is None else write_instance_metrics
+        write_instance_metrics = self.bool_compute_instance_metrics and (split == 'val') \
+            if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
         update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
@@ -265,6 +265,7 @@ class Trainer(object):
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
 
         val_loss /= len(data_loader)
+        self.last_val_loss = val_loss
 
         if should_compute_basic_metrics:
             val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
@@ -356,14 +357,10 @@ class Trainer(object):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
                                                                   self.iteration, bins='auto')
                         elif metric is None:
-                            import ipdb;
-                            ipdb;
-                            ipdb.set_trace()
+                            import ipdb; ipdb.set_trace()
                             pass
                         else:
-                            import ipdb;
-                            ipdb;
-                            ipdb.set_trace()
+                            import ipdb; ipdb.set_trace()
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              ' '.format(type(metric), name))
 
@@ -374,12 +371,12 @@ class Trainer(object):
             assert type(permutations) == list, \
                 NotImplementedError('I''m assuming permutations are a list of ndarrays from multiple batches, '
                                     'not type {}'.format(type(permutations)))
-            label_preds_permuted = [permute_labels(label_pred, perms)
+            label_preds_permuted = [instance_utils.permute_labels(label_pred, perms)
                                     for label_pred, perms in zip(label_preds, permutations)]
         else:
             label_preds_permuted = label_preds
-        metrics_list = torchfcn.utils.label_accuracy_score(label_trues, label_preds_permuted,
-                                                           n_class=self.n_combined_class)
+        metrics_list = torchfcn.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
+                                                                n_class=self.n_combined_class)
         return metrics_list
 
     def write_metrics(self, metrics, loss, split):
@@ -442,7 +439,7 @@ class Trainer(object):
                                        Variable(sem_lbl), Variable(inst_lbl)
 
         score = self.model(full_data)
-        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=True)
         if is_nan(loss.data[0]):
             raise ValueError('loss is nan while validating')
         val_loss += float(loss.data[0]) / len(full_data)
@@ -452,25 +449,29 @@ class Trainer(object):
 
         # TODO(allie): convert to sem, inst visualizations.
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
+        if DEBUG_ASSERTS:
+            assert inst_lbl_pred.shape == lbl_true_inst.shape
         for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
-            img = data_loader.dataset.untransform_img(img)
-            pp = pred_permutations[idx, :]
-            try:
-                (sem_lbl, inst_lbl) = (data_loader.dataset.untransform_lbl(sem_lbl),
-                                       data_loader.dataset.untransform_lbl(inst_lbl))
-            except:
-                import ipdb;
-                ipdb.set_trace()
-                raise
+            # runtime_transformation needs to still run the resize, even for untransformed img, lbl pair
+            if data_loader.dataset.runtime_transformation is not None:
+                runtime_transformation_undo = runtime_transformations.GenericSequenceRuntimeDatasetTransformer(
+                        [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
+                         if isinstance(t, runtime_transformations.BasicRuntimeDatasetTransformer)])
+                img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))
 
-            lt_combined = self.gt_tuple_to_combined(sem_lbl, inst_lbl)
+            sem_lbl_np = lbl_untransformed[0]
+            inst_lbl_np = lbl_untransformed[1]
+
+            pp = pred_permutations[idx, :]
+            lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
             true_labels.append(lt_combined)
             pred_labels.append(lp)
             if should_visualize:
                 # Segmentations
+
                 viz = visualization_utils.visualize_segmentation(
-                    lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img, n_class=self.n_combined_class,
-                    overlay=False)
+                    lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img_untransformed,
+                    n_class=self.n_combined_class, overlay=False)
                 segmentation_visualizations.append(viz)
                 # Scores
                 sp = softmax_scores[idx, :, :, :]
@@ -503,7 +504,7 @@ class Trainer(object):
                                                              score_vis_normalizer=sp.max(),
                                                              channel_labels=channel_labels,
                                                              channels_to_visualize=channels_to_visualize,
-                                                             input_image=img)
+                                                             input_image=img_untransformed)
                 score_visualizations.append(viz)
         return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
                score_visualizations
@@ -521,6 +522,11 @@ class Trainer(object):
         # n_class = self.model.n_classes
         last_score, last_last_score, last_loss, last_last_loss = None, None, None, None
 
+        if self.generate_new_synthetic_data_each_epoch:
+            seed = np.random.randint(100)
+            self.train_loader.dataset.raw_dataset.initialize_locations_per_image(seed)
+            self.train_loader_for_val.dataset.raw_dataset.initialize_locations_per_image(seed)
+
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):
@@ -529,9 +535,20 @@ class Trainer(object):
                 continue  # for resuming
             self.iteration = iteration
             if self.iteration % self.interval_validate == 0:
+                val_metrics, _ = self.validate()
+                val_loss = self.last_val_loss
                 if self.train_loader_for_val is not None:
-                    self.validate('train')
-                self.validate()
+                    train_metrics, _ = self.validate('train')
+                    train_loss = self.last_val_loss
+                else:
+                    print('Warning: cannot generate train vs. val plots if we dont have access to the training loss '
+                          'via train_for_val dataloader')
+                    train_loss = None
+                if train_loss is not None:
+                    self.update_mpl_joint_train_val_loss_figure(train_loss, val_loss)
+                    if self.tensorboard_writer is not None:
+                        self.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
+                                                           self.iteration)
 
             assert self.model.training
             if not self.loader_semantic_lbl_only:
@@ -551,7 +568,7 @@ class Trainer(object):
             self.optim.zero_grad()
 
             score = self.model(full_data)
-            pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl)
+            pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=False)
             if is_nan(loss.data[0]):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('loss is nan while training')
@@ -562,7 +579,7 @@ class Trainer(object):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('metrics/training_batch_loss', loss.data[0],
+                self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
                                                    self.iteration)
             loss.backward()
             self.optim.step()
@@ -587,7 +604,8 @@ class Trainer(object):
                 if any_nan(new_score.data):
                     import ipdb; ipdb.set_trace()
                     raise ValueError('new_score became nan while training')
-                new_pred_permutations, new_loss = self.my_cross_entropy(new_score, sem_lbl, inst_lbl)
+                new_pred_permutations, new_loss = self.my_cross_entropy(new_score, sem_lbl, inst_lbl,
+                                                                        val_matching_override=False)
                 new_loss /= len(full_data)
                 loss_improvement = loss.data[0] - new_loss.data[0]
                 self.model.train()
@@ -619,6 +637,55 @@ class Trainer(object):
             if self.iteration >= self.max_iter:
                 break
 
+    def update_mpl_joint_train_val_loss_figure(self, train_loss, val_loss):
+        assert train_loss is not None, ValueError
+        assert val_loss is not None, ValueError
+        figure_name = 'train/val losses'
+        ylim_buffer_size = 3
+        self.train_losses_stored.append(train_loss)
+        self.val_losses_stored.append(val_loss)
+
+        self.iterations_for_losses_stored.append(self.iteration)
+        if self.joint_train_val_loss_mpl_figure is None:
+            self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
+            display_pyutils.set_my_rc_defaults()
+
+        h = plt.figure(figure_name)
+
+        plt.clf()
+        train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
+            self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
+        val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))
+
+        plt.plot(self.train_losses_stored, label=train_label, color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
+        plt.plot(self.val_losses_stored, label=val_label, color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
+        plt.legend()
+        # Set y limits for just the last 10 datapoints
+        last_x = max(len(self.train_losses_stored), len(self.val_losses_stored))
+        if last_x >= 0:
+            ymin = min(min(self.train_losses_stored[(last_x - ylim_buffer_size - 1):]),
+                       min(self.val_losses_stored[(last_x - ylim_buffer_size - 1):]))
+            ymax = max(max(self.train_losses_stored[(last_x - ylim_buffer_size - 1):]),
+                       max(self.val_losses_stored[(last_x - ylim_buffer_size - 1):]))
+        else:
+            ymin, ymax = None, None
+        if self.tensorboard_writer is not None:
+            export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
+        filename = os.path.join(self.out, 'val_train_loss.png')
+        h.savefig(filename)
+
+        # zoom
+        zoom_filename = os.path.join(self.out, 'val_train_loss_zoom_last_{}.png'.format(ylim_buffer_size))
+        if ymin is not None:
+            plt.ylim(ymin=ymin, ymax=ymax)
+            plt.xlim(xmin=(last_x - ylim_buffer_size - 1), xmax=last_x)
+            if self.tensorboard_writer is not None:
+                export_utils.log_plots(self.tensorboard_writer, 'joint_loss_last_{}'.format(ylim_buffer_size),
+                                       [h], self.iteration)
+            h.savefig(zoom_filename)
+        else:
+            shutil.copyfile(filename, zoom_filename)
+
 
 def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):
     if not osp.exists(outdir):
@@ -628,7 +695,7 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
                                                      margin_size=50)
         tag = '{}images'.format(basename)
         if tensorboard_writer is not None:
-            log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
+            export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
         out_subdir = osp.join(outdir, tag)
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)
@@ -641,7 +708,7 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
             os.makedirs(out_subdir)
         for img_idx, out_img in enumerate(visualizations):
             if tensorboard_writer is not None:
-                log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
+                export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
             out_subsubdir = osp.join(out_subdir, str(img_idx))
             if not osp.exists(out_subsubdir):
                 os.makedirs(out_subsubdir)

@@ -7,7 +7,9 @@ from local_pyutils import flatten_dict
 from torch.autograd import Variable
 from torch.utils.data import sampler
 
-from torchfcn import script_utils
+import torchfcn.utils.configs
+import torchfcn.utils.data
+import torchfcn.utils.models
 
 
 def is_sequential(my_sampler):
@@ -191,7 +193,7 @@ class InstanceMetrics(object):
                         'fraction_of_sem_cls_for_assigned_pixels': {
                             channel_labels[channel_idx] + '_mean': 0 if (self.assignments == channel_idx).sum() == 0
                             else ((self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]) /
-                                  self.softmaxed_scores[:, sem_cls, :, :][self.assignments == channel_idx]).mean()
+                                  softmax_scores_per_sem_cls[:, sem_cls, :, :][self.assignments == channel_idx]).mean()
                             for channel_idx, sem_cls in enumerate(self.problem_config.semantic_instance_class_list)
                         },
                     },
@@ -399,15 +401,15 @@ def _test():
     cuda = torch.cuda.is_available()
 
     cfg_file = os.path.join(logdir, 'config.yaml')
-    cfg = script_utils.create_config_copy(script_utils.load_config(cfg_file), reverse_replacements=True)
+    cfg = torchfcn.utils.configs.create_config_copy(torchfcn.utils.configs.load_config(cfg_file), reverse_replacements=True)
     synthetic_generator_n_instances_per_semantic_id = 2
     n_instances_per_class = cfg['n_instances_per_class'] or \
                             (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
 
-    dataloaders = script_utils.get_dataloaders(cfg, 'synthetic', cuda)
-    problem_config = script_utils.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class)
-    model, start_epoch, start_iteration = script_utils.get_model(cfg, problem_config, checkpoint,
-                                                                 semantic_init=None, cuda=cuda)
+    dataloaders = torchfcn.utils.data.get_dataloaders(cfg, 'synthetic', cuda)
+    problem_config = torchfcn.utils.models.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class)
+    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, checkpoint,
+                                                                          semantic_init=None, cuda=cuda)
     instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )
     # not necessary, but we'll make sure it runs anyway
     instance_metrics.clear()

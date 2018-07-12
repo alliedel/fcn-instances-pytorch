@@ -150,7 +150,7 @@ sampler_cfgs = {
                 'n_images': None
             }
     },
-    'car_2_3inst_allimg_realval': {
+    'car_2_3': {
         'train':
             {'n_images': None,
              'sem_cls_filter': ['car'],

@@ -89,7 +89,8 @@ def parse_args():
 
     bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
     assert len(bad_args) == 0, cfg_override_parser.error('bad_args: {}'.format(bad_args))
-
+    if args.sampler is not None:
+        argv += ['--sampler', args.sampler]
     # Parse with list of options
     override_cfg_args, leftovers = cfg_override_parser.parse_known_args(argv)
     assert len(leftovers) == 0, ValueError('args not recognized: {}'.format(leftovers))

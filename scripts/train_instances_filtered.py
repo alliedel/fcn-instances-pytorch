@@ -33,6 +33,7 @@ def main():
     gpu = args.gpu
     config_idx = args.config
     cfg, cfg_to_print = get_cfgs(dataset_name=args.dataset, config_idx=config_idx, cfg_override_args=cfg_override_args)
+    cfg['sampler'] = args.sampler
     assert cfg['dataset'] == args.dataset, 'Debug Error: cfg[\'dataset\']: {}, args.dataset: {}'.format(cfg['dataset'],
                                                                                                         args.dataset)
     if cfg['dataset_instance_cap'] == 'match_model':

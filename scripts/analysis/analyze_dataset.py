@@ -85,22 +85,24 @@ def write_stats(train_stats, val_stats, default_train_dataset, default_val_datas
         image_counts_per_class = (instance_counts > 0).sum(axis=0)
 
         plt.figure(1); plt.clf()
-        metric_name = 'instance_counts_per_class'
+        metric_name = split + '_' + 'instance_counts_per_class'
         metric_values = instance_counts_per_class
-        pie_chart(metric_values, semantic_class_names)
+        labels = [s + '={}'.format(v) for s, v in zip(semantic_class_names, metric_values)]
+        pie_chart(metric_values, labels)
         plt.title(metric_name)
-        display_pyutils.save_fig_to_workspace(split + '_' + metric_name + '.png')
+        display_pyutils.save_fig_to_workspace(metric_name + '.png')
 
         plt.figure(2); plt.clf()
-        metric_name = 'image_counts_per_class'
+        metric_name = split + '_' + 'image_counts_per_class'
         metric_values = image_counts_per_class
-        pie_chart(metric_values, semantic_class_names)
+        labels = [s + '={}'.format(v) for s, v in zip(semantic_class_names, metric_values)]
+        pie_chart(metric_values, labels)
         plt.title(metric_name)
-        display_pyutils.save_fig_to_workspace(split + '_' + metric_name + '.png')
+        display_pyutils.save_fig_to_workspace(metric_name + '.png')
 
 
 def pie_chart(values, labels, autopct='%1.1f%%'):
-    explode = [0 for i, val in enumerate(values) if val != max(values)]  # explode largest slice
+    explode = [0.1 * int(val != max(values)) for i, val in enumerate(values)]  # explode largest slice
     # Plot
     colors = [display_pyutils.GOOD_COLORS[np.mod(i, len(display_pyutils.GOOD_COLORS))] for i in range(len(values))]
     plt.pie(values, explode=explode, labels=labels, colors=colors,

@@ -1,14 +1,13 @@
 import argparse
 import os.path as osp
 
-import display_pyutils
 import matplotlib.pyplot as plt
 import torch
 
+import torchfcn.utils.display as display_pyutils
 import torchfcn.utils.logs
 import torchfcn.utils.scripts
 from torchfcn.analysis import score_heatmaps
-
 
 FIGSIZE = (10, 10)
 DPI = 300
@@ -43,7 +42,6 @@ def write_absolute_heatmaps(absolute_heatmap_average, split, instance_problem):
 
 
 def write_relative_heatmaps_by_channel(list_of_relative_heatmap_averages, instance_problem, split):
-
     channel_names = instance_problem.get_channel_labels()
     n_channels = len(list_of_relative_heatmap_averages)
     sem_inst_class_list = instance_problem.semantic_instance_class_list

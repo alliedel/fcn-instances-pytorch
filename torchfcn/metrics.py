@@ -3,7 +3,7 @@ import os.path
 import torch
 import torch.nn.functional as F
 import tqdm
-from local_pyutils import flatten_dict
+from torchfcn.utils.misc import flatten_dict
 from torch.autograd import Variable
 from torch.utils.data import sampler
 

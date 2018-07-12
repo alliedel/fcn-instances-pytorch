@@ -3,7 +3,7 @@ from collections import OrderedDict
 from os import path as osp
 
 import yaml
-from local_pyutils import str2bool
+from torchfcn.utils.misc import str2bool
 
 import torchfcn
 import torchfcn.utils

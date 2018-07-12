@@ -1,4 +1,8 @@
+import argparse
 import collections
+import logging
+import os
+
 import numpy as np
 
 
@@ -95,3 +99,51 @@ def flatten_dict(d, parent_key='', sep='/'):
     return dict(items)
 
 
+def mkdir_if_needed(dirname):
+    if os.path.isfile(dirname):
+        raise ValueError('{} is an existing file!  Cannot make directory.'.format(dirname))
+    if not os.path.isdir(dirname):
+        os.mkdir(dirname)
+
+
+def get_logger(name='my_logger', file=None):
+    logger = logging.getLogger('my_logger')
+    if not len(logger.handlers):
+        logger.setLevel(logging.DEBUG)
+        if file == None:
+            file = '/tmp/my_log.log'
+            print('Logging file in {}'.format(file))
+
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+        fh = logging.FileHandler(file)
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+    return logger
+
+
+def unique(x):
+    if type(x) == np.ndarray:
+        return np.unique(x)
+    elif type(x) == list:
+        return list(set(list(x)))
+    else:
+        raise TypeError('unique not implemented for type {}'.format(type(x)))
+
+
+def str2bool(v):
+    """
+    https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
+    """
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')

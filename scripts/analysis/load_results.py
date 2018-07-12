@@ -6,7 +6,7 @@ import torchfcn.utils.logs
 import torchfcn.utils.models
 import torch
 from torchfcn.models import model_utils
-import local_pyutils
+from torchfcn.utils.misc import mkdir_if_needed
 
 
 def parse_args():
@@ -21,7 +21,7 @@ def main_check_freeze():
     # Checking which modules were actually learned
     matching_modules, unmatching_modules = model_utils.compare_model_states(initial_model, model)
     init_logdir = '/tmp/scrap_logdir'
-    local_pyutils.mkdir_if_needed(init_logdir)
+    mkdir_if_needed(init_logdir)
     torch.save({
         'epoch': 0,
         'iteration': 0,

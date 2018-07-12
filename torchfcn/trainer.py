@@ -25,7 +25,7 @@ from torchfcn import export_utils
 from torchfcn.models.model_utils import is_nan, any_nan
 from torchfcn.datasets import runtime_transformations
 import torchfcn.utils.misc
-import display_pyutils
+import torchfcn.utils.display as display_pyutils
 
 MY_TIMEZONE = 'America/New_York'
 

@@ -1,11 +1,11 @@
-import local_pyutils
 import numpy as np
 import torch
 import torch.nn.functional as F
 from ortools.graph import pywrapgraph
 from torchfcn.models.model_utils import is_nan, any_nan
+from torchfcn.utils.misc import get_logger, unique
 
-logger = local_pyutils.get_logger()
+logger = get_logger()
 
 DEBUG_ASSERTS = True
 
@@ -177,7 +177,7 @@ def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_inst
     assert len(semantic_instance_labels) == log_predictions.size(0)
     gt_indices, pred_permutations, costs = [], [], []
     num_inst_classes = len(semantic_instance_labels)
-    unique_semantic_values = local_pyutils.unique(semantic_instance_labels)
+    unique_semantic_values = unique(semantic_instance_labels)
     for sem_val in unique_semantic_values:
         idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
         cost_list_2d = create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,

@@ -4,7 +4,7 @@ import argparse
 import os
 import os.path as osp
 
-import display_pyutils
+import torchfcn.utils.display as display_pyutils
 import matplotlib.pyplot as plt
 import numpy as np
 

@@ -12,7 +12,7 @@ import scipy.misc
 import torch
 import torch.nn.functional as F
 import tqdm
-from local_pyutils import flatten_dict
+from torchfcn.utils.misc import flatten_dict
 from torch.autograd import Variable
 
 import torchfcn

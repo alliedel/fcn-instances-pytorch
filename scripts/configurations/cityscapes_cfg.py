@@ -7,7 +7,7 @@ def get_default_config():
     default_cfg.update(
         dict(n_instances_per_class=3,
              set_extras_to_void=True,
-             lr=1.0e-4,
+             lr=1.0e-5,
              dataset='cityscapes',
              resize=True,
              resize_size=(281, 500),  # (512, 1024)

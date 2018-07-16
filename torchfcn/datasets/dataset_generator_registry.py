@@ -64,8 +64,10 @@ def get_dataset(dataset_type, cfg, transform=True):
         n_images_val = pop_without_del(cfg, 'n_images_val', None)
         ordering = cfg['ordering']
         intermediate_write_path = cfg['dataset_path']
+        n_instances_per_img = cfg['synthetic_generator_n_instances_per_semantic_id']
         train_dataset, val_dataset = get_synthetic_datasets(
             n_images_train=n_images_train, n_images_val=n_images_val, ordering=ordering,
+            n_instances_per_img=n_instances_per_img,
             precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation,
             semantic_subset_to_generate=semantic_subset,
@@ -137,8 +139,8 @@ def get_cityscapes_datasets(dataset_path, precomputed_file_transformation, runti
     return train_dataset, val_dataset
 
 
-def get_synthetic_datasets(n_images_train, n_images_val, ordering, precomputed_file_transformation,
-                           runtime_transformation, intermediate_write_path='/tmp/',
+def get_synthetic_datasets(n_images_train, n_images_val, ordering, n_instances_per_img,
+                           precomputed_file_transformation, runtime_transformation, intermediate_write_path='/tmp/',
                            semantic_subset_to_generate=None, transform=True):
     if isinstance(precomputed_file_transformation,
                   precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):
@@ -151,7 +153,8 @@ def get_synthetic_datasets(n_images_train, n_images_val, ordering, precomputed_f
         raise ValueError('Cannot perform file transformations on the synthetic dataset.')
 
     synthetic_kwargs = dict(ordering=ordering, intermediate_write_path=intermediate_write_path,
-                            semantic_subset_to_generate=semantic_subset_to_generate)
+                            semantic_subset_to_generate=semantic_subset_to_generate,
+                            synthetic_generator_n_instances_per_semantic_id=n_instances_per_img)
     train_dataset = synthetic.TransformedInstanceDataset(
         raw_dataset=synthetic.BlobExampleGenerator(
             n_images=n_images_train,

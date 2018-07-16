@@ -30,8 +30,11 @@ class BlobExampleGenerator(InstanceDatasetBase):
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
                  n_images=None, mean_bgr=None,
-                 transform=Defaults.transform, _im_a_copy=False,
-                 one_dimension=None, semantic_subset_to_generate=None, ordering=None,
+                 transform=Defaults.transform,
+                 one_dimension=None,
+                 semantic_subset_to_generate=None,
+                 ordering=None,
+                 _im_a_copy=False,
                  intermediate_write_path='/tmp/'):
         """
         one_dimension: {'x', 'y', None}

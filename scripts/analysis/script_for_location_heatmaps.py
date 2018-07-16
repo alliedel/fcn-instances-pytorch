@@ -16,10 +16,9 @@ DPI = 300
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--logdir', help='directory that contains the checkpoint and config', type=str, required=True)
-    parser.add_argument('--gpu', help='gpu identifier (int)', type=int, default=0)
+    parser.add_argument('--gpu', '-g', help='gpu identifier (int)', type=int, default=0)
     parser.add_argument('--relative', help='should export relative positions?', type=bool, default=True)
     parser.add_argument('--absolute', help='should export absolute positions?', type=bool, default=True)
-    parser.add_argument('--clim_mult', help='should export absolute positions?', type=bool, default=True)
     args = parser.parse_args()
     return args
 

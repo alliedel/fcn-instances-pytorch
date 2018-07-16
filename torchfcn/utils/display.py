@@ -1,9 +1,13 @@
+import os
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 from matplotlib import gridspec
 from mpl_toolkits.mplot3d import Axes3D
+from textwrap import wrap
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+from local_pyutils import TermColors
 
 WORKSPACE_DIR = os.path.expanduser('~/workspace/images')
 
@@ -31,8 +35,54 @@ GOOD_COLORS_BY_NAME = {
     'yellow': '#DDCC77'
 }
 
+
+MY_RC_DEFAULTS = {
+    # 'text.latex.preamble': ['\\usepackage{gensymb}'],
+    'image.origin': 'lower',
+    'image.interpolation': 'nearest',
+    'image.cmap': 'gray',
+    'axes.grid': False,
+    'savefig.dpi': 150,  # to adjust notebook inline plot size
+    'axes.labelsize': 8, # fontsize for x and y labels (was 10)
+    'axes.titlesize': 10,
+    'font.size': 8, # was 10
+    'legend.fontsize': 6, # was 10
+    'xtick.labelsize': 8,
+    'ytick.labelsize': 8,
+    # 'text.usetex': True,
+    'figure.figsize': [3.39, 2.10],
+    'font.family': 'serif',
+    'lines.linewidth': 3,
+    'axes.color_cycle': GOOD_COLOR_CYCLE,
+}
+
 # MARKERS = mpl.markers.MarkerStyle.filled_markers[::-1]
 MARKERS = ('o', 'X', '*', 'v', 's', 'p', 'h', 'H', 'D', 'd', 'P', '8')
+
+DPI = 300
+
+
+def check_for_emptied_workspace(workspace_dir=WORKSPACE_DIR, interactive=True):
+    if len(os.listdir(workspace_dir)) == 0:
+        return True
+
+    override = False
+    if interactive:
+        override = 'y' == input(
+            TermColors.WARNING + 'Your workspace isn\'t clean.  Would you like to continue anyway? [y/N]\n ' +
+            TermColors.ENDC)
+        if override:
+            return False
+    raise Exception(TermColors.FAIL + 'Exiting.  Please run the following command: clear_workspace.'
+                    + TermColors.ENDC)
+
+
+def my_colorbar(mappable):
+    ax = mappable.axes
+    fig = ax.figure
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    return fig.colorbar(mappable, cax=cax)
 
 
 def get_color(i=0):
@@ -45,7 +95,22 @@ def get_marker(i):
 
 def get_subplot_idx(r, c, shape):
     C = shape[1]
-    return C*r + c + 1
+    return C * r + c + 1
+
+
+def sub2ind(array_shape, rows, cols):
+    ind = rows * array_shape[1] + cols
+    ind[ind < 0] = -1
+    ind[ind >= array_shape[0] * array_shape[1]] = -1
+    return ind.astype('int')
+
+
+def ind2sub(array_shape, ind):
+    ind[ind < 0] = -1
+    ind[ind >= array_shape[0] * array_shape[1]] = -1
+    rows = (ind.astype('int') / array_shape[1])
+    cols = ind % array_shape[1]
+    return (rows, cols)
 
 
 def subplot_grid(num_rows, num_cols):
@@ -91,51 +156,84 @@ def display_training_sets(training_sets, figure_numbers=None):
         display_list_of_images(training_set)
 
 
+def get_good_clims_for_arr(arr, std_multiplier=4.0):
+    """
+    perc_in_range: Minumum percentage of points that must fall in the clim range
+    """
+    my_min = np.min(arr)
+    my_max = np.max(arr)
+    my_mean = np.mean(arr)
+    my_std = np.std(arr)
+
+    clim_max = min(my_max, my_mean + (std_multiplier * my_std))
+    clim_min = max(my_min, my_mean - (std_multiplier * my_std))
+
+    perc_in_range = np.mean(np.logical_and(arr >= clim_min, arr <= clim_max))
+    if perc_in_range < 0.95:
+        print('clim range ({:02f}, {:02f}) only contains {:02f}% of the data.'.format(clim_min, clim_max,
+                                                                                   100 * perc_in_range))
+    return clim_min, clim_max
+
+
 def display_list_of_images(list_of_images, list_of_titles=None, arrange='square', arrangement_rc_list=None,
-                           sync_clims=True, show_clim='alone', cmap='gray'):
+                           sync_clims=True, show_clim='alone', cmap='gray', smart_clims=False):
     """
     arrangement_rc_list : [(r1, c1), (r2, c2), (r_n, c_n)] for each image in list_of_images (n of them)
+    smart_clims: by stddev
     """
     arrange_options = ['rows', 'cols', 'square', 'custom']
     assert any([arrange == option for option in arrange_options])
     assert not (show_clim == 'alone' and not sync_clims), ValueError(
         'show_clim=\'alone\' implies that sync_clims should be set to True.')
+
+    fig = plt.gcf()
+
+    if smart_clims:
+        smart_clims_per_img = [get_good_clims_for_arr(img) for img in list_of_images]
+        clims = (min([cl[0] for cl in smart_clims_per_img]), max([cl[1] for cl in smart_clims_per_img]))
+    else:
+        clims = None
     if arrange == 'rows':
         R = len(list_of_images)
-        C = 1 + (1 if show_clim == 'alone' else 0)
+        C = 1
+        arrangement_rc_list = [(r, 0) for r in range(R)]
     elif arrange == 'cols':
         C = len(list_of_images)
-        R = 1 + (1 if show_clim == 'alone' else 0)
+        R = 1
+        arrangement_rc_list = [(0, c) for c in range(C - 1)]
     elif arrange == 'square':
         R = np.floor(np.sqrt(len(list_of_images)))
         C = np.ceil(len(list_of_images) / float(R))
+        arrangement_rc_list = [ind2sub((R, C), ind) for ind in len(list_of_images)]
     elif arrange == 'custom':
         assert arrangement_rc_list is not None and len(arrangement_rc_list) == len(list_of_images) and all([
             len(rc) == 2 for rc in arrangement_rc_list]), ValueError('Please format arrangement_rc_list correctly')
-        R = 1 + max([rc[0] for rc in arrangement_rc_list])
-        C = 1 + max([rc[1] for rc in arrangement_rc_list]) + 1  # +1 for colorbar
-
+        R = max([rc[0] for rc in arrangement_rc_list]) + 1
+        C = max([rc[1] for rc in arrangement_rc_list]) + 1
     for image_index, image in enumerate(list_of_images):
-        if arrange == 'rows' or arrange == 'cols' or arrange == 'square':
-            plt.subplot(R, C, image_index + 1)
-        elif arrange == 'custom':
-            rc = arrangement_rc_list[image_index]
-            subplot_index = get_subplot_idx(r=rc[0], c=rc[1], shape=(R, C))
-            plt.subplot(R, C, image_index + 1)
+        rc = arrangement_rc_list[image_index]
+        subplot_index = get_subplot_idx(r=rc[0], c=rc[1], shape=(R, C))
+        plt.subplot(R, C, subplot_index)
         matshow(image, show_colorbar=False, cmap=cmap)
+        plt.set_cmap(cmap)
+        if clims is not None:
+            plt.clim(*clims)
+        if not sync_clims:
+            plt.colorbar()
         if list_of_titles:
             plt.title(list_of_titles[image_index])
         else:
             plt.title(str(image_index))
-        fig = plt.gcf()
+    plt.tight_layout()
+    if show_clim == 'alone':
         fig.subplots_adjust(right=0.8)
-        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-        fig.colorbar(cax=cbar_ax)
-        fig.set_cmap(cmap)
+        cbar_ax = fig.add_axes([0.85, 0.05, 0.15, 0.85])
+        plt.sca(cbar_ax)
+        plt.set_cmap(cmap)
         clims = plt.gci().get_clim()
-        plt.imshow(np.array([clims]))
+        mappable = cbar_ax.imshow(np.array([clims]))
         plt.gca().set_visible(False)
-        plt.tight_layout()
+        cbar = plt.colorbar(mappable, ax=cbar_ax, fraction=0.95)
     if sync_clims:
         sync_clim_axes(plt.gcf().axes)
 
@@ -259,7 +357,8 @@ def matshow_and_save_3d_array_to_workspace(mats_as_3d_array, filename_base_ext='
     try:
         assert not (show_filenames_as_titles and (list_of_titles is not None))
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         raise
     matshow_and_save_list_to_workspace([mats_as_3d_array[:, :, i] for i in range(mats_as_3d_array.shape[2])],
                                        filename_base_ext=filename_base_ext, aspect=aspect,
@@ -271,13 +370,14 @@ def matshow_and_save_3d_array_to_workspace(mats_as_3d_array, filename_base_ext='
 def matshow_and_save_list_to_workspace(list_of_mats, filename_base_ext='.png', aspect=None,
                                        show_colorbar=True, sync_clims=True, set_clims=(),
                                        workspace_dir=WORKSPACE_DIR, list_of_titles=None,
-                                       show_filenames_as_titles=False, cmap='gray'):
+                                       show_filenames_as_titles=False, cmap='gray', **savefig_kwargs):
     """ Uses imshow with gray colormap; adds a colorbar; and uses nearest interpolation"""
     single_image = len(list_of_mats) == 1
     try:
         assert not (show_filenames_as_titles and (list_of_titles is not None))
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         raise
     filename_base, ext = os.path.splitext(filename_base_ext)
     if not ext and filename_base and filename_base[0] == '.':
@@ -307,15 +407,15 @@ def matshow_and_save_list_to_workspace(list_of_mats, filename_base_ext='.png', a
 
     for fignum, filename in zip(fignums, filenames):
         plt.figure(fignum)
-        save_fig_to_workspace(filename, workspace_dir=workspace_dir)
+        save_fig_to_workspace(filename, workspace_dir=workspace_dir, **savefig_kwargs)
 
     return filenames
 
 
-def save_fig_to_workspace(filename=None, workspace_dir=WORKSPACE_DIR):
+def save_fig_to_workspace(filename=None, workspace_dir=WORKSPACE_DIR, **savefig_kwargs):
     if not filename:
         filename = '%02d.png' % plt.gcf().number
-    plt.savefig(os.path.join(workspace_dir, filename))
+    plt.savefig(os.path.join(workspace_dir, filename), **savefig_kwargs)
 
 
 def save_all_figs_to_workspace():
@@ -324,11 +424,8 @@ def save_all_figs_to_workspace():
         save_fig_to_workspace()
 
 
-def set_my_rc_defaults():
-    # matplotlib.rc('lines', linewidth=3, color='#5D8AA8')
-    matplotlib.rc('lines', linewidth=3)
-    plt.rc('axes', color_cycle=GOOD_COLOR_CYCLE)
-    matplotlib.rc('axes', titlesize=10)
+def set_my_rc_defaults(params=MY_RC_DEFAULTS):
+    matplotlib.rcParams.update(params)
 
 
 def set_latex_default():
@@ -339,7 +436,8 @@ def set_latex_default():
 
 
 def get_rc_color_cycle():
-    return matplotlib.rcParams['axes.color_cycle']
+    return plt.rcParams['axes.prop_cycle'].by_key()['color']
+    # return matplotlib.rcParams['axes.color_cycle']  # deprecated
 
 
 def imscale(image):

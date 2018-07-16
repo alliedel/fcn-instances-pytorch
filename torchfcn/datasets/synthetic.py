@@ -15,7 +15,6 @@ class Defaults(object):
     blob_size = (40, 40)
     clrs = [PEPTO_BISMOL_PINK_RGB, BLUE_RGB, GREEN_RGB]
     blob_types = ['square', 'circle']
-    n_max_per_class = 3
     n_instances_per_img = 2
     return_torch_type = False
     location_generation_type = 'random'  # 'moving'
@@ -28,7 +27,6 @@ class Defaults(object):
 class BlobExampleGenerator(InstanceDatasetBase):
     def __init__(self, img_size=Defaults.img_size, blob_size=Defaults.blob_size,
                  clrs=Defaults.clrs,
-                 n_max_per_class=Defaults.n_max_per_class,
                  n_instances_per_img=Defaults.n_instances_per_img,
                  return_torch_type=Defaults.return_torch_type,
                  n_images=None, mean_bgr=None,
@@ -55,7 +53,6 @@ class BlobExampleGenerator(InstanceDatasetBase):
         self.clrs = clrs  # nested list: outer list -- one item per semantic class.  inner list
         # -- list of colors for that semantic class.
         self.n_instances_per_img = n_instances_per_img
-        self.n_max_per_class = n_max_per_class
         self.return_torch_type = return_torch_type
         self.n_images = n_images
         self.mean_bgr = mean_bgr
@@ -65,9 +62,10 @@ class BlobExampleGenerator(InstanceDatasetBase):
         self.semantic_classes = semantic_subset_to_generate or ALL_BLOB_CLASS_NAMES
         self.class_names, self.idxs_into_all_blobs = dataset_utils.get_semantic_names_and_idxs(
             semantic_subset=semantic_subset_to_generate, full_set=ALL_BLOB_CLASS_NAMES)
-        self.n_instances_per_sem_cls = [0] + [n_max_per_class for _ in range(len(self.semantic_classes) - 1)]
+        self.n_instances_per_sem_cls = [0] + [n_instances_per_img for _ in range(len(self.semantic_classes) - 1)]
         self.ordering = ordering.lower() if ordering is not None else None
         self.one_dimension = one_dimension
+        self.n_max_per_class = self.n_instances_per_img
 
         # Blob dynamics
         self.location_generation_type = Defaults.location_generation_type

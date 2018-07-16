@@ -154,7 +154,7 @@ def get_synthetic_datasets(n_images_train, n_images_val, ordering, n_instances_p
 
     synthetic_kwargs = dict(ordering=ordering, intermediate_write_path=intermediate_write_path,
                             semantic_subset_to_generate=semantic_subset_to_generate,
-                            synthetic_generator_n_instances_per_semantic_id=n_instances_per_img)
+                            n_instances_per_img=n_instances_per_img)
     train_dataset = synthetic.TransformedInstanceDataset(
         raw_dataset=synthetic.BlobExampleGenerator(
             n_images=n_images_train,

@@ -12,14 +12,21 @@ DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.
 
 # TODO(allie): print out flops so you know how long things should take
 
+# TODO(allie): Handle case when extra instances (or semantic segmentation) lands in channel 0
+
 
 class FCN8sInstanceNotAtOnce(nn.Module):
 
-    def __init__(self, n_classes=None, semantic_instance_class_list=None, map_to_semantic=False):
+    def __init__(self, n_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
+                 include_instance_channel0=False):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.
+        include_instance_channel0: If True, extras are placed in instance channel 0 for each semantic class (otherwise
+        we don't allocate space for a channel like this)
         """
+        if include_instance_channel0:
+            raise NotImplementedError
         super(FCN8sInstanceNotAtOnce, self).__init__()
         if n_classes is None:
             assert semantic_instance_class_list is not None, 'either n_classes or semantic_instance_class_list must ' \

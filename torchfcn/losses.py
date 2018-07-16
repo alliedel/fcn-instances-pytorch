@@ -35,7 +35,7 @@ DEBUG_ASSERTS = True
 # TODO(allie): Do something with inst_lbl == 0 for instance classes.
 # TODO(allie): Handle
 
-def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, matching=True,
+def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instance_id_labels, matching=True,
                     break_here=False, recompute_optimal_loss=False, **kwargs):
     # Convert scores to predictions
     # log_p: (n, c, h, w)
@@ -46,7 +46,8 @@ def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, matchin
 
     if matching:
         pred_permutations, loss = cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl,
-                                                                semantic_instance_labels, **kwargs)
+                                                                semantic_instance_labels, instance_id_labels,
+                                                                **kwargs)
         # assert pred_permutations.shape[0] == 1, NotImplementedError
         # Somehow the gradient is no longer getting backpropped through loss, so I just recompute
         #  it here with the permutation I computed.
@@ -77,7 +78,7 @@ def tensors_are_close(tensor_a, tensor_b, tol=None):
 
 
 def cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
-                                  size_average=True):
+                                  instance_id_labels, size_average=True):
     # target_onehot = dataset_utils.labels_to_one_hot(target, len(semantic_instance_labels))
     # Allocate memory
     n, c = log_predictions.size()[0:2]
@@ -90,7 +91,7 @@ def cross_entropy2d_with_matching(log_predictions, sem_lbl, inst_lbl, semantic_i
         prediction_indices, pred_permutation, costs = \
             compute_optimal_match_loss(log_predictions[i, ...],
                                        sem_lbl[i, ...], inst_lbl[i, ...],
-                                       semantic_instance_labels,
+                                       semantic_instance_labels, instance_id_labels,
                                        size_average=size_average)
         all_prediction_indices[i, ...] = prediction_indices
         all_pred_permutations[i, ...] = pred_permutation
@@ -139,14 +140,13 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
     return loss
 
 
-def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
+def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels, instance_id_labels,
                                size_average=True):
     """
     target: C,H,W.  C is the number of instances for ALL semantic classes.
     predictions: C,H,W
     semantic_instance_labels: the mapping from ground truth index to semantic labels.  This is
     needed so we only allow instances in the same semantic class to compete.
-
     gt_indices, perm_permutation -- indices into (0, ..., C-1) for gt and predictions of the
      matches.
     costs -- cost of each of the matches (also length C)
@@ -159,11 +159,10 @@ def compute_optimal_match_loss(log_predictions, sem_lbl, inst_lbl, semantic_inst
         idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
         cost_list_2d = create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
                                                                 semantic_instance_labels,
-                                                                sem_val,
-                                                                size_average=size_average)
+                                                                instance_id_labels,
+                                                                sem_val, size_average=size_average)
 
         cost_matrix, multiplier = convert_pytorch_costs_to_ints(cost_list_2d)
-
         assignment = pywrapgraph.LinearSumAssignment()
 
         for ground_truth in range(len(cost_matrix)):
@@ -201,7 +200,8 @@ def nll2d_single_class_term(log_predictions_single_instance_cls, binary_target_s
 
 
 def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
-                                             semantic_instance_labels, sem_val, size_average=True):
+                                             semantic_instance_labels, instance_id_labels,
+                                             sem_val, size_average=True):
     # predictions: C,H,W
     # target: (sem_lbl, inst_lbl): (H,W, H,W)
     if DEBUG_ASSERTS:
@@ -218,13 +218,14 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
         normalizer = 1
     sem_inst_idxs_for_this_class = [i for i, sem_inst_val in enumerate(semantic_instance_labels) if
                                     sem_inst_val == sem_val]
+    inst_id_lbls_for_this_class = [instance_id_labels[i] for i in sem_inst_idxs_for_this_class]
 
     # TODO(allie): allow for more target (gt) idxs than the number of lp idxs.
     cost_list_2d = [[nll2d_single_class_term(log_predictions[sem_inst_idx, :, :],
                                              (sem_lbl == sem_val).float() *
                                              (inst_lbl == inst_val).float())
-                     / normalizer for inst_val, _ in enumerate(sem_inst_idxs_for_this_class)]
-                    for _, sem_inst_idx in enumerate(sem_inst_idxs_for_this_class)]
+                     / normalizer for inst_val in inst_id_lbls_for_this_class]
+                    for sem_inst_idx in sem_inst_idxs_for_this_class]
 
     # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
     return cost_list_2d

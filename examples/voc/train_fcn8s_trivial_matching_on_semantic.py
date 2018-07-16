@@ -21,12 +21,15 @@ default_config = dict(
     matching=True,
     semantic_only_labels=False,
     n_instances_per_class=1,
-    set_extras_to_void=True
+    set_extras_to_void=True,
+    semantic_subset=None,
+    filter_images_by_semantic_subset=False
 )
 
 configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
+    0: dict(),
     1: dict(
         n_instances_per_class=1,
         set_extras_to_void=False
@@ -40,17 +43,28 @@ configurations = {
         semantic_only_labels=False,
         n_instances_per_class=3,
         set_extras_to_void=True
-    )
+    ),
+    4: dict(
+        semantic_subset=['person', 'background'],
+        set_extras_to_void=True,
+        filter_images_by_semantic_subset=True
+    ),
+    5: dict(
+        semantic_only_labels=False,
+        n_instances_per_class=3,
+        set_extras_to_void=True,
+        max_iteration=1000000
+    ),
 }
 
 here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
+    script_utils.check_clean_work_tree()
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
-    parser.add_argument('-c', '--config', type=int, default=1,
-                        choices=configurations.keys())
+    parser.add_argument('-c', '--config', type=int, default=0, choices=configurations.keys())
     parser.add_argument('--resume', help='Checkpoint path')
     args = parser.parse_args()
     gpu = args.gpu
@@ -80,20 +94,13 @@ def main():
     # 1. dataset
     root = osp.expanduser('~/data/datasets')
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
-                          set_extras_to_void=cfg['set_extras_to_void'])
+                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    
-    train_loader = torch.utils.data.DataLoader(
-        # torchfcn.datasets.SBDClassSeg(root, split='train', **dataset_kwargs), # Can't use SBD for instance (I believe)
-       torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs),
-        batch_size=1, shuffle=True, **kwargs)
-    # train_loader = torch.utils.data.DataLoader(
-    #     torchfcn.datasets.SBDClassSeg(root, split='train', transform=True),
-    #     batch_size=1, shuffle=True, **kwargs)
-    val_loader = torch.utils.data.DataLoader(
-        torchfcn.datasets.voc.VOC2011ClassSeg(
-            root, split='seg11valid', **dataset_kwargs),
-        batch_size=1, shuffle=False, **kwargs)
+    train_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='train', **dataset_kwargs)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, **kwargs)
+    val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split='seg11valid', **dataset_kwargs)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
+    problem_config.set_class_names(val_dataset.class_names)
 
     # 2. model
 
@@ -140,6 +147,7 @@ def main():
         optimizer=optim,
         train_loader=train_loader,
         val_loader=val_loader,
+        instance_problem=problem_config,
         out=out,
         max_iter=cfg['max_iteration'],
         interval_validate=cfg.get('interval_validate', len(train_loader)),

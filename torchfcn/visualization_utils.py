@@ -240,7 +240,7 @@ def label2rgb(lbl, img=None, label_names=None, n_labels=None,
         if n_labels is None:
             n_labels = len(label_names)
         else:
-            assert n_labels == len(label_names)
+            assert n_labels == len(label_names), 'n_labels: {}, len(label_names): {}'.format(n_labels, len(label_names))
     cmap = label_colormap(n_labels)
     cmap = (cmap * 255).astype(np.uint8)
 
@@ -319,6 +319,7 @@ def visualize_segmentation(**kwargs):
         Key or index is label_value and value is its name.
     margin_color: RGB list or None
     overlay: True or False
+    pred_permutations
 
     Returns
     -------
@@ -332,6 +333,7 @@ def visualize_segmentation(**kwargs):
     label_names = kwargs.pop('label_names', None)
     margin_color = kwargs.pop('margin_color', [255, 255, 255])
     overlay = kwargs.pop('overlay', True)
+    pred_permutations = kwargs.pop('pred_permutations', None)
 
     if kwargs:
         raise RuntimeError(
@@ -353,14 +355,23 @@ def visualize_segmentation(**kwargs):
             lbl_pred[mask_unlabeled] = 0
 
     vizs = []
-    for lbl in [lbl_true, lbl_pred]:
+    for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
         if lbl is None:
             continue
+        if permutation is not None:
+            permute_labels = np.vectorize(lambda x: pred_permutations[x])
+        else:
+            permute_labels = lambda x: x  # identity
+        lbl_permuted = permute_labels(lbl)
+        if label_names is not None:
+            label_names_permuted = [label_names[pred_permutations[x]] for x in range(len(label_names))]
+        else:
+            label_names_permuted = None
         if overlay:
             viz = [
                 img,
-                label2rgb(lbl, label_names=label_names, n_labels=n_class),
-                label2rgb(lbl, img, label_names=label_names,
+                label2rgb(lbl_permuted, label_names=label_names_permuted, n_labels=n_class),
+                label2rgb(lbl_permuted, img, label_names=label_names_permuted,
                           n_labels=n_class) if overlay else None
             ]
             viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
@@ -368,7 +379,7 @@ def visualize_segmentation(**kwargs):
         else:
             viz = [
                 img,
-                label2rgb(lbl, label_names=label_names, n_labels=n_class)]
+                label2rgb(lbl_permuted, label_names=label_names_permuted, n_labels=n_class)]
             viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
         vizs.append(viz)
 
@@ -415,3 +426,97 @@ def log_images(writer, tag, images, step, numbers=None, bgr=False):
             writer.add_image('%s/%d' % (tag, numbers[nr]), img.astype(float) /
                              255.0,
                              global_step=step)
+
+
+def visualize_heatmaps(scores, lbl_pred, lbl_true, pred_permutations=None, margin_color=(255, 255, 255), n_class=None,
+                       score_vis_normalizer=None, channel_labels=None, channels_to_visualize=None):
+    """
+    n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to make sense.
+    channels_to_visualize: None == 'all'
+    """
+    n_channels = scores.shape[0]
+    if n_class is None:
+        cmap = np.repeat(np.ones((1, 3)) * 255, [n_channels, 1])
+    else:
+        cmap = label_colormap(n_class) * 255
+
+    heatmaps = []
+    heatmaps_normalized = []
+    pred_label_masks, true_label_masks = [], []
+    colormaps = []
+    scores_min_max = (scores.min(), scores.max())
+    score_vis_normalizer = score_vis_normalizer or scores.max()
+#    for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
+#        if lbl is None:
+#            continue
+#        if permutation is not None:
+#            permute_labels = np.vectorize(lambda x: pred_permutations[x])
+#        else:
+#            permute_labels = lamba x: x  # identity
+#        lbl_permuted = permute_labels(lbl)
+#        label_names_permuted = permute_labels(label_names)
+    channels_to_visualize = channels_to_visualize or range(n_channels)
+    for gt_channel in channels_to_visualize:
+        matched_channel = pred_permutations[gt_channel]
+        single_channel_scores = scores[matched_channel, :, :]
+        color = cmap[gt_channel, :]
+        pred_label_mask = np.repeat((lbl_pred == matched_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        true_label_mask = np.repeat((lbl_true == gt_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), color=(255, 255, 255)).astype(np.uint8)
+        heatmap_normalized = scores2d2heatmap(single_channel_scores, clims=(0, score_vis_normalizer),
+                                              color=(255, 255, 255)).astype(np.uint8)
+        colormap = np.ones_like(heatmap) * color
+        if channel_labels is not None:
+            write_word_in_img_center(colormap, channel_labels[gt_channel], font_scale=2.0)
+        pred_label_masks.append(pred_label_mask)
+        true_label_masks.append(true_label_mask)
+        heatmaps.append(heatmap)
+        heatmaps_normalized.append(heatmap_normalized)
+        colormaps.append(colormap)
+    true_label_mask_row = get_tile_image(true_label_masks, (1, len(channels_to_visualize)), margin_color=margin_color,
+                                         margin_size=2)
+    pred_label_mask_row = get_tile_image(pred_label_masks, (1, len(channels_to_visualize)), margin_color=margin_color,
+                                         margin_size=2)
+    heatmap_row = get_tile_image(heatmaps, (1, len(channels_to_visualize)), margin_color=margin_color,
+                                 margin_size=2)
+    heatmap_row_normalized = get_tile_image(heatmaps_normalized, (1, len(channels_to_visualize)), margin_color=margin_color,
+                                            margin_size=2)
+    colormaps_row = get_tile_image(colormaps, (1, len(channels_to_visualize)), margin_color=margin_color, margin_size=2)
+    all_rows = [heatmap_row, heatmap_row_normalized, pred_label_mask_row, colormaps_row, true_label_mask_row]
+    return get_tile_image(all_rows, (len(all_rows), 1), margin_color=margin_color, margin_size=2)
+
+
+def scores2d2heatmap(scores_single_channel, clims=None, color=(255, 255, 255)):
+    M, N = scores_single_channel.shape
+    heatmap = np.repeat(scores_single_channel[:, :, np.newaxis], 3, axis=2).astype(np.float32)  # / 255
+    if clims is None:
+        clims = (heatmap.min(), heatmap.max())
+    else:
+        clims = (float(clims[0]), float(clims[1]))
+    heatmap = (heatmap - clims[0]) / (clims[1] - clims[0])
+    heatmap = heatmap * np.array(color).squeeze()[np.newaxis, np.newaxis, :]
+    return heatmap
+
+
+def write_word_in_img_center(img, text, **kwargs):
+    r, c = (img.shape[0] // 2), (img.shape[1] // 2)
+    write_word_in_location(img, text, r, c, **kwargs)
+
+
+def write_word_in_location(img, text, r, c, font_face=cv2.FONT_HERSHEY_SIMPLEX, font_scale=0.7, thickness=None):
+    thickness = int(round(thickness or font_scale * 2.0 / 0.7))  # make bolder as it gets larger (scale=0.7 <->
+    # thickness=2)
+    y, x = r, c
+    y, x = map(int, [y, x])
+    text_size, baseline = cv2.getTextSize(text, font_face, font_scale, thickness)
+    color = get_text_color(img[y, x])
+    cv2.putText(img, text, (x - text_size[0] // 2, y), font_face, font_scale, color, thickness)
+
+
+def get_text_color(bg_color):
+    """
+    Decides whether to write on background in white or black based on background color
+    """
+    if bg_color[0] * 0.299 + bg_color[1] * 0.587 + bg_color[2] * 0.114 > 170:
+        return (0, 0, 0)
+    return (255, 255, 255)

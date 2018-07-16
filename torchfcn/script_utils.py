@@ -15,7 +15,6 @@ from glob import glob
 here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'
 
-
 CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'weight_decay': 'decay',
                                         'n_training_imgs': 'n_train',
@@ -28,7 +27,43 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'n_max_per_class': 'n_per',
                                         'semantic_subset': 'sem_set',
                                         'val_on_train': 'vot',
-                                        'matching': 'match'}
+                                        'matching': 'match',
+                                        'filter_images_by_semantic_subset': 'filter_sem',
+                                        'set_extras_to_void': 'void',
+                                        'momentum': 'm',
+                                        'n_instances_per_class': 'n_inst_cls'}
+
+BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
+
+
+class bcolors:
+    """
+    https://stackoverflow.com/questions/287871/print-in-terminal-with-colors
+    """
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
+def check_clean_work_tree(exit_on_error=False, interactive=True):
+    child = subprocess.Popen(['git', 'diff', '--name-only', '--exit-code'], stdout=subprocess.PIPE)
+    stdout = child.communicate()[0]
+    exit_code = child.returncode
+    if exit_code != 0:
+        override = False
+        if interactive:
+            override = 'y' == input(bcolors.WARNING + 'Your working directory tree isn\'t clean:\n ' + bcolors.ENDC +
+                                    bcolors.FAIL + '{}'.format(stdout.decode()) + bcolors.ENDC +
+                                    'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': '
+                                    '' + bcolors.ENDC)
+        if exit_on_error or interactive and not override:
+            raise Exception(bcolors.FAIL + 'Exiting.  Please commit or stash your changes.' + bcolors.ENDC)
+    return exit_code, stdout
 
 
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME):
@@ -77,9 +112,12 @@ def git_hash():
 
 
 def get_log_dir(model_name, config_id, cfg, parent_directory=None):
-    bad_char_replacements = {' ': '', ',': '-'}
+    bad_char_replacements = BAD_CHAR_REPLACEMENTS
     # load config
-    name = 'MODEL-%s_CFG-%03d' % (model_name, config_id)
+    now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
+    name = 'TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
+    name += '_VCS-{}'.format(git_hash().replace("'", ""))
+    name += '_MODEL-%s_CFG-%03d' % (model_name, config_id)
     for k, v in cfg.items():
         v = str(v)
         if '/' in v:
@@ -87,9 +125,6 @@ def get_log_dir(model_name, config_id, cfg, parent_directory=None):
         name += '_%s-%s' % (k.upper(), v)
         for key, val in bad_char_replacements.items():
             name = name.replace(key, val)
-    now = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
-    name += '_VCS-{}'.format(git_hash().replace("'", ""))
-    name += '_TIME-%s' % now.strftime('%Y%m%d-%H%M%S')
     # create out
     if parent_directory is None:
         parent_directory = here
@@ -129,5 +164,6 @@ def get_parameters(model, bias=False):
         elif isinstance(m, modules_skipped):
             continue
         else:
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
             raise ValueError('Unexpected module: %s' % str(m))

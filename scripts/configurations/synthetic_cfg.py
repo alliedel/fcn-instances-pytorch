@@ -17,6 +17,7 @@ def get_default_config():
         n_images_val=100,
         infinite_synthetic=False,
         one_dimension=None,  # {'x', 'y'}
+        semantic_subset=None,
     )
     return _default_config
 
@@ -25,4 +26,10 @@ configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     0: dict(),
+    'square2': dict(
+        semantic_subset=['background', 'square'],
+        synthetic_generator_n_instances_per_semantic_id=2,
+        n_instances_per_class=2,
+        infinite_synthetic=True
+    )
 }

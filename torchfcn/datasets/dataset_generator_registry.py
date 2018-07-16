@@ -57,6 +57,7 @@ def get_dataset(dataset_type, cfg, transform=True):
         train_dataset, val_dataset = get_cityscapes_datasets(dataset_path, precomputed_file_transformation,
                                                              runtime_transformation, transform=transform)
     elif dataset_type == 'synthetic':
+        semantic_subset = cfg['semantic_subset']
         precomputed_file_transformation, runtime_transformation = get_transformations(
             cfg, synthetic.ALL_BLOB_CLASS_NAMES)
         n_images_train = pop_without_del(cfg, 'n_images_train', None)
@@ -67,6 +68,7 @@ def get_dataset(dataset_type, cfg, transform=True):
             n_images_train=n_images_train, n_images_val=n_images_val, ordering=ordering,
             precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation,
+            semantic_subset_to_generate=semantic_subset,
             intermediate_write_path=intermediate_write_path, transform=transform)
     else:
         raise NotImplementedError('Generator for dataset type {} not implemented.')
@@ -136,24 +138,29 @@ def get_cityscapes_datasets(dataset_path, precomputed_file_transformation, runti
 
 
 def get_synthetic_datasets(n_images_train, n_images_val, ordering, precomputed_file_transformation,
-                           runtime_transformation, intermediate_write_path='/tmp/', transform=True):
+                           runtime_transformation, intermediate_write_path='/tmp/',
+                           semantic_subset_to_generate=None, transform=True):
     if isinstance(precomputed_file_transformation,
                   precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):
+        assert precomputed_file_transformation.ordering == ordering, \
+            AssertionError('We planned to synthetically generate ordering {}, but tried to replace '
+                           'ordering {}'.format(ordering, precomputed_file_transformation.ordering))
         precomputed_file_transformation = None  # Remove it, because we're going to order them when generating
         # the images instead.
     if precomputed_file_transformation is not None:
         raise ValueError('Cannot perform file transformations on the synthetic dataset.')
 
+    synthetic_kwargs = dict(ordering=ordering, intermediate_write_path=intermediate_write_path,
+                            semantic_subset_to_generate=semantic_subset_to_generate)
     train_dataset = synthetic.TransformedInstanceDataset(
-        raw_dataset=synthetic.BlobExampleGenerator(n_images=n_images_train,
-                                                   ordering=ordering,
-                                                   intermediate_write_path=intermediate_write_path),
+        raw_dataset=synthetic.BlobExampleGenerator(
+            n_images=n_images_train,
+            **synthetic_kwargs),
         raw_dataset_returns_images=True,
         runtime_transformation=runtime_transformation)
     val_dataset = synthetic.TransformedInstanceDataset(
         raw_dataset=synthetic.BlobExampleGenerator(n_images=n_images_val,
-                                                   ordering=ordering,
-                                                   intermediate_write_path=intermediate_write_path),
+                                                   **synthetic_kwargs),
         raw_dataset_returns_images=True,
         runtime_transformation=runtime_transformation)
 

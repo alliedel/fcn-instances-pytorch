@@ -33,17 +33,21 @@ class BlobExampleGenerator(InstanceDatasetBase):
                  return_torch_type=Defaults.return_torch_type,
                  n_images=None, mean_bgr=None,
                  transform=Defaults.transform, _im_a_copy=False,
-                 one_dimension=None, semantic_subset_to_generate=None, ordering=None, intermediate_write_path='/tmp/'):
+                 one_dimension=None, semantic_subset_to_generate=None, ordering=None,
+                 intermediate_write_path='/tmp/'):
         """
         one_dimension: {'x', 'y', None}
         """
         if mean_bgr is None:
             mean_bgr = Defaults.mean_bgr
         n_images = n_images or Defaults.n_images
-        assert semantic_subset_to_generate is None \
-               or all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset_to_generate]), \
-            ValueError('semantic_subset={} is incorrect. Must be a list of semantic classes in {}'.format(
-                semantic_subset_to_generate, ALL_BLOB_CLASS_NAMES))
+        if semantic_subset_to_generate is not None:
+            assert all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset_to_generate]), ValueError(
+                'semantic_subset={} is incorrect. Must be a list of semantic classes in {}'.format(
+                    semantic_subset_to_generate, ALL_BLOB_CLASS_NAMES))
+            assert any([cls_name == 'background' for cls_name in semantic_subset_to_generate]), ValueError(
+                'Please do include background in the list of classes.')
+
         assert one_dimension in [None, 'x', 'y'], ValueError
         self.img_size = img_size
         assert len(self.img_size) == 2

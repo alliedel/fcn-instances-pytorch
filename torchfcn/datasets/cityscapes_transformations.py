@@ -256,6 +256,7 @@ def map_raw_inst_labels_to_instance_count(inst_lbl):
     Warning: inst_lbl must be an int/long for this to work
     """
     inst_lbl[inst_lbl < 1000] = 0
+    inst_lbl[inst_lbl >= 1000] += 1  # We make instance labels start from 1 instead of 0.
     inst_lbl -= np.int32((inst_lbl / 1000)) * np.int32(1000)  # more efficient
     max_lbl = inst_lbl.max()
     if max_lbl > 0:

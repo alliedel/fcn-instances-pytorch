@@ -30,31 +30,44 @@ def write_absolute_heatmaps(absolute_heatmap_average, split, instance_problem):
     sem_inst_class_list = instance_problem.semantic_instance_class_list
     inst_id_list = instance_problem.instance_count_id_list
     channel_names = instance_problem.get_channel_labels()
-    plt.figure(0, figsize=FIGSIZE)
-    plt.clf()
-    for channel_idx, (sem_idx, inst_id) in enumerate(zip(sem_inst_class_list, inst_id_list)):
-        channel_name = channel_names[channel_idx]
-        display_pyutils.matshow_and_save_list_to_workspace(
-            [absolute_heatmap_average[channel_idx, :, :]],
-            filename_base_ext='{}_score_heatmaps_{}.png'.format(split, channel_name),
-            show_filenames_as_titles=True, cmap=COLORMAP, dpi=DPI)
+    is_background = ['background' in s for s in channel_names]
+    n_channels = len(channel_names)
+    for channel_idx in range(n_channels):
+        h = plt.figure(0, figsize=FIGSIZE)
+        plt.clf()
+        if is_background[channel_idx]:
+            continue
+        display_pyutils.display_list_of_images([absolute_heatmap_average[channel_idx, :, :]],
+                                               cmap=COLORMAP, smart_clims=True)
+        # filename_base_ext='{}_score_heatmaps_{}.png'
+        filename = '{}_absolute_heatmap_{}.png'.format(split, channel_names[channel_idx])
+        plt.suptitle(filename)
+        display_pyutils.save_fig_to_workspace(filename, dpi=DPI)
+        h.clear()
 
 
 def write_relative_heatmaps_by_channel(list_of_relative_heatmap_averages, instance_problem, split):
     channel_names = instance_problem.get_channel_labels()
     n_channels = len(list_of_relative_heatmap_averages)
     sem_inst_class_list = instance_problem.semantic_instance_class_list
+    is_background = ['background' in s for s in channel_names]
+    assert len(is_background) == n_channels
     inst_id_list = instance_problem.instance_count_id_list
-    ch_subplot_rc_arrangement = [(sem_val, inst_id) for sem_val, inst_id in zip(sem_inst_class_list, inst_id_list)]
+    ch_subplot_rc_arrangement = [(sem_val, inst_id) for sem_val, inst_id, bg in
+                                 zip(sem_inst_class_list, inst_id_list, is_background)
+                                 if not bg]
     print('Writing heatmaps relative to each channel')
     for channel_idx in range(n_channels):
+        if is_background[channel_idx]:
+            continue
         h = plt.figure(0, figsize=FIGSIZE)
         plt.clf()
         hm = list_of_relative_heatmap_averages[channel_idx]
         list_of_subtitles = ['rel-to {}'.format(channel_names[rel_ch_idx])
                              for rel_ch_idx in range(n_channels)]
         display_pyutils.display_list_of_images([hm[rel_ch_idx, :, :]
-                                                for rel_ch_idx in range(n_channels)],
+                                                for rel_ch_idx in range(n_channels)
+                                                if not is_background[rel_ch_idx]],
                                                list_of_titles=list_of_subtitles, cmap=COLORMAP, arrange='custom',
                                                arrangement_rc_list=ch_subplot_rc_arrangement,
                                                smart_clims=True)
@@ -68,7 +81,7 @@ def write_relative_heatmaps_by_channel(list_of_relative_heatmap_averages, instan
 def write_relative_heatmaps_by_sem_cls(list_of_relative_heatmap_averages_rel_by_semantic, instance_problem, split):
     print('Summing and writing heatmaps relative to each semantic class')
     channel_names = instance_problem.get_channel_labels()
-    sem_class_names = instance_problem.class_names
+    sem_class_names = instance_problem.semantic_class_names
     sem_class_vals = range(instance_problem.n_semantic_classes)
     n_channels = len(list_of_relative_heatmap_averages_rel_by_semantic)
     n_semantic_classes = len(sem_class_names)
@@ -128,11 +141,11 @@ def main():
     for split in ['train', 'val']:
         # NOTE(allie): At the moment, clims is not synced.  Need to get the min/max and pass them in.
 
-        # print('Getting absolute heatmaps')
-        # absolute_heatmap_average = score_heatmaps.get_per_image_per_channel_heatmaps(
-        #     model, dataloaders[split], cfg, cuda)
-        # print('Writing images')
-        # write_absolute_heatmaps(absolute_heatmap_average, split, my_trainer.instance_problem)
+        print('Getting absolute heatmaps')
+        absolute_heatmap_average = score_heatmaps.get_per_image_per_channel_heatmaps(
+            model, dataloaders[split], cfg, cuda)
+        print('Writing images')
+        write_absolute_heatmaps(absolute_heatmap_average.cpu().numpy(), split, my_trainer.instance_problem)
 
         print('Computing heatmaps relative to each channel')
         list_of_relative_heatmap_averages = score_heatmaps.get_relative_per_image_per_channel_heatmaps(

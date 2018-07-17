@@ -8,10 +8,11 @@ import shutil
 import matplotlib.pyplot as plt
 import numpy as np
 import pytz
-import scipy.misc
 import torch
 import torch.nn.functional as F
 import tqdm
+
+from torchfcn.analysis.visualization_utils import export_visualizations
 from torchfcn.utils.misc import flatten_dict
 from torch.autograd import Variable
 
@@ -657,8 +658,11 @@ class Trainer(object):
             self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
         val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))
 
-        plt.plot(self.train_losses_stored, label=train_label, color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
-        plt.plot(self.val_losses_stored, label=val_label, color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
+        plt.plot(self.iterations_for_losses_stored, self.train_losses_stored, label=train_label,
+                 color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
+        plt.plot(self.iterations_for_losses_stored, self.val_losses_stored, label=val_label,
+                 color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
+        plt.xlabel('iteration')
         plt.legend()
         # Set y limits for just the last 10 datapoints
         last_x = max(len(self.train_losses_stored), len(self.val_losses_stored))
@@ -685,35 +689,6 @@ class Trainer(object):
             h.savefig(zoom_filename)
         else:
             shutil.copyfile(filename, zoom_filename)
-
-
-def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):
-    if not osp.exists(outdir):
-        os.makedirs(outdir)
-    if tile:
-        out_img = visualization_utils.get_tile_image(visualizations, margin_color=[255, 255, 255],
-                                                     margin_size=50)
-        tag = '{}images'.format(basename)
-        if tensorboard_writer is not None:
-            export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
-        out_subdir = osp.join(outdir, tag)
-        if not osp.exists(out_subdir):
-            os.makedirs(out_subdir)
-        out_file = osp.join(out_subdir, 'iter-%012d.jpg' % iteration)
-        scipy.misc.imsave(out_file, out_img)
-    else:
-        tag = '{}images'.format(basename)
-        out_subdir = osp.join(outdir, tag)
-        if not osp.exists(out_subdir):
-            os.makedirs(out_subdir)
-        for img_idx, out_img in enumerate(visualizations):
-            if tensorboard_writer is not None:
-                export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
-            out_subsubdir = osp.join(out_subdir, str(img_idx))
-            if not osp.exists(out_subsubdir):
-                os.makedirs(out_subsubdir)
-            out_file = osp.join(out_subsubdir, 'iter-%012d.jpg' % iteration)
-            scipy.misc.imsave(out_file, out_img)
 
 
 def flatten(d, parent_key='', sep='.'):

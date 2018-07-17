@@ -7,7 +7,8 @@ from matplotlib import gridspec
 from mpl_toolkits.mplot3d import Axes3D
 from textwrap import wrap
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-from local_pyutils import TermColors
+from torchfcn.utils.misc import TermColors
+import cycler
 
 WORKSPACE_DIR = os.path.expanduser('~/workspace/images')
 
@@ -53,7 +54,7 @@ MY_RC_DEFAULTS = {
     'figure.figsize': [3.39, 2.10],
     'font.family': 'serif',
     'lines.linewidth': 3,
-    'axes.color_cycle': GOOD_COLOR_CYCLE,
+    'axes.prop_cycle': cycler.cycler('color', GOOD_COLOR_CYCLE),
 }
 
 # MARKERS = mpl.markers.MarkerStyle.filled_markers[::-1]
@@ -106,11 +107,17 @@ def sub2ind(array_shape, rows, cols):
 
 
 def ind2sub(array_shape, ind):
+    is_int = isinstance(ind, int)
+    if is_int:
+        ind = np.array([ind])
     ind[ind < 0] = -1
     ind[ind >= array_shape[0] * array_shape[1]] = -1
     rows = (ind.astype('int') / array_shape[1])
     cols = ind % array_shape[1]
-    return (rows, cols)
+    if is_int:
+        return (rows[0], cols[0])
+    else:
+        return (rows, cols)
 
 
 def subplot_grid(num_rows, num_cols):
@@ -119,7 +126,7 @@ def subplot_grid(num_rows, num_cols):
 
 
 def nested_subplot_grid(num_rows, num_cols, parent_grid):
-    nested_grid = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=parent_grid)
+    nested_grid = gridspec.GridSpecFromSubplotSpec(num_rows, num_cols, subplot_spec=parent_grid)
     return nested_grid
 
 
@@ -204,7 +211,7 @@ def display_list_of_images(list_of_images, list_of_titles=None, arrange='square'
     elif arrange == 'square':
         R = np.floor(np.sqrt(len(list_of_images)))
         C = np.ceil(len(list_of_images) / float(R))
-        arrangement_rc_list = [ind2sub((R, C), ind) for ind in len(list_of_images)]
+        arrangement_rc_list = [ind2sub((R, C), ind) for ind in range(len(list_of_images))]
     elif arrange == 'custom':
         assert arrangement_rc_list is not None and len(arrangement_rc_list) == len(list_of_images) and all([
             len(rc) == 2 for rc in arrangement_rc_list]), ValueError('Please format arrangement_rc_list correctly')
@@ -221,19 +228,35 @@ def display_list_of_images(list_of_images, list_of_titles=None, arrange='square'
         if not sync_clims:
             plt.colorbar()
         if list_of_titles:
-            plt.title(list_of_titles[image_index])
+            try:
+                plt.suptitle(list_of_titles[image_index])
+            except:
+                plt.title(list_of_titles[image_index])
         else:
-            plt.title(str(image_index))
-    plt.tight_layout()
-    if show_clim == 'alone':
+            try:
+                plt.suptitle(str(image_index))
+            except:
+                plt.title(str(image_index))
+    # plt.tight_layout()
+    # if show_clim == 'alone':
+    #     fig.subplots_adjust(right=0.8)
+    #     cbar_ax = fig.add_axes([0.85, 0.05, 0.15, 0.85])
+    #     plt.sca(cbar_ax)
+    #     plt.set_cmap(cmap)
+    #     clims = plt.gci().get_clim()
+    #     mappable = cbar_ax.imshow(np.array([clims]))
+    #     plt.gca().set_visible(False)
+    #     cbar = plt.colorbar(mappable, ax=cbar_ax, fraction=0.95)
+        fig = plt.gcf()
         fig.subplots_adjust(right=0.8)
-        cbar_ax = fig.add_axes([0.85, 0.05, 0.15, 0.85])
-        plt.sca(cbar_ax)
-        plt.set_cmap(cmap)
+        import ipdb; ipdb.set_trace()
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        fig.colorbar(cax=cbar_ax)
+        fig.set_cmap(cmap)
         clims = plt.gci().get_clim()
-        mappable = cbar_ax.imshow(np.array([clims]))
+        plt.imshow(np.array([clims]))
         plt.gca().set_visible(False)
-        cbar = plt.colorbar(mappable, ax=cbar_ax, fraction=0.95)
+        plt.tight_layout()
     if sync_clims:
         sync_clim_axes(plt.gcf().axes)
 
@@ -394,9 +417,15 @@ def matshow_and_save_list_to_workspace(list_of_mats, filename_base_ext='.png', a
         if show_filenames_as_titles:
             ttl = os.path.basename(filename)
             ttl = "\n".join(wrap(ttl, 60))
-            plt.title(ttl)
+            try:
+                plt.suptitle(ttl)
+            except:
+                plt.title(ttl)
         elif list_of_titles is not None:
-            plt.title(list_of_titles[img_idx])
+            try:
+                plt.suptitle(list_of_titles[img_idx])
+            except:
+                plt.title(list_of_titles[img_idx])
         filenames.append(filename)
         fignums.append(h.number)
 

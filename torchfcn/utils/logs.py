@@ -81,7 +81,7 @@ def load_everything_from_cfg(cfg: dict, gpu: int, dataset_name: str, resume: str
     n_instances_per_class = 1 if cfg['single_instance'] else cfg['n_instances_per_class']
     assert n_instances_per_class is not None
 
-    problem_config = get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class,
+    problem_config = get_problem_config(dataloaders['val'].dataset.semantic_class_names, n_instances_per_class,
                                         map_to_semantic=cfg['map_to_semantic'])
 
     checkpoint_file = resume
@@ -94,7 +94,6 @@ def load_everything_from_cfg(cfg: dict, gpu: int, dataset_name: str, resume: str
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
 
     # 3. optimizer
-    # TODO(allie): something is wrong with adam... fix it.
     optim = get_optimizer(cfg, model, checkpoint_file)
 
     if cfg['freeze_vgg']:

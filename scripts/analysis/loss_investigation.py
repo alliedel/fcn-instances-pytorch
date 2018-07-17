@@ -11,6 +11,7 @@ from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 
 import torchfcn
+import torchfcn.analysis.visualization_utils
 import torchfcn.datasets.synthetic
 import torchfcn.datasets.voc
 import torchfcn.utils.logs
@@ -135,8 +136,8 @@ def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_co
                                                  score_vis_normalizer=score.max(),
                                                  channel_labels=channel_labels,
                                                  channels_to_visualize=None)
-    trainer.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
-                                  basename=basename, tile=True)
+    torchfcn.analysis.visualization_utils.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
+                                                                basename=basename, tile=True)
 
 
 def main():

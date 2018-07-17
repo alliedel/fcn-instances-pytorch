@@ -4,7 +4,13 @@ Forked from site-packages/fcn/utils.py
 from __future__ import division
 
 import math
+import os
 import warnings
+from os import path as osp
+
+import scipy.misc
+
+from torchfcn import export_utils
 
 try:
     import cv2
@@ -16,8 +22,8 @@ import scipy.ndimage
 import six
 import skimage.color
 
-
 DEBUG_ASSERTS = True
+
 
 # -----------------------------------------------------------------------------
 # Chainer Util
@@ -222,10 +228,10 @@ def get_tile_image(imgs, tile_shape=None, result_img=None, margin_color=None, ma
         h, w = int(scale * h), int(scale * w)
         img = resize(img, (h, w), preserve_range=True).astype(dtype)
         if len(img.shape) == 3:
-            img = centerize(img, (max_height + margin_size*2, max_width + margin_size*2, 3),
+            img = centerize(img, (max_height + margin_size * 2, max_width + margin_size * 2, 3),
                             margin_color)
         else:
-            img = centerize(img, (max_height + margin_size*2, max_width + margin_size*2),
+            img = centerize(img, (max_height + margin_size * 2, max_width + margin_size * 2),
                             margin_color)
         imgs[i] = img
     return _tile_images(imgs, tile_shape, result_img)
@@ -420,22 +426,22 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permut
     colormaps = []
     scores_min_max = (scores.min(), scores.max())
     score_vis_normalizer = score_vis_normalizer or scores.max()
-#    for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
-#        if lbl is None:
-#            continue
-#        if permutation is not None:
-#            permute_labels = np.vectorize(lambda x: pred_permutations[x])
-#        else:
-#            permute_labels = lamba x: x  # identity
-#        lbl_permuted = permute_labels(lbl)
-#        label_names_permuted = permute_labels(label_names)
+    #    for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
+    #        if lbl is None:
+    #            continue
+    #        if permutation is not None:
+    #            permute_labels = np.vectorize(lambda x: pred_permutations[x])
+    #        else:
+    #            permute_labels = lamba x: x  # identity
+    #        lbl_permuted = permute_labels(lbl)
+    #        label_names_permuted = permute_labels(label_names)
     channels_to_visualize = channels_to_visualize or range(n_channels)
     for gt_channel in channels_to_visualize:
         matched_channel = pred_permutations[gt_channel]
         single_channel_scores = scores[matched_channel, :, :]
         color = cmap[gt_channel, :]
-        pred_label_mask = np.repeat((lbl_pred == matched_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
-        true_label_mask = np.repeat((lbl_true == gt_channel)[:,:,np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        pred_label_mask = np.repeat((lbl_pred == matched_channel)[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        true_label_mask = np.repeat((lbl_true == gt_channel)[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
         if use_funky_void_pixels:
             void_mask = lbl_true == -1
             viz_void = (
@@ -515,3 +521,30 @@ def get_text_color(bg_color):
     return (255, 255, 255)
 
 
+def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):
+    if not osp.exists(outdir):
+        os.makedirs(outdir)
+    if tile:
+        out_img = get_tile_image(visualizations, margin_color=[255, 255, 255],
+                                 margin_size=50)
+        tag = '{}images'.format(basename)
+        if tensorboard_writer is not None:
+            export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
+        out_subdir = osp.join(outdir, tag)
+        if not osp.exists(out_subdir):
+            os.makedirs(out_subdir)
+        out_file = osp.join(out_subdir, 'iter-%012d.jpg' % iteration)
+        scipy.misc.imsave(out_file, out_img)
+    else:
+        tag = '{}images'.format(basename)
+        out_subdir = osp.join(outdir, tag)
+        if not osp.exists(out_subdir):
+            os.makedirs(out_subdir)
+        for img_idx, out_img in enumerate(visualizations):
+            if tensorboard_writer is not None:
+                export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
+            out_subsubdir = osp.join(out_subdir, str(img_idx))
+            if not osp.exists(out_subsubdir):
+                os.makedirs(out_subsubdir)
+            out_file = osp.join(out_subsubdir, 'iter-%012d.jpg' % iteration)
+            scipy.misc.imsave(out_file, out_img)

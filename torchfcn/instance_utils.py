@@ -14,7 +14,7 @@ class InstanceProblemConfig(object):
     (training) dataset.
     """
 
-    def __init__(self, n_instances_by_semantic_id, class_names=None, semantic_vals=None, void_value=-1,
+    def __init__(self, n_instances_by_semantic_id, semantic_class_names=None, semantic_vals=None, void_value=-1,
                  include_instance_channel0=False, map_to_semantic=False):
         """
         For semantic, include_instance_channel0=True
@@ -25,7 +25,7 @@ class InstanceProblemConfig(object):
         assert n_instances_by_semantic_id is not None, ValueError
 
         self.map_to_semantic = map_to_semantic
-        self.class_names = class_names
+        self.semantic_class_names = semantic_class_names
         self.semantic_vals = semantic_vals or range(len(n_instances_by_semantic_id))
         self.void_value = void_value
         self.include_instance_channel0 = include_instance_channel0
@@ -75,16 +75,16 @@ class InstanceProblemConfig(object):
 
     def get_channel_labels(self, sem_inst_format='{}_{}'):
         return self._get_channel_labels(self.semantic_instance_class_list, self.instance_count_id_list,
-                                        self.class_names, map_to_semantic=self.map_to_semantic,
+                                        self.semantic_class_names, map_to_semantic=self.map_to_semantic,
                                         sem_inst_format=sem_inst_format)
 
     def get_model_channel_labels(self, sem_inst_format='{}_{}'):
         return self._get_channel_labels(self.model_semantic_instance_class_list, self.model_instance_count_id_list,
-                                        self.class_names, map_to_semantic=False, sem_inst_format=sem_inst_format)
+                                        self.semantic_class_names, map_to_semantic=False, sem_inst_format=sem_inst_format)
 
     def set_class_names(self, class_names):
         assert class_names is None or (len(class_names) == self.n_semantic_classes)
-        self.class_names = class_names
+        self.semantic_class_names = class_names
 
     def decouple_instance_result(self, instance_scores):
         # TODO(allie): implement.

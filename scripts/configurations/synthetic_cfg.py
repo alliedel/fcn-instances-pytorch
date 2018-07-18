@@ -18,6 +18,8 @@ def get_default_config():
         infinite_synthetic=False,
         one_dimension=None,  # {'x', 'y'}
         semantic_subset=None,
+        img_size=None,
+        portrait=False,
     )
     return _default_config
 

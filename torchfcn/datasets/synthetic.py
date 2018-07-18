@@ -22,6 +22,7 @@ class Defaults(object):
     n_images = 100
     mean_bgr = np.array([10.0, 10.0, 10.0])
     transform = True
+    portrait = False
 
 
 class BlobExampleGenerator(InstanceDatasetBase):
@@ -35,9 +36,11 @@ class BlobExampleGenerator(InstanceDatasetBase):
                  semantic_subset_to_generate=None,
                  ordering=None,
                  _im_a_copy=False,
-                 intermediate_write_path='/tmp/'):
+                 intermediate_write_path='/tmp/',
+                 portrait=Defaults.portrait):
         """
         one_dimension: {'x', 'y', None}
+        portrait: rotates the image size (flips order)
         """
         if mean_bgr is None:
             mean_bgr = Defaults.mean_bgr
@@ -50,7 +53,9 @@ class BlobExampleGenerator(InstanceDatasetBase):
                 'Please do include background in the list of classes.')
 
         assert one_dimension in [None, 'x', 'y'], ValueError
-        self.img_size = img_size
+        self.img_size = img_size or Defaults.img_size
+        if portrait:
+            self.img_size = (self.img_size[1], self.img_size[0])
         assert len(self.img_size) == 2
         self.blob_size = blob_size
         self.clrs = clrs  # nested list: outer list -- one item per semantic class.  inner list

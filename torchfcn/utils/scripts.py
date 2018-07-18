@@ -105,8 +105,13 @@ def parse_args():
     replace_attr_with_function_of_val(override_cfg_args, 'clip', lambda old_val: old_val if old_val > 0 else None,
                                       error_if_attr_doesnt_exist=False)
     replace_attr_with_function_of_val(override_cfg_args, 'semantic_subset',
-                                      lambda old_val: old_val if (old_val is None or old_val == '') else
-                                      [s.strip() for s in old_val.split(',')],
+                                      lambda old_val: convert_comma_separated_string_to_list(old_val, str),
+                                      error_if_attr_doesnt_exist=False)
+    replace_attr_with_function_of_val(override_cfg_args, 'img_size',
+                                      lambda old_val: convert_comma_separated_string_to_list(old_val, int),
+                                      error_if_attr_doesnt_exist=False)
+    replace_attr_with_function_of_val(override_cfg_args, 'resize_size',
+                                      lambda old_val: convert_comma_separated_string_to_list(old_val, int),
                                       error_if_attr_doesnt_exist=False)
 
     return args, override_cfg_args
@@ -124,3 +129,13 @@ def str_or_int(val):
         return int(val)
     except ValueError:
         return val
+
+
+def convert_comma_separated_string_to_list(string, conversion_type=None):
+    if conversion_type is None:
+        conversion_type = str
+    if string is None or string == '':
+        return string
+    else:
+        elements = [s.strip() for s in string.split(',')]
+        return [conversion_type(element) for element in elements]

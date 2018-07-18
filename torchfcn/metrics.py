@@ -156,13 +156,13 @@ class InstanceMetrics(object):
         metrics_dict = {
             'n_instances_assigned_per_sem_cls':
                 {
-                    self.problem_config.class_names[sem_cls] + '_sum': self.n_instances_assigned_per_sem_cls[:,
+                    self.problem_config.semantic_class_names[sem_cls] + '_sum': self.n_instances_assigned_per_sem_cls[:,
                                                                        sem_cls].sum()
                     for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
                 },
             'n_images_with_more_than_one_instance_assigned':
                 {
-                    self.problem_config.class_names[sem_cls] + '_sum':
+                    self.problem_config.semantic_class_names[sem_cls] + '_sum':
                         (self.n_instances_assigned_per_sem_cls[:, sem_cls] > 1).sum()
                     for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
                 },
@@ -226,7 +226,7 @@ class InstanceMetrics(object):
         """
         assert self.metrics_computed, 'Run compute_metrics first'
         channel_labels = self.problem_config.get_channel_labels('{}_{}')
-        sem_labels = self.problem_config.class_names
+        sem_labels = self.problem_config.semantic_class_names
         sz_score_by_sem = list(self.softmaxed_scores.size())
         sz_score_by_sem[1] = self.problem_config.n_semantic_classes
         softmax_scores_per_sem_cls = torch.zeros(tuple(sz_score_by_sem))
@@ -407,7 +407,8 @@ def _test():
                             (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
 
     dataloaders = torchfcn.utils.data.get_dataloaders(cfg, 'synthetic', cuda)
-    problem_config = torchfcn.utils.models.get_problem_config(dataloaders['val'].dataset.class_names, n_instances_per_class)
+    problem_config = torchfcn.utils.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
+                                                              n_instances_per_class)
     model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, checkpoint,
                                                                           semantic_init=None, cuda=cuda)
     instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )

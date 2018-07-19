@@ -118,7 +118,7 @@ def pie_chart(values, labels, autopct='%1.1f%%'):
     # Plot
     colors = [display_pyutils.GOOD_COLORS[np.mod(i, len(display_pyutils.GOOD_COLORS))] for i in range(len(values))]
     patches, text, _  = plt.pie(values, explode=explode, labels=labels, colors=colors,
-                             autopct=autopct, shadow=True, startangle=140)
+                                autopct=autopct, shadow=True, startangle=140)
     plt.axis('equal')
 
     sort_legend = True

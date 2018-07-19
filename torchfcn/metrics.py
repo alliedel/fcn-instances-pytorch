@@ -401,7 +401,8 @@ def _test():
     cuda = torch.cuda.is_available()
 
     cfg_file = os.path.join(logdir, 'config.yaml')
-    cfg = torchfcn.utils.configs.create_config_copy(torchfcn.utils.configs.load_config(cfg_file), reverse_replacements=True)
+    cfg = torchfcn.utils.configs.create_config_copy(torchfcn.utils.configs.load_config(cfg_file),
+                                                    reverse_replacements=True)
     synthetic_generator_n_instances_per_semantic_id = 2
     n_instances_per_class = cfg['n_instances_per_class'] or \
                             (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
@@ -411,7 +412,7 @@ def _test():
                                                               n_instances_per_class)
     model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, checkpoint,
                                                                           semantic_init=None, cuda=cuda)
-    instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )
+    # instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )
     # not necessary, but we'll make sure it runs anyway
     instance_metrics.clear()
     instance_metrics.compute_metrics(model)

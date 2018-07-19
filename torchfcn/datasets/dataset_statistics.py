@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import tqdm
+from torchfcn.datasets import dataset_utils
 
 
 class InstanceDatasetStatistics(object):
@@ -147,5 +148,3 @@ def filter_images_by_non_bground(dataset, bground_val=0, void_val=-1):
 
 def pairwise_and(list1, list2):
     return [a and b for a, b in zip(list1, list2)]
-
-

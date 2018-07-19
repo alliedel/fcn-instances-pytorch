@@ -84,6 +84,7 @@ def parse_args():
     args, argv = parser.parse_known_args()
 
     # Config override parser
+    assert args.dataset is not None, ValueError('dataset argument must not be None.  Run with --help for more details.')
     cfg_default = dataset_registry.REGISTRY[args.dataset].default_config
     cfg_override_parser = torchfcn.utils.configs.get_cfg_override_parser(cfg_default)
 

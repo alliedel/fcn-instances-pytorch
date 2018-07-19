@@ -12,11 +12,11 @@ import cycler
 
 WORKSPACE_DIR = os.path.expanduser('~/workspace/images')
 
-GOOD_COLOR_CYCLE = ['#3B444B', '#E52B50', '#4B5320', '#FFE135', '#BF94E4',
-                    '#FF2052']
+GOOD_COLOR_CYCLE = ['#3B444B', '#E52B50', '#BF94E4',
+                    '#88CCEE', '#FFE135']
 
-GOOD_COLORS = ['#332288', '#117733', '#DDCC77', '#88CCEE', '#CC6677',
-               '#882255', '#AA4499', '#44AA99', '#999933']
+GOOD_COLORS = ['#332288', '#117733', '#88CCEE', '#CC6677',
+               '#882255', '#AA4499', '#44AA99', '#999933', '#DDCC77']
 
 GOOD_COLORS_BY_NAME = {
     'aqua': '#44AA99',
@@ -44,10 +44,10 @@ MY_RC_DEFAULTS = {
     'image.cmap': 'gray',
     'axes.grid': False,
     'savefig.dpi': 150,  # to adjust notebook inline plot size
-    'axes.labelsize': 8, # fontsize for x and y labels (was 10)
+    'axes.labelsize': 8,  # fontsize for x and y labels (was 10)
     'axes.titlesize': 10,
     'font.size': 8, # was 10
-    'legend.fontsize': 6, # was 10
+    'legend.fontsize': 6,  # was 10
     'xtick.labelsize': 8,
     'ytick.labelsize': 8,
     # 'text.usetex': True,
@@ -276,7 +276,7 @@ def sync_clim_axes(axes_list, clim=()):
             plt.sca(ax)
             clims = plt.gci().get_clim()
             cmin = min(clims[0], cmin)
-            cmax = max(clims[1], cmin)
+            cmax = max(clims[1], cmax)
         if cmin == cmax:
             cmax = cmin + 1e-3
     else:
@@ -285,6 +285,39 @@ def sync_clim_axes(axes_list, clim=()):
     for ax in axes_list:
         plt.sca(ax)
         plt.clim(cmin, cmax)
+
+
+def sync_axes(axes_list, axis, lim=()):
+    assert axis in ['x', 'y', 'c']
+    if len(lim) == 0:
+        axis_min = np.inf
+        axis_max = -np.inf
+        for ax in axes_list:
+            plt.sca(ax)
+            if axis == 'x':
+                axis_lims = plt.gca().get_xlim()
+            elif axis == 'y':
+                axis_lims = plt.gca().get_ylim()
+            elif axis == 'c':
+                axis_lims = plt.gci().get_clim()
+            else:
+                raise Exception
+            axis_min = min(axis_lims[0], axis_min)
+            axis_max = max(axis_lims[1], axis_max)
+
+        if axis_min == axis_max:
+            axis_max = axis_min + 1e-3
+    else:
+        axis_min = lim[0]
+        axis_max = lim[1]
+    for ax in axes_list:
+        plt.sca(ax)
+        if axis == 'x':
+            plt.xlim(axis_min, axis_max)
+        elif axis == 'y':
+            plt.ylim(axis_min, axis_max)
+        elif axis == 'c':
+            plt.clim(axis_min, axis_max)
 
 
 def matshow(mat, aspect=None, show_colorbar=True, cmap='gray'):
@@ -414,7 +447,8 @@ def matshow_and_save_list_to_workspace(list_of_mats, filename_base_ext='.png', a
     return filenames
 
 
-def save_fig_to_workspace(filename=None, workspace_dir=WORKSPACE_DIR, **savefig_kwargs):
+def save_fig_to_workspace(filename=None, workspace_dir=None, **savefig_kwargs):
+    workspace_dir = workspace_dir or WORKSPACE_DIR
     if not filename:
         filename = '%02d.png' % plt.gcf().number
     plt.savefig(os.path.join(workspace_dir, filename), **savefig_kwargs)
@@ -446,3 +480,31 @@ def imscale(image):
     image -= image.min()
     image /= image.max()
     return image
+
+
+def pie_chart(values, labels, autopct='%1.1f%%'):
+    explode = [0.1 * int(val != max(values)) for i, val in enumerate(values)]  # explode largest slice
+    # Plot
+    colors = [GOOD_COLORS[np.mod(i, len(GOOD_COLORS))] for i in range(len(values))]
+    patches, text, _  = plt.pie(values, explode=explode, labels=labels, colors=colors,
+                                autopct=autopct, shadow=True, startangle=140)
+    plt.axis('equal')
+
+    sort_legend = True
+    if sort_legend:
+        patches, labels, dummy = zip(*sorted(zip(patches, labels, values),
+                                             key=lambda x: x[2],
+                                             reverse=True))
+
+    plt.legend(patches, labels, loc='center left', fontsize=8, bbox_to_anchor=(-0.02, 0.5))
+    plt.tight_layout(pad=1.2)
+
+
+def histogram(y, bins=None, bin_width=None, color=None, label=None, rwidth=None, histtype='bar'):
+    assert not (bins is not None and (bin_width is not None)), ValueError(
+        'Either specify bins or the other bin parameters (not both)')
+    if bin_width is not None:
+        bins = range(start=min(y), stop=max(y) + bin_width, step=bin_width)
+    density, bins, patches = plt.hist(y, bins=bins, color=color, label=label, histtype=histtype, rwidth=rwidth)
+
+    return density, bins, patches

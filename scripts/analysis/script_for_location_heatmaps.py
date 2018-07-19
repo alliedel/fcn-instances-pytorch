@@ -58,15 +58,19 @@ def write_relative_heatmaps_by_channel(list_of_relative_heatmap_averages, instan
     inst_id_list = instance_problem.instance_count_id_list
     non_bg_sem_classes = list(np.unique([s for i, s in enumerate(sem_inst_class_list) if not is_background[i]]))
     inst_starts_at_1 = 1 - int(any([inst_id_list[i] == 0 for i, is_b in enumerate(is_background) if not is_b]))
-    ch_subplot_rc_arrangement = [(non_bg_sem_classes.index(sem_val), inst_id - inst_starts_at_1)
+    # ch_subplot_rc_arrangement = [(non_bg_sem_classes.index(sem_val), inst_id - inst_starts_at_1)
+    ch_subplot_rc_arrangement = [(inst_id - inst_starts_at_1, non_bg_sem_classes.index(sem_val))
                                  for sem_val, inst_id, bg in
                                  zip(sem_inst_class_list, inst_id_list, is_background) if not bg]
+    # R, C = max([arr[0] for arr in ch_subplot_rc_arrangement]), max([arr[1] for arr in ch_subplot_rc_arrangement])
+
     print('Writing heatmaps relative to each channel')
     for channel_idx in non_bground_channel_idxs:
         h = plt.figure(0, figsize=FIGSIZE)
         plt.clf()
         hm = list_of_relative_heatmap_averages[channel_idx]
-        list_of_subtitles = ['{} score, centered on {} GT'.format(channel_names[channel_idx], channel_names[rel_ch_idx])
+        list_of_subtitles = ['{} score,\n centered on {} GT'.format(channel_names[channel_idx], channel_names[
+            rel_ch_idx])
                              for rel_ch_idx in non_bground_channel_idxs]
         display_pyutils.display_list_of_images([hm[rel_ch_idx, :, :]
                                                 for rel_ch_idx in non_bground_channel_idxs],
@@ -84,21 +88,22 @@ def write_relative_heatmaps_by_sem_cls(list_of_relative_heatmap_averages_rel_by_
     print('Summing and writing heatmaps relative to each semantic class')
     channel_names = instance_problem.get_channel_labels()
     sem_class_names = instance_problem.semantic_class_names
-    sem_class_vals = range(instance_problem.n_semantic_classes)
     n_channels = len(list_of_relative_heatmap_averages_rel_by_semantic)
-    n_semantic_classes = len(sem_class_names)
-    for channel_idx in range(n_channels):
+    is_background = ['background' in s for s in channel_names]
+    non_bg_sem_class_idxs = list(np.unique([i for i, s in enumerate(sem_class_names) if 'background' not in s]))
+    non_bg_sem_classes = list(np.unique([s for i, s in enumerate(sem_class_names) if 'background' not in s]))
+    non_bground_channel_idxs = [i for i, is_b in enumerate(is_background) if not is_b]
+    for channel_idx in non_bground_channel_idxs:
         h = plt.figure(0, figsize=FIGSIZE)
         plt.clf()
         hm = list_of_relative_heatmap_averages_rel_by_semantic[channel_idx]
-        list_of_subtitles = ['{} score, centered on {} GT'.format(channel_names[channel_idx], sem_class_names[
-            rel_sem_idx]) for rel_sem_idx in range(n_semantic_classes)]
+        list_of_subtitles = ['{} score,\n centered on {} GT'.format(channel_names[channel_idx], sem_class_name)
+                             for rel_sem_idx, sem_class_name in enumerate(non_bg_sem_classes)]
         display_pyutils.display_list_of_images([hm[rel_sem_cls, :, :]
-                                                for rel_sem_cls in range(len(sem_class_vals))],
+                                                for rel_sem_cls in non_bg_sem_class_idxs],
                                                list_of_titles=list_of_subtitles, cmap=COLORMAP, arrange='rows',
                                                smart_clims=True)
-        filename = '{}_score_heatmaps_rel_by_sem_cls_{}.png'.format(
-            split, channel_names[channel_idx])
+        filename = '{}_score_heatmaps_rel_by_sem_cls_{}.png'.format(split, channel_names[channel_idx])
         plt.suptitle(filename)
         print('Writing image {}/{}'.format(channel_idx + 1, n_channels))
         display_pyutils.save_fig_to_workspace(filename, dpi=DPI)

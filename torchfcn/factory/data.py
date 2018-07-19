@@ -2,11 +2,10 @@ import os
 
 import numpy as np
 import torch
-import torch.utils.data
 
-from torchfcn.datasets import dataset_registry, dataset_generator_registry, samplers
+from torchfcn.datasets import dataset_generator_registry, samplers, dataset_registry
 from torchfcn.utils.misc import pop_without_del
-from torchfcn.utils.samplers import get_configured_sampler
+from torchfcn.factory.samplers import get_configured_sampler
 from torchfcn.utils.scripts import DEBUG_ASSERTS
 
 

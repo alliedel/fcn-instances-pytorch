@@ -35,5 +35,3 @@ def log_plots(writer, tag, plot_handles, step, numbers=None):
         # Create an Image object
         if writer is not None:
             writer.add_image('%s/%d' % (tag, numbers[nr]), plt_as_np_array, global_step=step)
-
-

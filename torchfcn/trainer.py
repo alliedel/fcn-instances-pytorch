@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
+import torchfcn.utils.export
 from torchfcn.analysis.visualization_utils import export_visualizations
 from torchfcn.utils.misc import flatten_dict
 from torch.autograd import Variable
@@ -22,7 +23,6 @@ from torchfcn import losses
 from torchfcn import metrics
 from torchfcn.analysis import visualization_utils
 from torchfcn.datasets import dataset_utils
-from torchfcn import export_utils
 from torchfcn.models.model_utils import is_nan, any_nan
 from torchfcn.datasets import runtime_transformations
 import torchfcn.utils.misc
@@ -45,7 +45,6 @@ def should_write_activations(iteration, epoch, interval_validate):
 
 
 class Trainer(object):
-
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter, instance_problem,
                  size_average=True, interval_validate=None, matching_loss=True,
@@ -55,23 +54,40 @@ class Trainer(object):
                  write_activation_condition=should_write_activations,
                  write_instance_metrics=True, bool_compute_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False):
+        # System parameters
         self.cuda = cuda
 
+        # Model objects
         self.model = model
+
+        # Training objects
         self.optim = optimizer
 
+        # Dataset objects
         self.train_loader = train_loader
         self.val_loader = val_loader
+        self.train_loader_for_val = train_loader_for_val
 
+        # Problem setup objects
+        self.instance_problem = instance_problem
+
+        # Logging parameters
         self.timestamp_start = \
             datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
+
+        # Exporting objects
+        self.tensorboard_writer = tensorboard_writer
+
+        # Exporting parameters
+        self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
+
+        # Loss parameters
         self.size_average = size_average
         self.matching_loss = matching_loss
-        self.tensorboard_writer = tensorboard_writer
-        self.train_loader_for_val = train_loader_for_val
+
+        # Data loading parameters
         self.loader_semantic_lbl_only = loader_semantic_lbl_only
-        self.instance_problem = instance_problem
-        self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
+
         self.use_semantic_loss = use_semantic_loss
         self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
         self.generate_new_synthetic_data_each_epoch = generate_new_synthetic_data_each_epoch
@@ -599,7 +615,6 @@ class Trainer(object):
                 break
 
             if self.tensorboard_writer is not None:
-
                 self.model.eval()
                 new_score = self.model(full_data)
                 if any_nan(new_score.data):
@@ -674,7 +689,7 @@ class Trainer(object):
         else:
             ymin, ymax = None, None
         if self.tensorboard_writer is not None:
-            export_utils.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
+            torchfcn.utils.export.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
         filename = os.path.join(self.out, 'val_train_loss.png')
         h.savefig(filename)
 
@@ -684,19 +699,8 @@ class Trainer(object):
             plt.ylim(ymin=ymin, ymax=ymax)
             plt.xlim(xmin=(last_x - ylim_buffer_size - 1), xmax=last_x)
             if self.tensorboard_writer is not None:
-                export_utils.log_plots(self.tensorboard_writer, 'joint_loss_last_{}'.format(ylim_buffer_size),
-                                       [h], self.iteration)
+                torchfcn.utils.export.log_plots(self.tensorboard_writer, 'joint_loss_last_{}'.format(ylim_buffer_size),
+                                                [h], self.iteration)
             h.savefig(zoom_filename)
         else:
             shutil.copyfile(filename, zoom_filename)
-
-
-def flatten(d, parent_key='', sep='.'):
-    items = []
-    for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, collections.MutableMapping):
-            items.extend(flatten(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)

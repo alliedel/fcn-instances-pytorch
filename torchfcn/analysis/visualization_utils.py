@@ -10,7 +10,7 @@ from os import path as osp
 
 import scipy.misc
 
-from torchfcn import export_utils
+import torchfcn.utils.export
 
 try:
     import cv2
@@ -529,7 +529,7 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
                                  margin_size=50)
         tag = '{}images'.format(basename)
         if tensorboard_writer is not None:
-            export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
+            torchfcn.utils.export.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
         out_subdir = osp.join(outdir, tag)
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)
@@ -542,7 +542,7 @@ def export_visualizations(visualizations, outdir, tensorboard_writer, iteration,
             os.makedirs(out_subdir)
         for img_idx, out_img in enumerate(visualizations):
             if tensorboard_writer is not None:
-                export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
+                torchfcn.utils.export.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
             out_subsubdir = osp.join(out_subdir, str(img_idx))
             if not osp.exists(out_subsubdir):
                 os.makedirs(out_subsubdir)

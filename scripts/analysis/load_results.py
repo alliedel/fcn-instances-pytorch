@@ -3,7 +3,7 @@ import os.path as osp
 
 import torchfcn.utils.configs
 import torchfcn.utils.logs
-import torchfcn.utils.models
+import torchfcn.factory.models
 import torch
 from torchfcn.models import model_utils
 from torchfcn.utils.misc import mkdir_if_needed
@@ -92,9 +92,9 @@ if __name__ == '__main__':
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
         torchfcn.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     cuda = torch.cuda.is_available()
-    initial_model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config,
-                                                                                  checkpoint_file=None, semantic_init=None,
-                                                                                  cuda=cuda)
+    initial_model, start_epoch, start_iteration = torchfcn.factory.models.get_model(cfg, problem_config,
+                                                                                    checkpoint_file=None, semantic_init=None,
+                                                                                    cuda=cuda)
 
     # main_check_freeze()
     # main_check_cost_matrix()

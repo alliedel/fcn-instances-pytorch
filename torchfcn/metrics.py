@@ -3,13 +3,14 @@ import os.path
 import torch
 import torch.nn.functional as F
 import tqdm
+
+import torchfcn.factory.data
 from torchfcn.utils.misc import flatten_dict
 from torch.autograd import Variable
 from torch.utils.data import sampler
 
 import torchfcn.utils.configs
-import torchfcn.utils.data
-import torchfcn.utils.models
+import torchfcn.factory.models
 
 
 def is_sequential(my_sampler):
@@ -407,11 +408,11 @@ def _test():
     n_instances_per_class = cfg['n_instances_per_class'] or \
                             (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
 
-    dataloaders = torchfcn.utils.data.get_dataloaders(cfg, 'synthetic', cuda)
-    problem_config = torchfcn.utils.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
-                                                              n_instances_per_class)
-    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, checkpoint,
-                                                                          semantic_init=None, cuda=cuda)
+    dataloaders = torchfcn.factory.data.get_dataloaders(cfg, 'synthetic', cuda)
+    problem_config = torchfcn.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
+                                                                n_instances_per_class)
+    model, start_epoch, start_iteration = torchfcn.factory.models.get_model(cfg, problem_config, checkpoint,
+                                                                            semantic_init=None, cuda=cuda)
     # instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )
     # not necessary, but we'll make sure it runs anyway
     instance_metrics.clear()

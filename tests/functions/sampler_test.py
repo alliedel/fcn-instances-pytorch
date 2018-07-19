@@ -3,7 +3,7 @@ import os
 import torch.utils.data
 import tqdm
 
-import torchfcn.utils.data
+from torchfcn.datasets import dataset_generator_registry
 from scripts.configurations import voc_cfg
 from torchfcn.datasets import samplers
 
@@ -64,7 +64,7 @@ def main():
     # Setup
     cfg = voc_cfg.get_default_config()
     print('Getting datasets')
-    train_dataset, val_dataset = torchfcn.utils.data.get_voc_datasets(cfg, '/home/adelgior/data/datasets/')
+    train_dataset, val_dataset = dataset_generator_registry.get_dataset('voc', cfg)
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()

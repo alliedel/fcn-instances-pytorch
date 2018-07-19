@@ -13,14 +13,14 @@ import yaml
 
 from scripts.configurations.sampler_cfg import sampler_cfgs
 from torchfcn.models import model_utils
-from torchfcn.utils.optimizer import get_optimizer
-from torchfcn.utils.samplers import get_sampler_cfg
+from torchfcn.factory.optimizer import get_optimizer
+from torchfcn.factory.samplers import get_sampler_cfg
 from torchfcn.utils.scripts import here, MY_TIMEZONE, BAD_CHAR_REPLACEMENTS
 from torchfcn.utils.misc import TermColors, color_text
-from torchfcn.utils.trainers import get_trainer
-from torchfcn.utils.models import get_model, get_problem_config
+from torchfcn.factory.trainers import get_trainer
+from torchfcn.factory.models import get_model, get_problem_config
 from torchfcn.utils.configs import load_config_from_logdir
-from torchfcn.utils.data import get_dataloaders
+from torchfcn.factory.data import get_dataloaders
 
 
 def load_everything_from_logdir(logdir, gpu=0, packed_as_dict=False):

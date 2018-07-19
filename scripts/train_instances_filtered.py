@@ -6,15 +6,15 @@ import skimage.io
 import torch
 import torch.utils.data
 
+import torchfcn.factory.data
 import torchfcn.utils.configs
-import torchfcn.utils.data
 import torchfcn.utils.logs
 import torchfcn.utils.misc
-import torchfcn.utils.models
-import torchfcn.utils.optimizer
-import torchfcn.utils.samplers
+import torchfcn.factory.models
+import torchfcn.factory.optimizer
+import torchfcn.factory.samplers
 import torchfcn.utils.scripts
-import torchfcn.utils.trainers
+import torchfcn.factory.trainers
 from torchfcn.analysis import visualization_utils
 from torchfcn.models import model_utils
 from torchfcn.utils.configs import get_cfgs
@@ -38,7 +38,7 @@ def main():
                                                                                                         args.dataset)
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
-    sampler_cfg = torchfcn.utils.samplers.get_sampler_cfg(args.sampler)
+    sampler_cfg = torchfcn.factory.samplers.get_sampler_cfg(args.sampler)
 
     out_dir = torchfcn.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                               cfg_to_print,
@@ -52,14 +52,14 @@ def main():
     torchfcn.utils.scripts.set_random_seeds()
 
     print('Getting dataloaders...')
-    dataloaders = torchfcn.utils.data.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
+    dataloaders = torchfcn.factory.data.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
     print('Done getting dataloaders')
 
     # reduce dataloaders to semantic subset before running / generating problem config:
     n_instances_per_class = cfg['n_instances_per_class']
-    problem_config = torchfcn.utils.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
-                                                              n_instances_per_class,
-                                                              map_to_semantic=cfg['map_to_semantic'])
+    problem_config = torchfcn.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
+                                                                n_instances_per_class,
+                                                                map_to_semantic=cfg['map_to_semantic'])
 
     if args.resume:
         checkpoint = torch.load(args.resume)
@@ -67,8 +67,8 @@ def main():
         checkpoint = None
 
     # 2. model
-    model, start_epoch, start_iteration = torchfcn.utils.models.get_model(cfg, problem_config, args.resume,
-                                                                          args.semantic_init, args.cuda)
+    model, start_epoch, start_iteration = torchfcn.factory.models.get_model(cfg, problem_config, args.resume,
+                                                                            args.semantic_init, args.cuda)
 
     print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
@@ -76,7 +76,7 @@ def main():
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
-    optim = torchfcn.utils.optimizer.get_optimizer(cfg, model, checkpoint)
+    optim = torchfcn.factory.optimizer.get_optimizer(cfg, model, checkpoint)
 
     if cfg['freeze_vgg']:
         for module_name, module in model.named_children():
@@ -86,7 +86,7 @@ def main():
     if not cfg['map_to_semantic']:
         cfg['activation_layers_to_export'] = tuple([x for x in cfg[
             'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
-    trainer = torchfcn.utils.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
+    trainer = torchfcn.factory.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

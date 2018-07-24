@@ -2,6 +2,9 @@ from torchfcn.datasets import dataset_utils
 import inspect
 
 
+DEBUG_ASSERT = True
+
+
 class RuntimeDatasetTransformerBase(object):
     # def __init__(self):
     #    self.original_semantic_class_names = None
@@ -125,9 +128,18 @@ class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
 
 class SingleInstanceMapperRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
+    def __init__(self, background_values=(0,)):
+        self.background_values = background_values
+
     def transform(self, img, lbl):
         new_inst_lbl = lbl[1]
-        new_inst_lbl[new_inst_lbl != -1] = 1
+        sem_lbl = lbl[0]
+        if DEBUG_ASSERT:
+            for bv in self.background_values:
+                # Make sure the initial background value instance labels were either 0 or -1
+                assert ((new_inst_lbl != 0)[sem_lbl == bv]).sum() == ((new_inst_lbl == -1)[sem_lbl == bv]).sum()
+        # Set objects to instance value 1
+        new_inst_lbl[new_inst_lbl > 1] = 1
         return img, (lbl[0], new_inst_lbl)
 
     def untransform(self, img, lbl):

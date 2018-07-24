@@ -251,11 +251,18 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
     inst_id_lbls_for_this_class = [instance_id_labels[i] for i in sem_inst_idxs_for_this_class]
 
     # TODO(allie): allow for more target (gt) idxs than the number of lp idxs.
-    cost_list_2d = [[nll2d_single_class_term(log_predictions[sem_inst_idx, :, :],
-                                             (sem_lbl == sem_val).float() *
-                                             (inst_lbl == inst_val).float())
-                     / normalizer for inst_val in inst_id_lbls_for_this_class]
-                    for sem_inst_idx in sem_inst_idxs_for_this_class]
+    if normalizer == 0:
+        import ipdb; ipdb.set_trace()
+        raise Exception('For some reason, the normalizer is 0.  This means there are no instances of any semantic '
+                        'classes in the image, which is not normal.')
+        cost_list_2d = [[0 for inst_val in inst_id_lbls_for_this_class
+                         for sem_inst_idx in sem_inst_idxs_for_this_class]]
+    else:
+        cost_list_2d = [[nll2d_single_class_term(log_predictions[sem_inst_idx, :, :],
+                                                 (sem_lbl == sem_val).float() *
+                                                 (inst_lbl == inst_val).float())
+                         / normalizer for inst_val in inst_id_lbls_for_this_class]
+                        for sem_inst_idx in sem_inst_idxs_for_this_class]
     # TODO(allie): Consider normalizing by number of pixels that actually have that class(?)
     if DEBUG_ASSERTS:
         try:

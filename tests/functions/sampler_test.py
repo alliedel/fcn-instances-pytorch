@@ -5,13 +5,13 @@ import tqdm
 
 from torchfcn.datasets import dataset_generator_registry
 from scripts.configurations import voc_cfg
-from torchfcn.datasets import samplers
+from torchfcn.datasets import sampler
 
 
 def test_vanilla_sampler(train_dataset, loader_kwargs):
     # Get sampler
-    full_sequential_train_sampler = samplers.sampler_factory(sequential=True)(train_dataset)
-    full_random_train_sampler = samplers.sampler_factory(sequential=False)(train_dataset)
+    full_sequential_train_sampler = sampler.sampler_factory(sequential=True)(train_dataset)
+    full_random_train_sampler = sampler.sampler_factory(sequential=False)(train_dataset)
 
     # Apply sampler to dataloaders
     sequential_train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
@@ -38,10 +38,10 @@ def test_vanilla_sampler(train_dataset, loader_kwargs):
 def test_single_image_sampler(train_dataset, loader_kwargs, image_index=0):
     # Get sampler
     bool_index_subset = [idx == image_index for idx in range(len(train_dataset))]
-    single_image_train_sampler = samplers.sampler_factory(sequential=True,
-                                                          bool_index_subset=bool_index_subset)(train_dataset)
-    shuffled_single_image_train_sampler = samplers.sampler_factory(sequential=False,
-                                                                   bool_index_subset=bool_index_subset)(train_dataset)
+    single_image_train_sampler = sampler.sampler_factory(sequential=True,
+                                                         bool_index_subset=bool_index_subset)(train_dataset)
+    shuffled_single_image_train_sampler = sampler.sampler_factory(sequential=False,
+                                                                  bool_index_subset=bool_index_subset)(train_dataset)
 
     # Apply sampler to dataloaders
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,

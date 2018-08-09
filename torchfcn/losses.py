@@ -252,9 +252,7 @@ def create_pytorch_cross_entropy_cost_matrix(log_predictions, sem_lbl, inst_lbl,
 
     # TODO(allie): allow for more target (gt) idxs than the number of lp idxs.
     if normalizer == 0:
-        import ipdb; ipdb.set_trace()
-        raise Exception('For some reason, the normalizer is 0.  This means there are no instances of any semantic '
-                        'classes in the image, which is not normal.')
+        print(Warning('WARNING: image contained all void class.  Setting error to 0 for all channels.'))
         cost_list_2d = [[0 for inst_val in inst_id_lbls_for_this_class
                          for sem_inst_idx in sem_inst_idxs_for_this_class]]
     else:

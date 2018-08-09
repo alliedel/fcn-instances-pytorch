@@ -3,7 +3,7 @@ import os
 import numpy as np
 import torch
 
-from torchfcn.datasets import dataset_generator_registry, samplers, dataset_registry
+from torchfcn.datasets import dataset_generator_registry, sampler, dataset_registry
 from torchfcn.utils.misc import pop_without_del
 from torchfcn.factory.samplers import get_configured_sampler
 from torchfcn.utils.scripts import DEBUG_ASSERTS
@@ -48,9 +48,9 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
 def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
 
     if sampler_cfg is None:
-        train_sampler = samplers.sampler.RandomSampler(train_dataset)
-        val_sampler = samplers.sampler.SequentialSampler(val_dataset)
-        train_for_val_sampler = samplers.sampler.SequentialSampler(train_dataset)
+        train_sampler = sampler.sampler.RandomSampler(train_dataset)
+        val_sampler = sampler.sampler.SequentialSampler(val_dataset)
+        train_for_val_sampler = sampler.sampler.SequentialSampler(train_dataset)
     else:
         # Get 'clean' datasets for instance counting
         default_train_dataset, default_val_dataset, transformer_tag = \

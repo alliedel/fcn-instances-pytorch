@@ -46,3 +46,10 @@ def sampler_factory(sequential, index_weights=None, bool_index_subset=None):
                 new_indices = initial_indices
             return new_indices
     return SubsetWeightedSampler
+
+
+class SamplerConfig(object):
+    def __init__(self, n_images=None, sem_cls_filter=None, n_instances_range=None):
+        self.n_images = n_images
+        self.sem_cls_filter = sem_cls_filter
+        self.n_instances_range = n_instances_range

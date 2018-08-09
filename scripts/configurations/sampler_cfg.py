@@ -1,11 +1,6 @@
 # TODO(allie): Make it easier to generate and override sampler_cfgs (like it is to generate the others)
-
-
-class SamplerConfig(object):
-    def __init__(self, n_images=None, sem_cls_filter=None, n_instances_range=None):
-        self.n_images = n_images
-        self.sem_cls_filter = sem_cls_filter
-        self.n_instances_range = n_instances_range
+from torchfcn.datasets.sampler import SamplerConfig
+from torchfcn.factory import samplers
 
 
 def get_sampler_cfg_set(n_images_train=None, n_images_val=None, n_images_train_for_val=None, sem_cls_filter=None,
@@ -27,5 +22,12 @@ sampler_cfgs = {
     None: get_sampler_cfg_set(),
     'default': get_sampler_cfg_set(),
     'car_2_4': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 4 + 1)),
-    'person_car_2_4': get_sampler_cfg_set(sem_cls_filter=['car', 'person'], n_instances_range=(2, 4+1))
+    'person_car_2_4': get_sampler_cfg_set(sem_cls_filter=['car', 'person'], n_instances_range=(2, 4 + 1))
 }
+
+
+def get_sampler_cfg(sampler_arg):
+    sampler_cfg = sampler_cfgs[sampler_arg]
+    if sampler_cfg['train_for_val'] is None:
+        sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
+    return sampler_cfg

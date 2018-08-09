@@ -1,23 +1,19 @@
 import os
 import os.path as osp
 
-import numpy as np
-import skimage.io
 import torch
 import torch.utils.data
 
 import scripts.configurations.sampler_cfg
 import torchfcn.factory.data
-import torchfcn.utils.configs
-import torchfcn.utils.logs
-import torchfcn.utils.misc
 import torchfcn.factory.models
 import torchfcn.factory.optimizer
 import torchfcn.factory.samplers
-import torchfcn.utils.scripts
 import torchfcn.factory.trainers
-from torchfcn.analysis import visualization_utils
-from torchfcn.models import model_utils
+import torchfcn.utils.configs
+import torchfcn.utils.logs
+import torchfcn.utils.misc
+import torchfcn.utils.scripts
 from torchfcn.utils.configs import get_cfgs
 
 here = osp.dirname(osp.abspath(__file__))
@@ -54,6 +50,8 @@ def main():
 
     print('Getting dataloaders...')
     dataloaders = torchfcn.factory.data.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
+    dataloaders_default = torchfcn.factory.data.get_dataloaders(cfg, args.dataset, args.cuda,
+                                                                scripts.configurations.sampler_cfg.get_sampler_cfg_set())
     print('Done getting dataloaders')
 
     # reduce dataloaders to semantic subset before running / generating problem config:
@@ -62,47 +60,17 @@ def main():
                                                                 n_instances_per_class,
                                                                 map_to_semantic=cfg['map_to_semantic'])
 
-    if args.resume:
-        checkpoint = torch.load(args.resume)
-    else:
-        checkpoint = None
-
-    # 2. model
-    model, start_epoch, start_iteration = torchfcn.factory.models.get_model(cfg, problem_config, args.resume,
-                                                                            args.semantic_init, args.cuda)
-
-    print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
 
-    # 3. optimizer
-    # TODO(allie): something is wrong with adam... fix it.
-    optim = torchfcn.factory.optimizer.get_optimizer(cfg, model, checkpoint)
-
-    if cfg['freeze_vgg']:
-        for module_name, module in model.named_children():
-            if module_name in model_utils.VGG_CHILDREN_NAMES:
-                assert all([p.requires_grad is False for p in module.parameters()])
-        print('All modules were correctly frozen: '.format({}).format(model_utils.VGG_CHILDREN_NAMES))
-    if not cfg['map_to_semantic']:
-        cfg['activation_layers_to_export'] = tuple([x for x in cfg[
-            'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
-    trainer = torchfcn.factory.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
-    trainer.epoch = start_epoch
-    trainer.iteration = start_iteration
-    trainer.train()
-
-    print('Evaluating final model')
-    metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(should_export_visualizations=False)
-    viz = visualization_utils.get_tile_image(segmentation_visualizations)
-    skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
-    metrics = np.array(metrics)
-    metrics *= 100
-    print('''\
-        Accuracy: {0}
-        Accuracy Class: {1}
-        Mean IU: {2}
-        FWAV Accuracy: {3}'''.format(*metrics))
+    first_index = dataloaders['val'].sampler.indices[7]
+    img_ss, (sem_lbl_ss, inst_lbl_ss) = dataloaders['val'].dataset[first_index]
+    img, (sem_lbl, inst_lbl) = dataloaders_default['val'].dataset[first_index]
+    car_mask1 = sem_lbl == dataloaders_default['val'].dataset.semantic_class_names.index('car')
+    car_mask2 = sem_lbl_ss == dataloaders['val'].dataset.semantic_class_names.index('car')
+    print('Loaded example images: img_ss, (sem_lbl_ss, inst_lbl_ss) as sampled version and img, (sem_lbl, '
+          'inst_lbl) as original versions (if the sampler had been None).')
+    import ipdb; ipdb.set_trace()
 
 
 if __name__ == '__main__':

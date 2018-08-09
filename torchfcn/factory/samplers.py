@@ -1,7 +1,6 @@
 import os
 
-from scripts.configurations.sampler_cfg import sampler_cfgs
-from torchfcn.datasets import samplers, dataset_statistics
+from torchfcn.datasets import sampler, dataset_statistics
 
 
 def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, n_instances_range,
@@ -30,14 +29,9 @@ def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, n_
     else:
         valid_indices = None  # 'all'
 
-    my_sampler = samplers.sampler_factory(sequential, bool_index_subset=valid_indices)(dataset)
+    my_sampler = sampler.sampler_factory(sequential, bool_index_subset=valid_indices)(dataset)
     if n_images:
         assert len(my_sampler.indices) == n_images
     return my_sampler
 
 
-def get_sampler_cfg(sampler_arg):
-    sampler_cfg = sampler_cfgs[sampler_arg]
-    if sampler_cfg['train_for_val'] is None:
-        sampler_cfg['train_for_val'] = sampler_cfgs['default']['train_for_val']
-    return sampler_cfg

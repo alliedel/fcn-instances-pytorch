@@ -11,10 +11,9 @@ import pytz
 import torch
 import yaml
 
-from scripts.configurations.sampler_cfg import sampler_cfgs
+from scripts.configurations.sampler_cfg import sampler_cfgs, get_sampler_cfg
 from torchfcn.models import model_utils
 from torchfcn.factory.optimizer import get_optimizer
-from torchfcn.factory.samplers import get_sampler_cfg
 from torchfcn.utils.scripts import here, MY_TIMEZONE, BAD_CHAR_REPLACEMENTS
 from torchfcn.utils.misc import TermColors, color_text
 from torchfcn.factory.trainers import get_trainer

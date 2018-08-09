@@ -7,6 +7,7 @@ class PARAM_CLASSIFICATIONS(object):
     problem_config = {'n_instances_per_class', 'single_instance'}
     model = {'initialize_from_semantic', 'bottleneck_channel_capacity', 'score_multiplier', 'freeze_vgg',
              'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer'}
+    misc = {'interactive_dataloader'}
 
 
 # NOTE(allie): Do not directly access this dictionary unless you want to change it for *every* module that imports

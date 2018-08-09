@@ -1,187 +1,31 @@
 # TODO(allie): Make it easier to generate and override sampler_cfgs (like it is to generate the others)
 
 
-sampler_cfgs = {
-    'default': {
-        'train':
-            {
-                'n_images': None,
-                'sem_cls_filter': None,
-                'n_instances_range': None,
-            },
-        'val':
-            {
-                'n_images': None,
-                'sem_cls_filter': None,
-                'n_instances_range': None,
-            },
-        'train_for_val':  # just configures what should be processed during val
-            {
-                'n_images': None  # Change to reduce amount of images used to 'validate' the training set
-            }
-    },
-    'person_2inst_1img': {
-        'train':
-            {'n_images': 1,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val': 'copy_train',
-        'train_for_val':
-            {
-                'n_images': None
-            }
-    },
-    'person_2inst_2img': {
-        'train':
-            {'n_images': 2,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val': 'copy_train'
-    },
-    'person_2inst_allimg_sameval': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val': 'copy_train'
-    },
-    'person_2inst_allimg_realval': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val':
-            {'n_images': None,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'train_for_val':
-            {
-                'n_images': None
-            }
-    },
-    'person_2inst_20img_sameval': {
-        'train':
-            {'n_images': 20,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, None),
-             },
-        'val': 'copy_train',
-        'train_for_val':  {
-            'n_images': None
-        }
-    },
-    'person_2_4inst_allimg_realval': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, 4),
-             },
-        'val':
-            {'n_images': None,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, 4),
-             },
-        'train_for_val':  # just configures what should be processed during val
-            {
-                'n_images': None
-            }
-    },
-    'person_2_4inst_1img': {
-        'train':
-            {'n_images': 1,
-             'sem_cls_filter': ['person'],
-             'n_instances_range': (2, 4),
-             },
-        'val': 'copy_train',
-        'train_for_val':  {
-            'n_images': None
-        }
-    },
-    'car_2_4inst_allimg_realval': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, 4),
-             },
-        'val':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, 4),
-             },
-        'train_for_val':  # just configures what should be processed during val
-            {
-                'n_images': None
-            }
-    },
-    'car_2inst_allimg_realval': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, None),
-             },
-        'val':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, None),
-             },
-        'train_for_val':  # just configures what should be processed during val
-            {
-                'n_images': None
-            }
-    },
-    'car_2_5inst_allimg_realval': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, 5 + 1),
-             },
-        'val':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, 5 + 1),
-             },
-        'train_for_val':  # just configures what should be processed during val
-            {
-                'n_images': None
-            }
-    },
-    'car_2_3': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, 3 + 1),
-             },
-        'val':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, 3 + 1),
-             },
-        'train_for_val':  # just configures what should be processed during val
-            {
-                'n_images': None
-            }
-    },
-    'car_2_4': {
-        'train':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, 4 + 1),
-             },
-        'val':
-            {'n_images': None,
-             'sem_cls_filter': ['car'],
-             'n_instances_range': (2, 4 + 1),
-             },
-        'train_for_val':  # just configures what should be processed during val
-            {
-                'n_images': None
-            }
-    }
-}
+class SamplerConfig(object):
+    def __init__(self, n_images=None, sem_cls_filter=None, n_instances_range=None):
+        self.n_images = n_images
+        self.sem_cls_filter = sem_cls_filter
+        self.n_instances_range = n_instances_range
 
-sampler_cfgs[None] = sampler_cfgs['default']
+
+def get_sampler_cfg_set(n_images_train=None, n_images_val=None, n_images_train_for_val=None, sem_cls_filter=None,
+                        n_instances_range=None, val_copy_train=False):
+    assert val_copy_train is False or n_images_val is None
+    train_sampler_cfg = SamplerConfig(n_images=n_images_train, sem_cls_filter=sem_cls_filter,
+                                      n_instances_range=n_instances_range)
+    val_sampler_cfg = SamplerConfig(n_images=n_images_val, sem_cls_filter=sem_cls_filter,
+                                    n_instances_range=n_instances_range) if not val_copy_train else train_sampler_cfg
+    train_for_val_sampler_cfg = SamplerConfig(n_images=n_images_train_for_val)
+    return {
+        'train': train_sampler_cfg,
+        'val': val_sampler_cfg,
+        'train_for_val': train_for_val_sampler_cfg
+    }
+
+
+sampler_cfgs = {
+    None: get_sampler_cfg_set(),
+    'default': get_sampler_cfg_set(),
+    'car_2_4': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 4 + 1)),
+    'person_car_2_4': get_sampler_cfg_set(sem_cls_filter=['car', 'person'], n_instances_range=(2, 4+1))
+}

@@ -69,7 +69,7 @@ def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
 
         # train_for_val sampler
         sampler_cfg['train_for_val'] = pop_without_del(sampler_cfg, 'train_for_val', None)
-        cut_n_images = pop_without_del(sampler_cfg['train_for_val'], 'n_images', None) or len(train_dataset)
+        cut_n_images = sampler_cfg['train_for_val'].n_images or len(train_dataset)
         train_for_val_sampler = train_sampler.copy(sequential_override=True,
                                                    cut_n_images=None if cut_n_images is None
                                                    else min(cut_n_images, len(train_sampler)))
@@ -80,14 +80,14 @@ def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
 def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_cfg, sampler_type, transformer_tag):
     instance_count_file = os.path.join(dataset_registry.REGISTRY[dataset_type].dataset_path,
                                        '{}_instance_counts_{}.npy'.format(sampler_type, transformer_tag))
-    sem_cls_filter = pop_without_del(sampler_cfg[sampler_type], 'sem_cls_filter', None)
+    sem_cls_filter = sampler_cfg[sampler_type].sem_cls_filter
     sem_cls_filter_values = convert_sem_cls_filter_from_names_to_values(
         sem_cls_filter, default_dataset.semantic_class_names) \
         if sem_cls_filter is not None and isinstance(sem_cls_filter[0], str) else sem_cls_filter
     sampler = get_configured_sampler(
         dataset, default_dataset, sequential=True,
-        n_instances_range=pop_without_del(sampler_cfg[sampler_type], 'n_instances_range', None),
-        n_images=pop_without_del(sampler_cfg[sampler_type], 'n_images', None),
+        n_instances_range=sampler_cfg[sampler_type].n_instances_range,
+        n_images=sampler_cfg[sampler_type].n_images,
         sem_cls_filter=sem_cls_filter_values, instance_count_file=instance_count_file)
     return sampler
 

@@ -35,9 +35,9 @@ def test(frozen=True):
             assert all([p.requires_grad is False for p in module.parameters()]), '{} not frozen'.format(module_name)
 
     sampler_cfg = sampler_cfgs['default']
-    sampler_cfg['train']['n_images'] = 1
-    sampler_cfg['train_for_val']['n_images'] = 1
-    sampler_cfg['val']['n_images'] = 1
+    sampler_cfg['train'].n_images = 1
+    sampler_cfg['train_for_val'].n_images = 1
+    sampler_cfg['val'].n_images = 1
     dataloaders = torchfcn.factory.data.get_dataloaders(cfg, 'voc', cuda, sampler_cfg)
 
     optim = torchfcn.factory.optimizer.get_optimizer(cfg, model, None)

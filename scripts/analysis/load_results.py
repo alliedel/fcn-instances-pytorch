@@ -1,12 +1,12 @@
 import argparse
 import os.path as osp
 
-import torchfcn.utils.configs
-import torchfcn.utils.logs
-import torchfcn.factory.models
+import instanceseg.utils.configs
+import instanceseg.utils.logs
+import instanceseg.factory.models
 import torch
-from torchfcn.models import model_utils
-from torchfcn.utils.misc import mkdir_if_needed
+from instanceseg.models import model_utils
+from instanceseg.utils.misc import mkdir_if_needed
 
 
 def parse_args():
@@ -30,7 +30,7 @@ def main_check_freeze():
         'model_state_dict': initial_model.state_dict(),
         'best_mean_iu': 0,
     }, osp.join(init_logdir, 'model_best.pth.tar'))
-    torchfcn.utils.configs.save_config(init_logdir, cfg)
+    instanceseg.utils.configs.save_config(init_logdir, cfg)
     print('matching:')
     print(matching_modules)
     print('non-matching:')
@@ -40,7 +40,7 @@ def main_check_freeze():
 def main_check_cost_matrix():
     # Checking the cost matrix for the first image
     import torch.nn.functional as F
-    from torchfcn import losses
+    from instanceseg import losses
     data0 = [x for i, x in enumerate(dataloaders['train_for_val']) if i == 0][0]
     img = torch.autograd.Variable(data0[0].cuda())
     sem_lbl = torch.autograd.Variable(data0[1][0].cuda())
@@ -90,11 +90,11 @@ if __name__ == '__main__':
     args = parse_args()
     logdir = args.logdir
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
-        torchfcn.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
+        instanceseg.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     cuda = torch.cuda.is_available()
-    initial_model, start_epoch, start_iteration = torchfcn.factory.models.get_model(cfg, problem_config,
-                                                                                    checkpoint_file=None, semantic_init=None,
-                                                                                    cuda=cuda)
+    initial_model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config,
+                                                                                       checkpoint_file=None, semantic_init=None,
+                                                                                       cuda=cuda)
 
     # main_check_freeze()
     # main_check_cost_matrix()

@@ -4,11 +4,11 @@ import argparse
 import os
 import os.path as osp
 
-import torchfcn.utils.display as display_pyutils
+import instanceseg.utils.display as display_pyutils
 import matplotlib.pyplot as plt
 import numpy as np
 
-from torchfcn.datasets import dataset_generator_registry, dataset_registry, dataset_statistics
+from instanceseg.datasets import dataset_generator_registry, dataset_registry, dataset_statistics
 
 configurations = {
     # same configuration as original work

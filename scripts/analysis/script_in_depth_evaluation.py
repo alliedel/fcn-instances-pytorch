@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import torchfcn.utils.display as display_pyutils
-import torchfcn.utils.logs
-import torchfcn.utils.scripts
-from torchfcn.analysis import distribution_assignments
+import instanceseg.utils.display as display_pyutils
+import instanceseg.utils.logs
+import instanceseg.utils.scripts
+from instanceseg.analysis import distribution_assignments
 
 FIGSIZE = (10, 10)
 DPI = 300
@@ -80,7 +80,7 @@ def make_histogram_set(assigned_attributes, channel_names, split, attribute_name
 def main():
     args = parse_args()
     logdir = args.logdir
-    torchfcn.utils.scripts.set_random_seeds()
+    instanceseg.utils.scripts.set_random_seeds()
     display_pyutils.set_my_rc_defaults()
     gpu = args.gpu
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
@@ -92,7 +92,7 @@ def main():
 
     # Load directory
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
-        torchfcn.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
+        instanceseg.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     model.eval()
 
     # Write log directory name to folder

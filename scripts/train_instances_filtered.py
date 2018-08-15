@@ -7,29 +7,29 @@ import torch
 import torch.utils.data
 
 import scripts.configurations.sampler_cfg
-import torchfcn.factory.data
-import torchfcn.utils.configs
-import torchfcn.utils.logs
-import torchfcn.utils.misc
-import torchfcn.factory.models
-import torchfcn.factory.optimizer
-import torchfcn.factory.samplers
-import torchfcn.utils.scripts
-import torchfcn.factory.trainers
-from torchfcn.analysis import visualization_utils
-from torchfcn.models import model_utils
-from torchfcn.utils.configs import get_cfgs
+import instanceseg.factory.data
+import instanceseg.utils.configs
+import instanceseg.utils.logs
+import instanceseg.utils.misc
+import instanceseg.factory.models
+import instanceseg.factory.optimizer
+import instanceseg.factory.samplers
+import instanceseg.utils.scripts
+import instanceseg.factory.trainers
+from instanceseg.analysis import visualization_utils
+from instanceseg.models import model_utils
+from instanceseg.utils.configs import get_cfgs
 
 here = osp.dirname(osp.abspath(__file__))
 
 
 def parse_args():
-    args, cfg_override_args = torchfcn.utils.scripts.parse_args()
+    args, cfg_override_args = instanceseg.utils.scripts.parse_args()
     return args, cfg_override_args
 
 
 def main():
-    torchfcn.utils.scripts.check_clean_work_tree()
+    instanceseg.utils.scripts.check_clean_work_tree()
     args, cfg_override_args = parse_args()
     gpu = args.gpu
     config_idx = args.config
@@ -41,26 +41,26 @@ def main():
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
     sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg(args.sampler)
 
-    out_dir = torchfcn.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
-                                              cfg_to_print,
-                                              parent_directory=os.path.join(here, 'logs', args.dataset))
-    torchfcn.utils.configs.save_config(out_dir, cfg)
-    print(torchfcn.utils.misc.color_text('logdir: {}'.format(out_dir), torchfcn.utils.misc.TermColors.OKGREEN))
+    out_dir = instanceseg.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
+                                                 cfg_to_print,
+                                                 parent_directory=os.path.join(here, 'logs', args.dataset))
+    instanceseg.utils.configs.save_config(out_dir, cfg)
+    print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir), instanceseg.utils.misc.TermColors.OKGREEN))
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     args.cuda = torch.cuda.is_available()
 
-    torchfcn.utils.scripts.set_random_seeds()
+    instanceseg.utils.scripts.set_random_seeds()
 
     print('Getting dataloaders...')
-    dataloaders = torchfcn.factory.data.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
+    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
     print('Done getting dataloaders')
 
     # reduce dataloaders to semantic subset before running / generating problem config:
     n_instances_per_class = cfg['n_instances_per_class']
-    problem_config = torchfcn.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
-                                                                n_instances_per_class,
-                                                                map_to_semantic=cfg['map_to_semantic'])
+    problem_config = instanceseg.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
+                                                                   n_instances_per_class,
+                                                                   map_to_semantic=cfg['map_to_semantic'])
 
     if args.resume:
         checkpoint = torch.load(args.resume)
@@ -68,8 +68,8 @@ def main():
         checkpoint = None
 
     # 2. model
-    model, start_epoch, start_iteration = torchfcn.factory.models.get_model(cfg, problem_config, args.resume,
-                                                                            args.semantic_init, args.cuda)
+    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, args.resume,
+                                                                               args.semantic_init, args.cuda)
 
     print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
@@ -77,7 +77,7 @@ def main():
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
-    optim = torchfcn.factory.optimizer.get_optimizer(cfg, model, checkpoint)
+    optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, checkpoint)
 
     if cfg['freeze_vgg']:
         for module_name, module in model.named_children():
@@ -87,7 +87,7 @@ def main():
     if not cfg['map_to_semantic']:
         cfg['activation_layers_to_export'] = tuple([x for x in cfg[
             'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
-    trainer = torchfcn.factory.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
+    trainer = instanceseg.factory.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

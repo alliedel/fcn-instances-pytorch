@@ -1,4 +1,4 @@
-from torchfcn.datasets import cityscapes
+from instanceseg.datasets import cityscapes
 from . import generic_cfg
 
 

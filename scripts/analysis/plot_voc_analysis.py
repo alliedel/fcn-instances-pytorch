@@ -10,7 +10,7 @@ import numpy as np
 import torch
 import tqdm
 
-import torchfcn
+import instanceseg
 from examples.voc.script_utils import get_log_dir
 
 configurations = {
@@ -54,12 +54,12 @@ def main():
     semantic_subset = None  # ['background', 'person']
     root = osp.expanduser('~/data/datasets')
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-    train_dataset = torchfcn.datasets.VOC2012ClassSeg(root, split='train', transform=True,
-                                                      semantic_subset=semantic_subset,
-                                                      n_max_per_class=n_max_per_class,
-                                                      permute_instance_order=False,
-                                                      set_extras_to_void=True,
-                                                      return_semantic_instance_tuple=True)
+    train_dataset = instanceseg.datasets.VOC2012ClassSeg(root, split='train', transform=True,
+                                                         semantic_subset=semantic_subset,
+                                                         n_max_per_class=n_max_per_class,
+                                                         permute_instance_order=False,
+                                                         set_extras_to_void=True,
+                                                         return_semantic_instance_tuple=True)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False)
 
     # Make sure we can load an image
@@ -68,12 +68,12 @@ def main():
     except:
         raise
 
-    val_dataset = torchfcn.datasets.VOC2012ClassSeg(root, split='val', transform=True,
-                                                    semantic_subset=semantic_subset,
-                                                    n_max_per_class=n_max_per_class,
-                                                    permute_instance_order=False,
-                                                    set_extras_to_void=True,
-                                                    return_semantic_instance_tuple=True)
+    val_dataset = instanceseg.datasets.VOC2012ClassSeg(root, split='val', transform=True,
+                                                       semantic_subset=semantic_subset,
+                                                       n_max_per_class=n_max_per_class,
+                                                       permute_instance_order=False,
+                                                       set_extras_to_void=True,
+                                                       return_semantic_instance_tuple=True)
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=1, shuffle=False, **kwargs)
 

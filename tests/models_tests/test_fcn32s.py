@@ -6,7 +6,7 @@ import numpy as np
 import skimage.data
 import torch
 
-from torchfcn.models.model_utils import get_upsampling_weight
+from instanceseg.models.model_utils import get_upsampling_weight
 
 
 def test_get_upsampling_weight():

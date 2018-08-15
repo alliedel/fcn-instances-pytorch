@@ -5,9 +5,9 @@ import torch
 import tqdm
 
 import scripts.configurations.sampler_cfg
-import torchfcn.factory.data
-from torchfcn.datasets.dataset_registry import REGISTRY
-from torchfcn.factory import samplers
+import instanceseg.factory.data
+from instanceseg.datasets.dataset_registry import REGISTRY
+from instanceseg.factory import samplers
 
 
 def test_get_datasets():
@@ -21,7 +21,7 @@ def test_get_datasets():
 def test_get_dataloaders_with_two_semantic_classes():
     cfg = REGISTRY['cityscapes'].default_config
     sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg()
-    dataloaders = torchfcn.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
+    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
     person_val = dataloaders['train'].dataset.semantic_class_names.index('person')
 
     for img, (sem_lbl, inst_lbl) in dataloaders['train']:
@@ -39,7 +39,7 @@ def test_get_dataloaders_with_two_semantic_classes():
 def test_get_dataloaders_with_semantic_person_filtering():
     cfg = REGISTRY['cityscapes'].default_config
     sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg('person_2inst_20img_sameval')
-    dataloaders = torchfcn.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
+    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
     person_val = dataloaders['train'].dataset.semantic_class_names.index('person')
 
     for img, (sem_lbl, inst_lbl) in dataloaders['train']:
@@ -59,9 +59,9 @@ def test_get_dataloaders_with_instance_car_mapping():
     cfg['semantic_subset'] = ['car', 'background']
     cfg['dataset_instance_cap'] = None
     sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg('car_2_4')
-    dataloaders_default = torchfcn.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
+    dataloaders_default = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
     cfg['dataset_instance_cap'] = 4
-    dataloaders = torchfcn.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
+    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
 
     # Verify the image only has background and people, and that those locations line up with the initial dataset's
     # labels.

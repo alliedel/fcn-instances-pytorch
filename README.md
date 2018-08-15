@@ -50,9 +50,9 @@ Log directories refer to parent directories that contain <logdir>/model_best.pth
 python scripts/analysis/script_in_depth_evaluation.py --logdir <logdir>
 
 ## Pointers to the interesting parts of the code
-**Matching loss**: [torchfcn/losses.py](torchfcn/losses.py)
+**Matching loss**: [torchfcn/losses.py](instanceseg/losses.py)
 
-**Network architecture**: [torchfcn/models/fcn8s_instance.py](torchfcn/models/fcn8s_instance.py)
+**Network architecture**: [torchfcn/models/fcn8s_instance.py](instanceseg/models/fcn8s_instance.py)
 
 ## TODOs for GitHub users
 - Make directory changes and other per-machine configurations easy

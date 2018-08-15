@@ -10,14 +10,14 @@ import torch.nn.functional as F
 from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 
-import torchfcn
-import torchfcn.analysis.visualization_utils
-import torchfcn.datasets.synthetic
-import torchfcn.datasets.voc
-import torchfcn.utils.logs
-from torchfcn import losses
-from torchfcn import instance_utils, trainer
-from torchfcn.analysis import visualization_utils
+import instanceseg
+import instanceseg.analysis.visualization_utils
+import instanceseg.datasets.synthetic
+import instanceseg.datasets.voc
+import instanceseg.utils.logs
+from instanceseg import losses
+from instanceseg import instance_utils, trainer
+from instanceseg.analysis import visualization_utils
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -136,8 +136,8 @@ def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_co
                                                  score_vis_normalizer=score.max(),
                                                  channel_labels=channel_labels,
                                                  channels_to_visualize=None)
-    torchfcn.analysis.visualization_utils.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
-                                                                basename=basename, tile=True)
+    instanceseg.analysis.visualization_utils.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
+                                                                   basename=basename, tile=True)
 
 
 def main():
@@ -151,9 +151,9 @@ def main():
         'xaxis': args.xaxis,
     }
 
-    out = torchfcn.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_id=None,
-                                          cfg=cfg,
-                                          parent_directory=os.path.join(here, 'logs', 'synthetic'))
+    out = instanceseg.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_id=None,
+                                             cfg=cfg,
+                                             parent_directory=os.path.join(here, 'logs', 'synthetic'))
     print('Log in {}'.format(out))
     cuda = True  # torch.cuda.is_available()
     gpu = 0
@@ -166,8 +166,8 @@ def main():
     # 1. dataset
     dataset_kwargs = dict(transform=True, n_max_per_class=synthetic_generator_n_instances_per_semantic_id,
                           map_to_single_instance_problem=False, blob_size=(80, 80))
-    train_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
-    val_dataset = torchfcn.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
+    train_dataset = instanceseg.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
+    val_dataset = instanceseg.datasets.synthetic.BlobExampleGenerator(**dataset_kwargs)
     try:
         img, (sl, il) = train_dataset[0]
     except:

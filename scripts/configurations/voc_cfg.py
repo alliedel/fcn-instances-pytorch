@@ -1,5 +1,5 @@
 from . import generic_cfg
-from torchfcn.datasets import voc
+from instanceseg.datasets import voc
 
 
 def get_default_config():

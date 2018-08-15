@@ -1,5 +1,5 @@
 import os.path as osp
-from torchfcn.datasets import dataset_utils
+from instanceseg.datasets import dataset_utils
 import numpy as np
 
 here = osp.dirname(__file__)

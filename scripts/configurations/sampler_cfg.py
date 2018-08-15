@@ -1,6 +1,6 @@
 # TODO(allie): Make it easier to generate and override sampler_cfgs (like it is to generate the others)
-from torchfcn.datasets.sampler import SamplerConfig
-from torchfcn.factory import samplers
+from instanceseg.datasets.sampler import SamplerConfig
+from instanceseg.factory import samplers
 
 
 def get_sampler_cfg_set(n_images_train=None, n_images_val=None, n_images_train_for_val=None, sem_cls_filter=None,

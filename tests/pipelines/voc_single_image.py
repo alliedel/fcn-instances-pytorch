@@ -9,13 +9,13 @@ import numpy as np
 import torch
 from tensorboardX import SummaryWriter
 
-import torchfcn
-import torchfcn.datasets.voc
-import torchfcn.utils.configs
-import torchfcn.utils.logs
-import torchfcn.utils.misc
-import torchfcn.utils.scripts
-from torchfcn import instance_utils
+import instanceseg
+import instanceseg.datasets.voc
+import instanceseg.utils.configs
+import instanceseg.utils.logs
+import instanceseg.utils.misc
+import instanceseg.utils.scripts
+from instanceseg import instance_utils
 
 default_config = dict(
     max_iteration=100000,
@@ -68,7 +68,7 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
-    torchfcn.utils.scripts.check_clean_work_tree()
+    instanceseg.utils.scripts.check_clean_work_tree()
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=0,
@@ -79,12 +79,12 @@ def main():
     gpu = args.gpu
     config_idx = args.config
 
-    cfg = torchfcn.utils.configs.create_config_from_default(configurations[config_idx], default_config)
+    cfg = instanceseg.utils.configs.create_config_from_default(configurations[config_idx], default_config)
     if args.image_index is not None:
         cfg['image_index'] = args.image_index
 
-    out = torchfcn.utils.logs.get_log_dir(osp.basename(__file__).replace(
-        '.py', ''), config_idx, torchfcn.utils.configs.create_config_copy(cfg),
+    out = instanceseg.utils.logs.get_log_dir(osp.basename(__file__).replace(
+        '.py', ''), config_idx, instanceseg.utils.configs.create_config_copy(cfg),
         parent_directory=osp.dirname(osp.abspath(__file__)))
 
     print('logdir: {}'.format(out))
@@ -109,7 +109,7 @@ def main():
                           modified_indices=[cfg['image_index']])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     val_split = 'seg11valid'
-    val_dataset = torchfcn.datasets.voc.VOC2011ClassSeg(root, split=val_split, **dataset_kwargs)
+    val_dataset = instanceseg.datasets.voc.VOC2011ClassSeg(root, split=val_split, **dataset_kwargs)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
     train_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, **kwargs)
 
@@ -117,7 +117,7 @@ def main():
 
     # 2. model
 
-    model = torchfcn.models.FCN8sInstance(
+    model = instanceseg.models.FCN8sInstance(
         semantic_instance_class_list=problem_config.semantic_instance_class_list,
         map_to_semantic=False, include_instance_channel0=False)
     print('Number of classes in model: {}'.format(model.n_classes))
@@ -130,7 +130,7 @@ def main():
         start_iteration = checkpoint['iteration']
     else:
         print('Copying params from vgg16')
-        vgg16 = torchfcn.models.VGG16(pretrained=True)
+        vgg16 = instanceseg.models.VGG16(pretrained=True)
         model.copy_params_from_vgg16(vgg16)
     if cuda:
         model = model.cuda()
@@ -141,8 +141,8 @@ def main():
     elif cfg['optim'] == 'sgd':
         optim = torch.optim.SGD(
             [
-                {'params': torchfcn.utils.configs.get_parameters(model, bias=False)},
-                {'params': torchfcn.utils.configs.get_parameters(model, bias=True),
+                {'params': instanceseg.utils.configs.get_parameters(model, bias=False)},
+                {'params': instanceseg.utils.configs.get_parameters(model, bias=True),
                  #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
                  #                model, bias=False))},
                  #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
@@ -159,7 +159,7 @@ def main():
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
     writer = SummaryWriter(log_dir=out)
-    trainer = torchfcn.Trainer(
+    trainer = instanceseg.Trainer(
         cuda=cuda,
         model=model,
         optimizer=optim,
@@ -195,9 +195,9 @@ def main():
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
     if metrics[2] < 80:
-        print(torchfcn.utils.misc.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + torchfcn.utils.misc.TermColors.ENDC)
+        print(instanceseg.utils.misc.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + instanceseg.utils.misc.TermColors.ENDC)
     else:
-        print(torchfcn.utils.misc.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + torchfcn.utils.misc.TermColors.ENDC)
+        print(instanceseg.utils.misc.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + instanceseg.utils.misc.TermColors.ENDC)
 
 
 if __name__ == '__main__':

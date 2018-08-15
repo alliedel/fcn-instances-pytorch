@@ -3,9 +3,9 @@ import os
 import torch.utils.data
 import tqdm
 
-from torchfcn.datasets import dataset_generator_registry
+from instanceseg.datasets import dataset_generator_registry
 from scripts.configurations import voc_cfg
-from torchfcn.datasets import sampler
+from instanceseg.datasets import sampler
 
 
 def test_vanilla_sampler(train_dataset, loader_kwargs):

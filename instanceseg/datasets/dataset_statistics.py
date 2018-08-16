@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import tqdm
-from instanceseg.datasets import dataset_utils
 
 
 class InstanceDatasetStatistics(object):

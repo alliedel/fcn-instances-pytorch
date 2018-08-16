@@ -1,4 +1,3 @@
-import collections
 import datetime
 import math
 import os
@@ -22,7 +21,7 @@ from instanceseg import instance_utils
 from instanceseg import losses
 from instanceseg import metrics
 from instanceseg.analysis import visualization_utils
-from instanceseg.datasets import dataset_utils
+from instanceseg.utils import datasets
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.datasets import runtime_transformations
 import instanceseg.utils.misc
@@ -200,9 +199,9 @@ class Trainer(object):
         return permutations, loss, loss_components
 
     def augment_image(self, img, sem_lbl):
-        semantic_one_hot = dataset_utils.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
-        return dataset_utils.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
-                                              (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
+        semantic_one_hot = datasets.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
+        return datasets.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
+                                         (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
 
     def validate(self, split='val', write_basic_metrics=None, write_instance_metrics=None, save_checkpoint=None,
                  update_best_checkpoint=None, should_export_visualizations=True):

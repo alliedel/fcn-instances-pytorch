@@ -10,7 +10,6 @@ import tqdm
 
 import instanceseg
 from instanceseg import instance_utils
-from instanceseg.datasets import dataset_utils
 from instanceseg.datasets import voc
 
 configurations = {

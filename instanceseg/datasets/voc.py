@@ -3,9 +3,8 @@
 import os.path as osp
 
 import numpy as np
-from torch.utils import data
 
-from instanceseg.datasets import dataset_utils, runtime_transformations
+from instanceseg.utils import datasets
 from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
@@ -118,7 +117,7 @@ def get_raw_voc_files(dataset_dir, split):
             if not osp.isfile(inst_absolute_lbl_file):
                 raise Exception('This image does not exist')
             print('Generating per-semantic instance file: {}'.format(inst_lbl_file_unordered))
-            dataset_utils.generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file_unordered)
+            datasets.generate_per_sem_instance_file(inst_absolute_lbl_file, sem_lbl_file, inst_lbl_file_unordered)
 
         files.append({
             'img': img_file,
@@ -138,8 +137,8 @@ def load_transformed_voc_files(self, img_file, sem_lbl_file, inst_lbl_file, tran
 
 
 def load_voc_files(img_file, sem_lbl_file, inst_lbl_file=None, return_semantic_only=False):
-    img = dataset_utils.load_img_as_dtype(img_file, np.uint8)
-    sem_lbl = dataset_utils.load_img_as_dtype(sem_lbl_file, np.int32)
+    img = datasets.load_img_as_dtype(img_file, np.uint8)
+    sem_lbl = datasets.load_img_as_dtype(sem_lbl_file, np.int32)
     sem_lbl[sem_lbl == 255] = -1
 
     # load instance label
@@ -147,7 +146,7 @@ def load_voc_files(img_file, sem_lbl_file, inst_lbl_file=None, return_semantic_o
         assert inst_lbl_file is None, ValueError
         lbl = sem_lbl
     else:
-        inst_lbl = dataset_utils.load_img_as_dtype(inst_lbl_file, np.int32)
+        inst_lbl = datasets.load_img_as_dtype(inst_lbl_file, np.int32)
         inst_lbl[inst_lbl == 255] = -1
         inst_lbl[sem_lbl == -1] = -1
         lbl = (sem_lbl, inst_lbl)

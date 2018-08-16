@@ -1,7 +1,7 @@
 import torch
 from torch.nn import functional as F
 
-from instanceseg.datasets import dataset_utils
+from instanceseg.utils import datasets
 
 
 def get_center_min_max(h, dest_h, floor=False):
@@ -21,7 +21,7 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
     for idx, (x, _) in enumerate(dataloader):
         largest_image_shape = [max(largest_image_shape[0], x.size(2)), max(largest_image_shape[1], x.size(3))]
         if n_channels is None:
-            x = dataset_utils.prep_input_for_scoring(x, cuda=cuda)
+            x = datasets.prep_input_for_scoring(x, cuda=cuda)
             score = model(x)
             n_channels = score.size(1)
     heatmap_img_shape_rc = [2 * dim_sz + 2 for dim_sz in largest_image_shape]
@@ -33,7 +33,7 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
     inst_id_list = my_trainer.instance_problem.instance_count_id_list
 
     for idx, (x, (sem_lbl, inst_lbl)) in enumerate(dataloader):
-        x, sem_lbl, inst_lbl = dataset_utils.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
+        x, sem_lbl, inst_lbl = datasets.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
         score = model(x)
         cropped_r1, cropped_r2 = get_center_min_max(x.size(2), heatmap_img_shape_rc[0], floor=True)
         cropped_c1, cropped_c2 = get_center_min_max(x.size(3), heatmap_img_shape_rc[1], floor=True)
@@ -55,8 +55,8 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
                 # ground truth instance non-existent
                 continue
             else:
-                com_rc = dataset_utils.compute_centroid_binary_mask(gt_location_mask.data.cpu().numpy())
-                image_center = dataset_utils.get_image_center(gt_location_mask.size(), floor=False)
+                com_rc = datasets.compute_centroid_binary_mask(gt_location_mask.data.cpu().numpy())
+                image_center = datasets.get_image_center(gt_location_mask.size(), floor=False)
                 com_offset_rc = [int(c - img_c) for c, img_c in zip(com_rc, image_center)]
             try:
                 loc_rc_in_heatmap_image = cropped_r1 - com_offset_rc[0], cropped_c1 - com_offset_rc[1]
@@ -87,7 +87,7 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
     for idx, (x, _) in enumerate(dataloader):
         largest_image_shape = [max(largest_image_shape[0], x.size(2)), max(largest_image_shape[1], x.size(3))]
         if n_channels is None:
-            x = dataset_utils.prep_input_for_scoring(x, cuda=cuda)
+            x = datasets.prep_input_for_scoring(x, cuda=cuda)
             score = model(x)
             n_channels = score.size(1)
 
@@ -95,7 +95,7 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
     heatmap_counts = torch.zeros(n_channels, *largest_image_shape)
 
     for idx, (x, (sem_lbl, inst_lbl)) in enumerate(dataloader):
-        x, sem_lbl, inst_lbl = dataset_utils.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
+        x, sem_lbl, inst_lbl = datasets.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
         score = model(x)
         r1, r2 = get_center_min_max(x.size(2), heatmap_scores.size(1))
         c1, c2 = get_center_min_max(x.size(3), heatmap_scores.size(2))

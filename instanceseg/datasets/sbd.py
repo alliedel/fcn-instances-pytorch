@@ -5,8 +5,8 @@ import PIL.Image
 import numpy as np
 import scipy.io
 
-from instanceseg.datasets import dataset_utils
-from instanceseg.datasets.dataset_utils import load_img_as_dtype
+from instanceseg.utils import datasets
+from instanceseg.utils.datasets import load_img_as_dtype
 from instanceseg.datasets.voc import ALL_VOC_CLASS_NAMES
 
 from . import voc
@@ -59,19 +59,19 @@ class SBDClassSeg(voc.VOCClassSegBase):
         self.n_inst_cap_per_class = None
 
     def reduce_to_semantic_subset(self, semantic_subset):
-        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+        self.class_names, self.idxs_into_all_voc = datasets.get_semantic_names_and_idxs(
             semantic_subset=semantic_subset, full_set=ALL_VOC_CLASS_NAMES)
 
     def clear_semantic_subset(self):
-        self.class_names, self.idxs_into_all_voc = dataset_utils.get_semantic_names_and_idxs(
+        self.class_names, self.idxs_into_all_voc = datasets.get_semantic_names_and_idxs(
             semantic_subset=None, full_set=ALL_VOC_CLASS_NAMES)
 
     def transform_img(self, img):
-        return dataset_utils.transform_img(img, self.mean_bgr, resized_sz=None)
+        return datasets.transform_img(img, self.mean_bgr, resized_sz=None)
 
     @staticmethod
     def transform_lbl(lbl):
-        return dataset_utils.transform_lbl(lbl)
+        return datasets.transform_lbl(lbl)
 
     def transform(self, img, lbl):
         img = self.transform_img(img)
@@ -84,10 +84,10 @@ class SBDClassSeg(voc.VOCClassSegBase):
         return img, lbl
 
     def untransform_img(self, img):
-        return dataset_utils.untransform_img(img, self.mean_bgr, original_size=None)
+        return datasets.untransform_img(img, self.mean_bgr, original_size=None)
 
     def untransform_lbl(self, lbl):
-        return dataset_utils.untransform_lbl(lbl)
+        return datasets.untransform_lbl(lbl)
 
     def combine_semantic_and_instance_labels(self, sem_lbl, inst_lbl):
         raise NotImplementedError('we need to pass or create the instance config class to make this work properly')
@@ -135,7 +135,7 @@ class SBDClassSeg(voc.VOCClassSegBase):
         return img, lbl
 
     def remap_to_reduced_semantic_classes(self, sem_lbl):
-        return dataset_utils.remap_to_reduced_semantic_classes(
+        return datasets.remap_to_reduced_semantic_classes(
             sem_lbl, reduced_class_idxs=self.idxs_into_all_voc,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
 

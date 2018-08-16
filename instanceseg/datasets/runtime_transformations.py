@@ -1,4 +1,4 @@
-from instanceseg.datasets import dataset_utils
+from instanceseg.utils import datasets
 import inspect
 
 
@@ -91,12 +91,12 @@ class ResizeRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         self.resize_size = resize_size
 
     def transform(self, img, lbl):
-        img = dataset_utils.resize_img(img, self.resize_size)
+        img = datasets.resize_img(img, self.resize_size)
         if isinstance(lbl, tuple):
             assert len(lbl) == 2, 'Should be semantic, instance label tuple'
-            lbl = tuple(dataset_utils.resize_lbl(l, self.resize_size) for l in lbl)
+            lbl = tuple(datasets.resize_lbl(l, self.resize_size) for l in lbl)
         else:
-            lbl = dataset_utils.resize_lbl(lbl, self.resize_size)
+            lbl = datasets.resize_lbl(lbl, self.resize_size)
 
         return img, lbl
 
@@ -155,7 +155,7 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         self.original_semantic_class_names = None
 
     def transform(self, img, lbl):
-        sem_fcn = lambda sem_lbl: dataset_utils.remap_to_reduced_semantic_classes(
+        sem_fcn = lambda sem_lbl: datasets.remap_to_reduced_semantic_classes(
             sem_lbl, reduced_class_idxs=self.reduced_class_idxs,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
         lbl = (sem_fcn(lbl[0]), lbl[1])
@@ -187,26 +187,26 @@ class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         return self.untransform_img(img), self.untransform_lbl(lbl)
 
     def transform_img(self, img):
-        return dataset_utils.convert_img_to_torch_tensor(img, mean_bgr=self.mean_bgr)
+        return datasets.convert_img_to_torch_tensor(img, mean_bgr=self.mean_bgr)
 
     def transform_lbl(self, lbl):
         if isinstance(lbl, tuple):
             assert len(lbl) == 2, 'Should be semantic, instance label tuple'
-            lbl = tuple(dataset_utils.convert_lbl_to_torch_tensor(l) for l in lbl)
+            lbl = tuple(datasets.convert_lbl_to_torch_tensor(l) for l in lbl)
         else:
-            lbl = dataset_utils.convert_lbl_to_torch_tensor(lbl)
+            lbl = datasets.convert_lbl_to_torch_tensor(lbl)
         return lbl
 
     def untransform_lbl(self, lbl):
         if isinstance(lbl, tuple):
             assert len(lbl) == 2, 'Should be semantic, instance label tuple'
-            lbl = tuple(dataset_utils.convert_torch_lbl_to_numpy(l) for l in lbl)
+            lbl = tuple(datasets.convert_torch_lbl_to_numpy(l) for l in lbl)
         else:
-            lbl = dataset_utils.convert_torch_lbl_to_numpy(lbl)
+            lbl = datasets.convert_torch_lbl_to_numpy(lbl)
         return lbl
 
     def untransform_img(self, img):
-        img = dataset_utils.convert_torch_img_to_numpy(img, self.mean_bgr)
+        img = datasets.convert_torch_img_to_numpy(img, self.mean_bgr)
         return img
 
 

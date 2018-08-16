@@ -1,6 +1,6 @@
 import numpy as np
 
-from instanceseg.datasets import dataset_utils
+from instanceseg.utils import datasets
 from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
@@ -68,7 +68,7 @@ class BlobExampleGenerator(InstanceDatasetBase):
         self.semantic_subset = semantic_subset_to_generate
         # TODO(allie): change the line below to allow dif. blob types
         self.semantic_classes = semantic_subset_to_generate or ALL_BLOB_CLASS_NAMES
-        self.class_names, self.idxs_into_all_blobs = dataset_utils.get_semantic_names_and_idxs(
+        self.class_names, self.idxs_into_all_blobs = datasets.get_semantic_names_and_idxs(
             semantic_subset=semantic_subset_to_generate, full_set=ALL_BLOB_CLASS_NAMES)
         self.n_instances_per_sem_cls = [0] + [n_instances_per_img for _ in range(len(self.semantic_classes) - 1)]
         self.ordering = ordering.lower() if ordering is not None else None

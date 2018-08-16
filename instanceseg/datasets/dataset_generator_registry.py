@@ -1,5 +1,5 @@
 from scripts.configurations import voc_cfg, cityscapes_cfg
-from instanceseg.datasets import dataset_utils
+from instanceseg.utils import datasets
 from instanceseg.datasets import precomputed_file_transformations, runtime_transformations
 from instanceseg.datasets import voc, synthetic, cityscapes
 from instanceseg.utils.misc import pop_without_del
@@ -86,7 +86,7 @@ def get_transformations(cfg, original_semantic_class_names=None):
     semantic_subset = cfg['semantic_subset']
     if semantic_subset is not None:
         assert original_semantic_class_names is not None
-        class_names, reduced_class_idxs = dataset_utils.get_semantic_names_and_idxs(
+        class_names, reduced_class_idxs = datasets.get_semantic_names_and_idxs(
             semantic_subset=semantic_subset, full_set=original_semantic_class_names)
     else:
         reduced_class_idxs = None

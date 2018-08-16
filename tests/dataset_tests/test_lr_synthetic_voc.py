@@ -3,7 +3,7 @@ import instanceseg.utils.scripts
 from scripts.configurations import synthetic_cfg
 from scripts.configurations import voc_cfg
 import numpy as np
-from instanceseg.datasets import dataset_utils
+from instanceseg.utils import datasets
 
 
 def is_lr_ordered(sem_lbl, inst_lbl):
@@ -16,8 +16,8 @@ def is_lr_ordered(sem_lbl, inst_lbl):
 
         ordered_coms = []
         for inst_val in unique_instance_idxs:
-            com = dataset_utils.compute_centroid_binary_mask(np.logical_and(sem_lbl == sem_val,
-                                                                            inst_lbl == inst_val))
+            com = datasets.compute_centroid_binary_mask(np.logical_and(sem_lbl == sem_val,
+                                                                       inst_lbl == inst_val))
             ordered_coms.append(com)
         ordered_left_right_ordering = [x for x in np.argsort([com[1] for com in ordered_coms])]
 

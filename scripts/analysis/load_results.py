@@ -95,6 +95,6 @@ if __name__ == '__main__':
     initial_model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config,
                                                                                        checkpoint_file=None, semantic_init=None,
                                                                                        cuda=cuda)
-
+    import ipdb; ipdb.set_trace()
     # main_check_freeze()
     # main_check_cost_matrix()

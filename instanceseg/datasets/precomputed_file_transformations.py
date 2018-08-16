@@ -1,4 +1,4 @@
-from instanceseg.datasets import dataset_utils
+from instanceseg.utils import datasets
 import os.path as osp
 import inspect
 
@@ -75,15 +75,15 @@ class InstanceOrderingPrecomputedDatasetFileTransformation(PrecomputedDatasetFil
         elif self.ordering.lower() == 'lr':
             inst_lbl_file_ordered = inst_lbl_file_unordered.replace('.png', self.postfix + '.png')
             if not osp.isfile(inst_lbl_file_ordered):
-                dataset_utils.generate_ordered_instance_file(inst_lbl_file_unordered,
-                                                             sem_lbl_file, inst_lbl_file_ordered, ordering='lr',
-                                                             increasing='True')
+                datasets.generate_ordered_instance_file(inst_lbl_file_unordered,
+                                                        sem_lbl_file, inst_lbl_file_ordered, ordering='lr',
+                                                        increasing='True')
         elif self.ordering.lower() == 'big_to_small' or self.ordering.lower() == 'bigsmall':
             inst_lbl_file_ordered = inst_lbl_file_unordered.replace('.png', self.postfix + '.png')
             if not osp.isfile(inst_lbl_file_ordered):
-                dataset_utils.generate_ordered_instance_file(inst_lbl_file_unordered,
-                                                             sem_lbl_file, inst_lbl_file_ordered,
-                                                             ordering='size', increasing=False)
+                datasets.generate_ordered_instance_file(inst_lbl_file_unordered,
+                                                        sem_lbl_file, inst_lbl_file_ordered,
+                                                        ordering='size', increasing=False)
         else:
             raise ValueError('ordering={} not recognized'.format(self.ordering))
         return img_file, sem_lbl_file, inst_lbl_file_ordered

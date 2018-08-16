@@ -3,7 +3,7 @@ from torch.nn import functional as F
 import numpy as np
 import tqdm
 
-from instanceseg.datasets import dataset_utils
+from instanceseg.utils import datasets
 
 
 def get_center_min_max(h, dest_h, floor=False):
@@ -24,7 +24,7 @@ def get_per_channel_per_image_sizes(model, dataloader, cuda, my_trainer):
 
     for idx, (x, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataloader), total=len(dataloader),
                                                    desc='Matching channels to instances and computing sizes'):
-        x, sem_lbl, inst_lbl = dataset_utils.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
+        x, sem_lbl, inst_lbl = datasets.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
         assert x.size(0) == 1, NotImplementedError('Assuming batch size 1 at the moment')
         score = model(x)
         # softmax_scores = F.softmax(score, dim=1).data.cpu()
@@ -41,7 +41,7 @@ def get_per_channel_per_image_sizes(model, dataloader, cuda, my_trainer):
             """
             assigned_gt_idx = (pred_permutations[:, channel_idx]).item()
             sem_val, inst_val = sem_inst_class_list[assigned_gt_idx], inst_id_list[assigned_gt_idx]
-            assigned_instance_sizes[idx, channel_idx] = dataset_utils.get_instance_size(
+            assigned_instance_sizes[idx, channel_idx] = datasets.get_instance_size(
                 sem_lbl_np[data_idx, ...], sem_val, inst_lbl_np[data_idx, ...], inst_val)
     return assigned_instance_sizes
 
@@ -55,7 +55,7 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
     for idx, (x, _) in enumerate(dataloader):
         largest_image_shape = [max(largest_image_shape[0], x.size(2)), max(largest_image_shape[1], x.size(3))]
         if n_channels is None:
-            x = dataset_utils.prep_input_for_scoring(x, cuda=cuda)
+            x = datasets.prep_input_for_scoring(x, cuda=cuda)
             score = model(x)
             n_channels = score.size(1)
 
@@ -63,7 +63,7 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
     heatmap_counts = torch.zeros(n_channels, *largest_image_shape)
 
     for idx, (x, (sem_lbl, inst_lbl)) in enumerate(dataloader):
-        x, sem_lbl, inst_lbl = dataset_utils.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
+        x, sem_lbl, inst_lbl = datasets.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
         score = model(x)
         r1, r2 = get_center_min_max(x.size(2), heatmap_scores.size(1))
         c1, c2 = get_center_min_max(x.size(3), heatmap_scores.size(2))

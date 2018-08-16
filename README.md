@@ -15,6 +15,9 @@ probably in: https://bitbucket.org/alliedel/my_tools
 
 All packages I have are listed in the requirements.txt file; not all are actually required, so you could alternatively just install packages and rerun until it's happy :)
 
+## Documentation
+Run python/print_directory_tree.py to see a directory structure with comments.
+
 ## Scripts (Examples)
 Each of the scripts requires an argument for the GPU number to run on.  If you'd like to run on CPU, set -g to -1.
 

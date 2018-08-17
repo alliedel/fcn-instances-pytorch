@@ -1,6 +1,5 @@
 # TODO(allie): Make it easier to generate and override sampler_cfgs (like it is to generate the others)
 from instanceseg.datasets.sampler import SamplerConfig
-from instanceseg.factory import samplers
 
 
 def get_sampler_cfg_set(n_images_train=None, n_images_val=None, n_images_train_for_val=None, sem_cls_filter=None,
@@ -22,8 +21,9 @@ sampler_cfgs = {
     None: get_sampler_cfg_set(),
     'default': get_sampler_cfg_set(),
     'car_2_4': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 4 + 1)),
-    'person_car_2_4': get_sampler_cfg_set(sem_cls_filter=['car', 'person'], n_instances_range=(2, 4 + 1)),
-    'car_2_3': get_sampler_cfg_set(sem_cls_filter=['car', 'person'], n_instances_range=(2, 3 + 1))
+    'person_car_2_4': get_sampler_cfg_set(sem_cls_filter=['car', 'person'],
+                                          n_instances_range=[(2, 4 + 1), (2, 4 + 1)]),
+    'car_2_3': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 3 + 1))
 }
 sampler_cfgs['car_2_4inst_allimg_realval'] = sampler_cfgs['car_2_4']
 

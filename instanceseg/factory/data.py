@@ -6,7 +6,9 @@ import torch
 from instanceseg.datasets import dataset_generator_registry, sampler, dataset_registry
 from instanceseg.utils.misc import pop_without_del
 from instanceseg.factory.samplers import get_configured_sampler
-from instanceseg.utils.scripts import DEBUG_ASSERTS
+
+
+DEBUG_ASSERTS = True
 
 
 def get_datasets_with_transformations(dataset_type, cfg, transform=True):

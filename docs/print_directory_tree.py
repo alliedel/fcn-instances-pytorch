@@ -11,6 +11,9 @@ file_comments = {
     'instanceseg/datasets': 'interfaces for datasets, as well as common transformations '
                             '(runtime and precomputed) and image samplers',
     'instanceseg/datasets/dataset_registry.py': 'new datasets need to be registered here',
+    'instanceseg/datasets/dataset_statistics.py': 'Computes number/size of instances, etc.  '
+                                                  'Used for dataset analysis as well as samplers (filtering images '
+                                                  'by image stats)',
     'instanceseg/ext': 'external (third party) code',
     'instanceseg/losses.py': 'loss functions (cross entropy, etc.)',
     'instanceseg/metrics.py': 'various intermediate metrics for analysis (e.g. - channel usage)',

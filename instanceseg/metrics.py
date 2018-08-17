@@ -123,6 +123,7 @@ class InstanceMetrics(object):
                 except:
                     import ipdb;
                     ipdb.set_trace()
+                    raise Exception
                 pred_channel_idx = mode_as_torch_tensor.numpy().item()  # mode returns (val, idx)
                 if already_matched_pred_channels[pred_channel_idx]:
                     # We've already assigned this channel to an instance; can't double-count.
@@ -391,36 +392,40 @@ def argmax_scores(compiled_scores, dim=1):
     return compiled_scores.max(dim=dim)[1]
 
 
+# def _test():
+#     logdir = 'scripts/logs/synthetic/TIME-20180430-151222_VCS-b7e0570_MODEL-train_instances_' \
+#              'CFG-000_F_SEM-False_SSET-None_INIT_SEM-False_SM-None_VOID-True_MA-True_VAL-100_' \
+#              'DECAY-0.0005_SEM_LS-False_LR-0.0001_1INST-False_ITR-10000_NPER-None_OPTIM-sgd_MO-0.99_BCC-None_SA-True/'
+#     model_best_path = os.path.join(logdir, 'model_best.pth.tar')
+#     checkpoint = torch.load(model_best_path)
+#     gpu = 0
+#     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+#     cuda = torch.cuda.is_available()
+#
+#     cfg_file = os.path.join(logdir, 'config.yaml')
+#     cfg = instanceseg.utils.configs.create_config_copy(instanceseg.utils.configs.load_config(cfg_file),
+#                                                        reverse_replacements=True)
+#     synthetic_generator_n_instances_per_semantic_id = 2
+#     n_instances_per_class = cfg['n_instances_per_class'] or \
+#                             (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
+#
+#     dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'synthetic', cuda)
+#     problem_config = instanceseg.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
+#                                                                    n_instances_per_class)
+#     model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, checkpoint,
+#                                                                                semantic_init=None, cuda=cuda)
+#     # instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )
+#     # not necessary, but we'll make sure it runs anyway
+#     instance_metrics.clear()
+#     instance_metrics.compute_metrics(model)
+#     metrics_as_nested_dict = instance_metrics.get_aggregated_scalar_metrics_as_nested_dict()
+#     metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
+#     instance_metrics.get_images_based_on_characteristics()
+#     instance_metrics.clear()
+
+
 def _test():
-    logdir = 'scripts/logs/synthetic/TIME-20180430-151222_VCS-b7e0570_MODEL-train_instances_' \
-             'CFG-000_F_SEM-False_SSET-None_INIT_SEM-False_SM-None_VOID-True_MA-True_VAL-100_' \
-             'DECAY-0.0005_SEM_LS-False_LR-0.0001_1INST-False_ITR-10000_NPER-None_OPTIM-sgd_MO-0.99_BCC-None_SA-True/'
-    model_best_path = os.path.join(logdir, 'model_best.pth.tar')
-    checkpoint = torch.load(model_best_path)
-    gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
-    cuda = torch.cuda.is_available()
-
-    cfg_file = os.path.join(logdir, 'config.yaml')
-    cfg = instanceseg.utils.configs.create_config_copy(instanceseg.utils.configs.load_config(cfg_file),
-                                                       reverse_replacements=True)
-    synthetic_generator_n_instances_per_semantic_id = 2
-    n_instances_per_class = cfg['n_instances_per_class'] or \
-                            (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
-
-    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'synthetic', cuda)
-    problem_config = instanceseg.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
-                                                                   n_instances_per_class)
-    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, checkpoint,
-                                                                               semantic_init=None, cuda=cuda)
-    # instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )
-    # not necessary, but we'll make sure it runs anyway
-    instance_metrics.clear()
-    instance_metrics.compute_metrics(model)
-    metrics_as_nested_dict = instance_metrics.get_aggregated_scalar_metrics_as_nested_dict()
-    metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
-    instance_metrics.get_images_based_on_characteristics()
-    instance_metrics.clear()
+    pass
 
 
 if __name__ == '__main__':

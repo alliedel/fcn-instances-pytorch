@@ -43,14 +43,11 @@ class InstanceDatasetStatistics(object):
         valid_indices = filter_images_by_non_bground(self.dataset, bground_val, void_val)
         return valid_indices
 
-    def get_valid_indices(self, n_instances_range, sem_cls_filter, n_images):
+    def get_valid_indices(self, n_instance_ranges, sem_cls_filter, n_images):
         valid_indices = [True for _ in range(len(self.dataset))]
-        if n_instances_range is not None:
+        if n_instance_ranges is not None or sem_cls_filter is not None:
             valid_indices = pairwise_and(valid_indices,
-                                         self.filter_images_by_n_instances(n_instances_range, sem_cls_filter))
-        elif sem_cls_filter is not None:
-            valid_indices = pairwise_and(valid_indices,
-                                         self.filter_images_by_semantic_classes(sem_cls_filter))
+                                         self.valid_indices_overlap(sem_cls_filter, n_instance_ranges, union=False))
         if n_images is not None:
             if sum(valid_indices) < n_images:
                 raise Exception('Too few images to sample {}.  Choose a smaller value for n_images in the sampler '
@@ -64,6 +61,40 @@ class InstanceDatasetStatistics(object):
                     else:
                         n_images_chosen += 1
             assert sum(valid_indices) == n_images
+        return valid_indices
+
+    def get_valid_indices_single_sem_cls(self, single_sem_cls, n_instances_range):
+        valid_indices = [True for _ in range(len(self.dataset))]
+        if n_instances_range is not None:
+            valid_indices = pairwise_and(valid_indices,
+                                         self.filter_images_by_n_instances(n_instances_range, [single_sem_cls]))
+        elif single_sem_cls is not None:
+            valid_indices = pairwise_and(valid_indices,
+                                         self.filter_images_by_semantic_classes([single_sem_cls]))
+        return valid_indices
+
+    def valid_indices_overlap(self, semantic_class_vals, n_instance_ranges, union=False):
+        """
+        Example:
+                semantic_classes = [15, 16]
+                n_instance_ranges = [(2,4), (None,3)]
+                union = False
+
+                Result: boolean array where True represents an image that has 2 or 3 instances of semantic class 15
+                and fewer than 3 instances of semantic class 16.
+
+                If union = True, finds union of these images instead.
+        """
+        assert len(semantic_class_vals) == len(n_instance_ranges) and all([len(i) == 2 for i in n_instance_ranges])
+        pairwise_combine = pairwise_and if not union else pairwise_or
+        valid_indices = None
+        for sem_cls, n_instances_range in zip(semantic_class_vals, n_instance_ranges):
+            valid_indices_single_set = self.get_valid_indices_single_sem_cls(single_sem_cls=sem_cls,
+                                                                             n_instances_range=n_instances_range)
+            if valid_indices is None:
+                valid_indices = valid_indices_single_set
+            else:
+                valid_indices = pairwise_combine(valid_indices, valid_indices_single_set)
         return valid_indices
 
 
@@ -147,3 +178,7 @@ def filter_images_by_non_bground(dataset, bground_val=0, void_val=-1):
 
 def pairwise_and(list1, list2):
     return [a and b for a, b in zip(list1, list2)]
+
+
+def pairwise_or(list1, list2):
+    return [a or b for a, b in zip(list1, list2)]

@@ -87,8 +87,9 @@ class InstanceDatasetStatistics(object):
         """
         assert len(semantic_class_vals) == len(n_instance_ranges)
         try:
+            assert not isinstance(n_instance_ranges[0], int)
             assert all([len(i) == 2 for i in n_instance_ranges])
-        except AssertionError or TypeError:
+        except AssertionError:
             raise Exception('There must be {} tuples assigned to n_instances to match the number of semantic ' \
                             'classes.'.format(n_instance_ranges))
         pairwise_combine = pairwise_and if not union else pairwise_or

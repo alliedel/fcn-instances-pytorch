@@ -86,6 +86,10 @@ def get_parameters(model, bias=False):
         nn.Dropout2d,
         nn.Sequential,
         nn.Softmax,
+        instanceseg.models.FCN32s,
+        instanceseg.models.FCN16s,
+        instanceseg.models.FCN8s,
+        instanceseg.models.FCN8sAtOnce,
         instanceseg.models.FCN8sInstance
     )
     for m in model.modules():

@@ -21,7 +21,8 @@ def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
         model = instanceseg.models.FCN8sInstance(
             semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
             map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
-            bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'],
+            bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'],
+            score_multiplier_init=cfg['score_multiplier'],
             n_input_channels=n_input_channels, clip=cfg['clip'])
     if checkpoint_file is not None:
         checkpoint = torch.load(checkpoint_file)

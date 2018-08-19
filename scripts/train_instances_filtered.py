@@ -71,6 +71,14 @@ def main():
     model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, args.resume,
                                                                                args.semantic_init, args.cuda)
 
+    # Run a few checks
+    problem_config_semantic_classes = set([problem_config.semantic_class_names[si]
+                                           for si in problem_config.semantic_instance_class_list])
+    dataset_semantic_classes = set(dataloaders['train'].dataset.semantic_class_names)
+    assert problem_config_semantic_classes == dataset_semantic_classes, \
+        'Model covers these semantic classes: {}.\n ' \
+        'Dataset covers these semantic classes: {}.'.format(problem_config_semantic_classes, dataset_semantic_classes)
+
     print('Number of output channels in model: {}'.format(model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))

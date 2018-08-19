@@ -50,6 +50,14 @@ configurations = {
         n_instances_per_class=1,
         dataset_instance_cap=None,
     ),
+    'objectsemantic': dict(
+        single_instance=True,
+        n_instances_per_class=1,
+        dataset_instance_cap=None,
+        semantic_subset=[class_name for class_name, has_instances in zip(
+            cityscapes.labels_table_cityscapes.class_names, cityscapes.labels_table_cityscapes.has_instances)
+                         if has_instances]
+    ),
     'car_instance': dict(
         max_iteration=1000000,
         interval_validate=4000,

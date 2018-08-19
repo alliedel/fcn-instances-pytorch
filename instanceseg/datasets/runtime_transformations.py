@@ -50,15 +50,15 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
 
     # Instance label transformations
 
-    # Some post-processing (should maybe be later(?))
-    transformer_sequence.append(SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer())
-
     if n_inst_cap_per_class is not None:
         transformer_sequence.append(InstanceNumberCapRuntimeDatasetTransformer(
             n_inst_cap_per_class=n_inst_cap_per_class))
         
     if map_to_single_instance_problem:
         transformer_sequence.append(SingleInstanceMapperRuntimeDatasetTransformer())
+
+    # Some post-processing (should maybe be later(?))
+    transformer_sequence.append(SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer())
 
     # Stitching them together in a sequence
     if len(transformer_sequence) == 0:

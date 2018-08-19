@@ -33,5 +33,3 @@ def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, n_
     if n_images:
         assert len(my_sampler.indices) == n_images
     return my_sampler
-
-

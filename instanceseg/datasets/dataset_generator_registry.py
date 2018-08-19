@@ -134,7 +134,6 @@ def get_cityscapes_datasets(dataset_path, precomputed_file_transformation, runti
         root=dataset_path, split='val',
         precomputed_file_transformation=precomputed_file_transformation,
         runtime_transformation=runtime_transformation)
-
     if not transform:
         for dataset in [train_dataset, val_dataset]:
             dataset.should_use_precompute_transform = False

@@ -11,6 +11,7 @@ from os import path as osp
 import scipy.misc
 
 import instanceseg.utils.export
+from instanceseg import instance_utils
 
 try:
     import cv2
@@ -371,11 +372,16 @@ def visualize_segmentation(**kwargs):
     for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
         if lbl is None:
             continue
+        # if permutation is not None:
+        #     permute_labels = np.vectorize(lambda x: pred_permutations[x])
+        # else:
+        #     permute_labels = lambda x: x  # identity
         if permutation is not None:
-            permute_labels = np.vectorize(lambda x: pred_permutations[x])
+            lbl_permuted = [instance_utils.permute_labels(label_pred, perms)
+                            for label_pred, perms in zip(lbl, permutation)]
         else:
-            permute_labels = lambda x: x  # identity
-        lbl_permuted = permute_labels(lbl)
+            lbl_permuted = lbl
+        # lbl_permuted = permute_labels(lbl)
         if label_names is not None:
             label_names_permuted = [label_names[pred_permutations[x]] for x in range(len(label_names))]
         else:

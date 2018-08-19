@@ -93,8 +93,6 @@ class TransformedInstanceDataset(InstanceDatasetBase):
         return img, lbl
 
     def get_item(self, index, precomputed_file_transformation=None, runtime_transformation=None):
-        import ipdb; ipdb.set_trace()
-
         if not self.raw_dataset_returns_images:
             img, lbl = self.get_item_from_files(index, precomputed_file_transformation)
         else:

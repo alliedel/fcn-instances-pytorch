@@ -378,7 +378,7 @@ def visualize_segmentation(**kwargs):
         #     permute_labels = lambda x: x  # identity
         if permutation is not None:
             assert len(permutation.shape) == 1, 'Debug this -- assumed one image here.'
-            lbl_permuted = instance_utils.permute_labels(lbl, permutation)
+            lbl_permuted = instance_utils.permute_labels(lbl, permutation[np.newaxis, :])
         else:
             lbl_permuted = lbl
         # lbl_permuted = permute_labels(lbl)

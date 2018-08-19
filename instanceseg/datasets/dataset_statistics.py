@@ -85,7 +85,12 @@ class InstanceDatasetStatistics(object):
 
                 If union = True, finds union of these images instead.
         """
-        assert len(semantic_class_vals) == len(n_instance_ranges) and all([len(i) == 2 for i in n_instance_ranges])
+        assert len(semantic_class_vals) == len(n_instance_ranges)
+        try:
+            assert all([len(i) == 2 for i in n_instance_ranges])
+        except AssertionError or TypeError:
+            raise Exception('There must be {} tuples assigned to n_instances to match the number of semantic ' \
+                            'classes.'.format(n_instance_ranges))
         pairwise_combine = pairwise_and if not union else pairwise_or
         valid_indices = None
         for sem_cls, n_instances_range in zip(semantic_class_vals, n_instance_ranges):
@@ -134,7 +139,7 @@ def filter_images_by_instance_range_from_counts(instance_counts, n_instances_ran
     if semantic_classes is None:
         valid_indices_as_tensor = has_at_least_n_instances.sum(dim=1) * has_at_most_n_instances.sum(dim=1)
     else:
-        valid_indices_as_tensor = sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes]) *\
+        valid_indices_as_tensor = sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes]) * \
                                   sum([has_at_most_n_instances[:, sem_cls] for sem_cls in semantic_classes])
     valid_indices = [x for x in valid_indices_as_tensor]
     if len(valid_indices) == 0:
@@ -157,7 +162,8 @@ def compute_instance_counts(dataset, semantic_classes=None):
             else:
                 instance_counts[idx, sem_idx] = 0
             if sem_idx == 0 and instance_counts[idx, sem_idx] > 0:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 raise Exception('inst_lbl should be 0 wherever sem_lbl is 0')
     return instance_counts
 
@@ -171,7 +177,8 @@ def filter_images_by_non_bground(dataset, bground_val=0, void_val=-1):
         else:
             valid_indices.append(False)
     if len(valid_indices) == 0:
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         raise Exception('Found no valid images')
     return valid_indices
 

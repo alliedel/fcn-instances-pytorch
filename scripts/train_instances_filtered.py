@@ -95,7 +95,8 @@ def main():
     if not cfg['map_to_semantic']:
         cfg['activation_layers_to_export'] = tuple([x for x in cfg[
             'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
-    trainer = instanceseg.factory.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
+    trainer = \
+        instanceseg.factory.trainers.get_trainer(cfg, args.cuda, model, optim, dataloaders, problem_config, out_dir)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

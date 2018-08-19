@@ -51,7 +51,7 @@ class Trainer(object):
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),
                  write_activation_condition=should_write_activations,
-                 write_instance_metrics=True, bool_compute_instance_metrics=True,
+                 write_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False):
         # System parameters
         self.cuda = cuda
@@ -96,8 +96,7 @@ class Trainer(object):
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
         self.write_instance_metrics = write_instance_metrics
-        self.bool_compute_instance_metrics = bool_compute_instance_metrics
-
+        
         # Stored values
         self.last_val_loss = None
         self.val_losses_stored = []
@@ -212,8 +211,6 @@ class Trainer(object):
         """
         val_metrics = None
         write_instance_metrics = (split == 'val') and self.write_instance_metrics \
-            if write_instance_metrics is None else write_instance_metrics
-        write_instance_metrics = self.bool_compute_instance_metrics and (split == 'val') \
             if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint

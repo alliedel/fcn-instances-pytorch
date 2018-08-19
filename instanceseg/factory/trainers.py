@@ -23,7 +23,7 @@ def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
         augment_input_with_semantic_masks=cfg['augment_semantic'],
         export_activations=cfg['export_activations'],
         activation_layers_to_export=cfg['activation_layers_to_export'],
-        bool_compute_instance_metrics=cfg['write_instance_metrics'],
+        write_instance_metrics=cfg['write_instance_metrics'],
         generate_new_synthetic_data_each_epoch=(cfg['dataset'] == 'synthetic' and cfg['infinite_synthetic'])
     )
     return trainer

@@ -1,8 +1,10 @@
-import torch
-from torch.nn import functional as F
 import numpy as np
+import torch
 import tqdm
+from torch.nn import functional as F
 
+import instanceseg.utils.eval
+from instanceseg import instance_utils
 from instanceseg.utils import datasets
 
 
@@ -14,13 +16,15 @@ def get_center_min_max(h, dest_h, floor=False):
     return pad_vertical, (pad_vertical + h)
 
 
-def get_per_channel_per_image_sizes(model, dataloader, cuda, my_trainer):
+def get_per_channel_per_image_sizes_and_losses(model, dataloader, cuda, my_trainer):
 
     sem_inst_class_list = my_trainer.instance_problem.semantic_instance_class_list
     inst_id_list = my_trainer.instance_problem.instance_count_id_list
     n_channels = len(sem_inst_class_list)
 
     assigned_instance_sizes = np.zeros((len(dataloader), n_channels), dtype=int)
+    losses_by_channel = np.zeros((len(dataloader), n_channels), dtype=float)
+    ious_by_channel = np.zeros((len(dataloader), n_channels), dtype=float)
 
     for idx, (x, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataloader), total=len(dataloader),
                                                    desc='Matching channels to instances and computing sizes'):
@@ -29,10 +33,16 @@ def get_per_channel_per_image_sizes(model, dataloader, cuda, my_trainer):
         score = model(x)
         # softmax_scores = F.softmax(score, dim=1).data.cpu()
         # inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        pred_permutations, loss = my_trainer.my_cross_entropy(score, sem_lbl, inst_lbl)
-        # scores_permuted = instance_utils.permute_scores(score, pred_permutations)
+        pred_permutations, loss, component_loss = my_trainer.my_per_component_cross_entropy(score, sem_lbl, inst_lbl)
         sem_lbl_np = sem_lbl.data.cpu().numpy()
         inst_lbl_np = inst_lbl.data.cpu().numpy()
+        lt_combined = my_trainer.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+        label_trues = lt_combined
+        label_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+        label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
+        confusion_matrix = instanceseg.utils.eval.calculate_confusion_matrix_from_arrays(
+            label_preds_permuted, label_trues, n_channels)
+        ious = instanceseg.utils.eval.calculate_iou(confusion_matrix)
 
         data_idx = 0
         for channel_idx in range(n_channels):
@@ -43,7 +53,10 @@ def get_per_channel_per_image_sizes(model, dataloader, cuda, my_trainer):
             sem_val, inst_val = sem_inst_class_list[assigned_gt_idx], inst_id_list[assigned_gt_idx]
             assigned_instance_sizes[idx, channel_idx] = datasets.get_instance_size(
                 sem_lbl_np[data_idx, ...], sem_val, inst_lbl_np[data_idx, ...], inst_val)
-    return assigned_instance_sizes
+            losses_by_channel[idx, channel_idx] = component_loss[assigned_gt_idx]
+            ious_by_channel[idx, channel_idx] = ious[assigned_gt_idx]
+
+    return assigned_instance_sizes, losses_by_channel, ious_by_channel
 
 
 def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):

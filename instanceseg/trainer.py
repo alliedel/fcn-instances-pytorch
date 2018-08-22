@@ -10,22 +10,19 @@ import pytz
 import torch
 import torch.nn.functional as F
 import tqdm
-
-import instanceseg.utils.export
-from instanceseg.analysis.visualization_utils import export_visualizations
-from instanceseg.utils.misc import flatten_dict
 from torch.autograd import Variable
 
 import instanceseg
-from instanceseg import instance_utils
-from instanceseg import losses
-from instanceseg import metrics
-from instanceseg.analysis import visualization_utils
-from instanceseg.utils import datasets
-from instanceseg.models.model_utils import is_nan, any_nan
-from instanceseg.datasets import runtime_transformations
-import instanceseg.utils.misc
 import instanceseg.utils.display as display_pyutils
+import instanceseg.utils.export
+import instanceseg.utils.misc
+from instanceseg import instance_utils, losses, metrics
+from instanceseg.analysis import visualization_utils
+from instanceseg.analysis.visualization_utils import export_visualizations
+from instanceseg.datasets import runtime_transformations
+from instanceseg.models.model_utils import is_nan, any_nan
+from instanceseg.utils import datasets
+from instanceseg.utils.misc import flatten_dict
 
 MY_TIMEZONE = 'America/New_York'
 

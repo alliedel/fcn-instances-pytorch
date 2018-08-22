@@ -36,6 +36,9 @@ DEBUG_ASSERTS = True
 
 def cross_entropy2d(scores, sem_lbl, inst_lbl, semantic_instance_labels, instance_id_labels, matching=True,
                     break_here=False, recompute_optimal_loss=False, return_loss_components=False, **kwargs):
+    """
+    loss components indexed by ground truth order
+    """
     # Convert scores to predictions
     # log_p: (n, c, h, w)
     if break_here:

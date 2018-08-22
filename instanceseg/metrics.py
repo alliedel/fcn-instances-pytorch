@@ -1,16 +1,9 @@
-import os.path
-
 import torch
 import torch.nn.functional as F
 import tqdm
 
-import instanceseg.factory.data
-from instanceseg.utils.misc import flatten_dict
 from torch.autograd import Variable
 from torch.utils.data import sampler
-
-import instanceseg.utils.configs
-import instanceseg.factory.models
 
 
 def is_sequential(my_sampler):
@@ -19,18 +12,21 @@ def is_sequential(my_sampler):
 
 class InstanceMetrics(object):
     def __init__(self, data_loader, problem_config, loss_function, component_loss_function=None,
-                 augment_function_img_sem=None):
+                 augment_function_img_sem=None, flag_write_channel_utilization=True,
+                 flag_write_loss_distributions=True):
         assert loss_function is not None, Warning('I think you want to input the loss function.  If not, get rid of '
                                                   'this line.')
         assert component_loss_function is not None, Warning('I think you want to input the loss function.  If not, '
-                                                            'get rid of '
-                                                            'this line.')
+                                                            'get rid of this line.')
         self.problem_config = problem_config
         self.data_loader = data_loader
         self.loss_function = loss_function
         self.component_loss_function = component_loss_function
         self.variables_to_preserve = ('problem_config', 'data_loader', 'loss_function', 'component_loss_function',
-                                      'variables_to_preserve', 'augment_function_img_sem')
+                                      'variables_to_preserve', 'augment_function_img_sem',
+                                      'flag_write_channel_utilization')
+        self.flag_write_channel_utilization = flag_write_channel_utilization
+        self.flag_write_loss_distributions = flag_write_loss_distributions
 
         assert not isinstance(self.data_loader.sampler, sampler.RandomSampler), \
             'Sampler is instance of RandomSampler. Please set shuffle to False on data_loader'
@@ -58,26 +54,24 @@ class InstanceMetrics(object):
             setattr(self, attr_name, None)
 
     def compute_metrics(self, model):
-        compiled_scores, compiled_losses, compiled_loss_components = self.compute_scores_and_losses(model)
+        compiled_scores, compiled_losses, compiled_loss_components = self._compile_scores_and_losses(model)
         self.assignments = argmax_scores(compiled_scores)
         self.softmaxed_scores = softmax_scores(compiled_scores)
-        self.n_pixels_assigned_per_channel = self._compute_pixels_assigned_per_channel(self.assignments)
-        self.n_instances_assigned_per_sem_cls = \
-            self._compute_instances_assigned_per_sem_cls(self.n_pixels_assigned_per_channel)
-        self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = \
-            self._compute_majority_assignment_stats(self.assignments)
+        if self.flag_write_channel_utilization:
+            self.n_pixels_assigned_per_channel = self._compute_pixels_assigned_per_channel(self.assignments)
+            self.n_instances_assigned_per_sem_cls = \
+                self._compute_instances_assigned_per_sem_cls(self.n_pixels_assigned_per_channel)
+            self.n_found_per_sem_cls, self.n_missed_per_sem_cls, self.channels_of_majority_assignments = \
+                self._compute_majority_assignment_stats(self.assignments)
         self.metrics_computed = True
         self.scores = compiled_scores
         self.losses = compiled_losses
         self.loss_components = compiled_loss_components
 
-    def compute_scores_and_losses(self, model):
-        compiled_scores, compiled_losses, compiled_loss_components = self._compile_scores_and_losses(model)
-        return compiled_scores, compiled_losses, compiled_loss_components
-
     def _compile_scores_and_losses(self, model):
-        return compile_scores_and_losses(model, self.data_loader, self.loss_function, self.component_loss_function,
-                                         self.augment_function_img_sem)
+        compiled_scores, compiled_losses, compiled_loss_components = compile_scores_and_losses(
+            model, self.data_loader, self.loss_function, self.component_loss_function, self.augment_function_img_sem)
+        return compiled_scores, compiled_losses, compiled_loss_components
 
     def _compute_pixels_assigned_per_channel(self, assignments):
         n_images = len(self.data_loader)
@@ -226,6 +220,9 @@ class InstanceMetrics(object):
         """
         Aggregate metrics over images and return list of metrics to summarize the performance of the model.
         """
+        if self.flag_write_loss_distributions is False:
+            return None
+
         assert self.metrics_computed, 'Run compute_metrics first'
         channel_labels = self.problem_config.get_channel_labels('{}_{}')
         sem_labels = self.problem_config.semantic_class_names
@@ -247,25 +244,8 @@ class InstanceMetrics(object):
                         self.loss_components[:, channel_idx]
                     for channel_idx in range(self.loss_components.size(1))
                 }
-            # 'num_pixels_assigned_per_image': {
-            #     channel_labels[channel_idx]: self.n_pixels_assigned_per_channel.float()[:, channel_idx]
-            #     for channel_idx in range(self.n_pixels_assigned_per_channel.size(1))
-            # },
-            # 'softmax_scores': {
-            #     # 'assigned': {
-            #     #     channel_labels[channel_idx]:
-            #     #         0 if (self.assignments == channel_idx).sum() == 0
-            #     #         else (self.softmaxed_scores[:, channel_idx, :, :][self.assignments ==
-            #     #                                                           channel_idx]).mean()
-            #     #     for channel_idx in range(self.softmaxed_scores.size(1))
-            #     # },
-            #     'all': {
-            #         channel_labels[channel_idx]:
-            #             self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]
-            #         for channel_idx in range(self.softmaxed_scores.size(1))
-            #     }
-            # }
         }
+
         return histogram_metrics_dict
 
     def get_images_based_on_characteristics(self):

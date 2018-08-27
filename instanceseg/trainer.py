@@ -151,6 +151,7 @@ class Trainer(object):
         }
 
     def build_my_loss_function(self, matching_override=None):
+        print('self.loss_type = {}'.format(self.loss_type))  # TODO(allie): remove this debug print statement
         # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
         matching = matching_override if matching_override is not None else self.matching_loss
         my_loss_fcn = instanceseg.losses.loss.loss_2d_factory(  # f(scores, sem_lbl, inst_lbl)

@@ -14,18 +14,15 @@ def is_sequential(my_sampler):
 # Disabling this inspection because IntTensor(R, C) gives a warning all over the place.
 # noinspection PyArgumentList
 class InstanceMetrics(object):
-    def __init__(self, data_loader, problem_config, loss_function, component_loss_function=None,
+    def __init__(self, data_loader, problem_config, component_loss_function=None,
                  augment_function_img_sem=None, flag_write_channel_utilization=True,
                  flag_write_loss_distributions=True):
-        assert loss_function is not None, Warning('I think you want to input the losses function.  If not, get rid of '
-                                                  'this line.')
         assert component_loss_function is not None, Warning('I think you want to input the losses function.  If not, '
                                                             'get rid of this line.')
         self.problem_config = problem_config
         self.data_loader = data_loader
-        self.loss_function = loss_function
         self.component_loss_function = component_loss_function
-        self.variables_to_preserve = ('problem_config', 'data_loader', 'loss_function', 'component_loss_function',
+        self.variables_to_preserve = ('problem_config', 'data_loader', 'component_loss_function',
                                       'variables_to_preserve', 'augment_function_img_sem',
                                       'flag_write_channel_utilization')
         self.flag_write_channel_utilization = flag_write_channel_utilization
@@ -73,7 +70,7 @@ class InstanceMetrics(object):
 
     def _compile_scores_and_losses(self, model):
         compiled_scores, compiled_losses, compiled_loss_components = compile_scores_and_losses(
-            model, self.data_loader, self.loss_function, self.component_loss_function, self.augment_function_img_sem)
+            model, self.data_loader, self.component_loss_function, self.augment_function_img_sem)
         return compiled_scores, compiled_losses, compiled_loss_components
 
     def _compute_pixels_assigned_per_channel(self, assignments):
@@ -269,12 +266,12 @@ def cat_dictionaries(dictionary, dictionary_to_add):
     return dictionary
 
 
-def compile_scores_and_losses(model, data_loader, loss_function, component_loss_function=None,
+def compile_scores_and_losses(model, data_loader, component_loss_function,
                               augment_function_img_sem=None):
     """
-    loss_function: must be of the form loss_function(scores, sem_lbl, inst_lbl)
+    component_loss_function: must be of the form loss_function(scores, sem_lbl, inst_lbl)
     """
-    assert loss_function is not None
+    assert component_loss_function is not None
     training = model.training
     model.eval()
     n_images = data_loader.batch_size * len(data_loader)
@@ -288,7 +285,7 @@ def compile_scores_and_losses(model, data_loader, loss_function, component_loss_
         max_image_size = (max(max_image_size[0], img_data.size(2)), min(max_image_size[1], img_data.size(3)))
 
     compiled_scores = torch.ones(n_images, n_channels, *list(min_image_size))
-    compiled_losses = torch.ones(n_images) if loss_function is not None else None
+    compiled_losses = torch.ones(n_images) if component_loss_function is not None else None
     compiled_loss_components = torch.ones(n_images, n_channels) if component_loss_function is not None else None
     for batch_idx, (img_data, (sem_lbl, inst_lbl)) in tqdm.tqdm(
             enumerate(data_loader), total=len(data_loader), desc='Running dataset through model', ncols=80,
@@ -326,9 +323,6 @@ def compile_scores_and_losses(model, data_loader, loss_function, component_loss_
         if component_loss_function is not None:
             pred_permutations_batch, loss_batch, loss_components = component_loss_function(scores, sem_lbl, inst_lbl)
             compiled_loss_components[(batch_idx * batch_size):((batch_idx + 1) * batch_size), :] = loss_components.data
-            compiled_losses[(batch_idx * batch_size):((batch_idx + 1) * batch_size)] = loss_batch.data
-        elif loss_function is not None:
-            pred_permutations_batch, loss_batch = loss_function(scores, sem_lbl, inst_lbl)
             compiled_losses[(batch_idx * batch_size):((batch_idx + 1) * batch_size)] = loss_batch.data
 
     if training:

@@ -39,7 +39,7 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
         cropped_c1, cropped_c2 = get_center_min_max(x.size(3), heatmap_img_shape_rc[1], floor=True)
         softmax_scores = F.softmax(score, dim=1).data.cpu()
         inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        pred_permutations, loss = my_trainer.my_cross_entropy(score, sem_lbl, inst_lbl)
+        pred_permutations, loss = my_trainer.my_loss_fcn(score, sem_lbl, inst_lbl)
         # scores_permuted = instance_utils.permute_scores(score, pred_permutations)
 
         assert x.size(0) == 1, NotImplementedError('Assuming batch size 1 at the moment')

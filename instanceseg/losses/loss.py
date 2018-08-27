@@ -22,7 +22,7 @@ single_class_component_loss_functions = {
 }
 
 
-def loss_2d_factory(loss_type, semantic_instance_labels, instance_id_labels, return_loss_components=False,
+def loss_2d_factory(loss_type, semantic_instance_labels, instance_id_labels, return_loss_components=True,
                     matching=True, **kwargs_to_pass_along):
     """
     loss_type: 'cross_entropy', 'soft_iou'

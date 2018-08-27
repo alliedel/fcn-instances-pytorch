@@ -44,7 +44,7 @@ def should_write_activations(iteration, epoch, interval_validate):
 class Trainer(object):
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter, instance_problem,
-                 size_average=True, interval_validate=None, matching_loss=True,
+                 size_average=True, interval_validate=None, loss_type='xent', matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),
@@ -81,6 +81,7 @@ class Trainer(object):
         # Loss parameters
         self.size_average = size_average
         self.matching_loss = matching_loss
+        self.loss_type = loss_type
 
         # Data loading parameters
         self.loader_semantic_lbl_only = loader_semantic_lbl_only
@@ -136,10 +137,11 @@ class Trainer(object):
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
+        self.loss_fcn = self.build_my_loss_function()
+        self.loss_fcn_matching_override = self.build_my_loss_function(matching_override=True)
         metric_maker_kwargs = {
             'problem_config': self.instance_problem,
-            'loss_function': self.my_cross_entropy,
-            'component_loss_function': self.my_per_component_cross_entropy,
+            'component_loss_function': self.loss_fcn,
             'augment_function_img_sem': self.augment_image
             if self.augment_input_with_semantic_masks else None
         }
@@ -148,46 +150,28 @@ class Trainer(object):
             'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val, **metric_maker_kwargs)
         }
 
-    def my_cross_entropy(self, score, sem_lbl, inst_lbl, val_matching_override=False, **kwargs):
+    def build_my_loss_function(self, matching_override=None):
+        # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
+        matching = matching_override if matching_override is not None else self.matching_loss
+        my_loss_fcn = instanceseg.losses.loss.loss_2d_factory(  # f(scores, sem_lbl, inst_lbl)
+            self.loss_type, self.instance_problem.semantic_instance_class_list,
+            self.instance_problem.instance_count_id_list,
+            return_loss_components=True, matching=matching)
+        return my_loss_fcn
+
+    def compute_loss(self, score, sem_lbl, inst_lbl, val_matching_override=False):
+        # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
         map_to_semantic = self.instance_problem.map_to_semantic
-        if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
-                                                      score.size(3))):
+        if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2), score.size(3))):
             import ipdb;
             ipdb.set_trace()
             raise Exception('Sizes of score, targets are incorrect')
 
         if map_to_semantic:
             inst_lbl[inst_lbl > 1] = 1
+        loss_fcn = self.loss_fcn if not val_matching_override else self.loss_fcn_matching_override
 
-        semantic_instance_labels = self.instance_problem.semantic_instance_class_list
-        instance_id_labels = self.instance_problem.instance_count_id_list
-        matching = val_matching_override or self.matching_loss
-        my_loss_fcn = instanceseg.losses.loss.loss_2d_factory('cross_entropy', semantic_instance_labels,
-                                                              instance_id_labels, return_loss_components=False,
-                                                              matching=matching, size_average=self.size_average,
-                                                              **kwargs)
-        permutations, loss = my_loss_fcn(score, sem_lbl, inst_lbl)
-        return permutations, loss
-
-    def my_per_component_cross_entropy(self, score, sem_lbl, inst_lbl, val_matching_override=False, **kwargs):
-        map_to_semantic = self.instance_problem.map_to_semantic
-        if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
-                                                      score.size(3))):
-            import ipdb;
-            ipdb.set_trace()
-            raise Exception('Sizes of score, targets are incorrect')
-
-        if map_to_semantic:
-            inst_lbl[inst_lbl > 1] = 1
-
-        semantic_instance_labels = self.instance_problem.semantic_instance_class_list
-        instance_id_labels = self.instance_problem.instance_count_id_list
-        matching = val_matching_override or self.matching_loss
-        my_loss_fcn = instanceseg.losses.loss.loss_2d_factory('cross_entropy', semantic_instance_labels,
-                                                              instance_id_labels, return_loss_components=True,
-                                                              matching=matching, size_average=self.size_average,
-                                                              **kwargs)
-        permutations, loss, loss_components = my_loss_fcn(score, sem_lbl, inst_lbl)
+        permutations, loss, loss_components = loss_fcn(score, sem_lbl, inst_lbl)
         return permutations, loss, loss_components
 
     def augment_image(self, img, sem_lbl):
@@ -444,7 +428,7 @@ class Trainer(object):
         full_data, sem_lbl, inst_lbl = Variable(full_data, volatile=True), Variable(sem_lbl), Variable(inst_lbl)
 
         score = self.model(full_data)
-        pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=True)
+        pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
         if is_nan(loss.data[0]):
             raise ValueError('losses is nan while validating')
         val_loss += float(loss.data[0]) / len(full_data)
@@ -573,7 +557,7 @@ class Trainer(object):
             self.optim.zero_grad()
 
             score = self.model(full_data)
-            pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=False)
+            pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
             if is_nan(loss.data[0]):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('losses is nan while training')
@@ -608,8 +592,7 @@ class Trainer(object):
                 if any_nan(new_score.data):
                     import ipdb; ipdb.set_trace()
                     raise ValueError('new_score became nan while training')
-                new_pred_permutations, new_loss = self.my_cross_entropy(new_score, sem_lbl, inst_lbl,
-                                                                        val_matching_override=False)
+                new_pred_permutations, new_loss, _ = self.compute_loss(new_score, sem_lbl, inst_lbl)
                 new_loss /= len(full_data)
                 loss_improvement = loss.data[0] - new_loss.data[0]
                 self.model.train()

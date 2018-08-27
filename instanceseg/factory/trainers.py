@@ -20,6 +20,7 @@ def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
         matching_loss=cfg['matching'],
         # loader_semantic_lbl_only=cfg['semantic_only_labels'],
         size_average=cfg['size_average'],
+        loss_type=cfg['loss_type'],
         augment_input_with_semantic_masks=cfg['augment_semantic'],
         export_activations=cfg['export_activations'],
         activation_layers_to_export=cfg['activation_layers_to_export'],

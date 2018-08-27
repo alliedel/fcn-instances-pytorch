@@ -56,9 +56,8 @@ def main():
 
     # reduce dataloaders to semantic subset before running / generating problem config:
     n_instances_per_class = cfg['n_instances_per_class']
-    problem_config = instanceseg.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
-                                                                   n_instances_per_class,
-                                                                   map_to_semantic=cfg['map_to_semantic'])
+    problem_config = instanceseg.factory.models.get_problem_config(
+        dataloaders['val'].dataset.semantic_class_names, n_instances_per_class, map_to_semantic=cfg['map_to_semantic'])
 
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))

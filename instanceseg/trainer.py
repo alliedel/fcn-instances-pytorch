@@ -29,7 +29,6 @@ MY_TIMEZONE = 'America/New_York'
 
 DEBUG_ASSERTS = True
 
-
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
 
@@ -95,7 +94,7 @@ class Trainer(object):
         self.activation_layers_to_export = activation_layers_to_export
         self.write_activation_condition = write_activation_condition
         self.write_instance_metrics = write_instance_metrics
-        
+
         # Stored values
         self.last_val_loss = None
         self.val_losses_stored = []
@@ -348,10 +347,12 @@ class Trainer(object):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
                                                                   self.iteration, bins='auto')
                         elif metric is None:
-                            import ipdb; ipdb.set_trace()
+                            import ipdb;
+                            ipdb.set_trace()
                             pass
                         else:
-                            import ipdb; ipdb.set_trace()
+                            import ipdb;
+                            ipdb.set_trace()
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              ' '.format(type(metric), name))
 
@@ -445,8 +446,8 @@ class Trainer(object):
             # runtime_transformation needs to still run the resize, even for untransformed img, lbl pair
             if data_loader.dataset.runtime_transformation is not None:
                 runtime_transformation_undo = runtime_transformations.GenericSequenceRuntimeDatasetTransformer(
-                        [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
-                         if isinstance(t, runtime_transformations.BasicRuntimeDatasetTransformer)])
+                    [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
+                     if isinstance(t, runtime_transformations.BasicRuntimeDatasetTransformer)])
                 img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))
 
             sem_lbl_np = lbl_untransformed[0]
@@ -553,20 +554,21 @@ class Trainer(object):
                 img_data, (sem_lbl, inst_lbl) = img_data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
             full_data = img_data if not self.augment_input_with_semantic_masks \
                 else self.augment_image(img_data, sem_lbl)
-            full_data, sem_lbl, inst_lbl = Variable(full_data), \
-                                           Variable(sem_lbl), Variable(inst_lbl)
+            full_data, sem_lbl, inst_lbl = Variable(full_data), Variable(sem_lbl), Variable(inst_lbl)
             self.optim.zero_grad()
 
             score = self.model(full_data)
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
             if is_nan(loss.data[0]):
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 raise ValueError('losses is nan while training')
             loss /= len(full_data)
             if loss.data[0] > 1e4:
                 print('WARNING: losses={} at iteration {}'.format(loss.data[0], self.iteration))
             if any_nan(score.data):
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
@@ -591,7 +593,8 @@ class Trainer(object):
                 self.model.eval()
                 new_score = self.model(full_data)
                 if any_nan(new_score.data):
-                    import ipdb; ipdb.set_trace()
+                    import ipdb;
+                    ipdb.set_trace()
                     raise ValueError('new_score became nan while training')
                 new_pred_permutations, new_loss, _ = self.compute_loss(new_score, sem_lbl, inst_lbl)
                 new_loss /= len(full_data)
@@ -604,10 +607,12 @@ class Trainer(object):
                                                    np.sum(new_pred_permutations != pred_permutations),
                                                    self.iteration)
                 if self.export_activations and self.write_activation_condition(iteration=self.iteration, \
-                        epoch=self.epoch, interval_validate=self.interval_validate):
+                                                                               epoch=self.epoch,
+                                                                               interval_validate=self.interval_validate):
                     self.retrieve_and_write_batch_activations(full_data)
                 if is_nan(new_loss.data[0]):
-                    import ipdb; ipdb.set_trace()
+                    import ipdb;
+                    ipdb.set_trace()
                     raise ValueError('new_loss is nan while training')
             if last_score is not None:
                 last_last_score = last_score.clone()
@@ -671,7 +676,8 @@ class Trainer(object):
             plt.ylim(ymin=ymin, ymax=ymax)
             plt.xlim(xmin=(last_x - ylim_buffer_size - 1), xmax=last_x)
             if self.tensorboard_writer is not None:
-                instanceseg.utils.export.log_plots(self.tensorboard_writer, 'joint_loss_last_{}'.format(ylim_buffer_size),
+                instanceseg.utils.export.log_plots(self.tensorboard_writer,
+                                                   'joint_loss_last_{}'.format(ylim_buffer_size),
                                                    [h], self.iteration)
             h.savefig(zoom_filename)
         else:

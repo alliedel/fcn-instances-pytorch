@@ -34,7 +34,7 @@ def get_per_channel_per_image_sizes_and_losses(model, dataloader, cuda, my_train
         score = model(x)
         # softmax_scores = F.softmax(score, dim=1).data.cpu()
         # inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        pred_permutations, loss, component_loss = my_trainer.my_per_component_cross_entropy(score, sem_lbl, inst_lbl)
+        pred_permutations, loss, component_loss = my_trainer.compute_loss(score, sem_lbl, inst_lbl)
         sem_lbl_np = sem_lbl.data.cpu().numpy()
         inst_lbl_np = inst_lbl.data.cpu().numpy()
         lt_combined = my_trainer.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)

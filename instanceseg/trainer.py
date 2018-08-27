@@ -44,7 +44,7 @@ def should_write_activations(iteration, epoch, interval_validate):
 class Trainer(object):
     def __init__(self, cuda, model, optimizer,
                  train_loader, val_loader, out, max_iter, instance_problem,
-                 size_average=True, interval_validate=None, loss_type='xent', matching_loss=True,
+                 size_average=True, interval_validate=None, loss_type='cross_entropy', matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  export_activations=False, activation_layers_to_export=(),

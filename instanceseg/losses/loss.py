@@ -7,6 +7,7 @@ from instanceseg.losses import xentropy, iou
 from instanceseg.losses.xentropy import DEBUG_ASSERTS
 from instanceseg.models.model_utils import is_nan
 
+
 loss_transformers_2d = {  # scores->predictions used directly by the loss function
     'cross_entropy': lambda x: F.log_softmax(x, dim=1),
     'soft_iou': lambda x: F.softmax(x, dim=1)

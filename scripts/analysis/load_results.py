@@ -58,11 +58,15 @@ def main_check_cost_matrix():
     normalizer = (inst_lbl >= 0).float().data.sum()
     num_inst_classes = len(semantic_instance_labels)
     idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
-    cost_list_2d = instanceseg.losses.match.create_pytorch_cross_entropy_cost_matrix(log_predictions[0, ...], sem_lbl[0, ...],
-                                                                                     inst_lbl[0, ...],
-                                                                                     semantic_instance_labels,
-                                                                                     instance_id_labels,
-                                                                                     sem_val, size_average=size_average)
+    try:
+        loss_type = my_trainer.loss_type
+    except:
+        print('Warning: loss type not defined in trainer; assuming cross_entropy for backwards compatibility')
+        loss_type = 'cross_entropy'
+    cost_list_2d = instanceseg.losses.match.create_pytorch_cost_matrix(
+        instanceseg.losses.loss.single_class_component_loss_functions[loss_type],
+        my_trainer.log_predictions[0, ...], sem_lbl[0, ...], inst_lbl[0, ...], semantic_instance_labels,
+        instance_id_labels, sem_val, size_average=size_average)
     cost_matrix, multiplier = instanceseg.losses.match.convert_pytorch_costs_to_ints(cost_list_2d)
 
     for ground_truth in range(len(cost_matrix)):

@@ -17,7 +17,7 @@ _default_config = dict(
     # losses
     matching=True,
     size_average=True,
-    loss_type='xent',  # 'xent', 'softiou'
+    loss_type='cross_entropy',  # 'cross_entropy' ('xent'), 'softiou'
 
     # optim
     optim='sgd',

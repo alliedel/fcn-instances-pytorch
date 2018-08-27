@@ -25,8 +25,8 @@ def compute_hist(net, save_dir, dataset, layer='score', gt='label'):
         if save_dir:
             im = Image.fromarray(net.blobs[layer].data[0].argmax(0).astype(np.uint8), mode='P')
             im.save(os.path.join(save_dir, idx + '.png'))
-        # compute the loss as well
-        loss += net.blobs['loss'].data.flat[0]
+        # compute the losses as well
+        loss += net.blobs['losses'].data.flat[0]
     return hist, loss / len(dataset)
 
 def seg_tests(solver, save_format, dataset, layer='score', gt='label'):
@@ -39,8 +39,8 @@ def do_seg_tests(net, iter, save_format, dataset, layer='score', gt='label'):
     if save_format:
         save_format = save_format.format(iter)
     hist, loss = compute_hist(net, save_format, dataset, layer, gt)
-    # mean loss
-    print '>>>', datetime.now(), 'Iteration', iter, 'loss', loss
+    # mean losses
+    print '>>>', datetime.now(), 'Iteration', iter, 'losses', loss
     # overall accuracy
     acc = np.diag(hist).sum() / hist.sum()
     print '>>>', datetime.now(), 'Iteration', iter, 'overall accuracy', acc

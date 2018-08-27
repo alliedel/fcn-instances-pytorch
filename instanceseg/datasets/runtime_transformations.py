@@ -109,7 +109,7 @@ class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         """
         :param n_inst_cap_per_class:
         :param instance_id_for_excluded_instances: usually you either want it to be 0 or -1.
-        -1 will ensure it's not counted toward the loss; 0 will put it into the 'extras' channel (or the 'semantic'
+        -1 will ensure it's not counted toward the losses; 0 will put it into the 'extras' channel (or the 'semantic'
         channel if we've mapped everything to the semantic problem instead)
         """
         assert n_inst_cap_per_class >= 0

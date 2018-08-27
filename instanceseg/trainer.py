@@ -13,10 +13,11 @@ import tqdm
 from torch.autograd import Variable
 
 import instanceseg
+import instanceseg.losses.loss
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
 import instanceseg.utils.misc
-from instanceseg import instance_utils, losses, metrics
+from instanceseg import instance_utils, metrics
 from instanceseg.analysis import visualization_utils
 from instanceseg.analysis.visualization_utils import export_visualizations
 from instanceseg.datasets import runtime_transformations
@@ -113,12 +114,12 @@ class Trainer(object):
         self.log_headers = [
             'epoch',
             'iteration',
-            'train/loss',
+            'train/losses',
             'train/acc',
             'train/acc_cls',
             'train/mean_iu',
             'train/fwavacc',
-            'valid/loss',
+            'valid/losses',
             'valid/acc',
             'valid/acc_cls',
             'valid/mean_iu',
@@ -161,16 +162,14 @@ class Trainer(object):
         semantic_instance_labels = self.instance_problem.semantic_instance_class_list
         instance_id_labels = self.instance_problem.instance_count_id_list
         matching = val_matching_override or self.matching_loss
-
-        permutations, loss = losses.cross_entropy2d(
-            score, sem_lbl, inst_lbl,
-            semantic_instance_labels=semantic_instance_labels,
-            instance_id_labels=instance_id_labels,
-            matching=matching,
-            size_average=self.size_average, break_here=False, recompute_optimal_loss=False, **kwargs)
+        my_loss_fcn = instanceseg.losses.loss.loss_2d_factory('cross_entropy', semantic_instance_labels,
+                                                              instance_id_labels, return_loss_components=False,
+                                                              matching=matching, size_average=self.size_average,
+                                                              **kwargs)
+        permutations, loss = my_loss_fcn(score, sem_lbl, inst_lbl)
         return permutations, loss
 
-    def my_per_component_cross_entropy(self, score, sem_lbl, inst_lbl, **kwargs):
+    def my_per_component_cross_entropy(self, score, sem_lbl, inst_lbl, val_matching_override=False, **kwargs):
         map_to_semantic = self.instance_problem.map_to_semantic
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2),
                                                       score.size(3))):
@@ -183,15 +182,12 @@ class Trainer(object):
 
         semantic_instance_labels = self.instance_problem.semantic_instance_class_list
         instance_id_labels = self.instance_problem.instance_count_id_list
-        matching = self.matching_loss
-
-        permutations, loss, loss_components = losses.cross_entropy2d(
-            score, sem_lbl, inst_lbl,
-            semantic_instance_labels=semantic_instance_labels,
-            instance_id_labels=instance_id_labels,
-            matching=matching,
-            size_average=self.size_average, break_here=False, recompute_optimal_loss=False,
-            return_loss_components=True, **kwargs)
+        matching = val_matching_override or self.matching_loss
+        my_loss_fcn = instanceseg.losses.loss.loss_2d_factory('cross_entropy', semantic_instance_labels,
+                                                              instance_id_labels, return_loss_components=True,
+                                                              matching=matching, size_average=self.size_average,
+                                                              **kwargs)
+        permutations, loss, loss_components = my_loss_fcn(score, sem_lbl, inst_lbl)
         return permutations, loss, loss_components
 
     def augment_image(self, img, sem_lbl):
@@ -241,7 +237,7 @@ class Trainer(object):
                     inst_lbl = torch.zeros_like(sem_lbl)
                     inst_lbl[sem_lbl == -1] = -1
             else:
-                assert self.use_semantic_loss, 'Can''t run instance loss if loader is semantic labels only.  Set ' \
+                assert self.use_semantic_loss, 'Can''t run instance losses if loader is semantic labels only.  Set ' \
                                                'use_semantic_loss to True'
                 assert type(lbls) is not tuple
                 sem_lbl = lbls
@@ -282,7 +278,7 @@ class Trainer(object):
             if write_basic_metrics:
                 self.write_metrics(val_metrics, val_loss, split)
                 if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar('metrics/{}/loss'.format(split),
+                    self.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split),
                                                        val_loss, self.iteration)
                     self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2],
                                                        self.iteration)
@@ -445,13 +441,12 @@ class Trainer(object):
         full_data = img_data if not self.augment_input_with_semantic_masks \
             else self.augment_image(img_data, sem_lbl)
         imgs = img_data.cpu()
-        full_data, sem_lbl, inst_lbl = Variable(full_data, volatile=True), \
-                                       Variable(sem_lbl), Variable(inst_lbl)
+        full_data, sem_lbl, inst_lbl = Variable(full_data, volatile=True), Variable(sem_lbl), Variable(inst_lbl)
 
         score = self.model(full_data)
         pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=True)
         if is_nan(loss.data[0]):
-            raise ValueError('loss is nan while validating')
+            raise ValueError('losses is nan while validating')
         val_loss += float(loss.data[0]) / len(full_data)
 
         softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
@@ -551,7 +546,7 @@ class Trainer(object):
                     train_metrics, _ = self.validate('train')
                     train_loss = self.last_val_loss
                 else:
-                    print('Warning: cannot generate train vs. val plots if we dont have access to the training loss '
+                    print('Warning: cannot generate train vs. val plots if we dont have access to the training losses '
                           'via train_for_val dataloader')
                     train_loss = None
                 if train_loss is not None:
@@ -581,10 +576,10 @@ class Trainer(object):
             pred_permutations, loss = self.my_cross_entropy(score, sem_lbl, inst_lbl, val_matching_override=False)
             if is_nan(loss.data[0]):
                 import ipdb; ipdb.set_trace()
-                raise ValueError('loss is nan while training')
+                raise ValueError('losses is nan while training')
             loss /= len(full_data)
             if loss.data[0] > 1e4:
-                print('WARNING: loss={} at iteration {}'.format(loss.data[0], self.iteration))
+                print('WARNING: losses={} at iteration {}'.format(loss.data[0], self.iteration))
             if any_nan(score.data):
                 import ipdb; ipdb.set_trace()
                 raise ValueError('score is nan while training')
@@ -662,9 +657,9 @@ class Trainer(object):
         h = plt.figure(figure_name)
 
         plt.clf()
-        train_label = 'train loss: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
+        train_label = 'train losses: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
             self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
-        val_label = 'val loss: ' + '{} images'.format(len(self.val_loader))
+        val_label = 'val losses: ' + '{} images'.format(len(self.val_loader))
 
         plt.plot(self.iterations_for_losses_stored, self.train_losses_stored, label=train_label,
                  color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])

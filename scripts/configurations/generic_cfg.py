@@ -14,7 +14,7 @@ class PARAM_CLASSIFICATIONS(object):
 # this one.  Ran into issues not copying this dictionary when I started changing it, and it changes all the config
 # dictionaries.
 _default_config = dict(
-    # loss
+    # losses
     matching=True,
     size_average=True,
 

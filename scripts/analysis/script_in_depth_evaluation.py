@@ -10,6 +10,7 @@ import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.logs
 import instanceseg.utils.scripts
 from instanceseg.analysis import distribution_assignments
+from collections import OrderedDict
 
 FIGSIZE = (10, 10)
 DPI = 300
@@ -215,50 +216,55 @@ def main():
     display_pyutils.set_my_rc_defaults()
 
     for split in ['train', 'val']:
+        # NOTE(allie): At the moment, clims is not synced.  Need to get the min/max and pass them in.
+        assigned_instance_sizes_2d, xent_losses_by_channel_2d, ious_by_channel_2d, soft_iou_loss_by_channel_2d = \
+            distribution_assignments.get_per_channel_per_image_sizes_and_losses(
+                model, dataloaders[split], cuda, my_trainer)
+        soft_ious_by_channel_2d = 1.0 - soft_iou_loss_by_channel_2d
+        diff_soft_iou_hard_iou_2d = ious_by_channel_2d - soft_ious_by_channel_2d
+
         for sem_cls_val in range(len(problem_config.semantic_class_names)):
             sem_cls_name = problem_config.semantic_class_names[sem_cls_val]
             if sem_cls_name == 'background':
                 continue
-            sem_cls_channel_idxs = [i for i, s_val in enumerate(problem_config.semantic_instance_class_list) if s_val ==
-                                    sem_cls_val]
+            sem_cls_channel_idxs = [i for i, s_val in enumerate(problem_config.semantic_instance_class_list)
+                                    if s_val == sem_cls_val]
             sem_cls_channel_names = [channel_names[c] for c in sem_cls_channel_idxs]
 
             plt.figure(0)
             plt.clf()
-            # NOTE(allie): At the moment, clims is not synced.  Need to get the min/max and pass them in.
-            assigned_instance_sizes_2d, losses_by_channel_2d, ious_by_channel_2d = \
-                distribution_assignments.get_per_channel_per_image_sizes_and_losses(
-                    model, dataloaders[split], cuda, my_trainer)
 
             assigned_instance_sizes = convert_arr_to_nested_list_without_zeros(assigned_instance_sizes_2d)
-            losses_by_channel = convert_arr_to_nested_list_without_zeros(
-                losses_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
+            print('{} instances < 10 pixels'.format((assigned_instance_sizes_2d < 10).sum()))
+            xent_losses_by_channel = convert_arr_to_nested_list_without_zeros(
+                xent_losses_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
             ious_by_channel = convert_arr_to_nested_list_without_zeros(
                 ious_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
-
+            soft_iou_loss_by_channel = convert_arr_to_nested_list_without_zeros(
+                soft_iou_loss_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
+            soft_ious_by_channel = convert_arr_to_nested_list_without_zeros(
+                soft_ious_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
+            diff_soft_iou_hard_iou = convert_arr_to_nested_list_without_zeros(
+                diff_soft_iou_hard_iou_2d, zeros_reference_array=assigned_instance_sizes_2d)
+            attributes_by_channel = OrderedDict()
+            attributes_by_channel['instance_size'] = assigned_instance_sizes
+            attributes_by_channel['iou'] = ious_by_channel
+            attributes_by_channel['soft_iou'] = soft_ious_by_channel
+            attributes_by_channel['soft_iou_loss'] = soft_iou_loss_by_channel
+            attributes_by_channel['diff_soft_iou_hard_iou'] = diff_soft_iou_hard_iou
+            attributes_by_channel['xent_loss_contribution'] = xent_losses_by_channel
             # iou values
-            for use_subplots in [True, False]:
-                make_scatterplot_set([assigned_instance_sizes[c] for c in sem_cls_channel_idxs],
-                                     [ious_by_channel[c] for c in sem_cls_channel_idxs], sem_cls_channel_names, split,
-                                     x_attribute_name='instance_size_{}'.format(sem_cls_name),
-                                     y_attribute_name='iou_{}'.format(
-                        sem_cls_name), use_subplots=use_subplots)
-
-            # loss values
-            for use_subplots in [True, False]:
-                make_scatterplot_set([assigned_instance_sizes[c] for c in sem_cls_channel_idxs],
-                                     [losses_by_channel[c] for c in sem_cls_channel_idxs], sem_cls_channel_names, split,
-                                     x_attribute_name='instance_size_{}'.format(sem_cls_name),
-                                     y_attribute_name='loss_contribution_{}'.format(sem_cls_name),
-                                     use_subplots=use_subplots)
-
-            # loss values
-            for use_subplots in [True, False]:
-                make_scatterplot_set([ious_by_channel[c] for c in sem_cls_channel_idxs],
-                                     [losses_by_channel[c] for c in sem_cls_channel_idxs], sem_cls_channel_names, split,
-                                     x_attribute_name='iou_{}'.format(sem_cls_name),
-                                     y_attribute_name='loss_contribution_{}'.format(sem_cls_name),
-                                     use_subplots=use_subplots)
+            for i, x_attribute_name in enumerate(attributes_by_channel.keys()):
+                x = attributes_by_channel[x_attribute_name]
+                for y_attribute_name in [k for j, k in enumerate(attributes_by_channel.keys()) if j > i]:
+                    print(sem_cls_name, x_attribute_name, y_attribute_name)
+                    y = attributes_by_channel[y_attribute_name]
+                    for use_subplots in [False]:  # [True, False]:
+                        make_scatterplot_set([x[c] for c in sem_cls_channel_idxs],
+                                             [y[c] for c in sem_cls_channel_idxs], sem_cls_channel_names, split,
+                                             x_attribute_name='{}_{}'.format(x_attribute_name, sem_cls_name),
+                                             y_attribute_name='{}_{}'.format(y_attribute_name, sem_cls_name),
+                                             use_subplots=use_subplots)
 
             # # Instance sizes
             # generate_instance_size_analysis(assigned_instance_sizes, assigned_instance_sizes_2d, sem_cls_channel_idxs,

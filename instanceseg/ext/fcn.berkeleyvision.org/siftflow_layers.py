@@ -107,7 +107,7 @@ class SIFTFlowSegDataLayer(caffe.Layer):
     def load_label(self, idx, label_type=None):
         """
         Load label image as 1 x height x width integer array of label indices.
-        The leading singleton dimension is required by the loss.
+        The leading singleton dimension is required by the losses.
         """
         if label_type == 'semantic':
             label = scipy.io.loadmat('{}/SemanticLabels/spatial_envelope_256x256_static_8outdoorcategories/{}.mat'.format(self.siftflow_dir, idx))['S']

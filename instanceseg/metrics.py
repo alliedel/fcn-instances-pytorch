@@ -1,22 +1,25 @@
 import torch
-import torch.nn.functional as F
 import tqdm
 
 from torch.autograd import Variable
 from torch.utils.data import sampler
+
+from instanceseg.utils.tensors import softmax_scores, argmax_scores, center_crop_to_reduced_size
 
 
 def is_sequential(my_sampler):
     return isinstance(my_sampler, sampler.SequentialSampler) or my_sampler.sequential
 
 
+# Disabling this inspection because IntTensor(R, C) gives a warning all over the place.
+# noinspection PyArgumentList
 class InstanceMetrics(object):
     def __init__(self, data_loader, problem_config, loss_function, component_loss_function=None,
                  augment_function_img_sem=None, flag_write_channel_utilization=True,
                  flag_write_loss_distributions=True):
-        assert loss_function is not None, Warning('I think you want to input the loss function.  If not, get rid of '
+        assert loss_function is not None, Warning('I think you want to input the losses function.  If not, get rid of '
                                                   'this line.')
-        assert component_loss_function is not None, Warning('I think you want to input the loss function.  If not, '
+        assert component_loss_function is not None, Warning('I think you want to input the losses function.  If not, '
                                                             'get rid of this line.')
         self.problem_config = problem_config
         self.data_loader = data_loader
@@ -106,7 +109,7 @@ class InstanceMetrics(object):
                                                                     self.problem_config.instance_count_id_list)):
                 instance_mask = (sem_lbl == sem_cls) * (inst_lbl == inst_id)
                 if (instance_mask.size(1), instance_mask.size(2)) != assumed_image_size:
-                    instance_mask = crop_to_reduced_size12(instance_mask, assumed_image_size)
+                    instance_mask = center_crop_to_reduced_size(instance_mask, assumed_image_size, rc_axes=(1, 2))
 
                 # Find majority assignment for this gt instance
                 if instance_mask.sum() == 0:
@@ -153,7 +156,7 @@ class InstanceMetrics(object):
             'n_instances_assigned_per_sem_cls':
                 {
                     self.problem_config.semantic_class_names[sem_cls] + '_sum': self.n_instances_assigned_per_sem_cls[:,
-                                                                       sem_cls].sum()
+                                                                                sem_cls].sum()
                     for sem_cls in range(self.n_instances_assigned_per_sem_cls.size(1))
                 },
             'n_images_with_more_than_one_instance_assigned':
@@ -311,7 +314,7 @@ def compile_scores_and_losses(model, data_loader, loss_function, component_loss_
                 # print(Warning('Cropping image from size {} to {} for easier analysis'.format(
                 #     scores.size(), compiled_scores.size())))
                 cropped_size = (compiled_scores.size(2), compiled_scores.size(3))
-                cropped_scores = crop_to_reduced_size23(scores, cropped_size)
+                cropped_scores = center_crop_to_reduced_size(scores, cropped_size, rc_axes=(2, 3))
                 try:
                     assert cropped_scores.size() == \
                            compiled_scores[(batch_idx * batch_size):((batch_idx + 1) * batch_size), ...].size()
@@ -331,130 +334,3 @@ def compile_scores_and_losses(model, data_loader, loss_function, component_loss_
     if training:
         model.train()
     return compiled_scores, compiled_losses, compiled_loss_components
-
-
-def crop_to_reduced_size23(tensor, cropped_size23):
-    assert len(tensor.size()) == 4, NotImplementedError
-    try:
-        start_coords = (int((tensor.size(2) - cropped_size23[0]) / 2),
-                        int((tensor.size(3) - cropped_size23[1]) / 2))
-        cropped_tensor = tensor[:, :,
-                         start_coords[0]:(start_coords[0] + cropped_size23[0]),
-                         start_coords[1]:(start_coords[1] + cropped_size23[1])]
-        assert cropped_tensor.size()[2:] == cropped_size23
-    except:
-        import ipdb;
-        ipdb.set_trace();
-        raise
-    return cropped_tensor
-
-
-def crop_to_reduced_size12(tensor, cropped_size12):
-    assert len(tensor.size()) == 3, NotImplementedError
-    try:
-        start_coords = (int((tensor.size(1) - cropped_size12[0]) / 2),
-                        int((tensor.size(2) - cropped_size12[1]) / 2))
-        cropped_tensor = tensor[:,
-                         start_coords[0]:(start_coords[0] + cropped_size12[0]),
-                         start_coords[1]:(start_coords[1] + cropped_size12[1])]
-    except:
-        import ipdb;
-        ipdb.set_trace();
-        raise
-    return cropped_tensor
-
-
-def softmax_scores(compiled_scores, dim=1):
-    return F.softmax(Variable(compiled_scores), dim=dim).data
-
-
-def argmax_scores(compiled_scores, dim=1):
-    return compiled_scores.max(dim=dim)[1]
-
-
-# def _test():
-#     logdir = 'scripts/logs/synthetic/TIME-20180430-151222_VCS-b7e0570_MODEL-train_instances_' \
-#              'CFG-000_F_SEM-False_SSET-None_INIT_SEM-False_SM-None_VOID-True_MA-True_VAL-100_' \
-#              'DECAY-0.0005_SEM_LS-False_LR-0.0001_1INST-False_ITR-10000_NPER-None_OPTIM-sgd_MO-0.99_BCC-None_SA-True/'
-#     model_best_path = os.path.join(logdir, 'model_best.pth.tar')
-#     checkpoint = torch.load(model_best_path)
-#     gpu = 0
-#     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
-#     cuda = torch.cuda.is_available()
-#
-#     cfg_file = os.path.join(logdir, 'config.yaml')
-#     cfg = instanceseg.utils.configs.create_config_copy(instanceseg.utils.configs.load_config(cfg_file),
-#                                                        reverse_replacements=True)
-#     synthetic_generator_n_instances_per_semantic_id = 2
-#     n_instances_per_class = cfg['n_instances_per_class'] or \
-#                             (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
-#
-#     dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'synthetic', cuda)
-#     problem_config = instanceseg.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
-#                                                                    n_instances_per_class)
-#     model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, checkpoint,
-#                                                                                semantic_init=None, cuda=cuda)
-#     # instance_metrics = InstanceMetrics(dataloaders['val'], problem_config, )
-#     # not necessary, but we'll make sure it runs anyway
-#     instance_metrics.clear()
-#     instance_metrics.compute_metrics(model)
-#     metrics_as_nested_dict = instance_metrics.get_aggregated_scalar_metrics_as_nested_dict()
-#     metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
-#     instance_metrics.get_images_based_on_characteristics()
-#     instance_metrics.clear()
-
-
-def _test():
-    pass
-
-
-if __name__ == '__main__':
-    _test()
-
-#     analytics = {
-#         'scores': {
-#             'max': pred_scores_stacked.max(),
-#             # 'mean': pred_scores_stacked.mean(),
-#             # 'median': pred_scores_stacked.median(),
-#             'min': pred_scores_stacked.min(),
-#             # 'abs_mean': abs_scores_stacked.mean(),
-#             'abs_median': abs_scores_stacked.median(),
-#         },
-#     }
-#     for channel in range(pred_scores_stacked.size(1)):
-#         channel_scores = pred_scores_stacked[:, channel, :, :]
-#         abs_channel_scores = abs_scores_stacked[:, channel, :, :]
-#         analytics['per_channel_scores/{}'.format(channel)] = {
-#             'max': channel_scores.max(),
-#             # 'mean': channel_scores.mean(),
-#             # 'median': channel_scores.median(),
-#             'min': channel_scores.min(),
-#             # 'abs_mean': abs_channel_scores.mean(),
-#             'abs_median': abs_channel_scores.median(),
-#         }
-#     channel_labels = self.instance_problem.get_channel_labels('{}_{}')
-#     for inst_idx, sem_cls in enumerate(self.instance_problem.semantic_instance_class_list):
-#         same_sem_cls_channels = [channel for channel, cls in enumerate(
-#             self.instance_problem.semantic_instance_class_list) if cls == sem_cls]
-#         all_maxes = softmax_scores[:, same_sem_cls_channels, :, :].max(dim=1)[0]
-#         all_sums = softmax_scores[:, same_sem_cls_channels, :, :].sum(dim=1)
-#         # get 'smearing' level across all channels
-#         sem_channel_keyname = 'instance_commitment/{}'.format(self.instance_problem.class_names[sem_cls])
-#         if sem_channel_keyname not in analytics.keys():
-#             # first of its sem class -- run semantic analytics here
-#             relevant_pixels = sem_label == sem_cls
-#             import ipdb; ipdb.set_trace()
-#             analytics[sem_channel_keyname] = \
-#                 (all_maxes[relevant_pixels] / all_sums[relevant_pixels]).mean(),
-#
-#         # get 'commitment' level within each channel
-#         pixels_assigned_to_me = (label_preds == inst_idx)
-#         pixels_assigned_to_my_sem_cls = torch.sum([(label_preds == channel) for channel in
-#                                                    same_sem_cls_channels])
-#         # channel_usage_fraction: fraction of channels of same semantic class that are used
-#         inst_channel_keyname = 'channel_usage_fraction/{}'.format(channel_labels[inst_idx])
-#         analytics[inst_channel_keyname] = pixels_assigned_to_me.int().sum() / \
-#                                           pixels_assigned_to_my_sem_cls.int().sum()
-#
-#     return analytics
-#

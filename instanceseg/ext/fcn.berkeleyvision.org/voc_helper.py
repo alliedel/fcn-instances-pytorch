@@ -27,7 +27,7 @@ class voc:
     def load_label(self, idx):
         """
         Load label image as 1 x height x width integer array of label indices.
-        The leading singleton dimension is required by the loss.
+        The leading singleton dimension is required by the losses.
         """
         label = Image.open('{}/SegmentationClass/{}.png'.format(self.dir, idx))
         label = np.array(label, dtype=np.uint8)

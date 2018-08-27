@@ -1,6 +1,8 @@
 import argparse
 import os.path as osp
 
+import instanceseg.losses.loss
+import instanceseg.losses.match
 import instanceseg.utils.configs
 import instanceseg.utils.logs
 import instanceseg.factory.models
@@ -40,7 +42,7 @@ def main_check_freeze():
 def main_check_cost_matrix():
     # Checking the cost matrix for the first image
     import torch.nn.functional as F
-    from instanceseg import losses
+    from instanceseg.losses import xentropy
     data0 = [x for i, x in enumerate(dataloaders['train_for_val']) if i == 0][0]
     img = torch.autograd.Variable(data0[0].cuda())
     sem_lbl = torch.autograd.Variable(data0[1][0].cuda())
@@ -56,12 +58,12 @@ def main_check_cost_matrix():
     normalizer = (inst_lbl >= 0).float().data.sum()
     num_inst_classes = len(semantic_instance_labels)
     idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
-    cost_list_2d = losses.create_pytorch_cross_entropy_cost_matrix(log_predictions[0, ...], sem_lbl[0, ...],
-                                                                   inst_lbl[0, ...],
-                                                                   semantic_instance_labels,
-                                                                   instance_id_labels,
-                                                                   sem_val, size_average=size_average)
-    cost_matrix, multiplier = losses.convert_pytorch_costs_to_ints(cost_list_2d)
+    cost_list_2d = instanceseg.losses.match.create_pytorch_cross_entropy_cost_matrix(log_predictions[0, ...], sem_lbl[0, ...],
+                                                                                     inst_lbl[0, ...],
+                                                                                     semantic_instance_labels,
+                                                                                     instance_id_labels,
+                                                                                     sem_val, size_average=size_average)
+    cost_matrix, multiplier = instanceseg.losses.match.convert_pytorch_costs_to_ints(cost_list_2d)
 
     for ground_truth in range(len(cost_matrix)):
         for prediction in range(len(cost_matrix[0])):
@@ -73,12 +75,12 @@ def main_check_cost_matrix():
             print('cost_matrix gt={}, pred={}: {}'.format(ground_truth, prediction, cost_matrix[prediction][
                 ground_truth]))
 
-    pred_permutations, loss, loss_components = losses.cross_entropy2d(scores, sem_lbl, inst_lbl,
-                                                                      semantic_instance_labels,
-                                                                      instance_id_labels, matching=True,
-                                                                      break_here=False, recompute_optimal_loss=False,
-                                                                      return_loss_components=True,
-                                                                      size_average=size_average)
+    pred_permutations, loss, loss_components = instanceseg.losses.loss.cross_entropy2d(scores, sem_lbl, inst_lbl,
+                                                                                       semantic_instance_labels,
+                                                                                       instance_id_labels, matching=True,
+                                                                                       break_here=False, recompute_optimal_loss=False,
+                                                                                       return_loss_components=True,
+                                                                                       size_average=size_average)
     inst_lbl_pred = scores.data.max(1)[1].cpu().numpy()[:, :, :]
     lt_combined = my_trainer.gt_tuple_to_combined(sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy())
     metrics = my_trainer.compute_metrics(label_trues=lt_combined, label_preds=inst_lbl_pred,

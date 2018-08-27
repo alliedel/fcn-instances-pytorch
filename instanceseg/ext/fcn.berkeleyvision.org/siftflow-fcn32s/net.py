@@ -55,7 +55,7 @@ def fcn(split):
             bias_term=False),
         param=[dict(lr_mult=0)])
     n.score_sem = crop(n.upscore_sem, n.data)
-    # loss to make score happy (o.w. loss_sem)
+    # losses to make score happy (o.w. loss_sem)
     n.loss = L.SoftmaxWithLoss(n.score_sem, n.sem,
             loss_param=dict(normalize=False, ignore_label=255))
 

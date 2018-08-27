@@ -126,7 +126,7 @@ class NYUDSegDataLayer(caffe.Layer):
         """
         Load label image as 1 x height x width integer array of label indices.
         Shift labels so that classes are 0-39 and void is 255 (to ignore it).
-        The leading singleton dimension is required by the loss.
+        The leading singleton dimension is required by the losses.
         """
         label = scipy.io.loadmat('{}/segmentation/img_{}.mat'.format(self.nyud_dir, idx))['segmentation'].astype(np.uint8)
         label -= 1  # rotate labels

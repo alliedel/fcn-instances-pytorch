@@ -101,7 +101,7 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
         c1, c2 = get_center_min_max(x.size(3), heatmap_scores.size(2))
         softmax_scores = F.softmax(score, dim=1).data.cpu()
         inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        # pred_permutations, loss = my_trainer.my_cross_entropy(score, sem_lbl, inst_lbl)
+        # pred_permutations, losses = my_trainer.my_cross_entropy(score, sem_lbl, inst_lbl)
         # scores_permuted = instance_utils.permute_scores(score, pred_permutations)
 
         heatmap_scores[:, r1:r2, c1:c2] += softmax_scores

@@ -15,7 +15,7 @@ file_comments = {
                                                   'Used for dataset analysis as well as samplers (filtering images '
                                                   'by image stats)',
     'instanceseg/ext': 'external (third party) code',
-    'instanceseg/losses.py': 'loss functions (cross entropy, etc.)',
+    'instanceseg/xentropy.py': 'losses functions (cross entropy, etc.)',
     'instanceseg/metrics.py': 'various intermediate metrics for analysis (e.g. - channel usage)',
     'instanceseg/trainer.py': 'implements the Trainer, which orchestrates model training/validation',
     'instanceseg/factory': 'generates configured instances of various objects '

@@ -108,7 +108,7 @@ class VOCSegDataLayer(caffe.Layer):
     def load_label(self, idx):
         """
         Load label image as 1 x height x width integer array of label indices.
-        The leading singleton dimension is required by the loss.
+        The leading singleton dimension is required by the losses.
         """
         im = Image.open('{}/SegmentationClass/{}.png'.format(self.voc_dir, idx))
         label = np.array(im, dtype=np.uint8)
@@ -223,7 +223,7 @@ class SBDDSegDataLayer(caffe.Layer):
     def load_label(self, idx):
         """
         Load label image as 1 x height x width integer array of label indices.
-        The leading singleton dimension is required by the loss.
+        The leading singleton dimension is required by the losses.
         """
         import scipy.io
         mat = scipy.io.loadmat('{}/cls/{}.mat'.format(self.sbdd_dir, idx))

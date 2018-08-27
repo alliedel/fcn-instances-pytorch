@@ -14,9 +14,10 @@ import instanceseg
 import instanceseg.analysis.visualization_utils
 import instanceseg.datasets.synthetic
 import instanceseg.datasets.voc
+import instanceseg.losses.loss
 import instanceseg.utils.logs
-from instanceseg import losses
-from instanceseg import instance_utils, trainer
+from instanceseg.losses import xentropy
+from instanceseg import instance_utils
 from instanceseg.analysis import visualization_utils
 
 here = osp.dirname(osp.abspath(__file__))
@@ -88,7 +89,7 @@ def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True
         import ipdb;
         ipdb.set_trace()
         raise Exception('Sizes of score, targets are incorrect')
-    rets = losses.cross_entropy2d(
+    rets = instanceseg.losses.loss.cross_entropy2d(
         score, sem_lbl, inst_lbl,
         semantic_instance_labels=instance_problem.semantic_instance_class_list,
         instance_id_labels=instance_problem.instance_count_id_list,
@@ -223,7 +224,7 @@ def main():
             pred_permutations, loss, loss_components = loss_function(score, sem_lbl, inst_lbl, problem_config,
                                                                      return_loss_components=True)
             if np.isnan(float(loss.data[0])):
-                raise ValueError('loss is nan while validating')
+                raise ValueError('losses is nan while validating')
             softmax_scores = F.softmax(score, dim=1)
             inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
 
@@ -231,7 +232,7 @@ def main():
             writer.add_scalar('max_confidence', max_confidence, prediction_number)
             writer.add_scalar('smearing', smearing, prediction_number)
             # writer.add_scalar('instance_mixing', instance_mixing, prediction_number)
-            writer.add_scalar('loss', loss, prediction_number)
+            writer.add_scalar('losses', loss, prediction_number)
             channel_labels = problem_config.get_channel_labels('{} {}')
             for i, label in enumerate(channel_labels):
                 tag = 'loss_components/{}'.format(label.replace(' ', '_'))

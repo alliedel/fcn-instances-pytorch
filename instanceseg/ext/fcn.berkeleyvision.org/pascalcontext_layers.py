@@ -113,7 +113,7 @@ class PASCALContextSegDataLayer(caffe.Layer):
     def load_label(self, idx):
         """
         Load label image as 1 x height x width integer array of label indices.
-        The leading singleton dimension is required by the loss.
+        The leading singleton dimension is required by the losses.
         The full 400 labels are translated to the 59 class task labels.
         """
         label_400 = scipy.io.loadmat('{}/trainval/{}.mat'.format(self.context_dir, idx))['LabelMap']

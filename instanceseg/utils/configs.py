@@ -3,12 +3,12 @@ from collections import OrderedDict
 from os import path as osp
 
 import yaml
-from instanceseg.utils.misc import str2bool
 
 import instanceseg
 import instanceseg.utils
 from instanceseg.datasets import dataset_registry
 from instanceseg.models import attention
+from instanceseg.utils.misc import str2bool
 from . import misc
 
 CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
@@ -38,7 +38,9 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'use_conv8': 'conv8',
                                         'dataset_instance_cap': 'datacap',
                                         'export_activations': 'exp_act',
-                                        'write_instance_metrics': 'wr_instmet'
+                                        'write_instance_metrics': 'wr_instmet',
+                                        'loss_type': 'loss',
+                                        'ordering': 'order',
                                         }
 
 
@@ -140,7 +142,8 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
     for key, replacement_key in config_key_replacements.items():
         if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
             if 'semantic_subset' in config_dict.keys() and config_dict['semantic_subset'] is not None:
-                cfg_print['semantic_subset'] = '_'.join([cls.strip() for cls in config_dict['semantic_subset']])
+                cfg_print['semantic_subset'] = '_'.join([cls.strip() for cls in config_dict['semantic_subset'] if cls
+                                                         is not 'background'])
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
 

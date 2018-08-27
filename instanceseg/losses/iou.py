@@ -183,10 +183,16 @@ def lovasz_softmax_2d(predictions, sem_lbl, inst_lbl, semantic_instance_labels, 
 
 
 def lovasz_softmax_2d_single_class_term(prediction_probs_single_instance_cls, binary_target_single_instance_cls):
-    errors = (binary_target_single_instance_cls - prediction_probs_single_instance_cls).abs()
+    bt = binary_target_single_instance_cls.view(-1)
+    pp = prediction_probs_single_instance_cls.view(-1)
+    errors = (bt - pp).abs()
     errors_sorted, perm = torch.sort(errors, dim=0, descending=True)
     perm = perm.data
-    fg_sorted = binary_target_single_instance_cls[perm]
+    try:
+        fg_sorted = bt[perm]
+    except:
+        import ipdb; ipdb.set_trace()
+        raise
     new_loss = torch.dot(errors_sorted, lovasz_grad(fg_sorted))
     return new_loss
 

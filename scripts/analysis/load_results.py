@@ -87,8 +87,8 @@ def main_check_cost_matrix():
                                                                                        size_average=size_average)
     inst_lbl_pred = scores.data.max(1)[1].cpu().numpy()[:, :, :]
     lt_combined = my_trainer.gt_tuple_to_combined(sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy())
-    metrics = my_trainer.compute_metrics(label_trues=lt_combined, label_preds=inst_lbl_pred,
-                                         permutations=pred_permutations, single_batch=True)
+    metrics = my_trainer.exporter.compute_evaluation_metrics(my_trainer, label_trues=lt_combined, label_preds=inst_lbl_pred,
+                                                             permutations=pred_permutations, single_batch=True)
     import ipdb; ipdb.set_trace()
 
 

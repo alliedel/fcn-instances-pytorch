@@ -15,7 +15,7 @@ import instanceseg.utils.configs
 import instanceseg.utils.logs
 import instanceseg.utils.misc
 import instanceseg.utils.scripts
-from instanceseg import instance_utils
+from instanceseg.utils import instance_utils
 
 default_config = dict(
     max_iteration=100000,
@@ -159,20 +159,10 @@ def main():
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
     writer = SummaryWriter(log_dir=out)
-    trainer = instanceseg.Trainer(
-        cuda=cuda,
-        model=model,
-        optimizer=optim,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        instance_problem=problem_config,
-        out=out,
-        max_iter=cfg['max_iteration'],
-        interval_validate=cfg.get('interval_validate', len(train_loader)),
-        tensorboard_writer=writer,
-        matching_loss=cfg['matching'],
-        loader_semantic_lbl_only=cfg['semantic_only_labels']
-    )
+    trainer = instanceseg.Trainer(cuda=cuda, model=model, optimizer=optim, train_loader=train_loader,
+                                  val_loader=val_loader, max_iter=cfg['max_iteration'], instance_problem=problem_config,
+                                  interval_validate=cfg.get('interval_validate', len(train_loader)),
+                                  matching_loss=cfg['matching'], loader_semantic_lbl_only=cfg['semantic_only_labels'])
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
 

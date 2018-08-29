@@ -16,8 +16,7 @@ import instanceseg.datasets.synthetic
 import instanceseg.datasets.voc
 import instanceseg.losses.loss
 import instanceseg.utils.logs
-from instanceseg.losses import xentropy
-from instanceseg import instance_utils
+from instanceseg.utils import instance_utils
 from instanceseg.analysis import visualization_utils
 
 here = osp.dirname(osp.abspath(__file__))

@@ -3,7 +3,7 @@ import os
 import torch
 
 import instanceseg
-from instanceseg import instance_utils
+from instanceseg.utils import instance_utils
 from instanceseg.models import model_utils
 
 

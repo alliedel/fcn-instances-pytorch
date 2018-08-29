@@ -4,9 +4,8 @@ import tqdm
 from torch.nn import functional as F
 
 import instanceseg.utils.eval
-from instanceseg import instance_utils
 from instanceseg.losses import iou
-from instanceseg.utils import datasets
+from instanceseg.utils import datasets, instance_utils
 
 
 def get_center_min_max(h, dest_h, floor=False):

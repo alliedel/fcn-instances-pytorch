@@ -40,7 +40,7 @@ def setup():
 def main():
     trainer = setup()
     trainer.train()
-    metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(
+    metrics, _ = trainer.validate(
         should_export_visualizations=False, split='train')
     print('Training set mean IU: {}'.format(metrics[2]))
 

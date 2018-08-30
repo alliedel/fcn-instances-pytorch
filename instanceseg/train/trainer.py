@@ -12,6 +12,7 @@ import instanceseg.utils.misc
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import trainer_exporter
 from instanceseg.utils import datasets, instance_utils
+import os.path as osp
 
 DEBUG_ASSERTS = True
 
@@ -127,7 +128,8 @@ class Trainer(object):
         self.optim.step()
 
         # Update quantities of interest
-        self.exporter.update_after_train_minibatch(full_input, score, sem_lbl, inst_lbl, pred_permutations, avg_loss)
+        self.exporter.update_after_train_minibatch(self, full_input, score, sem_lbl, inst_lbl,
+                                                   pred_permutations, avg_loss)
 
     def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
         """
@@ -155,7 +157,6 @@ class Trainer(object):
         return full_input, sem_lbl, inst_lbl
 
     def build_my_loss_function(self, matching_override=None):
-        print('self.loss_type = {}'.format(self.loss_type))  # TODO(allie): remove this debug print statement
         # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
         matching = matching_override if matching_override is not None else self.matching_loss
         my_loss_fcn = instanceseg.losses.loss.loss_2d_factory(  # f(scores, sem_lbl, inst_lbl)
@@ -225,7 +226,7 @@ class Trainer(object):
             val_loss += val_loss_mb
 
         val_loss /= len(data_loader)
-        val_metrics = self.exporter.update_after_validation_epoch(split)
+        val_metrics = self.exporter.update_after_validation_epoch(self, split)
 
         if training:
             self.model.train()

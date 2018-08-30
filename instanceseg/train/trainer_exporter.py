@@ -17,7 +17,6 @@ from instanceseg.analysis import visualization_utils
 from instanceseg.analysis.visualization_utils import export_visualizations
 from instanceseg.datasets import runtime_transformations
 from instanceseg.models.model_utils import any_nan
-from instanceseg.train import metrics
 from instanceseg.utils import instance_utils
 from instanceseg.utils.misc import flatten_dict
 
@@ -116,9 +115,12 @@ class TrainerExporter(object):
         'elapsed_time',
     ]
 
-    def __init__(self, out_dir, trainer=None, tensorboard_writer=None, export_activations=False,
+    def __init__(self, out_dir, instance_problem, trainer=None, tensorboard_writer=None, export_activations=False,
                  activation_layers_to_export=(), write_activation_condition=should_write_activations,
                  write_instance_metrics=True):
+
+        # Copies of things the trainer was given access to
+        self.instance_problem = instance_problem
 
         # Helper objects
         self.tensorboard_writer = tensorboard_writer
@@ -154,6 +156,7 @@ class TrainerExporter(object):
         self.save_checkpoint = None
         self.update_best_checkpoint = None
         self.num_images_to_visualize_per_split = 9
+        self.update_checkpoint_each_val = True
 
         # Exporting parameters
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
@@ -163,8 +166,8 @@ class TrainerExporter(object):
         # Current state
         self.last_val_iteration = None
         self.last_train_iteration = None
-        self.last_val_minibatch_result = MinibatchResult()
-        self.last_train_minibatch_result = MinibatchResult()
+        # self.last_val_minibatch_result = MinibatchResult()
+        # self.last_train_minibatch_result = MinibatchResult()
         self.val_epoch_result = ValidationEpochResult()
         self.train_for_val_epoch_result = ValidationEpochResult()
         self.segmentation_visualizations = {
@@ -177,49 +180,23 @@ class TrainerExporter(object):
         }
         self.best_mean_iu = 0
 
-        self._trainer = None
-        if trainer is not None:
-            self.link_to_trainer(trainer)
-
-    def link_to_trainer(self, trainer):
-        self._trainer = trainer
-        metric_maker_kwargs = {
-            'problem_config': self.instance_problem,
-            'component_loss_function': self._trainer.loss_fcn,
-            'augment_function_img_sem': self._trainer.augment_image if self._trainer.augment_input_with_semantic_masks
-            else None
-        }
-        self.metric_makers = {
-            'val': metrics.InstanceMetrics(self._trainer.val_loader, **metric_maker_kwargs),
-            'train_for_val': metrics.InstanceMetrics(self._trainer.train_loader_for_val, **metric_maker_kwargs)
-        }
+    def add_metric_makers(self, metric_makers):
+        self.metric_makers = metric_makers
 
     def continue_validation_iterations(self, split):
         return self.write_val_evaluation_metrics or self.update_best_checkpoint or \
                len(self.segmentation_visualizations[split]) < self.num_images_to_visualize_per_split
 
-    @property
-    def state(self):
-        if self._trainer is None:
-            raise Exception('Link trainer with link_to_trainer function before accessing state.')
-        return self._trainer.state
-
-    @property
-    def model(self):
-        if self._trainer is None:
-            raise Exception('Link trainer with link_to_trainer function before accessing state.')
-        return self._trainer.model
-
-    @property
-    def instance_problem(self):
-        if self._trainer is None:
-            raise Exception('Link trainer with link_to_trainer function before accessing state.')
-        return self._trainer.instance_problem
-
+    # @property
+    # def instance_problem(self):
+    #     if self._trainer is None:
+    #         raise Exception('Link trainer with link_to_trainer function before accessing state.')
+    #     return self._trainer.instance_problem
+    #
     def val_visualization_quota_has_been_met(self, split):
         return len(self.segmentation_visualizations[split]) >= self.num_images_to_visualize_per_split
 
-    def update_after_validation_epoch(self, split):
+    def update_after_validation_epoch(self, my_trainer, split):
         val_metrics = None
         write_instance_metrics = (split == 'train') and self.write_instance_metrics
         write_basic_metrics = \
@@ -231,41 +208,45 @@ class TrainerExporter(object):
         should_compute_basic_metrics = \
             write_basic_metrics or write_instance_metrics or save_checkpoint or update_best_checkpoint
 
+        if self.update_checkpoint_each_val:
+            self.save_current_checkpoint(my_trainer)
+
         if should_compute_basic_metrics:
             val_metrics = self.compute_evaluation_metrics(self.val_epoch_result.true_labels_list,
                                                           self.val_epoch_result.predicted_labels_list,
                                                           self.val_epoch_result.pred_permutations_list)
             if write_basic_metrics:
-                self.write_metrics(val_metrics, self.val_epoch_result.loss_avg, split)
+                self.write_metrics(val_metrics, self.val_epoch_result.loss_avg, split, state=my_trainer.state)
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split),
-                                                       self.val_epoch_result.loss_avg, self.state.iteration)
+                                                       self.val_epoch_result.loss_avg, my_trainer.state.iteration)
                     self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2],
-                                                       self.state.iteration)
-            if save_checkpoint:
-                self.save_current_checkpoint()
+                                                       my_trainer.state.iteration)
             if update_best_checkpoint:
                 self.update_best_model_and_checkpoint_if_best(mean_iu=val_metrics[2])
         if write_instance_metrics:
-            self.compute_and_write_instance_metrics()
+            self.compute_and_write_instance_metrics(my_trainer)
 
-        self.export_visualizations(self.segmentation_visualizations[split], 'seg_' + split, tile=True)
-        self.export_visualizations(self.score_visualizations[split], 'score_' + split, tile=False)
+        self.export_visualizations(self.segmentation_visualizations[split], my_trainer.state.iteration,
+                                   'seg_' + split, tile=True)
+        self.export_visualizations(self.score_visualizations[split], my_trainer.state.iteration, 'score_' + split,
+                                   tile=False)
 
         val_loss = self.last_val_loss
-        if self._trainer.train_loader_for_val is not None:
-            train_metrics, _ = self._trainer.validate('train')  # TODO(allie): Don't violate the 'don't run forward
-            # pass inside exporter' rule we set for ourselves!!
-            train_loss = self.last_val_loss
-        else:
-            print('Warning: cannot generate train vs. val plots if we dont have access to the training losses '
-                  'via train_for_val dataloader')
-            train_loss = None
+        # if self._trainer.train_loader_for_val is not None:
+        #     train_metrics, _ = self._trainer.validate('train')  # TODO(allie): Don't violate the 'don't run forward
+        #     # pass inside exporter' rule we set for ourselves!!
+        #     train_loss = self.last_val_loss
+        # else:
+        print('Warning: cannot generate train vs. val plots if we dont have access to the training losses '
+              'via train_for_val dataloader')
+        train_loss = None
         if train_loss is not None:
-            self.update_mpl_joint_train_val_loss_figure(train_loss, val_loss)
+            self.update_mpl_joint_train_val_loss_figure(my_trainer, train_loss, val_loss)
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
-                                                   self.state.iteration)
+                                                   my_trainer.state.iteration)
+        self.val_epoch_result = None  # Free memory
         return val_metrics
 
     def compute_evaluation_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
@@ -283,38 +264,28 @@ class TrainerExporter(object):
                                                                    n_class=self.instance_problem.n_classes)
         return metrics_list
 
-    def write_metrics(self, metrics_list, loss, split):
+    def write_metrics(self, metrics_list, loss, split, state):
         with open(osp.join(self.out_dir, 'log.csv'), 'a') as f:
             elapsed_time = (
                     datetime.datetime.now(pytz.timezone(MY_TIMEZONE)) -
                     self.timestamp_start).total_seconds()
             if split == 'val':
-                log = [self.state.epoch, self.state.iteration] + [''] * 5 + [loss] + list(metrics_list) + [elapsed_time]
+                log = [state.epoch, state.iteration] + [''] * 5 + [loss] + list(metrics_list) + [elapsed_time]
             elif split == 'train':
                 try:
                     metrics_as_list = metrics_list.tolist()
                 except:
                     metrics_as_list = list(metrics_list)
-                log = [self.state.epoch, self.state.iteration] + [loss] + metrics_as_list + [''] * 5 + [elapsed_time]
+                log = [state.epoch, state.iteration] + [loss] + metrics_as_list + [''] * 5 + [elapsed_time]
             else:
                 raise ValueError('split not recognized')
             log = map(str, log)
             f.write(','.join(log) + '\n')
 
-    def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
+    def export_visualizations(self, visualizations, iteration, basename='val_', tile=True, outdir=None):
         outdir = outdir or osp.join(self.out_dir, 'visualization_viz')
-        export_visualizations(visualizations, outdir, self.tensorboard_writer, self.state.iteration, basename=basename,
+        export_visualizations(visualizations, outdir, self.tensorboard_writer, iteration, basename=basename,
                               tile=tile)
-
-    def save_current_checkpoint(self):
-        torch.save({
-            'epoch': self.state.epoch,
-            'iteration': self.state.iteration,
-            'arch': self.model.__class__.__name__,
-            'optim_state_dict': self._trainer.optim.state_dict(),
-            'model_state_dict': self.model.state_dict(),
-            'best_mean_iu': self.best_mean_iu,
-        }, osp.join(self.out_dir, 'checkpoint.pth.tar'))
 
     def update_best_model_and_checkpoint_if_best(self, mean_iu):
         is_best = mean_iu > self.best_mean_iu
@@ -323,30 +294,40 @@ class TrainerExporter(object):
             shutil.copy(osp.join(self.out_dir, 'checkpoint.pth.tar'),
                         osp.join(self.out_dir, 'model_best.pth.tar'))
 
-    def compute_and_write_instance_metrics(self):
+    def save_current_checkpoint(self, my_trainer):
+        torch.save({
+            'epoch': my_trainer.state.epoch,
+            'iteration': my_trainer.state.iteration,
+            'arch': my_trainer.model.__class__.__name__,
+            'optim_state_dict': my_trainer.optim.state_dict(),
+            'model_state_dict': my_trainer.model.state_dict(),
+            'best_mean_iu': self.best_mean_iu,
+        }, osp.join(self.out_dir, 'checkpoint.pth.tar'))
+
+    def compute_and_write_instance_metrics(self, my_trainer):
         if self.tensorboard_writer is not None:
             for split, metric_maker in tqdm.tqdm(self.metric_makers.items(), desc='Computing instance metrics',
                                                  total=len(self.metric_makers.items()), leave=False):
                 metric_maker.clear()
-                metric_maker.compute_metrics(self.model)
+                metric_maker.compute_metrics(my_trainer.model)
                 metrics_as_nested_dict = metric_maker.get_aggregated_scalar_metrics_as_nested_dict()
                 metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
                 for name, metric in metrics_as_flattened_dict.items():
                     self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric,
-                                                       self.state.iteration)
+                                                       my_trainer.state.iteration)
                 histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
                 histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
-                if self.state.iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
+                if my_trainer.state.iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
                     # if 1:
                     for name, metric in tqdm.tqdm(histogram_metrics_as_flattened_dict.items(),
                                                   total=len(histogram_metrics_as_flattened_dict.items()),
                                                   desc='Writing histogram metrics', leave=False):
                         if torch.is_tensor(metric):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
-                                                                  metric.numpy(), self.state.iteration, bins='auto')
+                                                                  metric.numpy(), my_trainer.state.iteration, bins='auto')
                         elif isinstance(metric, np.ndarray):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
-                                                                  self.state.iteration, bins='auto')
+                                                                  my_trainer.state.iteration, bins='auto')
                         elif metric is None:
                             import ipdb;
                             ipdb.set_trace()
@@ -355,9 +336,9 @@ class TrainerExporter(object):
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              ' '.format(type(metric), name))
 
-    def retrieve_and_write_batch_activations(self, batch_input):
+    def retrieve_and_write_batch_activations(self, my_trainer, batch_input):
         if self.tensorboard_writer is not None:
-            activations = self.model.get_activations(batch_input, self.activation_layers_to_export)
+            activations = my_trainer.model.get_activations(batch_input, self.activation_layers_to_export)
             histogram_activations = activations
             for name, activations in tqdm.tqdm(histogram_activations.items(),
                                                total=len(histogram_activations.items()),
@@ -369,7 +350,7 @@ class TrainerExporter(object):
                     for c, channel_label in enumerate(channel_labels):
                         self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
                                                               activations[:, c, :, :].cpu().numpy(),
-                                                              self.state.iteration, bins='auto')
+                                                              my_trainer.state.iteration, bins='auto')
                 elif name == 'conv1x1_instance_to_semantic':
                     channel_labels = self.instance_problem.get_channel_labels('{}_{}')
                     assert activations.size(1) == len(channel_labels)
@@ -377,7 +358,7 @@ class TrainerExporter(object):
                         try:
                             self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
                                                                   activations[:, c, :, :].cpu().numpy(),
-                                                                  self.state.iteration, bins='auto')
+                                                                  my_trainer.state.iteration, bins='auto')
                         except IndexError as ie:
                             print('WARNING: Didn\'t write activations.  IndexError: {}'.format(ie))
                 elif name == 'conv1_1':
@@ -390,14 +371,14 @@ class TrainerExporter(object):
                     representative_set[:, 1] = max
                     representative_set[:, 2] = mean
                     self.tensorboard_writer.add_histogram('batch_activations/{}/min_mean_max_all_channels'.format(name),
-                                                          representative_set, self.state.iteration, bins='auto')
+                                                          representative_set, my_trainer.state.iteration, bins='auto')
                     continue
 
                 self.tensorboard_writer.add_histogram('batch_activations/{}/all_channels'.format(name),
-                                                      activations.cpu().numpy(), self.state.iteration, \
+                                                      activations.cpu().numpy(), my_trainer.state.iteration, \
                                                       bins='auto')
 
-    def update_mpl_joint_train_val_loss_figure(self, train_loss, val_loss):
+    def update_mpl_joint_train_val_loss_figure(self, my_trainer, train_loss, val_loss):
         assert train_loss is not None, ValueError
         assert val_loss is not None, ValueError
         figure_name = 'train/val losses'
@@ -405,7 +386,7 @@ class TrainerExporter(object):
         self.train_losses_stored.append(train_loss)
         self.val_losses_stored.append(val_loss)
 
-        self.state.iterations_for_losses_stored.append(self.state.iteration)
+        my_trainer.state.iterations_for_losses_stored.append(my_trainer.state.iteration)
         if self.joint_train_val_loss_mpl_figure is None:
             self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
             display_pyutils.set_my_rc_defaults()
@@ -413,14 +394,14 @@ class TrainerExporter(object):
         h = plt.figure(figure_name)
 
         plt.clf()
-        train_label = 'train losses: ' + 'last epoch of images: {}'.format(len(self._trainer.train_loader)) if \
-            self._trainer.generate_new_synthetic_data_each_epoch else '{} images'.format(
-            len(self._trainer.train_loader_for_val))
-        val_label = 'val losses: ' + '{} images'.format(len(self._trainer.val_loader))
+        train_label = 'train losses: ' + 'last epoch of images: {}'.format(len(my_trainer.train_loader)) if \
+            my_trainer.generate_new_synthetic_data_each_epoch else '{} images'.format(
+            len(my_trainer.train_loader_for_val))
+        val_label = 'val losses: ' + '{} images'.format(len(my_trainer.val_loader))
 
-        plt.plot(self.state.iterations_for_losses_stored, self.train_losses_stored, label=train_label,
+        plt.plot(my_trainer.state.iterations_for_losses_stored, self.train_losses_stored, label=train_label,
                  color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
-        plt.plot(self.state.iterations_for_losses_stored, self.val_losses_stored, label=val_label,
+        plt.plot(my_trainer.state.iterations_for_losses_stored, self.val_losses_stored, label=val_label,
                  color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
         plt.xlabel('iteration')
         plt.legend()
@@ -434,7 +415,7 @@ class TrainerExporter(object):
         else:
             ymin, ymax = None, None
         if self.tensorboard_writer is not None:
-            instanceseg.utils.export.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.state.iteration)
+            instanceseg.utils.export.log_plots(self.tensorboard_writer, 'joint_loss', [h], my_trainer.state.iteration)
         filename = os.path.join(self.out_dir, 'val_train_loss.png')
         h.savefig(filename)
 
@@ -446,22 +427,22 @@ class TrainerExporter(object):
             if self.tensorboard_writer is not None:
                 instanceseg.utils.export.log_plots(self.tensorboard_writer,
                                                    'joint_loss_last_{}'.format(ylim_buffer_size),
-                                                   [h], self.state.iteration)
+                                                   [h], my_trainer.state.iteration)
             h.savefig(zoom_filename)
         else:
             shutil.copyfile(filename, zoom_filename)
 
-    def update_after_train_minibatch(self, full_input, score, sem_lbl, inst_lbl, pred_permutations, loss):
+    def update_after_train_minibatch(self, my_trainer, full_input, score, sem_lbl, inst_lbl, pred_permutations, loss):
         """
         Happens every iteration.  Computed quantities / predictions, etc. that need to be kept around must be stored
         or written here before the trainer moves on to the next batch.
         """
-        assert not self._trainer.is_running_validation
+        assert not my_trainer.is_running_validation
 
-        self.last_train_minibatch_result.set(full_input, sem_lbl, inst_lbl, score, loss, pred_permutations)
+        # self.last_train_minibatch_result.set(full_input, sem_lbl, inst_lbl, score, loss, pred_permutations)
 
         if self.tensorboard_writer is not None:
-            self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0], self.state.iteration)
+            self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0], my_trainer.state.iteration)
 
         inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
         lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
@@ -473,32 +454,33 @@ class TrainerExporter(object):
                                                 permutations=[pred_permutations])
             metrics_list.append((acc, acc_cls, mean_iu, fwavacc))
         metrics_list = np.mean(metrics_list, axis=0)
-        self.write_metrics(metrics_list, loss, split='train')
+        self.write_metrics(metrics_list, loss, split='train', state=my_trainer.state)
 
         if self.tensorboard_writer is not None:
-            self.model.eval()
-            new_score = self.model(full_input)
+            my_trainer.model.eval()
+            new_score = my_trainer.model(full_input)
             if any_nan(new_score.data):
                 raise ValueError('new_score became nan while training')
-            new_pred_permutations, new_loss, _ = self._trainer.compute_loss(new_score, sem_lbl, inst_lbl)
+            new_pred_permutations, new_loss, _ = my_trainer.compute_loss(new_score, sem_lbl, inst_lbl)
             new_loss /= len(full_input)
             loss_improvement = loss.data[0] - new_loss.data[0]
-            self.model.train()
+            my_trainer.model.train()
 
             self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,
-                                               self.state.iteration)
+                                               my_trainer.state.iteration)
             self.tensorboard_writer.add_scalar('metrics/reassignment',
                                                np.sum(new_pred_permutations != pred_permutations),
-                                               self.state.iteration)
+                                               my_trainer.state.iteration)
             if self.export_activations \
-                    and self.write_activation_condition(iteration=self.state.iteration, epoch=self.state.epoch,
-                                                        interval_validate=self._trainer.interval_validate):
-                self.retrieve_and_write_batch_activations(full_input)
+                    and self.write_activation_condition(iteration=my_trainer.state.iteration,
+                                                        epoch=my_trainer.state.epoch,
+                                                        interval_validate=my_trainer.interval_validate):
+                self.retrieve_and_write_batch_activations(my_trainer, full_input)
 
     def update_after_val_minibatch(self, full_input, sem_lbl, inst_lbl, score, pred_permutations, loss,
                                    dataloader_runtime_transformation, split, img=None):
 
-        self.last_val_minibatch_result.set(full_input, sem_lbl, inst_lbl, score, pred_permutations, loss, img=img)
+        # self.last_val_minibatch_result.set(full_input, sem_lbl, inst_lbl, score, pred_permutations, loss, img=img)
         inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
 
         lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
@@ -536,6 +518,14 @@ class TrainerExporter(object):
                 self.val_epoch_result.append(true_labels_combined_mb=list_true_labels_combined,
                                              predicted_labels_combined_mb=list_pred_labels_combined,
                                              pred_permutations_mb=pred_permutations, loss=loss)
+        # for v in vars(self):
+        #     my_type = type(getattr(self, v))
+        #     if my_type not in [type(None), bool, dict, int, str]:
+        #         print('{}: {}'.format(v, my_type))
+        #     else:
+        #         pass
+        # import ipdb;
+        # ipdb.set_trace()
 
     def generate_visualizations_for_one_minibatch(self, sp, lp, lt_combined, pp, img_untransformed):
         viz_segmentation = visualization_utils.visualize_segmentation(
@@ -567,13 +557,12 @@ class TrainerExporter(object):
                                                            lbl_true=lt_combined,
                                                            lbl_pred=lp,
                                                            pred_permutations=pp,
-                                                           n_class=self._trainer.instance_problem.n_classes,
+                                                           n_class=self.instance_problem.n_classes,
                                                            score_vis_normalizer=sp.max(),
                                                            channel_labels=channel_labels,
                                                            channels_to_visualize=channels_to_visualize,
                                                            input_image=img_untransformed)
         return viz_score, viz_segmentation
-
 
     def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
         semantic_instance_class_list = self.instance_problem.semantic_instance_class_list

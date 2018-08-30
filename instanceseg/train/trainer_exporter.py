@@ -116,7 +116,7 @@ class TrainerExporter(object):
         'elapsed_time',
     ]
 
-    def __init__(self, out_dir, trainer, tensorboard_writer=None, export_activations=False,
+    def __init__(self, out_dir, trainer=None, tensorboard_writer=None, export_activations=False,
                  activation_layers_to_export=(), write_activation_condition=should_write_activations,
                  write_instance_metrics=True):
 
@@ -188,6 +188,9 @@ class TrainerExporter(object):
             'val': []
         }
         self.best_mean_iu = 0
+
+    def link_to_trainer(self, trainer):
+        self._trainer = trainer
 
     def continue_validation_iterations(self, split):
         return self.write_val_evaluation_metrics or self.update_best_checkpoint or \

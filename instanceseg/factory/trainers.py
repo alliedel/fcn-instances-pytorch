@@ -7,8 +7,8 @@ from instanceseg.train.trainer_exporter import TrainerExporter
 def get_trainer_exporter(out_dir, cfg):
     tensorboard_writer = SummaryWriter(log_dir=out_dir)
 
-    exporter = TrainerExporter(out_dir, tensorboard_writer, export_activations=cfg['export_activations'],
-                               activation_layers_to_export=cfg['activation_layers_to_export'],
+    exporter = TrainerExporter(out_dir, tensorboard_writer=tensorboard_writer, export_activations=cfg[
+        'export_activations'], activation_layers_to_export=cfg['activation_layers_to_export'],
                                write_instance_metrics=cfg['write_instance_metrics'])
     return exporter
 
@@ -24,4 +24,5 @@ def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
                                   augment_input_with_semantic_masks=cfg['augment_semantic'],
                                   generate_new_synthetic_data_each_epoch=(
                                               cfg['dataset'] == 'synthetic' and cfg['infinite_synthetic']))
+    exporter.link_to_trainer(trainer)
     return trainer

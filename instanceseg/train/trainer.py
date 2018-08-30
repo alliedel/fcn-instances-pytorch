@@ -45,6 +45,9 @@ class Trainer(object):
         # Model
         self.model = model
 
+        # Problem setup objects
+        self.instance_problem = instance_problem
+
         # Loss
         self.size_average = size_average
         self.matching_loss = matching_loss
@@ -63,9 +66,6 @@ class Trainer(object):
         self.loader_semantic_lbl_only = loader_semantic_lbl_only
         self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
         self.generate_new_synthetic_data_each_epoch = generate_new_synthetic_data_each_epoch
-
-        # Problem setup objects
-        self.instance_problem = instance_problem
 
         # Exporting objects
         self.exporter = exporter
@@ -225,7 +225,7 @@ class Trainer(object):
             val_loss += val_loss_mb
 
         val_loss /= len(data_loader)
-        self.exporter.update_after_validation_epoch(split)
+        val_metrics = self.exporter.update_after_validation_epoch(split)
 
         if training:
             self.model.train()

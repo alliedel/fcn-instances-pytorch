@@ -120,9 +120,6 @@ class TrainerExporter(object):
                  activation_layers_to_export=(), write_activation_condition=should_write_activations,
                  write_instance_metrics=True):
 
-        # 'Parent' object for proxies
-        self._trainer = trainer
-
         # Helper objects
         self.tensorboard_writer = tensorboard_writer
 
@@ -143,7 +140,7 @@ class TrainerExporter(object):
         self.val_losses_stored = []
         self.train_losses_stored = []
         self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
-        self.state.iterations_for_losses_stored = []
+        self.iterations_for_losses_stored = []
 
         # Writing activations
         self.export_activations = export_activations
@@ -161,16 +158,7 @@ class TrainerExporter(object):
         # Exporting parameters
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
 
-        metric_maker_kwargs = {
-            'problem_config': self.instance_problem,
-            'component_loss_function': self._trainer.loss_fcn,
-            'augment_function_img_sem': self._trainer.augment_image if self._trainer.augment_input_with_semantic_masks
-            else None
-        }
-        self.metric_makers = {
-            'val': metrics.InstanceMetrics(self._trainer.val_loader, **metric_maker_kwargs),
-            'train_for_val': metrics.InstanceMetrics(self._trainer.train_loader_for_val, **metric_maker_kwargs)
-        }
+        self.metric_makers = None  # populated in link_to_trainer
 
         # Current state
         self.last_val_iteration = None
@@ -189,8 +177,22 @@ class TrainerExporter(object):
         }
         self.best_mean_iu = 0
 
+        self._trainer = None
+        if trainer is not None:
+            self.link_to_trainer(trainer)
+
     def link_to_trainer(self, trainer):
         self._trainer = trainer
+        metric_maker_kwargs = {
+            'problem_config': self.instance_problem,
+            'component_loss_function': self._trainer.loss_fcn,
+            'augment_function_img_sem': self._trainer.augment_image if self._trainer.augment_input_with_semantic_masks
+            else None
+        }
+        self.metric_makers = {
+            'val': metrics.InstanceMetrics(self._trainer.val_loader, **metric_maker_kwargs),
+            'train_for_val': metrics.InstanceMetrics(self._trainer.train_loader_for_val, **metric_maker_kwargs)
+        }
 
     def continue_validation_iterations(self, split):
         return self.write_val_evaluation_metrics or self.update_best_checkpoint or \
@@ -198,14 +200,20 @@ class TrainerExporter(object):
 
     @property
     def state(self):
+        if self._trainer is None:
+            raise Exception('Link trainer with link_to_trainer function before accessing state.')
         return self._trainer.state
 
     @property
     def model(self):
+        if self._trainer is None:
+            raise Exception('Link trainer with link_to_trainer function before accessing state.')
         return self._trainer.model
 
     @property
     def instance_problem(self):
+        if self._trainer is None:
+            raise Exception('Link trainer with link_to_trainer function before accessing state.')
         return self._trainer.instance_problem
 
     def val_visualization_quota_has_been_met(self, split):
@@ -258,6 +266,7 @@ class TrainerExporter(object):
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
                                                    self.state.iteration)
+        return val_metrics
 
     def compute_evaluation_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
         if permutations is not None:
@@ -458,7 +467,7 @@ class TrainerExporter(object):
         lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
         metrics_list = []
         for sem_lbl_np, inst_lbl_np, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
-            lt_combined = self._trainer.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+            lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
             acc, acc_cls, mean_iu, fwavacc = \
                 self.compute_evaluation_metrics(label_trues=[lt_combined], label_preds=[lp],
                                                 permutations=[pred_permutations])
@@ -508,7 +517,7 @@ class TrainerExporter(object):
             inst_lbl_np = lbl_untransformed[1]
 
             pp = pred_permutations[idx, :]
-            lt_combined = self._trainer.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+            lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
             list_true_labels_combined.append(lt_combined)
             list_pred_labels_combined.append(lp)
 
@@ -517,7 +526,7 @@ class TrainerExporter(object):
                 softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
                 sp = softmax_scores[idx, :, :, :]
                 viz_score, viz_segmentation = self.generate_visualizations_for_one_minibatch(
-                    score, lp, lt_combined, pp, img_untransformed)
+                    sp, lp, lt_combined, pp, img_untransformed)
 
                 self.score_visualizations[split].append(viz_score)
                 self.segmentation_visualizations[split].append(viz_segmentation)
@@ -566,9 +575,9 @@ class TrainerExporter(object):
         return viz_score, viz_segmentation
 
 
-def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
-    semantic_instance_class_list = self.instance_problem.semantic_instance_class_list
-    instance_count_id_list = self.instance_problem.instance_count_id_list
-    return instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl,
-                                                               semantic_instance_class_list,
-                                                               instance_count_id_list)
+    def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
+        semantic_instance_class_list = self.instance_problem.semantic_instance_class_list
+        instance_count_id_list = self.instance_problem.instance_count_id_list
+        return instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl,
+                                                                   semantic_instance_class_list,
+                                                                   instance_count_id_list)

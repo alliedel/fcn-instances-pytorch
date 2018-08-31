@@ -1,4 +1,3 @@
-import datetime
 import math
 import os
 import os.path as osp
@@ -6,7 +5,6 @@ import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pytz
 import torch
 import torch.nn.functional as F
 import tqdm
@@ -105,25 +103,6 @@ class Trainer(object):
         if not osp.exists(self.out):
             os.makedirs(self.out)
 
-        self.log_headers = [
-            'epoch',
-            'iteration',
-            'train/losses',
-            'train/acc',
-            'train/acc_cls',
-            'train/mean_iu',
-            'train/fwavacc',
-            'valid/losses',
-            'valid/acc',
-            'valid/acc_cls',
-            'valid/mean_iu',
-            'valid/fwavacc',
-            'elapsed_time',
-        ]
-        if not osp.exists(osp.join(self.out, 'log.csv')):
-            with open(osp.join(self.out, 'log.csv'), 'w') as f:
-                f.write(','.join(self.log_headers) + '\n')
-
         self.epoch = 0
         self.iteration = 0
         self.max_iter = max_iter
@@ -142,6 +121,31 @@ class Trainer(object):
             'val': metrics.InstanceMetrics(self.val_loader, **metric_maker_kwargs),
             'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val, **metric_maker_kwargs)
         }
+
+    def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
+        """
+        Loads data and transforms it into Variable based on GPUs, input augmentations, and loader type (if semantic)
+        requires_grad: True if training; False if you're not planning to backprop through (for validation / metrics)
+        """
+        if not self.loader_semantic_lbl_only:
+            (sem_lbl, inst_lbl) = target
+        else:
+            assert self.use_semantic_loss, 'Can''t run instance losses if loader is semantic labels only.  Set ' \
+                                           'use_semantic_loss to True'
+            assert type(target) is not tuple
+            sem_lbl = target
+            inst_lbl = torch.zeros_like(sem_lbl)
+            inst_lbl[sem_lbl == -1] = -1
+
+        if self.cuda:
+            img_data, (sem_lbl, inst_lbl) = img_data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
+        full_input = img_data if not self.augment_input_with_semantic_masks \
+            else self.augment_image(img_data, sem_lbl)
+        full_input, sem_lbl, inst_lbl = \
+            Variable(full_input, volatile=requires_grad), \
+            Variable(sem_lbl, requires_grad=requires_grad), \
+            Variable(inst_lbl, requires_grad=requires_grad)
+        return full_input, sem_lbl, inst_lbl
 
     def build_my_loss_function(self, matching_override=None):
         print('self.loss_type = {}'.format(self.loss_type))  # TODO(allie): remove this debug print statement
@@ -205,22 +209,10 @@ class Trainer(object):
         label_trues, label_preds, scores, pred_permutations = [], [], [], []
         visualizations_need_to_be_exported = True if should_export_visualizations else False
         num_images_to_visualize = min(len(data_loader), 9)
-        for batch_idx, (data, lbls) in tqdm.tqdm(
+        for batch_idx, (img_data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
                 leave=False):
-            if not self.loader_semantic_lbl_only:
-                (sem_lbl, inst_lbl) = lbls
-                if self.use_semantic_loss:
-                    inst_lbl = torch.zeros_like(sem_lbl)
-                    inst_lbl[sem_lbl == -1] = -1
-            else:
-                assert self.use_semantic_loss, 'Can''t run instance losses if loader is semantic labels only.  Set ' \
-                                               'use_semantic_loss to True'
-                assert type(lbls) is not tuple
-                sem_lbl = lbls
-                inst_lbl = torch.zeros_like(sem_lbl)
-                inst_lbl[sem_lbl == -1] = -1
 
             should_visualize = len(segmentation_visualizations) < num_images_to_visualize
             if not (should_compute_basic_metrics or should_visualize):
@@ -228,7 +220,7 @@ class Trainer(object):
                 continue
             true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
             segmentation_visualizations_sb, score_visualizations_sb = \
-                self.validate_single_batch(data, sem_lbl, inst_lbl, data_loader=data_loader,
+                self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                            should_visualize=should_visualize)
             if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
                 self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
@@ -394,20 +386,17 @@ class Trainer(object):
         segmentation_visualizations = []
         score_visualizations = []
         val_loss = 0
-        if self.cuda:
-            img_data, (sem_lbl, inst_lbl) = img_data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
-        # TODO(allie): Don't turn target into variables yet here? (Not yet sure if this works
-        # before we've actually combined the semantic and instance labels...)
-        full_data = img_data if not self.augment_input_with_semantic_masks \
-            else self.augment_image(img_data, sem_lbl)
-        imgs = img_data.cpu()
-        full_data, sem_lbl, inst_lbl = Variable(full_data, volatile=True), Variable(sem_lbl), Variable(inst_lbl)
 
-        score = self.model(full_data)
+        full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, (sem_lbl, inst_lbl),
+                                                                           requires_grad=False)
+
+        imgs = img_data.cpu()
+
+        score = self.model(full_input)
         pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
         if is_nan(loss.data[0]):
             raise ValueError('losses is nan while validating')
-        val_loss += float(loss.data[0]) / len(full_data)
+        val_loss += float(loss.data[0]) / len(full_input)
 
         softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
         inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
@@ -483,8 +472,6 @@ class Trainer(object):
 
     def train_epoch(self):
         self.model.train()
-        # n_class = len(self.train_loader.dataset.class_names)
-        # n_class = self.model.n_classes
         last_score, last_last_score, last_loss, last_last_loss = None, None, None, None
 
         if self.generate_new_synthetic_data_each_epoch:
@@ -516,28 +503,16 @@ class Trainer(object):
                                                            self.iteration)
 
             assert self.model.training
-            if not self.loader_semantic_lbl_only:
-                (sem_lbl, inst_lbl) = target
-            else:
-                assert type(target) is not tuple
-                sem_lbl = target
-                inst_lbl = torch.zeros_like(sem_lbl)
-                inst_lbl[sem_lbl == -1] = -1
-
-            if self.cuda:
-                img_data, (sem_lbl, inst_lbl) = img_data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
-            full_data = img_data if not self.augment_input_with_semantic_masks \
-                else self.augment_image(img_data, sem_lbl)
-            full_data, sem_lbl, inst_lbl = Variable(full_data), Variable(sem_lbl), Variable(inst_lbl)
+            full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=False)
             self.optim.zero_grad()
 
-            score = self.model(full_data)
+            score = self.model(full_input)
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
             if is_nan(loss.data[0]):
                 import ipdb;
                 ipdb.set_trace()
                 raise ValueError('losses is nan while training')
-            loss /= len(full_data)
+            loss /= len(full_input)
             if loss.data[0] > 1e4:
                 print('WARNING: losses={} at iteration {}'.format(loss.data[0], self.iteration))
             if any_nan(score.data):
@@ -565,13 +540,13 @@ class Trainer(object):
 
             if self.tensorboard_writer is not None:
                 self.model.eval()
-                new_score = self.model(full_data)
+                new_score = self.model(full_input)
                 if any_nan(new_score.data):
                     import ipdb;
                     ipdb.set_trace()
                     raise ValueError('new_score became nan while training')
                 new_pred_permutations, new_loss, _ = self.compute_loss(new_score, sem_lbl, inst_lbl)
-                new_loss /= len(full_data)
+                new_loss /= len(full_input)
                 loss_improvement = loss.data[0] - new_loss.data[0]
                 self.model.train()
 
@@ -583,7 +558,7 @@ class Trainer(object):
                 if self.export_activations and self.write_activation_condition(iteration=self.iteration, \
                                                                                epoch=self.epoch,
                                                                                interval_validate=self.interval_validate):
-                    self.retrieve_and_write_batch_activations(full_data)
+                    self.retrieve_and_write_batch_activations(full_input)
                 if is_nan(new_loss.data[0]):
                     import ipdb;
                     ipdb.set_trace()

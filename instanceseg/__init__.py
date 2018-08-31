@@ -2,4 +2,4 @@
 from . import datasets
 from . import models
 from . import utils
-from .trainer import Trainer
+from instanceseg.train.trainer import Trainer

@@ -9,7 +9,7 @@ import torch
 import tqdm
 
 import instanceseg
-from instanceseg import instance_utils
+from instanceseg.utils import instance_utils
 from instanceseg.datasets import voc
 
 configurations = {

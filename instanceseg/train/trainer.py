@@ -17,12 +17,12 @@ import instanceseg.losses.loss
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
 import instanceseg.utils.misc
-from instanceseg import instance_utils, metrics
+from instanceseg.train import metrics
 from instanceseg.analysis import visualization_utils
 from instanceseg.analysis.visualization_utils import export_visualizations
 from instanceseg.datasets import runtime_transformations
 from instanceseg.models.model_utils import is_nan, any_nan
-from instanceseg.utils import datasets
+from instanceseg.utils import datasets, instance_utils
 from instanceseg.utils.misc import flatten_dict
 
 MY_TIMEZONE = 'America/New_York'

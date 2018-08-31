@@ -11,7 +11,7 @@ from os import path as osp
 import scipy.misc
 
 import instanceseg.utils.export
-from instanceseg import instance_utils
+from instanceseg.utils import instance_utils
 
 try:
     import cv2

@@ -1,5 +1,6 @@
 from tensorboardX import SummaryWriter
 
+from instanceseg.train import metrics
 import instanceseg
 
 

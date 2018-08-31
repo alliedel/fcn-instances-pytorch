@@ -15,7 +15,7 @@ import instanceseg.utils.configs
 import instanceseg.utils.logs
 import instanceseg.utils.misc
 import instanceseg.utils.scripts
-from instanceseg import instance_utils
+from instanceseg.utils import instance_utils
 
 default_config = dict(
     max_iteration=100000,

@@ -6,7 +6,7 @@ except ImportError:
     fcn = None
 import torch
 import torch.nn as nn
-from instanceseg import instance_utils
+from instanceseg.utils import instance_utils
 
 from instanceseg.models import model_utils, attention
 

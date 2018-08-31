@@ -3,7 +3,6 @@ import os
 import os.path as osp
 import shutil
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -12,7 +11,6 @@ from torch.autograd import Variable
 
 import instanceseg
 import instanceseg.losses.loss
-import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
 import instanceseg.utils.misc
 from instanceseg.train import metrics, trainer_exporter
@@ -89,10 +87,6 @@ class Trainer(object):
 
         # Stored values
         self.last_val_loss = None
-        self.val_losses_stored = []
-        self.train_losses_stored = []
-        self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
-        self.iterations_for_losses_stored = []
 
         if interval_validate is None:
             self.interval_validate = len(self.train_loader)
@@ -148,7 +142,6 @@ class Trainer(object):
         return full_input, sem_lbl, inst_lbl
 
     def build_my_loss_function(self, matching_override=None):
-        print('self.loss_type = {}'.format(self.loss_type))  # TODO(allie): remove this debug print statement
         # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
         matching = matching_override if matching_override is not None else self.matching_loss
         my_loss_fcn = instanceseg.losses.loss.loss_2d_factory(  # f(scores, sem_lbl, inst_lbl)
@@ -472,7 +465,7 @@ class Trainer(object):
 
     def train_epoch(self):
         self.model.train()
-        last_score, last_last_score, last_loss, last_last_loss = None, None, None, None
+        last_loss = None
 
         if self.generate_new_synthetic_data_each_epoch:
             seed = np.random.randint(100)
@@ -497,13 +490,13 @@ class Trainer(object):
                           'via train_for_val dataloader')
                     train_loss = None
                 if train_loss is not None:
-                    self.update_mpl_joint_train_val_loss_figure(train_loss, val_loss)
+                    self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, iteration)
                     if self.tensorboard_writer is not None:
                         self.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
                                                            self.iteration)
 
             assert self.model.training
-            full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=False)
+            full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=True)
             self.optim.zero_grad()
 
             score = self.model(full_input)
@@ -563,11 +556,6 @@ class Trainer(object):
                     import ipdb;
                     ipdb.set_trace()
                     raise ValueError('new_loss is nan while training')
-            if last_score is not None:
-                last_last_score = last_score.clone()
-            if last_loss is not None:
-                last_last_loss = last_loss.clone()
-            last_score = score.data.clone()
             last_loss = loss.data.clone()
 
     def train(self):
@@ -578,56 +566,3 @@ class Trainer(object):
             self.train_epoch()
             if self.iteration >= self.max_iter:
                 break
-
-    def update_mpl_joint_train_val_loss_figure(self, train_loss, val_loss):
-        assert train_loss is not None, ValueError
-        assert val_loss is not None, ValueError
-        figure_name = 'train/val losses'
-        ylim_buffer_size = 3
-        self.train_losses_stored.append(train_loss)
-        self.val_losses_stored.append(val_loss)
-
-        self.iterations_for_losses_stored.append(self.iteration)
-        if self.joint_train_val_loss_mpl_figure is None:
-            self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
-            display_pyutils.set_my_rc_defaults()
-
-        h = plt.figure(figure_name)
-
-        plt.clf()
-        train_label = 'train losses: ' + 'last epoch of images: {}'.format(len(self.train_loader)) if \
-            self.generate_new_synthetic_data_each_epoch else '{} images'.format(len(self.train_loader_for_val))
-        val_label = 'val losses: ' + '{} images'.format(len(self.val_loader))
-
-        plt.plot(self.iterations_for_losses_stored, self.train_losses_stored, label=train_label,
-                 color=display_pyutils.GOOD_COLORS_BY_NAME['blue'])
-        plt.plot(self.iterations_for_losses_stored, self.val_losses_stored, label=val_label,
-                 color=display_pyutils.GOOD_COLORS_BY_NAME['aqua'])
-        plt.xlabel('iteration')
-        plt.legend()
-        # Set y limits for just the last 10 datapoints
-        last_x = max(len(self.train_losses_stored), len(self.val_losses_stored))
-        if last_x >= 0:
-            ymin = min(min(self.train_losses_stored[(last_x - ylim_buffer_size - 1):]),
-                       min(self.val_losses_stored[(last_x - ylim_buffer_size - 1):]))
-            ymax = max(max(self.train_losses_stored[(last_x - ylim_buffer_size - 1):]),
-                       max(self.val_losses_stored[(last_x - ylim_buffer_size - 1):]))
-        else:
-            ymin, ymax = None, None
-        if self.tensorboard_writer is not None:
-            instanceseg.utils.export.log_plots(self.tensorboard_writer, 'joint_loss', [h], self.iteration)
-        filename = os.path.join(self.out, 'val_train_loss.png')
-        h.savefig(filename)
-
-        # zoom
-        zoom_filename = os.path.join(self.out, 'val_train_loss_zoom_last_{}.png'.format(ylim_buffer_size))
-        if ymin is not None:
-            plt.ylim(ymin=ymin, ymax=ymax)
-            plt.xlim(xmin=(last_x - ylim_buffer_size - 1), xmax=last_x)
-            if self.tensorboard_writer is not None:
-                instanceseg.utils.export.log_plots(self.tensorboard_writer,
-                                                   'joint_loss_last_{}'.format(ylim_buffer_size),
-                                                   [h], self.iteration)
-            h.savefig(zoom_filename)
-        else:
-            shutil.copyfile(filename, zoom_filename)

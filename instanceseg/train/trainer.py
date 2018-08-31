@@ -17,15 +17,13 @@ import instanceseg.losses.loss
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
 import instanceseg.utils.misc
-from instanceseg.train import metrics
+from instanceseg.train import metrics, trainer_exporter
 from instanceseg.analysis import visualization_utils
 from instanceseg.analysis.visualization_utils import export_visualizations
 from instanceseg.datasets import runtime_transformations
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.utils import datasets, instance_utils
 from instanceseg.utils.misc import flatten_dict
-
-MY_TIMEZONE = 'America/New_York'
 
 DEBUG_ASSERTS = True
 
@@ -41,15 +39,15 @@ def should_write_activations(iteration, epoch, interval_validate):
 
 
 class Trainer(object):
-    def __init__(self, cuda, model, optimizer,
-                 train_loader, val_loader, out, max_iter, instance_problem,
+    def __init__(self, cuda, model, optimizer, train_loader, val_loader, out_dir, max_iter, instance_problem,
                  size_average=True, interval_validate=None, loss_type='cross_entropy', matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
-                 use_semantic_loss=False, augment_input_with_semantic_masks=False,
-                 export_activations=False, activation_layers_to_export=(),
-                 write_activation_condition=should_write_activations,
-                 write_instance_metrics=True,
-                 generate_new_synthetic_data_each_epoch=False):
+                 use_semantic_loss=False, augment_input_with_semantic_masks=False, export_activations=False,
+                 activation_layers_to_export=(), write_activation_condition=should_write_activations,
+                 write_instance_metrics=True, generate_new_synthetic_data_each_epoch=False):
+
+        self.exporter = trainer_exporter.TrainerExporter(out_dir=out_dir, instance_problem=instance_problem,
+                                                         tensorboard_writer=tensorboard_writer)
         # System parameters
         self.cuda = cuda
 
@@ -66,10 +64,6 @@ class Trainer(object):
 
         # Problem setup objects
         self.instance_problem = instance_problem
-
-        # Logging parameters
-        self.timestamp_start = \
-            datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
 
         # Exporting objects
         self.tensorboard_writer = tensorboard_writer
@@ -107,7 +101,7 @@ class Trainer(object):
         else:
             self.interval_validate = interval_validate
 
-        self.out = out
+        self.out = out_dir
         if not osp.exists(self.out):
             os.makedirs(self.out)
 
@@ -260,7 +254,7 @@ class Trainer(object):
         if should_compute_basic_metrics:
             val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
             if write_basic_metrics:
-                self.write_metrics(val_metrics, val_loss, split)
+                self.exporter.write_metrics(val_metrics, val_loss, split, epoch=self.epoch, iteration=self.iteration)
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split),
                                                        val_loss, self.iteration)
@@ -370,26 +364,6 @@ class Trainer(object):
         metrics_list = instanceseg.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
                                                                    n_class=self.n_combined_class)
         return metrics_list
-
-    def write_metrics(self, metrics, loss, split):
-        with open(osp.join(self.out, 'log.csv'), 'a') as f:
-            elapsed_time = (
-                    datetime.datetime.now(pytz.timezone(MY_TIMEZONE)) -
-                    self.timestamp_start).total_seconds()
-            if split == 'val':
-                log = [self.epoch, self.iteration] + [''] * 5 + \
-                      [loss] + list(metrics) + [elapsed_time]
-            elif split == 'train':
-                try:
-                    metrics_as_list = metrics.tolist()
-                except:
-                    metrics_as_list = list(metrics)
-                log = [self.epoch, self.iteration] + [loss] + \
-                      metrics_as_list + [''] * 5 + [elapsed_time]
-            else:
-                raise ValueError('split not recognized')
-            log = map(str, log)
-            f.write(','.join(log) + '\n')
 
     def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
         outdir = outdir or osp.join(self.out, 'visualization_viz')
@@ -585,7 +559,7 @@ class Trainer(object):
                     self.compute_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[pred_permutations])
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))
             metrics = np.mean(metrics, axis=0)
-            self.write_metrics(metrics, loss, split='train')
+            self.exporter.write_metrics(metrics, loss, split='train', epoch=self.epoch, iteration=self.iteration)
             if self.iteration >= self.max_iter:
                 break
 

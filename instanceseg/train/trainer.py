@@ -1,7 +1,6 @@
 import math
 import os
 import os.path as osp
-import shutil
 
 import numpy as np
 import torch
@@ -170,22 +169,19 @@ class Trainer(object):
         return datasets.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
                                          (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
 
-    def validate(self, split='val', write_basic_metrics=None, write_instance_metrics=None, save_checkpoint=None,
-                 update_best_checkpoint=None, should_export_visualizations=True):
+    def validate(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
+                 should_export_visualizations=True):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
         If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
             False.
         """
         val_metrics = None
+        save_checkpoint = (split == 'val')
         write_instance_metrics = (split == 'val') and self.write_instance_metrics \
             if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
-        save_checkpoint = (split == 'val') if save_checkpoint is None else save_checkpoint
-        update_best_checkpoint = save_checkpoint if update_best_checkpoint is None \
-            else update_best_checkpoint
-        should_compute_basic_metrics = \
-            write_basic_metrics or write_instance_metrics or save_checkpoint or update_best_checkpoint
+        should_compute_basic_metrics = write_basic_metrics or write_instance_metrics or save_checkpoint
 
         assert split in ['train', 'val']
         if split == 'train':
@@ -248,9 +244,7 @@ class Trainer(object):
                                                                 self.state.iteration)
 
             if save_checkpoint:
-                self.save_checkpoint()
-            if update_best_checkpoint:
-                self.update_best_checkpoint_if_best(mean_iu=val_metrics[2])
+                self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2])
         if write_instance_metrics:
             self.exporter.compute_and_write_instance_metrics(model=self.model, iteration=self.state.iteration)
 
@@ -273,7 +267,7 @@ class Trainer(object):
         else:
             label_preds_permuted = label_preds
         eval_metrics_list = instanceseg.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
-                                                                   n_class=self.n_combined_class)
+                                                                        n_class=self.n_combined_class)
         return eval_metrics_list
 
     def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
@@ -282,22 +276,12 @@ class Trainer(object):
                               basename=basename,
                               tile=tile)
 
-    def save_checkpoint(self):
-        torch.save({
-            'epoch': self.state.epoch,
-            'iteration': self.state.iteration,
-            'arch': self.model.__class__.__name__,
-            'optim_state_dict': self.optim.state_dict(),
-            'model_state_dict': self.model.state_dict(),
-            'best_mean_iu': self.best_mean_iu,
-        }, osp.join(self.out, 'checkpoint.pth.tar'))
-
-    def update_best_checkpoint_if_best(self, mean_iu):
-        is_best = mean_iu > self.best_mean_iu
-        if is_best:
+    def save_checkpoint_and_update_if_best(self, mean_iu):
+        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch, self.state.iteration, self.model,
+                                                                self.optim, self.best_mean_iu)
+        if mean_iu > self.best_mean_iu:
             self.best_mean_iu = mean_iu
-            shutil.copy(osp.join(self.out, 'checkpoint.pth.tar'),
-                        osp.join(self.out, 'model_best.pth.tar'))
+            self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
 
     def validate_single_batch(self, img_data, sem_lbl, inst_lbl, data_loader, should_visualize):
         true_labels = []

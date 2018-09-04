@@ -9,7 +9,17 @@ import pytz
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
 
+import torch
+import tqdm
+
 MY_TIMEZONE = 'America/New_York'
+
+
+def should_write_activations(iteration, epoch, interval_validate):
+    if iteration < 3000:
+        return True
+    else:
+        return False
 
 
 class TrainerExporter(object):
@@ -29,7 +39,8 @@ class TrainerExporter(object):
         'elapsed_time',
     ]
 
-    def __init__(self, out_dir, instance_problem, tensorboard_writer=None):
+    def __init__(self, out_dir, instance_problem, tensorboard_writer=None, export_activations=False,
+                 activation_layers_to_export=()):
 
         # Copies of things the trainer was given access to
         self.instance_problem = instance_problem
@@ -53,6 +64,11 @@ class TrainerExporter(object):
         self.train_losses_stored = []
         self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
         self.iterations_for_losses_stored = []
+
+        self.write_activation_condition=should_write_activations
+        # Writing activations
+        self.export_activations = export_activations
+        self.activation_layers_to_export = activation_layers_to_export
 
     def write_metrics(self, metrics, loss, split, epoch, iteration):
         with open(osp.join(self.out_dir, 'log.csv'), 'a') as f:
@@ -125,3 +141,49 @@ class TrainerExporter(object):
             h.savefig(zoom_filename)
         else:
             shutil.copyfile(filename, zoom_filename)
+
+    def retrieve_and_write_batch_activations(self, batch_input, iteration,
+                                             get_activations_fcn):
+        """
+        get_activations_fcn: example in FCN8sInstance.get_activations(batch_input, layer_names)
+        """
+        if self.tensorboard_writer is not None:
+            activations = get_activations_fcn(batch_input, self.activation_layers_to_export)
+            histogram_activations = activations
+            for name, activations in tqdm.tqdm(histogram_activations.items(),
+                                               total=len(histogram_activations.items()),
+                                               desc='Writing activation distributions', leave=False):
+                if name == 'upscore8':
+                    channel_labels = self.instance_problem.get_model_channel_labels('{}_{}')
+                    assert activations.size(1) == len(channel_labels), '{} != {}'.format(activations.size(1),
+                                                                                         len(channel_labels))
+                    for c, channel_label in enumerate(channel_labels):
+                        self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
+                                                              activations[:, c, :, :].cpu().numpy(),
+                                                              iteration, bins='auto')
+                elif name == 'conv1x1_instance_to_semantic':
+                    channel_labels = self.instance_problem.get_channel_labels('{}_{}')
+                    assert activations.size(1) == len(channel_labels)
+                    for c, channel_label in enumerate(channel_labels):
+                        try:
+                            self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
+                                                                  activations[:, c, :, :].cpu().numpy(),
+                                                                  iteration, bins='auto')
+                        except IndexError as ie:
+                            print('WARNING: Didn\'t write activations.  IndexError: {}'.format(ie))
+                elif name == 'conv1_1':
+                    # This is expensive to write, so we'll just write a representative set.
+                    min = torch.min(activations)
+                    max = torch.max(activations)
+                    mean = torch.mean(activations)
+                    representative_set = np.ndarray((100, 3))
+                    representative_set[:, 0] = min
+                    representative_set[:, 1] = max
+                    representative_set[:, 2] = mean
+                    self.tensorboard_writer.add_histogram('batch_activations/{}/min_mean_max_all_channels'.format(name),
+                                                          representative_set, iteration, bins='auto')
+                    continue
+
+                self.tensorboard_writer.add_histogram('batch_activations/{}/all_channels'.format(name),
+                                                      activations.cpu().numpy(), iteration, bins='auto')
+

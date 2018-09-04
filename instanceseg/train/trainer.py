@@ -21,25 +21,29 @@ from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.utils import datasets, instance_utils
 from instanceseg.utils.misc import flatten_dict
 
+from instanceseg.models.fcn8s_instance import FCN8sInstance
+
 DEBUG_ASSERTS = True
 
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
 
 
-def should_write_activations(iteration, epoch, interval_validate):
-    if iteration < 3000:
-        return True
-    else:
-        return False
+class TrainingState(object):
+    def __init__(self, max_iteration):
+        self.iteration = 0
+        self.epoch = 0
+        self.max_iteration = max_iteration
+
+    def training_complete(self):
+        return self.iteration >= self.max_iteration
 
 
 class Trainer(object):
-    def __init__(self, cuda, model, optimizer, train_loader, val_loader, out_dir, max_iter, instance_problem,
+    def __init__(self, cuda, model: FCN8sInstance, optimizer, train_loader, val_loader, out_dir, max_iter, instance_problem,
                  size_average=True, interval_validate=None, loss_type='cross_entropy', matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
-                 use_semantic_loss=False, augment_input_with_semantic_masks=False, export_activations=False,
-                 activation_layers_to_export=(), write_activation_condition=should_write_activations,
+                 use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  write_instance_metrics=True, generate_new_synthetic_data_each_epoch=False):
 
         self.exporter = trainer_exporter.TrainerExporter(out_dir=out_dir, instance_problem=instance_problem,
@@ -79,10 +83,6 @@ class Trainer(object):
         self.augment_input_with_semantic_masks = augment_input_with_semantic_masks
         self.generate_new_synthetic_data_each_epoch = generate_new_synthetic_data_each_epoch
 
-        # Writing activations
-        self.export_activations = export_activations
-        self.activation_layers_to_export = activation_layers_to_export
-        self.write_activation_condition = write_activation_condition
         self.write_instance_metrics = write_instance_metrics
 
         # Stored values
@@ -97,9 +97,7 @@ class Trainer(object):
         if not osp.exists(self.out):
             os.makedirs(self.out)
 
-        self.epoch = 0
-        self.iteration = 0
-        self.max_iter = max_iter
+        self.state = TrainingState(max_iteration=max_iter)
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
         self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
@@ -154,8 +152,6 @@ class Trainer(object):
         # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
         map_to_semantic = self.instance_problem.map_to_semantic
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2), score.size(3))):
-            import ipdb;
-            ipdb.set_trace()
             raise Exception('Sizes of score, targets are incorrect')
 
         if map_to_semantic:
@@ -204,7 +200,7 @@ class Trainer(object):
         num_images_to_visualize = min(len(data_loader), 9)
         for batch_idx, (img_data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
-                desc='Valid iteration (split=%s)=%d' % (split, self.iteration), ncols=80,
+                desc='Valid iteration (split=%s)=%d' % (split, self.state.iteration), ncols=80,
                 leave=False):
 
             should_visualize = len(segmentation_visualizations) < num_images_to_visualize
@@ -239,12 +235,12 @@ class Trainer(object):
         if should_compute_basic_metrics:
             val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
             if write_basic_metrics:
-                self.exporter.write_metrics(val_metrics, val_loss, split, epoch=self.epoch, iteration=self.iteration)
+                self.exporter.write_metrics(val_metrics, val_loss, split, epoch=self.state.epoch, iteration=self.state.iteration)
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split),
-                                                       val_loss, self.iteration)
+                                                       val_loss, self.state.iteration)
                     self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2],
-                                                       self.iteration)
+                                                       self.state.iteration)
 
             if save_checkpoint:
                 self.save_checkpoint()
@@ -260,47 +256,6 @@ class Trainer(object):
         visualizations = (segmentation_visualizations, score_visualizations)
         return val_metrics, visualizations
 
-    def retrieve_and_write_batch_activations(self, batch_input):
-        if self.tensorboard_writer is not None:
-            activations = self.model.get_activations(batch_input, self.activation_layers_to_export)
-            histogram_activations = activations
-            for name, activations in tqdm.tqdm(histogram_activations.items(),
-                                               total=len(histogram_activations.items()),
-                                               desc='Writing activation distributions', leave=False):
-                if name == 'upscore8':
-                    channel_labels = self.instance_problem.get_model_channel_labels('{}_{}')
-                    assert activations.size(1) == len(channel_labels), '{} != {}'.format(activations.size(1),
-                                                                                         len(channel_labels))
-                    for c, channel_label in enumerate(channel_labels):
-                        self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
-                                                              activations[:, c, :, :].cpu().numpy(),
-                                                              self.iteration, bins='auto')
-                elif name == 'conv1x1_instance_to_semantic':
-                    channel_labels = self.instance_problem.get_channel_labels('{}_{}')
-                    assert activations.size(1) == len(channel_labels)
-                    for c, channel_label in enumerate(channel_labels):
-                        try:
-                            self.tensorboard_writer.add_histogram('batch_activations/{}/{}'.format(name, channel_label),
-                                                                  activations[:, c, :, :].cpu().numpy(),
-                                                                  self.iteration, bins='auto')
-                        except IndexError as ie:
-                            print('WARNING: Didn\'t write activations.  IndexError: {}'.format(ie))
-                elif name == 'conv1_1':
-                    # This is expensive to write, so we'll just write a representative set.
-                    min = torch.min(activations)
-                    max = torch.max(activations)
-                    mean = torch.mean(activations)
-                    representative_set = np.ndarray((100, 3))
-                    representative_set[:, 0] = min
-                    representative_set[:, 1] = max
-                    representative_set[:, 2] = mean
-                    self.tensorboard_writer.add_histogram('batch_activations/{}/min_mean_max_all_channels'.format(name),
-                                                          representative_set, self.iteration, bins='auto')
-                    continue
-
-                self.tensorboard_writer.add_histogram('batch_activations/{}/all_channels'.format(name),
-                                                      activations.cpu().numpy(), self.iteration, bins='auto')
-
     def compute_and_write_instance_metrics(self):
         if self.tensorboard_writer is not None:
             for split, metric_maker in tqdm.tqdm(self.metric_makers.items(), desc='Computing instance metrics',
@@ -311,27 +266,25 @@ class Trainer(object):
                 metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
                 for name, metric in metrics_as_flattened_dict.items():
                     self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric,
-                                                       self.iteration)
+                                                       self.state.iteration)
                 histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
                 histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
-                if self.iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
+                if self.state.iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
                     # if 1:
                     for name, metric in tqdm.tqdm(histogram_metrics_as_flattened_dict.items(),
                                                   total=len(histogram_metrics_as_flattened_dict.items()),
                                                   desc='Writing histogram metrics', leave=False):
                         if torch.is_tensor(metric):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
-                                                                  metric.numpy(), self.iteration, bins='auto')
+                                                                  metric.numpy(), self.state.iteration, bins='auto')
                         elif isinstance(metric, np.ndarray):
                             self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
-                                                                  self.iteration, bins='auto')
+                                                                  self.state.iteration, bins='auto')
                         elif metric is None:
                             import ipdb;
                             ipdb.set_trace()
                             pass
                         else:
-                            import ipdb;
-                            ipdb.set_trace()
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              ' '.format(type(metric), name))
 
@@ -352,13 +305,13 @@ class Trainer(object):
 
     def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
         outdir = outdir or osp.join(self.out, 'visualization_viz')
-        export_visualizations(visualizations, outdir, self.tensorboard_writer, self.iteration, basename=basename,
+        export_visualizations(visualizations, outdir, self.tensorboard_writer, self.state.iteration, basename=basename,
                               tile=tile)
 
     def save_checkpoint(self):
         torch.save({
-            'epoch': self.epoch,
-            'iteration': self.iteration,
+            'epoch': self.state.epoch,
+            'iteration': self.state.iteration,
             'arch': self.model.__class__.__name__,
             'optim_state_dict': self.optim.state_dict(),
             'model_state_dict': self.model.state_dict(),
@@ -425,10 +378,6 @@ class Trainer(object):
 
                 # TODO(allie): Fix this -- bug(?!)
                 lp = np.argmax(sp, axis=0)
-                # try:
-                #     assert np.all(np.argmax(sp, axis=0) == lp)
-                # except:
-                #     import ipdb; ipdb.set_trace()
                 if self.which_heatmaps_to_visualize == 'same semantic':
                     inst_sem_classes_present = torch.np.unique(true_labels)
                     inst_sem_classes_present = inst_sem_classes_present[inst_sem_classes_present != -1]
@@ -474,12 +423,12 @@ class Trainer(object):
 
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
-                desc='Train epoch=%d' % self.epoch, ncols=80, leave=False):
-            iteration = batch_idx + self.epoch * len(self.train_loader)
-            if self.iteration != 0 and (iteration - 1) != self.iteration:
+                desc='Train epoch=%d' % self.state.epoch, ncols=80, leave=False):
+            iteration = batch_idx + self.state.epoch * len(self.train_loader)
+            if self.state.iteration != 0 and (iteration - 1) != self.state.iteration:
                 continue  # for resuming
-            self.iteration = iteration
-            if self.iteration % self.interval_validate == 0:
+            self.state.iteration = iteration
+            if self.state.iteration % self.interval_validate == 0:
                 val_metrics, _ = self.validate()
                 val_loss = self.last_val_loss
                 if self.train_loader_for_val is not None:
@@ -493,7 +442,7 @@ class Trainer(object):
                     self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, iteration)
                     if self.tensorboard_writer is not None:
                         self.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
-                                                           self.iteration)
+                                                           self.state.iteration)
 
             assert self.model.training
             full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=True)
@@ -502,19 +451,15 @@ class Trainer(object):
             score = self.model(full_input)
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
             if is_nan(loss.data[0]):
-                import ipdb;
-                ipdb.set_trace()
                 raise ValueError('losses is nan while training')
             loss /= len(full_input)
             if loss.data[0] > 1e4:
-                print('WARNING: losses={} at iteration {}'.format(loss.data[0], self.iteration))
+                print('WARNING: losses={} at iteration {}'.format(loss.data[0], self.state.iteration))
             if any_nan(score.data):
-                import ipdb;
-                ipdb.set_trace()
                 raise ValueError('score is nan while training')
             if self.tensorboard_writer is not None:
                 self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
-                                                   self.iteration)
+                                                   self.state.iteration)
             loss.backward()
             self.optim.step()
 
@@ -527,16 +472,15 @@ class Trainer(object):
                     self.compute_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[pred_permutations])
                 metrics.append((acc, acc_cls, mean_iu, fwavacc))
             metrics = np.mean(metrics, axis=0)
-            self.exporter.write_metrics(metrics, loss, split='train', epoch=self.epoch, iteration=self.iteration)
-            if self.iteration >= self.max_iter:
+            self.exporter.write_metrics(metrics, loss, split='train', epoch=self.state.epoch,
+                                        iteration=self.state.iteration)
+            if self.state.training_complete():
                 break
 
             if self.tensorboard_writer is not None:
                 self.model.eval()
                 new_score = self.model(full_input)
                 if any_nan(new_score.data):
-                    import ipdb;
-                    ipdb.set_trace()
                     raise ValueError('new_score became nan while training')
                 new_pred_permutations, new_loss, _ = self.compute_loss(new_score, sem_lbl, inst_lbl)
                 new_loss /= len(full_input)
@@ -544,25 +488,23 @@ class Trainer(object):
                 self.model.train()
 
                 self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,
-                                                   self.iteration)
+                                                   self.state.iteration)
                 self.tensorboard_writer.add_scalar('metrics/reassignment',
                                                    np.sum(new_pred_permutations != pred_permutations),
-                                                   self.iteration)
-                if self.export_activations and self.write_activation_condition(iteration=self.iteration, \
-                                                                               epoch=self.epoch,
-                                                                               interval_validate=self.interval_validate):
-                    self.retrieve_and_write_batch_activations(full_input)
+                                                   self.state.iteration)
+                if self.exporter.export_activations and self.exporter.write_activation_condition(
+                        iteration=self.state.iteration, epoch=self.state.epoch, interval_validate=self.interval_validate):
+                    self.exporter.retrieve_and_write_batch_activations(batch_input=full_input, iteration=self.state.iteration,
+                                                                       get_activations_fcn=self.model.get_activations)
                 if is_nan(new_loss.data[0]):
-                    import ipdb;
-                    ipdb.set_trace()
                     raise ValueError('new_loss is nan while training')
             last_loss = loss.data.clone()
 
     def train(self):
-        max_epoch = int(math.ceil(1. * self.max_iter / len(self.train_loader)))
-        for epoch in tqdm.trange(self.epoch, max_epoch,
+        max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.train_loader)))
+        for epoch in tqdm.trange(self.state.epoch, max_epoch,
                                  desc='Train', ncols=80, leave=True):
-            self.epoch = epoch
+            self.state.epoch = epoch
             self.train_epoch()
-            if self.iteration >= self.max_iter:
+            if self.state.training_complete():
                 break

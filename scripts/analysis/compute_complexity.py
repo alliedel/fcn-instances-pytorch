@@ -40,7 +40,7 @@ def setup():
 def main():
     trainer = setup()
     trainer.train()
-    metrics, _ = trainer.validate(
+    val_loss, metrics, _ = trainer.validate(
         should_export_visualizations=False, split='train')
     print('Training set mean IU: {}'.format(metrics[2]))
 

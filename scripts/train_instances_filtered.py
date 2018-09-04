@@ -86,12 +86,13 @@ def setup(args, cfg, out_dir, sampler_cfg):
 
 def run(trainer):
     trainer.train()
-    metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(should_export_visualizations=False)
+    val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(
+        should_export_visualizations=False)
     viz = visualization_utils.get_tile_image(segmentation_visualizations)
     skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
-    metrics = np.array(metrics)
-    metrics *= 100
-    return metrics
+    eval_metrics = np.array(eval_metrics)
+    eval_metrics *= 100
+    return eval_metrics
 
 
 def configure():

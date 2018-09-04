@@ -257,7 +257,7 @@ class Trainer(object):
             self.model.train()
 
         visualizations = (segmentation_visualizations, score_visualizations)
-        return val_metrics, visualizations
+        return val_loss, val_metrics, visualizations
 
     def compute_eval_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
         if permutations is not None:
@@ -400,20 +400,16 @@ class Trainer(object):
                 continue  # for resuming
             self.state.iteration = iteration
             if self.state.iteration % self.interval_validate == 0:
-                val_metrics, _ = self.validate()
-                val_loss = self.last_val_loss
+                val_loss, val_metrics, _ = self.validate()
                 if self.train_loader_for_val is not None:
-                    train_metrics, _ = self.validate('train')
-                    train_loss = self.last_val_loss
+                    train_loss, train_metrics, _ = self.validate('train')
                 else:
-                    print('Warning: cannot generate train vs. val plots if we dont have access to the training losses '
-                          'via train_for_val dataloader')
                     train_loss = None
                 if train_loss is not None:
                     self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, iteration)
-                    if self.exporter.tensorboard_writer is not None:
-                        self.exporter.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
-                                                                    self.state.iteration)
+                if self.exporter.tensorboard_writer is not None:
+                    self.exporter.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
+                                                                self.state.iteration)
 
             assert self.model.training
             full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=True)

@@ -36,7 +36,7 @@ def main():
         instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir='/tmp/')
     trainer.max_iter = 100
     trainer.train()
-    evaluation_metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(
+    val_loss, evaluation_metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(
         should_export_visualizations=False, split='train')
     print('Training set mean IU: {}'.format(evaluation_metrics[2]))
 

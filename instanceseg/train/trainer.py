@@ -43,11 +43,13 @@ class Trainer(object):
     def __init__(self, cuda, model: FCN8sInstance, optimizer, train_loader, val_loader, out_dir, max_iter, instance_problem,
                  size_average=True, interval_validate=None, loss_type='cross_entropy', matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
-                 use_semantic_loss=False, augment_input_with_semantic_masks=False,
-                 write_instance_metrics=True, generate_new_synthetic_data_each_epoch=False):
+                 use_semantic_loss=False, augment_input_with_semantic_masks=False, write_instance_metrics=True,
+                 generate_new_synthetic_data_each_epoch=False,
+                 export_activations=False):
 
         self.exporter = trainer_exporter.TrainerExporter(out_dir=out_dir, instance_problem=instance_problem,
-                                                         tensorboard_writer=tensorboard_writer)
+                                                         tensorboard_writer=tensorboard_writer,
+                                                         export_activations=export_activations)
         # System parameters
         self.cuda = cuda
 

@@ -45,11 +45,12 @@ class Trainer(object):
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False, write_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False,
-                 export_activations=False):
+                 export_activations=False, activation_layers_to_export=()):
 
         self.exporter = trainer_exporter.TrainerExporter(out_dir=out_dir, instance_problem=instance_problem,
                                                          tensorboard_writer=tensorboard_writer,
-                                                         export_activations=export_activations)
+                                                         export_activations=export_activations,
+                                                         activation_layers_to_export=activation_layers_to_export)
         # System parameters
         self.cuda = cuda
 

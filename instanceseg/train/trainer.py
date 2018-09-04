@@ -160,8 +160,10 @@ class Trainer(object):
             inst_lbl[inst_lbl > 1] = 1
         loss_fcn = self.loss_fcn if not val_matching_override else self.loss_fcn_matching_override
 
-        permutations, loss, loss_components = loss_fcn(score, sem_lbl, inst_lbl)
-        return permutations, loss, loss_components
+        permutations, total_loss, loss_components = loss_fcn(score, sem_lbl, inst_lbl)
+        avg_loss = total_loss / score.size(0)
+
+        return permutations, avg_loss, loss_components
 
     def augment_image(self, img, sem_lbl):
         semantic_one_hot = datasets.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
@@ -314,7 +316,7 @@ class Trainer(object):
         pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
         if is_nan(loss.data[0]):
             raise ValueError('losses is nan while validating')
-        val_loss += float(loss.data[0]) / len(full_input)
+        val_loss += float(loss.data[0]) / full_input.size(0)
 
         softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
         inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
@@ -417,7 +419,6 @@ class Trainer(object):
 
             score = self.model(full_input)
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
-            loss /= len(full_input)
 
             if is_nan(loss.data[0]):
                 raise ValueError('losses is nan while training')
@@ -447,7 +448,7 @@ class Trainer(object):
                 self.model.eval()
                 new_score = self.model(full_input)
                 new_pred_permutations, new_loss, _ = self.compute_loss(new_score, sem_lbl, inst_lbl)
-                new_loss /= len(full_input)
+                new_loss /= full_input.size(0)
                 self.model.train()
                 self.exporter.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.data[0],
                                                  old_pred_permutations=pred_permutations,

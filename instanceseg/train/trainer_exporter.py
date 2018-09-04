@@ -1,3 +1,4 @@
+from instanceseg.analysis import visualization_utils
 import datetime
 import os
 import os.path as osp
@@ -32,6 +33,7 @@ class ExportConfig(object):
         self.run_loss_updates = run_loss_updates
 
         self.write_activation_condition = should_write_activations
+        self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
 
 
 class TrainerExporter(object):
@@ -98,8 +100,7 @@ class TrainerExporter(object):
                     eval_metrics_as_list = eval_metrics.tolist()
                 except:
                     eval_metrics_as_list = list(eval_metrics)
-                log = [epoch, iteration] + [loss] + \
-                      eval_metrics_as_list + [''] * 5 + [elapsed_time]
+                log = [epoch, iteration] + [loss] + eval_metrics_as_list + [''] * 5 + [elapsed_time]
             else:
                 raise ValueError('split not recognized')
             log = map(str, log)
@@ -163,7 +164,7 @@ class TrainerExporter(object):
         get_activations_fcn: example in FCN8sInstance.get_activations(batch_input, layer_names)
         """
         if self.tensorboard_writer is not None:
-            activations = get_activations_fcn(batch_input, self.activation_layers_to_export)
+            activations = get_activations_fcn(batch_input, self.export_config.activation_layers_to_export)
             histogram_activations = activations
             for name, activations in tqdm.tqdm(histogram_activations.items(),
                                                total=len(histogram_activations.items()),
@@ -260,3 +261,37 @@ class TrainerExporter(object):
         best_checkpoint_file = osp.join(out_dir, out_name)
         shutil.copy(current_checkpoint_file, best_checkpoint_file)
         return best_checkpoint_file
+
+    def visualize_one_img_prediction(self, img_untransformed, lp, lt_combined, pp, softmax_scores, true_labels, idx):
+        # Segmentations
+        segmentation_viz = visualization_utils.visualize_segmentation(
+            lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img_untransformed,
+            n_class=self.instance_problem.n_classes, overlay=False)
+        # Scores
+        sp = softmax_scores[idx, :, :, :]
+        # TODO(allie): Fix this -- bug(?!)
+        lp = np.argmax(sp, axis=0)
+        if self.export_config.which_heatmaps_to_visualize == 'same semantic':
+            inst_sem_classes_present = torch.np.unique(true_labels)
+            inst_sem_classes_present = inst_sem_classes_present[inst_sem_classes_present != -1]
+            sem_classes_present = np.unique([self.instance_problem.semantic_instance_class_list[c]
+                                             for c in inst_sem_classes_present])
+            channels_for_these_semantic_classes = [inst_idx for inst_idx, sem_cls in enumerate(
+                self.instance_problem.semantic_instance_class_list) if sem_cls in sem_classes_present]
+            channels_to_visualize = channels_for_these_semantic_classes
+        elif self.export_config.which_heatmaps_to_visualize == 'all':
+            channels_to_visualize = list(range(sp.shape[0]))
+        else:
+            raise ValueError('which heatmaps to visualize is not recognized: {}'.format(
+                self.export_config.which_heatmaps_to_visualize))
+        channel_labels = self.instance_problem.get_channel_labels('{} {}')
+        score_viz = visualization_utils.visualize_heatmaps(scores=sp,
+                                                           lbl_true=lt_combined,
+                                                           lbl_pred=lp,
+                                                           pred_permutations=pp,
+                                                           n_class=self.instance_problem.n_classes,
+                                                           score_vis_normalizer=sp.max(),
+                                                           channel_labels=channel_labels,
+                                                           channels_to_visualize=channels_to_visualize,
+                                                           input_image=img_untransformed)
+        return segmentation_viz, score_viz

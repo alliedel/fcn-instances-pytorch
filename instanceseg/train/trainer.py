@@ -12,7 +12,6 @@ import instanceseg
 import instanceseg.losses.loss
 import instanceseg.utils.export
 import instanceseg.utils.misc
-from instanceseg.analysis import visualization_utils
 from instanceseg.analysis.visualization_utils import export_visualizations
 from instanceseg.datasets import runtime_transformations
 from instanceseg.models.fcn8s_instance import FCN8sInstance
@@ -64,7 +63,6 @@ class Trainer(object):
 
         # Exporting objects
         # Exporting parameters
-        self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
 
         # Loss parameters
         self.size_average = size_average
@@ -293,13 +291,10 @@ class Trainer(object):
 
         full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, (sem_lbl, inst_lbl),
                                                                            requires_grad=False)
-
         imgs = img_data.cpu()
 
         score = self.model(full_input)
         pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
-        if is_nan(loss.data[0]):
-            raise ValueError('losses is nan while validating')
         val_loss += float(loss.data[0]) / full_input.size(0)
 
         softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
@@ -316,52 +311,22 @@ class Trainer(object):
                     [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
                      if isinstance(t, runtime_transformations.BasicRuntimeDatasetTransformer)])
                 img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))
+            else:
+                img_untransformed, lbl_untransformed = img, (sem_lbl, inst_lbl)
 
-            sem_lbl_np = lbl_untransformed[0]
-            inst_lbl_np = lbl_untransformed[1]
+            sem_lbl_np, inst_lbl_np = lbl_untransformed
 
             pp = pred_permutations[idx, :]
             lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
             true_labels.append(lt_combined)
             pred_labels.append(lp)
             if should_visualize:
-                # Segmentations
-
-                viz = visualization_utils.visualize_segmentation(
-                    lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img_untransformed,
-                    n_class=self.n_combined_class, overlay=False)
-                segmentation_visualizations.append(viz)
-                # Scores
-                sp = softmax_scores[idx, :, :, :]
-
-                # TODO(allie): Fix this -- bug(?!)
-                lp = np.argmax(sp, axis=0)
-                if self.which_heatmaps_to_visualize == 'same semantic':
-                    inst_sem_classes_present = torch.np.unique(true_labels)
-                    inst_sem_classes_present = inst_sem_classes_present[inst_sem_classes_present != -1]
-                    sem_classes_present = np.unique([self.instance_problem.semantic_instance_class_list[c]
-                                                     for c in inst_sem_classes_present])
-                    channels_for_these_semantic_classes = [inst_idx for inst_idx, sem_cls in enumerate(
-                        self.instance_problem.semantic_instance_class_list) if sem_cls in sem_classes_present]
-                    channels_to_visualize = channels_for_these_semantic_classes
-                elif self.which_heatmaps_to_visualize == 'all':
-                    channels_to_visualize = list(range(sp.shape[0]))
-                else:
-                    raise ValueError('which heatmaps to visualize is not recognized: {}'.format(
-                        self.which_heatmaps_to_visualize))
-                channel_labels = self.instance_problem.get_channel_labels('{} {}')
-                viz = visualization_utils.visualize_heatmaps(scores=sp,
-                                                             lbl_true=lt_combined,
-                                                             lbl_pred=lp,
-                                                             pred_permutations=pp,
-                                                             n_class=self.n_combined_class,
-                                                             score_vis_normalizer=sp.max(),
-                                                             channel_labels=channel_labels,
-                                                             channels_to_visualize=channels_to_visualize,
-                                                             input_image=img_untransformed)
-                score_visualizations.append(viz)
-        return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
-               score_visualizations
+                segmentation_viz, score_viz = self.exporter.visualize_one_img_prediction(
+                    img_untransformed, lp, lt_combined, pp, softmax_scores, true_labels, idx)
+                score_visualizations.append(score_viz)
+                segmentation_visualizations.append(segmentation_viz)
+        return true_labels, pred_labels, score, pred_permutations, val_loss, \
+               segmentation_visualizations, score_visualizations
 
     def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
         semantic_instance_class_list = self.instance_problem.semantic_instance_class_list

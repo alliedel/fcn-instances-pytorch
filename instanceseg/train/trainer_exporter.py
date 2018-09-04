@@ -4,13 +4,14 @@ import os.path as osp
 import shutil
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pytz
+import torch
+import tqdm
 
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
-
-import torch
-import tqdm
+from instanceseg.utils.misc import flatten_dict
 
 MY_TIMEZONE = 'America/New_York'
 
@@ -20,6 +21,17 @@ def should_write_activations(iteration, epoch, interval_validate):
         return True
     else:
         return False
+
+
+class ExportConfig(object):
+    def __init__(self, export_activations=None, activation_layers_to_export=(), write_instance_metrics=False,
+                 run_loss_updates=True):
+        self.export_activations = export_activations
+        self.activation_layers_to_export = activation_layers_to_export
+        self.write_instance_metrics = write_instance_metrics
+        self.run_loss_updates = run_loss_updates
+
+        self.write_activation_condition = should_write_activations
 
 
 class TrainerExporter(object):
@@ -39,8 +51,10 @@ class TrainerExporter(object):
         'elapsed_time',
     ]
 
-    def __init__(self, out_dir, instance_problem, tensorboard_writer=None, export_activations=False,
-                 activation_layers_to_export=()):
+    def __init__(self, out_dir, instance_problem, export_config: ExportConfig = None,
+                 tensorboard_writer=None, metric_makers=None):
+
+        self.export_config = export_config or ExportConfig()
 
         # Copies of things the trainer was given access to
         self.instance_problem = instance_problem
@@ -65,26 +79,27 @@ class TrainerExporter(object):
         self.joint_train_val_loss_mpl_figure = None  # figure for plotting losses on same plot
         self.iterations_for_losses_stored = []
 
-        self.write_activation_condition=should_write_activations
-        # Writing activations
-        self.export_activations = export_activations
-        self.activation_layers_to_export = activation_layers_to_export
+        self.metric_makers = metric_makers
 
-    def write_metrics(self, metrics, loss, split, epoch, iteration):
+        # Writing activations
+
+        self.run_loss_updates = True
+
+    def write_eval_metrics(self, eval_metrics, loss, split, epoch, iteration):
         with open(osp.join(self.out_dir, 'log.csv'), 'a') as f:
             elapsed_time = (
                     datetime.datetime.now(pytz.timezone(MY_TIMEZONE)) -
                     self.timestamp_start).total_seconds()
             if split == 'val':
                 log = [epoch, iteration] + [''] * 5 + \
-                      [loss] + list(metrics) + [elapsed_time]
+                      [loss] + list(eval_metrics) + [elapsed_time]
             elif split == 'train':
                 try:
-                    metrics_as_list = metrics.tolist()
+                    eval_metrics_as_list = eval_metrics.tolist()
                 except:
-                    metrics_as_list = list(metrics)
+                    eval_metrics_as_list = list(eval_metrics)
                 log = [epoch, iteration] + [loss] + \
-                      metrics_as_list + [''] * 5 + [elapsed_time]
+                      eval_metrics_as_list + [''] * 5 + [elapsed_time]
             else:
                 raise ValueError('split not recognized')
             log = map(str, log)
@@ -187,3 +202,41 @@ class TrainerExporter(object):
                 self.tensorboard_writer.add_histogram('batch_activations/{}/all_channels'.format(name),
                                                       activations.cpu().numpy(), iteration, bins='auto')
 
+    def write_loss_updates(self, old_loss, new_loss, old_pred_permutations, new_pred_permutations, iteration):
+        loss_improvement = old_loss - new_loss
+        num_reassignments = np.sum(new_pred_permutations != old_pred_permutations)
+        self.tensorboard_writer.add_scalar('eval_metrics/train_batch_loss_improvement', loss_improvement,
+                                           iteration)
+        self.tensorboard_writer.add_scalar('eval_metrics/reassignment',
+                                           num_reassignments, iteration)
+
+    def compute_and_write_instance_metrics(self, model, iteration):
+        if self.tensorboard_writer is not None:
+            for split, metric_maker in tqdm.tqdm(self.metric_makers.items(), desc='Computing instance metrics',
+                                                 total=len(self.metric_makers.items()), leave=False):
+                metric_maker.clear()
+                metric_maker.compute_metrics(model)
+                metrics_as_nested_dict = metric_maker.get_aggregated_scalar_metrics_as_nested_dict()
+                metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
+                for name, metric in metrics_as_flattened_dict.items():
+                    self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric, iteration)
+                histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
+                histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
+                if iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
+                    # if 1:
+                    for name, metric in tqdm.tqdm(histogram_metrics_as_flattened_dict.items(),
+                                                  total=len(histogram_metrics_as_flattened_dict.items()),
+                                                  desc='Writing histogram metrics', leave=False):
+                        if torch.is_tensor(metric):
+                            self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
+                                                                  metric.numpy(), iteration, bins='auto')
+                        elif isinstance(metric, np.ndarray):
+                            self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
+                                                                  metric, iteration, bins='auto')
+                        elif metric is None:
+                            import ipdb;
+                            ipdb.set_trace()
+                            pass
+                        else:
+                            raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
+                                             '{}'.format(type(metric), name))

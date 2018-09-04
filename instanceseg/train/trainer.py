@@ -13,15 +13,13 @@ import instanceseg
 import instanceseg.losses.loss
 import instanceseg.utils.export
 import instanceseg.utils.misc
-from instanceseg.train import metrics, trainer_exporter
 from instanceseg.analysis import visualization_utils
 from instanceseg.analysis.visualization_utils import export_visualizations
 from instanceseg.datasets import runtime_transformations
-from instanceseg.models.model_utils import is_nan, any_nan
-from instanceseg.utils import datasets, instance_utils
-from instanceseg.utils.misc import flatten_dict
-
 from instanceseg.models.fcn8s_instance import FCN8sInstance
+from instanceseg.models.model_utils import is_nan, any_nan
+from instanceseg.train import metrics, trainer_exporter
+from instanceseg.utils import datasets, instance_utils
 
 DEBUG_ASSERTS = True
 
@@ -40,17 +38,14 @@ class TrainingState(object):
 
 
 class Trainer(object):
-    def __init__(self, cuda, model: FCN8sInstance, optimizer, train_loader, val_loader, out_dir, max_iter, instance_problem,
+    def __init__(self, cuda, model: FCN8sInstance, optimizer, train_loader, val_loader, out_dir, max_iter,
+                 instance_problem,
                  size_average=True, interval_validate=None, loss_type='cross_entropy', matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False, write_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False,
                  export_activations=False, activation_layers_to_export=()):
 
-        self.exporter = trainer_exporter.TrainerExporter(out_dir=out_dir, instance_problem=instance_problem,
-                                                         tensorboard_writer=tensorboard_writer,
-                                                         export_activations=export_activations,
-                                                         activation_layers_to_export=activation_layers_to_export)
         # System parameters
         self.cuda = cuda
 
@@ -69,8 +64,6 @@ class Trainer(object):
         self.instance_problem = instance_problem
 
         # Exporting objects
-        self.tensorboard_writer = tensorboard_writer
-
         # Exporting parameters
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
 
@@ -112,10 +105,16 @@ class Trainer(object):
             'augment_function_img_sem': self.augment_image
             if self.augment_input_with_semantic_masks else None
         }
-        self.metric_makers = {
+        metric_makers = {
             'val': metrics.InstanceMetrics(self.val_loader, **metric_maker_kwargs),
             'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val, **metric_maker_kwargs)
         }
+        export_config = trainer_exporter.ExportConfig(export_activations=export_activations,
+                                                      activation_layers_to_export=activation_layers_to_export,
+                                                      write_instance_metrics=write_instance_metrics)
+        self.exporter = trainer_exporter.TrainerExporter(
+            out_dir=out_dir, instance_problem=instance_problem,
+            export_config=export_config, tensorboard_writer=tensorboard_writer, metric_makers=metric_makers)
 
     def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
         """
@@ -233,24 +232,25 @@ class Trainer(object):
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
 
         val_loss /= len(data_loader)
-        self.last_val_loss = val_loss
+        self.last_val_loss = val_loss.clone()
 
         if should_compute_basic_metrics:
-            val_metrics = self.compute_metrics(label_trues, label_preds, pred_permutations)
+            val_metrics = self.compute_eval_metrics(label_trues, label_preds, pred_permutations)
             if write_basic_metrics:
-                self.exporter.write_metrics(val_metrics, val_loss, split, epoch=self.state.epoch, iteration=self.state.iteration)
-                if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split),
-                                                       val_loss, self.state.iteration)
-                    self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2],
-                                                       self.state.iteration)
+                self.exporter.write_eval_metrics(val_metrics, val_loss, split, epoch=self.state.epoch,
+                                                 iteration=self.state.iteration)
+                if self.exporter.tensorboard_writer is not None:
+                    self.exporter.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split),
+                                                                val_loss, self.state.iteration)
+                    self.exporter.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2],
+                                                                self.state.iteration)
 
             if save_checkpoint:
                 self.save_checkpoint()
             if update_best_checkpoint:
                 self.update_best_checkpoint_if_best(mean_iu=val_metrics[2])
         if write_instance_metrics:
-            self.compute_and_write_instance_metrics()
+            self.exporter.compute_and_write_instance_metrics(model=self.model, iteration=self.state.iteration)
 
         # Restore training settings set prior to function call
         if training:
@@ -259,39 +259,7 @@ class Trainer(object):
         visualizations = (segmentation_visualizations, score_visualizations)
         return val_metrics, visualizations
 
-    def compute_and_write_instance_metrics(self):
-        if self.tensorboard_writer is not None:
-            for split, metric_maker in tqdm.tqdm(self.metric_makers.items(), desc='Computing instance metrics',
-                                                 total=len(self.metric_makers.items()), leave=False):
-                metric_maker.clear()
-                metric_maker.compute_metrics(self.model)
-                metrics_as_nested_dict = metric_maker.get_aggregated_scalar_metrics_as_nested_dict()
-                metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
-                for name, metric in metrics_as_flattened_dict.items():
-                    self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric,
-                                                       self.state.iteration)
-                histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
-                histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
-                if self.state.iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
-                    # if 1:
-                    for name, metric in tqdm.tqdm(histogram_metrics_as_flattened_dict.items(),
-                                                  total=len(histogram_metrics_as_flattened_dict.items()),
-                                                  desc='Writing histogram metrics', leave=False):
-                        if torch.is_tensor(metric):
-                            self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
-                                                                  metric.numpy(), self.state.iteration, bins='auto')
-                        elif isinstance(metric, np.ndarray):
-                            self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name), metric,
-                                                                  self.state.iteration, bins='auto')
-                        elif metric is None:
-                            import ipdb;
-                            ipdb.set_trace()
-                            pass
-                        else:
-                            raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
-                                             ' '.format(type(metric), name))
-
-    def compute_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
+    def compute_eval_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
         if permutations is not None:
             if single_batch:
                 permutations = [permutations]
@@ -302,13 +270,14 @@ class Trainer(object):
                                     for label_pred, perms in zip(label_preds, permutations)]
         else:
             label_preds_permuted = label_preds
-        metrics_list = instanceseg.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
+        eval_metrics_list = instanceseg.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
                                                                    n_class=self.n_combined_class)
-        return metrics_list
+        return eval_metrics_list
 
     def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
         outdir = outdir or osp.join(self.out, 'visualization_viz')
-        export_visualizations(visualizations, outdir, self.tensorboard_writer, self.state.iteration, basename=basename,
+        export_visualizations(visualizations, outdir, self.exporter.tensorboard_writer, self.state.iteration,
+                              basename=basename,
                               tile=tile)
 
     def save_checkpoint(self):
@@ -417,7 +386,6 @@ class Trainer(object):
 
     def train_epoch(self):
         self.model.train()
-        last_loss = None
 
         if self.generate_new_synthetic_data_each_epoch:
             seed = np.random.randint(100)
@@ -433,19 +401,19 @@ class Trainer(object):
             self.state.iteration = iteration
             if self.state.iteration % self.interval_validate == 0:
                 val_metrics, _ = self.validate()
-                val_loss = self.last_val_loss
+                val_loss = self.last_val_loss.clone()
                 if self.train_loader_for_val is not None:
                     train_metrics, _ = self.validate('train')
-                    train_loss = self.last_val_loss
+                    train_loss = self.last_val_loss.clone()
                 else:
                     print('Warning: cannot generate train vs. val plots if we dont have access to the training losses '
                           'via train_for_val dataloader')
                     train_loss = None
                 if train_loss is not None:
                     self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, iteration)
-                    if self.tensorboard_writer is not None:
-                        self.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
-                                                           self.state.iteration)
+                    if self.exporter.tensorboard_writer is not None:
+                        self.exporter.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
+                                                                    self.state.iteration)
 
             assert self.model.training
             full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=True)
@@ -453,55 +421,52 @@ class Trainer(object):
 
             score = self.model(full_input)
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
+            loss /= len(full_input)
+
             if is_nan(loss.data[0]):
                 raise ValueError('losses is nan while training')
-            loss /= len(full_input)
             if loss.data[0] > 1e4:
                 print('WARNING: losses={} at iteration {}'.format(loss.data[0], self.state.iteration))
             if any_nan(score.data):
                 raise ValueError('score is nan while training')
-            if self.tensorboard_writer is not None:
-                self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
-                                                   self.state.iteration)
             loss.backward()
             self.optim.step()
 
             inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
             lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
-            metrics = []
+            eval_metrics = []
             for sem_lbl_np, inst_lbl_np, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
                 lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
                 acc, acc_cls, mean_iu, fwavacc = \
-                    self.compute_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[pred_permutations])
-                metrics.append((acc, acc_cls, mean_iu, fwavacc))
-            metrics = np.mean(metrics, axis=0)
-            self.exporter.write_metrics(metrics, loss, split='train', epoch=self.state.epoch,
-                                        iteration=self.state.iteration)
-            if self.state.training_complete():
-                break
-
-            if self.tensorboard_writer is not None:
+                    self.compute_eval_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[
+                        pred_permutations])
+                eval_metrics.append((acc, acc_cls, mean_iu, fwavacc))
+            eval_metrics = np.mean(eval_metrics, axis=0)
+            self.exporter.write_eval_metrics(eval_metrics, loss, split='train', epoch=self.state.epoch,
+                                             iteration=self.state.iteration)
+            if self.exporter.tensorboard_writer is not None:
+                self.exporter.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
+                                                            self.state.iteration)
+            if self.exporter.export_config.run_loss_updates:
                 self.model.eval()
                 new_score = self.model(full_input)
-                if any_nan(new_score.data):
-                    raise ValueError('new_score became nan while training')
                 new_pred_permutations, new_loss, _ = self.compute_loss(new_score, sem_lbl, inst_lbl)
                 new_loss /= len(full_input)
-                loss_improvement = loss.data[0] - new_loss.data[0]
                 self.model.train()
+                self.exporter.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.data[0],
+                                                 old_pred_permutations=pred_permutations,
+                                                 new_pred_permutations=new_pred_permutations,
+                                                 iteration=self.state.iteration)
 
-                self.tensorboard_writer.add_scalar('metrics/train_batch_loss_improvement', loss_improvement,
-                                                   self.state.iteration)
-                self.tensorboard_writer.add_scalar('metrics/reassignment',
-                                                   np.sum(new_pred_permutations != pred_permutations),
-                                                   self.state.iteration)
-                if self.exporter.export_activations and self.exporter.write_activation_condition(
-                        iteration=self.state.iteration, epoch=self.state.epoch, interval_validate=self.interval_validate):
-                    self.exporter.retrieve_and_write_batch_activations(batch_input=full_input, iteration=self.state.iteration,
-                                                                       get_activations_fcn=self.model.get_activations)
-                if is_nan(new_loss.data[0]):
-                    raise ValueError('new_loss is nan while training')
-            last_loss = loss.data.clone()
+                if self.exporter.export_config.export_activations and \
+                        self.exporter.export_config.write_activation_condition(self.state.iteration, self.state.epoch,
+                                                                               self.interval_validate):
+                    self.exporter.retrieve_and_write_batch_activations(
+                        batch_input=full_input, iteration=self.state.iteration,
+                        get_activations_fcn=self.model.get_activations)
+
+            if self.state.training_complete():
+                break
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.train_loader)))

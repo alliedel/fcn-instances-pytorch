@@ -232,7 +232,7 @@ class Trainer(object):
                 self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
 
         val_loss /= len(data_loader)
-        self.last_val_loss = val_loss.clone()
+        self.last_val_loss = val_loss
 
         if should_compute_basic_metrics:
             val_metrics = self.compute_eval_metrics(label_trues, label_preds, pred_permutations)
@@ -401,10 +401,10 @@ class Trainer(object):
             self.state.iteration = iteration
             if self.state.iteration % self.interval_validate == 0:
                 val_metrics, _ = self.validate()
-                val_loss = self.last_val_loss.clone()
+                val_loss = self.last_val_loss
                 if self.train_loader_for_val is not None:
                     train_metrics, _ = self.validate('train')
-                    train_loss = self.last_val_loss.clone()
+                    train_loss = self.last_val_loss
                 else:
                     print('Warning: cannot generate train vs. val plots if we dont have access to the training losses '
                           'via train_for_val dataloader')

@@ -41,6 +41,7 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'write_instance_metrics': 'instmet',
                                         'loss_type': 'loss',
                                         'ordering': 'order',
+                                        'reset_optim': 'ropt'
                                         }
 
 

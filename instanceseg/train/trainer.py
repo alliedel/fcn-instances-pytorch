@@ -182,7 +182,6 @@ class Trainer(object):
         val_loss = 0
         segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds, scores, pred_permutations = [], [], [], []
-        visualizations_need_to_be_exported = True if should_export_visualizations else False
         num_images_to_visualize = min(len(data_loader), 9)
         for batch_idx, (img_data, lbls) in tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
@@ -197,12 +196,6 @@ class Trainer(object):
             segmentation_visualizations_sb, score_visualizations_sb = \
                 self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                            should_visualize=should_visualize)
-            if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
-                self.exporter.export_visualizations(segmentation_visualizations, self.state.iteration,
-                                                    basename='seg_' + split, tile=True)
-                self.exporter.export_visualizations(score_visualizations, self.state.iteration,
-                                                    basename='score_' + split, tile=False)
-                visualizations_need_to_be_exported = False
 
             label_trues += true_labels_sb
             label_preds += pred_labels_sb
@@ -212,12 +205,11 @@ class Trainer(object):
             segmentation_visualizations += segmentation_visualizations_sb
             score_visualizations += score_visualizations_sb
 
-        if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
-            if should_export_visualizations:
-                self.exporter.export_visualizations(segmentation_visualizations, self.state.iteration,
-                                                    basename='seg_' + split, tile=True)
-                self.exporter.export_visualizations(score_visualizations, self.state.iteration,
-                                                    basename='score_' + split, tile=False)
+        if should_export_visualizations:
+            self.exporter.export_visualizations(segmentation_visualizations, self.state.iteration,
+                                                basename='seg_' + split, tile=True)
+            self.exporter.export_visualizations(score_visualizations, self.state.iteration,
+                                                basename='score_' + split, tile=False)
 
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss

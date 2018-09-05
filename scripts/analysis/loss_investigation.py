@@ -136,8 +136,8 @@ def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_co
                                                  score_vis_normalizer=score.max(),
                                                  channel_labels=channel_labels,
                                                  channels_to_visualize=None)
-    instanceseg.analysis.visualization_utils.export_visualizations([viz], outdir=outdir, tensorboard_writer=writer, iteration=iteration,
-                                                                   basename=basename, tile=True)
+    instanceseg.analysis.visualization_utils.export_visualizations([viz], out_dir=outdir, tensorboard_writer=writer,
+                                                                   iteration=iteration, basename=basename, tile=True)
 
 
 def main():

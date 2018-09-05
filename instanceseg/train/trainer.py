@@ -1,10 +1,7 @@
 import math
-import os
-import os.path as osp
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 import tqdm
 from torch.autograd import Variable
 
@@ -12,8 +9,6 @@ import instanceseg
 import instanceseg.losses.loss
 import instanceseg.utils.export
 import instanceseg.utils.misc
-from instanceseg.analysis.visualization_utils import export_visualizations
-from instanceseg.datasets import runtime_transformations
 from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
@@ -81,14 +76,7 @@ class Trainer(object):
         # Stored values
         self.last_val_loss = None
 
-        if interval_validate is None:
-            self.interval_validate = len(self.train_loader)
-        else:
-            self.interval_validate = interval_validate
-
-        self.out = out_dir
-        if not osp.exists(self.out):
-            os.makedirs(self.out)
+        self.interval_validate = interval_validate if interval_validate is not None else len(self.train_loader)
 
         self.state = TrainingState(max_iteration=max_iter)
         self.best_mean_iu = 0
@@ -167,8 +155,8 @@ class Trainer(object):
         return datasets.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
                                          (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
 
-    def validate(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
-                 should_export_visualizations=True):
+    def validate_split(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
+                       should_export_visualizations=True):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
         If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
@@ -210,8 +198,10 @@ class Trainer(object):
                 self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                            should_visualize=should_visualize)
             if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
-                self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
-                self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
+                self.exporter.export_visualizations(segmentation_visualizations, self.state.iteration,
+                                                    basename='seg_' + split, tile=True)
+                self.exporter.export_visualizations(score_visualizations, self.state.iteration,
+                                                    basename='score_' + split, tile=False)
                 visualizations_need_to_be_exported = False
 
             label_trues += true_labels_sb
@@ -224,27 +214,18 @@ class Trainer(object):
 
         if visualizations_need_to_be_exported and len(segmentation_visualizations) == num_images_to_visualize:
             if should_export_visualizations:
-                self.export_visualizations(segmentation_visualizations, 'seg_' + split, tile=True)
-                self.export_visualizations(score_visualizations, 'score_' + split, tile=False)
+                self.exporter.export_visualizations(segmentation_visualizations, self.state.iteration,
+                                                    basename='seg_' + split, tile=True)
+                self.exporter.export_visualizations(score_visualizations, self.state.iteration,
+                                                    basename='score_' + split, tile=False)
 
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss
 
-        if should_compute_basic_metrics:
-            val_metrics = self.compute_eval_metrics(label_trues, label_preds, pred_permutations)
-            if write_basic_metrics:
-                self.exporter.write_eval_metrics(val_metrics, val_loss, split, epoch=self.state.epoch,
-                                                 iteration=self.state.iteration)
-                if self.exporter.tensorboard_writer is not None:
-                    self.exporter.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split),
-                                                                val_loss, self.state.iteration)
-                    self.exporter.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2],
-                                                                self.state.iteration)
-
-            if save_checkpoint:
-                self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2])
-        if write_instance_metrics:
-            self.exporter.compute_and_write_instance_metrics(model=self.model, iteration=self.state.iteration)
+        val_metrics = self.exporter.run_post_val_epoch(label_preds, label_trues, pred_permutations,
+                                                       should_compute_basic_metrics, split, val_loss, val_metrics,
+                                                       write_basic_metrics, write_instance_metrics,
+                                                       self.state.epoch, self.state.iteration, self.model)
 
         # Restore training settings set prior to function call
         if training:
@@ -252,27 +233,6 @@ class Trainer(object):
 
         visualizations = (segmentation_visualizations, score_visualizations)
         return val_loss, val_metrics, visualizations
-
-    def compute_eval_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
-        if permutations is not None:
-            if single_batch:
-                permutations = [permutations]
-            assert type(permutations) == list, \
-                NotImplementedError('I''m assuming permutations are a list of ndarrays from multiple batches, '
-                                    'not type {}'.format(type(permutations)))
-            label_preds_permuted = [instance_utils.permute_labels(label_pred, perms)
-                                    for label_pred, perms in zip(label_preds, permutations)]
-        else:
-            label_preds_permuted = label_preds
-        eval_metrics_list = instanceseg.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
-                                                                        n_class=self.n_combined_class)
-        return eval_metrics_list
-
-    def export_visualizations(self, visualizations, basename='val_', tile=True, outdir=None):
-        outdir = outdir or osp.join(self.out, 'visualization_viz')
-        export_visualizations(visualizations, outdir, self.exporter.tensorboard_writer, self.state.iteration,
-                              basename=basename,
-                              tile=tile)
 
     def save_checkpoint_and_update_if_best(self, mean_iu):
         current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch, self.state.iteration, self.model,
@@ -282,12 +242,6 @@ class Trainer(object):
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
 
     def validate_single_batch(self, img_data, sem_lbl, inst_lbl, data_loader, should_visualize):
-        true_labels = []
-        pred_labels = []
-        pred_permutations = []
-        segmentation_visualizations = []
-        score_visualizations = []
-        val_loss = 0
 
         full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, (sem_lbl, inst_lbl),
                                                                            requires_grad=False)
@@ -295,45 +249,14 @@ class Trainer(object):
 
         score = self.model(full_input)
         pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
-        val_loss += float(loss.data[0]) / full_input.size(0)
+        val_loss = float(loss.data[0])
 
-        softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
-        inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
-
-        # TODO(allie): convert to sem, inst visualizations.
-        lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
-        if DEBUG_ASSERTS:
-            assert inst_lbl_pred.shape == lbl_true_inst.shape
-        for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
-            # runtime_transformation needs to still run the resize, even for untransformed img, lbl pair
-            if data_loader.dataset.runtime_transformation is not None:
-                runtime_transformation_undo = runtime_transformations.GenericSequenceRuntimeDatasetTransformer(
-                    [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
-                     if isinstance(t, runtime_transformations.BasicRuntimeDatasetTransformer)])
-                img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))
-            else:
-                img_untransformed, lbl_untransformed = img, (sem_lbl, inst_lbl)
-
-            sem_lbl_np, inst_lbl_np = lbl_untransformed
-
-            pp = pred_permutations[idx, :]
-            lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
-            true_labels.append(lt_combined)
-            pred_labels.append(lp)
-            if should_visualize:
-                segmentation_viz, score_viz = self.exporter.visualize_one_img_prediction(
-                    img_untransformed, lp, lt_combined, pp, softmax_scores, true_labels, idx)
-                score_visualizations.append(score_viz)
-                segmentation_visualizations.append(segmentation_viz)
-        return true_labels, pred_labels, score, pred_permutations, val_loss, \
-               segmentation_visualizations, score_visualizations
-
-    def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
-        semantic_instance_class_list = self.instance_problem.semantic_instance_class_list
-        instance_count_id_list = self.instance_problem.instance_count_id_list
-        return instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl,
-                                                                   semantic_instance_class_list,
-                                                                   instance_count_id_list)
+        true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
+            self.exporter.run_post_val_iteration(
+            imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
+                data_to_img_transformer=lambda i, l: self.exporter.untransform_data(i, l, data_loader))
+        return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
+               score_visualizations
 
     def train_epoch(self):
         self.model.train()
@@ -346,73 +269,43 @@ class Trainer(object):
         for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
                 enumerate(self.train_loader), total=len(self.train_loader),
                 desc='Train epoch=%d' % self.state.epoch, ncols=80, leave=False):
+
+            # Check/update iteration
             iteration = batch_idx + self.state.epoch * len(self.train_loader)
             if self.state.iteration != 0 and (iteration - 1) != self.state.iteration:
                 continue  # for resuming
             self.state.iteration = iteration
+
+            # Run validation epochs if it's time
             if self.state.iteration % self.interval_validate == 0:
-                val_loss, val_metrics, _ = self.validate()
-                if self.train_loader_for_val is not None:
-                    train_loss, train_metrics, _ = self.validate('train')
-                else:
-                    train_loss = None
-                if train_loss is not None:
-                    self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, iteration)
-                if self.exporter.tensorboard_writer is not None:
-                    self.exporter.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
-                                                                self.state.iteration)
+                self.validate_all_splits()
 
-            assert self.model.training
-            full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=True)
-            self.optim.zero_grad()
-
-            score = self.model(full_input)
-            pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
-
-            if is_nan(loss.data[0]):
-                raise ValueError('losses is nan while training')
-            if loss.data[0] > 1e4:
-                print('WARNING: losses={} at iteration {}'.format(loss.data[0], self.state.iteration))
-            if any_nan(score.data):
-                raise ValueError('score is nan while training')
-            loss.backward()
-            self.optim.step()
-
-            inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-            lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
-            eval_metrics = []
-            for sem_lbl_np, inst_lbl_np, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
-                lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
-                acc, acc_cls, mean_iu, fwavacc = \
-                    self.compute_eval_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[
-                        pred_permutations])
-                eval_metrics.append((acc, acc_cls, mean_iu, fwavacc))
-            eval_metrics = np.mean(eval_metrics, axis=0)
-            self.exporter.write_eval_metrics(eval_metrics, loss, split='train', epoch=self.state.epoch,
-                                             iteration=self.state.iteration)
-            if self.exporter.tensorboard_writer is not None:
-                self.exporter.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
-                                                            self.state.iteration)
-            if self.exporter.export_config.run_loss_updates:
-                self.model.eval()
-                new_score = self.model(full_input)
-                new_pred_permutations, new_loss, _ = self.compute_loss(new_score, sem_lbl, inst_lbl)
-                new_loss /= full_input.size(0)
-                self.model.train()
-                self.exporter.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.data[0],
-                                                 old_pred_permutations=pred_permutations,
-                                                 new_pred_permutations=new_pred_permutations,
-                                                 iteration=self.state.iteration)
-
-                if self.exporter.export_config.export_activations and \
-                        self.exporter.export_config.write_activation_condition(self.state.iteration, self.state.epoch,
-                                                                               self.interval_validate):
-                    self.exporter.retrieve_and_write_batch_activations(
-                        batch_input=full_input, iteration=self.state.iteration,
-                        get_activations_fcn=self.model.get_activations)
+            # Run training iteration
+            self.train_iteration(img_data, target)
 
             if self.state.training_complete():
                 break
+
+    def train_iteration(self, img_data, target):
+        assert self.model.training
+        full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=True)
+        self.optim.zero_grad()
+        score = self.model(full_input)
+        pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
+        debug_check_values_are_valid(loss, score, self.state.iteration)
+        loss.backward()
+        self.optim.step()
+        if self.exporter.run_loss_updates:
+            self.model.eval()
+            new_pred_permutations, new_loss, _ = self.compute_loss(self.model(full_input), sem_lbl, inst_lbl)
+            self.model.train()
+        else:
+            new_pred_permutations, new_loss = None, None
+
+        self.exporter.run_post_train_iteration(full_input, inst_lbl, loss, pred_permutations, score, sem_lbl,
+                                               epoch=self.state.epoch, iteration=self.state.iteration,
+                                               new_pred_permutations=new_pred_permutations, new_loss=new_loss,
+                                               get_activations_fcn=self.model.get_activations)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.train_loader)))
@@ -422,3 +315,26 @@ class Trainer(object):
             self.train_epoch()
             if self.state.training_complete():
                 break
+
+    def validate_all_splits(self):
+        val_loss, val_metrics, _ = self.validate_split('val')
+        if self.train_loader_for_val is not None:
+            train_loss, train_metrics, _ = self.validate_split('train')
+        else:
+            train_loss = None
+        if train_loss is not None:
+            self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, self.state.iteration)
+        if self.exporter.tensorboard_writer is not None:
+            self.exporter.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
+                                                        self.state.iteration)
+
+
+def debug_check_values_are_valid(loss, score, iteration):
+    if is_nan(loss.data[0]):
+        raise ValueError('losses is nan while training')
+    if loss.data[0] > 1e4:
+        print('WARNING: losses={} at iteration {}'.format(loss.data[0], iteration))
+    if any_nan(score.data):
+        raise ValueError('score is nan while training')
+
+

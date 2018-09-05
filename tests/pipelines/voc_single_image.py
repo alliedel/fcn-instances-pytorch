@@ -173,7 +173,7 @@ def main():
 
     print('Evaluating final model')
 
-    val_loss, metrics, (segmentation_visualizations, score_visualizations) = trainer.validate(
+    val_loss, metrics, (segmentation_visualizations, score_visualizations) = trainer.validate_split(
         should_export_visualizations=False)
     
     trainer.export_visualizations(segmentation_visualizations, 'seg_' + val_split, tile=True, outdir='./tmp/')

@@ -527,23 +527,23 @@ def get_text_color(bg_color):
     return (255, 255, 255)
 
 
-def export_visualizations(visualizations, outdir, tensorboard_writer, iteration, basename='val_', tile=True):
-    if not osp.exists(outdir):
-        os.makedirs(outdir)
+def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_', tile=True):
+    if not osp.exists(out_dir):
+        os.makedirs(out_dir)
     if tile:
         out_img = get_tile_image(visualizations, margin_color=[255, 255, 255],
                                  margin_size=50)
         tag = '{}images'.format(basename)
         if tensorboard_writer is not None:
             instanceseg.utils.export.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
-        out_subdir = osp.join(outdir, tag)
+        out_subdir = osp.join(out_dir, tag)
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)
         out_file = osp.join(out_subdir, 'iter-%012d.jpg' % iteration)
         scipy.misc.imsave(out_file, out_img)
     else:
         tag = '{}images'.format(basename)
-        out_subdir = osp.join(outdir, tag)
+        out_subdir = osp.join(out_dir, tag)
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)
         for img_idx, out_img in enumerate(visualizations):

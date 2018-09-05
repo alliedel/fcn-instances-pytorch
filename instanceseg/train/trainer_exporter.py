@@ -1,4 +1,3 @@
-from instanceseg.analysis import visualization_utils
 import datetime
 import os
 import os.path as osp
@@ -8,20 +7,27 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytz
 import torch
+import torch.nn.functional as F
 import tqdm
 
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
+from instanceseg.analysis import visualization_utils
+from instanceseg.datasets import runtime_transformations
+from instanceseg.utils import instance_utils
 from instanceseg.utils.misc import flatten_dict
 
 MY_TIMEZONE = 'America/New_York'
 
 
-def should_write_activations(iteration, epoch, interval_validate):
+def should_write_activations(iteration, epoch):
     if iteration < 3000:
         return True
     else:
         return False
+
+
+DEBUG_ASSERTS = True
 
 
 class ExportConfig(object):
@@ -295,3 +301,121 @@ class TrainerExporter(object):
                                                            channels_to_visualize=channels_to_visualize,
                                                            input_image=img_untransformed)
         return segmentation_viz, score_viz
+
+    def export_visualizations(self, visualizations, iteration, basename='val_', tile=True, out_dir=None):
+        out_dir = out_dir or osp.join(self.out_dir, 'visualization_viz')
+        visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer, iteration,
+                                                  basename=basename, tile=tile)
+
+    def run_post_val_epoch(self, label_preds, label_trues, pred_permutations, should_compute_basic_metrics, split,
+                           val_loss, val_metrics, write_basic_metrics, write_instance_metrics, epoch, iteration, model):
+        if should_compute_basic_metrics:
+            val_metrics = self.compute_eval_metrics(label_trues, label_preds, pred_permutations)
+            if write_basic_metrics:
+                self.write_eval_metrics(val_metrics, val_loss, split, epoch=epoch, iteration=iteration)
+                if self.tensorboard_writer is not None:
+                    self.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split), val_loss, iteration)
+                    self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2], iteration)
+
+        if write_instance_metrics:
+            self.compute_and_write_instance_metrics(model=model, iteration=iteration)
+        return val_metrics
+
+    def run_post_train_iteration(self, full_input, inst_lbl, loss, pred_permutations, score, sem_lbl, epoch,
+                                 iteration, new_pred_permutations=None, new_loss=None, get_activations_fcn=None):
+        """
+        get_activations_fcn=self.model.get_activations
+        """
+        inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
+        lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
+        eval_metrics = []
+        for sem_lbl_np, inst_lbl_np, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
+            lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+            acc, acc_cls, mean_iu, fwavacc = \
+                self.compute_eval_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[
+                    pred_permutations])
+            eval_metrics.append((acc, acc_cls, mean_iu, fwavacc))
+        eval_metrics = np.mean(eval_metrics, axis=0)
+        self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
+        if self.tensorboard_writer is not None:
+            self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
+                                               iteration)
+        if self.export_config.run_loss_updates:
+            self.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.data[0],
+                                    old_pred_permutations=pred_permutations,
+                                    new_pred_permutations=new_pred_permutations,
+                                    iteration=iteration)
+
+            if self.export_config.export_activations and \
+                    self.export_config.write_activation_condition(iteration, epoch):
+                self.retrieve_and_write_batch_activations(batch_input=full_input, iteration=iteration,
+                                                          get_activations_fcn=get_activations_fcn)
+        return eval_metrics
+
+    def run_post_val_iteration(self, imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
+                               data_to_img_transformer):
+        """
+        data_to_img_transformer: img_untransformed, lbl_untransformed = f(img, lbl) : e.g. - resizes, etc.
+        """
+        true_labels = []
+        pred_labels = []
+        segmentation_visualizations = []
+        score_visualizations = []
+
+        softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
+        inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+        lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
+        if DEBUG_ASSERTS:
+            assert inst_lbl_pred.shape == lbl_true_inst.shape
+        for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
+            # runtime_transformation needs to still run the resize, even for untransformed img, lbl pair
+            img_untransformed, lbl_untransformed = data_to_img_transformer(img, (sem_lbl, inst_lbl)) \
+                if data_to_img_transformer is not None \
+                else (img, (sem_lbl, inst_lbl))
+            sem_lbl_np, inst_lbl_np = lbl_untransformed
+
+            pp = pred_permutations[idx, :]
+            lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+            true_labels.append(lt_combined)
+            pred_labels.append(lp)
+            if should_visualize:
+                segmentation_viz, score_viz = self.visualize_one_img_prediction(
+                    img_untransformed, lp, lt_combined, pp, softmax_scores, true_labels, idx)
+                score_visualizations.append(score_viz)
+                segmentation_visualizations.append(segmentation_viz)
+        return true_labels, pred_labels, segmentation_visualizations, score_visualizations
+
+    def compute_eval_metrics(self, label_trues, label_preds, permutations=None, single_batch=False):
+        if permutations is not None:
+            if single_batch:
+                permutations = [permutations]
+            assert type(permutations) == list, \
+                NotImplementedError('I''m assuming permutations are a list of ndarrays from multiple batches, '
+                                    'not type {}'.format(type(permutations)))
+            label_preds_permuted = [instance_utils.permute_labels(label_pred, perms)
+                                    for label_pred, perms in zip(label_preds, permutations)]
+        else:
+            label_preds_permuted = label_preds
+        eval_metrics_list = instanceseg.utils.misc.label_accuracy_score(label_trues, label_preds_permuted,
+                                                                        n_class=self.instance_problem.n_classes)
+        return eval_metrics_list
+
+    def gt_tuple_to_combined(self, sem_lbl, inst_lbl):
+        semantic_instance_class_list = self.instance_problem.semantic_instance_class_list
+        instance_count_id_list = self.instance_problem.instance_count_id_list
+        return instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl,
+                                                                   semantic_instance_class_list,
+                                                                   instance_count_id_list)
+
+    @staticmethod
+    def untransform_data(data_loader, img, lbl):
+        (sem_lbl, inst_lbl) = lbl
+        if data_loader.dataset.runtime_transformation is not None:
+            runtime_transformation_undo = runtime_transformations.GenericSequenceRuntimeDatasetTransformer(
+                [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
+                 if isinstance(t, runtime_transformations.BasicRuntimeDatasetTransformer)])
+            img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))
+        else:
+            img_untransformed, lbl_untransformed = img, (sem_lbl, inst_lbl)
+        return img_untransformed, lbl_untransformed
+

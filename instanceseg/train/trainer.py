@@ -81,7 +81,6 @@ class Trainer(object):
         self.state = TrainingState(max_iteration=max_iter)
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
-        self.n_combined_class = int(sum(self.model.semantic_instance_class_list)) + 1
         self.loss_fcn = self.build_my_loss_function()
         self.loss_fcn_matching_override = self.build_my_loss_function(matching_override=True)
         metric_maker_kwargs = {
@@ -193,7 +192,7 @@ class Trainer(object):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
             true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
-            segmentation_visualizations_sb, score_visualizations_sb = \
+                segmentation_visualizations_sb, score_visualizations_sb = \
                 self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                            should_visualize=should_visualize)
 

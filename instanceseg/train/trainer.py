@@ -250,11 +250,10 @@ class Trainer(object):
         score = self.model(full_input)
         pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
         val_loss = float(loss.data[0])
-
         true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
             self.exporter.run_post_val_iteration(
             imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
-                data_to_img_transformer=lambda i, l: self.exporter.untransform_data(i, l, data_loader))
+                data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
         return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
                score_visualizations
 

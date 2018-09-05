@@ -326,5 +326,3 @@ def debug_check_values_are_valid(loss, score, iteration):
         print('WARNING: losses={} at iteration {}'.format(loss.data[0], iteration))
     if any_nan(score.data):
         raise ValueError('score is nan while training')
-
-

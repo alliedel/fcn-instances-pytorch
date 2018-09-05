@@ -1,5 +1,5 @@
 class PARAM_CLASSIFICATIONS(object):
-    optim = {'optim', 'max_iteration', 'lr', 'momentum', 'weight_decay', 'clip'}
+    optim = {'optim', 'max_iteration', 'lr', 'momentum', 'weight_decay', 'clip', 'reset_optim'}
     export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics'}
     loss = {'matching', 'size_average', 'loss_type'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
@@ -21,6 +21,7 @@ _default_config = dict(
 
     # optim
     optim='sgd',
+    reset_optim=False,  # with resume
     max_iteration=100000,
     lr=1.0e-12,
     momentum=0.99,

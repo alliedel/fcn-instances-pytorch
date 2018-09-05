@@ -68,7 +68,8 @@ def setup(args, cfg, out_dir, sampler_cfg):
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
-    optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, checkpoint)
+    checkpoint_for_optim = checkpoint if (checkpoint is not None and not cfg['reset_optim']) else None
+    optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, checkpoint_for_optim)
     if cfg['freeze_vgg']:
         for module_name, module in model.named_children():
             if module_name in model_utils.VGG_CHILDREN_NAMES:

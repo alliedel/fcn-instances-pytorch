@@ -38,10 +38,16 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'use_conv8': 'conv8',
                                         'dataset_instance_cap': 'datacap',
                                         'export_activations': 'exp_act',
-                                        'write_instance_metrics': 'wr_instmet',
+                                        'write_instance_metrics': 'instmet',
                                         'loss_type': 'loss',
                                         'ordering': 'order',
                                         }
+
+
+CONFIG_VAL_REPLACEMENTS_FOR_FILENAME = {
+    True: '0',
+    False: '1'
+}
 
 
 def make_ordered_cfg(cfg, start_arg_order=('dataset', 'sampler'), end_arg_order=()):
@@ -135,9 +141,10 @@ def get_cfg_override_parser(cfg_default):
 
 
 def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME,
-                       reverse_replacements=False):
+                       reverse_replacements=False, config_val_replacements=CONFIG_VAL_REPLACEMENTS_FOR_FILENAME):
     if reverse_replacements:
         config_key_replacements = {v: k for k, v in config_key_replacements.items()}
+        config_val_replacements = {v: k for k, v in config_val_replacements.items()}
     cfg_print = config_dict.copy()
     for key, replacement_key in config_key_replacements.items():
         if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
@@ -146,6 +153,10 @@ def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEME
                                                          is not 'background'])
         if key in cfg_print:
             cfg_print[replacement_key] = cfg_print.pop(key)
+
+    for key, old_val in cfg_print.items():
+        if old_val in config_val_replacements.keys():
+            cfg_print[key] = config_val_replacements[old_val]
 
     return cfg_print
 

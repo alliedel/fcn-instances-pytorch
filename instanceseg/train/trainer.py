@@ -146,7 +146,8 @@ class Trainer(object):
 
         permutations, total_loss, loss_components = loss_fcn(score, sem_lbl, inst_lbl)
         avg_loss = total_loss / score.size(0)
-
+        if self.state.iteration > 100:
+            import ipdb; ipdb.set_trace()
         return permutations, avg_loss, loss_components
 
     def augment_image(self, img, sem_lbl):

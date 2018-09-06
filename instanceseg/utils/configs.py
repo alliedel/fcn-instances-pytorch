@@ -167,19 +167,24 @@ def save_config(log_dir, cfg):
         yaml.safe_dump(cfg, f, default_flow_style=False)
 
 
-def get_cfgs(dataset_name, config_idx, cfg_override_args):
+def get_cfgs(dataset_name, config_idx, cfg_override_args=None):
     cfg_default = dataset_registry.REGISTRY[dataset_name].default_config
     cfg_options = dataset_registry.REGISTRY[dataset_name].config_options
     cfg = create_config_from_default(cfg_options[config_idx], cfg_default)
     non_default_options = prune_defaults_from_dict(cfg_default, cfg)
-    for key, override_val in cfg_override_args.__dict__.items():
-        old_val = cfg.pop(key)
-        if override_val != old_val:
-            print(misc.color_text(
-                'Overriding value for {}: {} --> {}'.format(key, old_val, override_val),
-                misc.TermColors.WARNING))
-        cfg[key] = override_val
-        non_default_options[key] = override_val
+    if cfg_override_args is not None:
+        try:
+            cfg_override_as_dict = cfg_override_args.__dict__
+        except AttributeError:
+            cfg_override_as_dict = cfg_override_args
+        for key, override_val in cfg_override_as_dict.items():
+            old_val = cfg.pop(key)
+            if override_val != old_val:
+                print(misc.color_text(
+                    'Overriding value for {}: {} --> {}'.format(key, old_val, override_val),
+                    misc.TermColors.WARNING))
+            cfg[key] = override_val
+            non_default_options[key] = override_val
 
     print(misc.color_text('non-default cfg values: {}'.format(non_default_options),
                           misc.TermColors.OKBLUE))

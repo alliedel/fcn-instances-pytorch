@@ -1,4 +1,5 @@
 import argparse
+import os
 import subprocess
 from os import path as osp
 
@@ -6,12 +7,23 @@ import numpy as np
 import torch
 import torch.utils.data
 
-from scripts.configurations.sampler_cfg import sampler_cfgs
-from instanceseg.datasets import dataset_registry
+import instanceseg.factory
+import instanceseg.factory.data
+import instanceseg.factory.models
+import instanceseg.factory.optimizer
+import instanceseg.factory.samplers
+import instanceseg.factory.trainers
+import instanceseg.utils
 import instanceseg.utils.configs
+import instanceseg.utils.logs
+import scripts.configurations
+from instanceseg.datasets import dataset_registry
+from instanceseg.models import model_utils
+from instanceseg.utils.configs import get_cfgs
 from instanceseg.utils.misc import TermColors
+from scripts.configurations.sampler_cfg import sampler_cfgs
+from scripts.train_instances_filtered import here
 
-here = osp.dirname(osp.abspath(__file__))
 MY_TIMEZONE = 'America/New_York'
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
 CFG_ORDER = {}
@@ -140,3 +152,69 @@ def convert_comma_separated_string_to_list(string, conversion_type=None):
     else:
         elements = [s.strip() for s in string.split(',')]
         return [conversion_type(element) for element in elements]
+
+
+def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_init=None):
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    set_random_seeds()
+    cuda = torch.cuda.is_available()
+
+    print('Getting dataloaders...')
+    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, dataset_type, cuda, sampler_cfg)
+    print('Done getting dataloaders')
+    # reduce dataloaders to semantic subset before running / generating problem config:
+    n_instances_per_class = cfg['n_instances_per_class']
+    problem_config = instanceseg.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
+                                                                   n_instances_per_class,
+                                                                   map_to_semantic=cfg['map_to_semantic'])
+    if resume:
+        checkpoint = torch.load(resume)
+    else:
+        checkpoint = None
+
+    # 2. model
+    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, resume,
+                                                                               semantic_init, cuda)
+    # Run a few checks
+    problem_config_semantic_classes = set([problem_config.semantic_class_names[si]
+                                           for si in problem_config.semantic_instance_class_list])
+    dataset_semantic_classes = set(dataloaders['train'].dataset.semantic_class_names)
+    assert problem_config_semantic_classes == dataset_semantic_classes, \
+        'Model covers these semantic classes: {}.\n ' \
+        'Dataset covers these semantic classes: {}.'.format(problem_config_semantic_classes, dataset_semantic_classes)
+    print('Number of output channels in model: {}'.format(model.n_output_channels))
+    print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
+        len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
+
+    # 3. optimizer
+    # TODO(allie): something is wrong with adam... fix it.
+    checkpoint_for_optim = checkpoint if (checkpoint is not None and not cfg['reset_optim']) else None
+    optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, checkpoint_for_optim)
+    if cfg['freeze_vgg']:
+        for module_name, module in model.named_children():
+            if module_name in model_utils.VGG_CHILDREN_NAMES:
+                assert all([p.requires_grad is False for p in module.parameters()])
+        print('All modules were correctly frozen: '.format({}).format(model_utils.VGG_CHILDREN_NAMES))
+    if not cfg['map_to_semantic']:
+        cfg['activation_layers_to_export'] = tuple([x for x in cfg[
+            'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
+    trainer = instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir)
+    trainer.epoch = start_epoch
+    trainer.iteration = start_iteration
+    return trainer
+
+
+def configure(dataset_name, config_idx, sampler_name, cfg_override_args=None):
+    cfg, cfg_to_print = get_cfgs(dataset_name=dataset_name, config_idx=config_idx, cfg_override_args=cfg_override_args)
+    cfg['sampler'] = sampler_name
+    assert cfg['dataset'] == dataset_name, 'Debug Error: cfg[\'dataset\']: {}, args.dataset: {}'.format(cfg['dataset'],
+                                                                                                        dataset_name)
+    if cfg['dataset_instance_cap'] == 'match_model':
+        cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
+    sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg(sampler_name)
+    out_dir = instanceseg.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
+                                                 cfg_to_print,
+                                                 parent_directory=os.path.join(here, 'logs', dataset_name))
+    instanceseg.utils.configs.save_config(out_dir, cfg)
+    print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir), instanceseg.utils.misc.TermColors.OKGREEN))
+    return cfg, out_dir, sampler_cfg

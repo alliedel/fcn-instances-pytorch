@@ -22,7 +22,8 @@ from instanceseg.models import model_utils
 from instanceseg.utils.configs import get_cfgs
 from instanceseg.utils.misc import TermColors
 from scripts.configurations.sampler_cfg import sampler_cfgs
-from scripts.train_instances_filtered import here
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + '/'
 
 MY_TIMEZONE = 'America/New_York'
 BAD_CHAR_REPLACEMENTS = {' ': '', ',': '-', "['": '', "']": ''}
@@ -204,7 +205,9 @@ def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_
     return trainer
 
 
-def configure(dataset_name, config_idx, sampler_name, cfg_override_args=None):
+def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscript.py', cfg_override_args=None):
+    script_basename = osp.basename(script_py_file).replace('.py', '')
+    parent_directory = os.path.join(PROJECT_ROOT, 'logs', dataset_name)
     cfg, cfg_to_print = get_cfgs(dataset_name=dataset_name, config_idx=config_idx, cfg_override_args=cfg_override_args)
     cfg['sampler'] = sampler_name
     assert cfg['dataset'] == dataset_name, 'Debug Error: cfg[\'dataset\']: {}, args.dataset: {}'.format(cfg['dataset'],
@@ -212,9 +215,8 @@ def configure(dataset_name, config_idx, sampler_name, cfg_override_args=None):
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
     sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg(sampler_name)
-    out_dir = instanceseg.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
-                                                 cfg_to_print,
-                                                 parent_directory=os.path.join(here, 'logs', dataset_name))
+    out_dir = instanceseg.utils.logs.get_log_dir(script_basename, config_idx,
+                                                 cfg_to_print, parent_directory=parent_directory)
     instanceseg.utils.configs.save_config(out_dir, cfg)
     print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir), instanceseg.utils.misc.TermColors.OKGREEN))
     return cfg, out_dir, sampler_cfg

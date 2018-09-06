@@ -22,7 +22,11 @@ def parse_args():
 def main():
     instanceseg.utils.scripts.check_clean_work_tree()
     args, cfg_override_args = parse_args()
-    cfg, out_dir, sampler_cfg = configure(args.dataset, args.config, args.sampler, cfg_override_args)
+    cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
+                                          config_idx=args.config,
+                                          sampler_name=args.sampler,
+                                          script_py_file=__file__,
+                                          cfg_override_args=cfg_override_args)
     trainer = setup(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
                     semantic_init=args.semantic_init)
 

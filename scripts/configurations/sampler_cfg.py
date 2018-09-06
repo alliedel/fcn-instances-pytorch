@@ -27,7 +27,7 @@ sampler_cfgs = {
     'person_car_2_3': get_sampler_cfg_set(sem_cls_filter=['car', 'person'],
                                           n_instances_range=[(2, 3 + 1), (2, 3 + 1)]),
     'car_bus_train_1_3': get_sampler_cfg_set(sem_cls_filter=['car', 'bus', 'train'],
-                                             n_instances_range=[(1, 3 + 1), (1, 3 + 1)]),
+                                             n_instances_range=[(1, 3 + 1) for _ in range(3)]),
 }
 sampler_cfgs['car_2_4inst_allimg_realval'] = sampler_cfgs['car_2_4']
 

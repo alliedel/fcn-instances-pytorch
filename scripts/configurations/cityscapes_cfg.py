@@ -78,5 +78,13 @@ configurations = {
         dataset_instance_cap='match_model',
         ordering=None,
         semantic_subset=['car', 'person', 'background'],
+    ),
+    'vehicle_instance': dict(
+        max_iteration=1000000,
+        interval_validate=4000,
+        n_instances_per_class=3,
+        dataset_instance_cap='match_model',
+        ordering=None,
+        semantic_subset=['car', 'bus', 'train'],
     )
 }

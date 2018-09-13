@@ -21,10 +21,12 @@ def main():
     # resume = '/home/adelgior/code/fcn-instance-cityscapes/tests/logs/synthetic/'
     # 'TIME-20180911-162519_VCS-7f69ed0_MODEL-overfit_single_image_CFG-000_SAMPLER-overfit_1_INSTMET-1_ITR-1000'
     # '_LOSS-cross_entropy_N_IMAGES_TRAIN-0_N_IMAGES_VAL-0_SA-0_VAL-10/model_best.pth'
-    resume = None
+    resume = 'tests/logs/synthetic/TIME-20180912-101236_VCS-7f69ed0_MODEL-' \
+             'overfit_single_image_CFG-000_SAMPLER-overfit_1_INSTMET-1' \
+             '_ITR-500_LOSS-cross_entropy_N_IMAGES_TRAIN-0_N_IMAGES_VAL-0_SA-0_VAL-10/model_best.pth.tar'
     args, cfg_override_args = instanceseg.utils.scripts.parse_args_without_sys(dataset_name='synthetic', resume=resume)
-    # cfg_override_args.loss_type, cfg_override_args.size_average = 'soft_iou', False
-    cfg_override_args.loss_type, cfg_override_args.size_average = 'cross_entropy', True
+    cfg_override_args.loss_type, cfg_override_args.size_average, cfg_override_args.lr = 'soft_iou', False, 1.0e-5
+    # cfg_override_args.loss_type, cfg_override_args.size_average, cfg_override_args.lr = 'cross_entropy', True, 1.0e-5
     cfg_override_args.max_iteration = 500
     cfg_override_args.interval_validate = 10
     cfg_override_args.sampler = 'overfit_1'

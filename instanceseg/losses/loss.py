@@ -80,12 +80,16 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         """
         raise NotImplementedError
 
-    def component_loss(self, prediction, binary_target):
+    def component_loss(self, single_channel_prediction, binary_target):
         raise NotImplementedError
 
     def compute_matching_loss(self, predictions, sem_lbl, inst_lbl):
         pred_permutations, total_loss, loss_components = self.matching_loss(predictions, sem_lbl, inst_lbl)
         return pred_permutations, total_loss, loss_components
+
+    def get_binary_gt_for_channel(self, sem_lbl, inst_lbl, channel_idx):
+        sem_val, inst_val = self.semantic_instance_labels[channel_idx], self.instance_id_labels[channel_idx]
+        return ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
 
     def compute_nonmatching_loss(self, predictions, sem_lbl, inst_lbl):
         batch_sz, n_channels = predictions.size(0), predictions.size(1)
@@ -95,9 +99,10 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
 
         losses = []
         component_losses = []
-        for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(self.semantic_instance_labels, self.instance_id_labels)):
-            binary_target_single_instance_cls = (((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()).view(-1)
-            predictions_single_instance_cls = predictions[:, sem_inst_idx, :, :].view(-1)
+        n_channels = len(self.semantic_instance_labels)
+        for channel_idx in range(n_channels):
+            binary_target_single_instance_cls = self.get_binary_gt_for_channel(sem_lbl, inst_lbl, channel_idx).view(-1)
+            predictions_single_instance_cls = predictions[:, channel_idx, :, :].view(-1)
             new_loss = self.component_loss(binary_target_single_instance_cls, predictions_single_instance_cls)
             losses.append(new_loss)
             if self.only_present and binary_target_single_instance_cls.sum() == 0:
@@ -139,7 +144,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         # Compute optimal match & costs for each image in the batch
         for i in range(batch_sz):
             gt_indices, pred_permutation, costs = \
-                self.compute_optimal_match_loss(predictions[i, ...], sem_lbl[i, ...], inst_lbl[i, ...])
+                self.compute_optimal_match_loss_single_img(predictions[i, ...], sem_lbl[i, ...], inst_lbl[i, ...])
             all_gt_indices[i, ...] = gt_indices
             all_pred_permutations[i, ...] = pred_permutation
             all_costs.append(torch.cat(costs))
@@ -152,7 +157,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                 raise Exception
         return all_pred_permutations, loss_train, all_costs
 
-    def compute_optimal_match_loss(self, predictions, sem_lbl, inst_lbl):
+    def compute_optimal_match_loss_single_img(self, predictions, sem_lbl, inst_lbl):
         """
         Note: this function returns optimal match loss for a single image (not a batch)
         target: C,H,W.  C is the number of instances for ALL semantic classes.
@@ -164,7 +169,9 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         costs -- cost of each of the matches (also length C)
         """
         semantic_instance_labels = self.semantic_instance_labels
-        assert len(semantic_instance_labels) == predictions.size(0)
+        assert len(semantic_instance_labels) == predictions.size(0), \
+            'first dimension of predictions should be the number of channels.  It is {} instead. ' \
+            'Are you trying to pass an entire batch into the loss function?'.format(predictions.size(0))
         gt_indices, pred_permutations, costs = [], [], []
         num_inst_classes = len(semantic_instance_labels)
         unique_semantic_values = range(max(semantic_instance_labels) + 1)
@@ -211,6 +218,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         return cost_matrix, multiplier, cost_list_2d
 
 
+
 class CrossEntropyComponentMatchingLoss(ComponentMatchingLossBase):
     loss_type = 'cross_entropy'
 
@@ -221,8 +229,8 @@ class CrossEntropyComponentMatchingLoss(ComponentMatchingLossBase):
         assert len(scores.size()) == 4
         return F.log_softmax(scores, dim=1)
 
-    def component_loss(self, prediction, binary_target):
-        return xentropy.nll2d_single_class_term(prediction, binary_target)
+    def component_loss(self, single_channel_prediction, binary_target):
+        return xentropy.nll2d_single_class_term(single_channel_prediction, binary_target)
 
 
 class SoftIOUComponentMatchingLoss(ComponentMatchingLossBase):
@@ -230,12 +238,12 @@ class SoftIOUComponentMatchingLoss(ComponentMatchingLossBase):
 
     def __init__(self, semantic_instance_labels=None, instance_id_labels=None, matching=True, size_average=False):
         if size_average:
-            raise Exception('Pretty sure you didnt want size_average to be True.')
+            raise Exception('Pretty sure you didn\'t want size_average to be True since it\'s already embedded in iou.')
         super().__init__(semantic_instance_labels, instance_id_labels, matching, size_average)
 
     def transform_scores_to_predictions(self, scores):
         assert len(scores.size()) == 4
         return F.softmax(scores, dim=1)
 
-    def component_loss(self, prediction, binary_target):
-        return iou.my_soft_iou(prediction, binary_target)
+    def component_loss(self, single_channel_prediction, binary_target):
+        return iou.my_soft_iou_loss(single_channel_prediction, binary_target)

@@ -21,12 +21,13 @@ _default_config = dict(
 
     # optim
     optim='sgd',
-    reset_optim=False,  # with resume
+    reset_optim=True,  # with resume
     max_iteration=100000,
     lr=1.0e-12,
     momentum=0.99,
     weight_decay=0.0005,
     clip=1e20,
+    # use_lr_scheduler=True,
 
     # export
     interval_validate=4000,

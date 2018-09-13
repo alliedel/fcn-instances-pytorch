@@ -12,7 +12,7 @@ import instanceseg.utils.misc
 from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
-from instanceseg.utils import datasets, instance_utils
+from instanceseg.utils import datasets
 
 DEBUG_ASSERTS = True
 
@@ -196,7 +196,7 @@ class Trainer(object):
                 # Don't waste computation if we don't need to run on the remaining images
                 continue
             true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
-                segmentation_visualizations_sb, score_visualizations_sb = \
+            segmentation_visualizations_sb, score_visualizations_sb = \
                 self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                            should_visualize=should_visualize)
 
@@ -249,7 +249,7 @@ class Trainer(object):
         val_loss = float(loss.data[0])
         true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
             self.exporter.run_post_val_iteration(
-            imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
+                imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
                 data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
         return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
                score_visualizations
@@ -288,14 +288,28 @@ class Trainer(object):
         full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=True)
         self.optim.zero_grad()
         score = self.model(full_input)
-        pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl)
+        pred_permutations, loss, loss_components = self.compute_loss(score, sem_lbl, inst_lbl)
         debug_check_values_are_valid(loss, score, self.state.iteration)
+
+        # if 1:
+        #     prediction = self.loss_object.transform_scores_to_predictions(score)
+        #     cost_matrices_as_list = self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
+        #         prediction[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
+        #
+        #     import ipdb; ipdb.set_trace()
         loss.backward()
         self.optim.step()
         if self.exporter.run_loss_updates:
             self.model.eval()
-            new_pred_permutations, new_loss, _ = self.compute_loss(self.model(full_input), sem_lbl, inst_lbl)
+            new_score = self.model(full_input)
+            new_pred_permutations, new_loss, new_loss_components = self.compute_loss(new_score, sem_lbl,
+                                                                                     inst_lbl)
+            # num_reassignments = np.sum(new_pred_permutations != pred_permutations)
+            # if not num_reassignments == 0:
+            #     self.debug_loss(score, sem_lbl, inst_lbl, new_score, new_loss, loss_components, new_loss_components)
+
             self.model.train()
+
         else:
             new_pred_permutations, new_loss = None, None
 
@@ -303,6 +317,20 @@ class Trainer(object):
                                                epoch=self.state.epoch, iteration=self.state.iteration,
                                                new_pred_permutations=new_pred_permutations, new_loss=new_loss,
                                                get_activations_fcn=self.model.get_activations)
+
+    def debug_loss(self, score, sem_lbl, inst_lbl, new_score, new_loss, loss_components, new_loss_components):
+        predictions = self.loss_object.transform_scores_to_predictions(score)
+        new_predictions = self.loss_object.transform_scores_to_predictions(new_score)
+        old_cost_matrix = self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
+            predictions[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
+        new_cost_matrix = self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
+            predictions[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
+        ch_idx = 1
+        pred_for_ch = predictions[0, ch_idx, :, :]
+        binary_gt_for_ch = self.loss_object.get_binary_gt_for_channel(sem_lbl[0, ...], inst_lbl[0, ...], ch_idx)
+        import ipdb; ipdb.set_trace()
+        loss_component_example = self.loss_object.component_loss(single_channel_prediction=pred_for_ch,
+                                                                 binary_target=binary_gt_for_ch)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.train_loader)))

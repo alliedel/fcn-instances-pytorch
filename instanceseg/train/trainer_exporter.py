@@ -233,7 +233,6 @@ class TrainerExporter(object):
                 histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
                 histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
                 if iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
-                    # if 1:
                     for name, metric in tqdm.tqdm(histogram_metrics_as_flattened_dict.items(),
                                                   total=len(histogram_metrics_as_flattened_dict.items()),
                                                   desc='Writing histogram metrics', leave=False):
@@ -303,8 +302,9 @@ class TrainerExporter(object):
                                                            channel_labels=channel_labels,
                                                            channels_to_visualize=channels_to_visualize,
                                                            input_image=img_untransformed)
-        score_viz.resize(visualization_utils.get_new_size(score_viz,
-                                                          self.export_config.downsample_multiplier_score_images))
+        if self.export_config.downsample_multiplier_score_images != 1:
+            score_viz = visualization_utils.resize_img_by_multiplier(
+                score_viz, self.export_config.downsample_multiplier_score_images)
         return segmentation_viz, score_viz
 
     def export_visualizations(self, visualizations, iteration, basename='val_', tile=True, out_dir=None):

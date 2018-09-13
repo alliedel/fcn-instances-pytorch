@@ -16,12 +16,26 @@ except ImportError:  # py3k
     from itertools import filterfalse
 
 
+def my_soft_iou_loss(predictions_as_probabilities, binary_target):
+    num_nonzero_pixels = binary_target.sum()
+    # if num_nonzero_pixels.data.item() == 0:
+    assert torch.numel(num_nonzero_pixels) == 1
+    if num_nonzero_pixels.data[0] == 0:
+        return num_nonzero_pixels
+        # return Variable(type(predictions_as_probabilities)([0]))  # 0 in the correct format (tensor, variable)
+    else:
+        return 1.0 - my_soft_iou(predictions_as_probabilities, binary_target)
+
+
 def my_soft_iou(predictions_as_probabilities, binary_target):
-    intersection_per_pixel = predictions_as_probabilities.view(-1).dot(binary_target.view(-1))
+    bt = binary_target.view(-1)
+    pp = predictions_as_probabilities.view(-1)
+    intersection_per_pixel = pp * bt
+    # intersection = pp.dot(bt)
     intersection = intersection_per_pixel.sum()
 
     #Denominator
-    union_per_pixel = (predictions_as_probabilities + binary_target) - intersection_per_pixel
+    union_per_pixel = (pp + bt) - intersection_per_pixel
     ## Sum over all pixels N x C x H x W => N x C
     union = union_per_pixel.sum()
     return intersection / union

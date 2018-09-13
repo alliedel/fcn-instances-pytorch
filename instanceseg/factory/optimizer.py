@@ -3,7 +3,7 @@ import torch
 from instanceseg.utils.configs import get_parameters
 
 
-def get_optimizer(cfg, model, checkpoint_file=None):
+def get_optimizer(cfg, model, checkpoint=None):
     if cfg['optim'] == 'adam':
         optim = torch.optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
     elif cfg['optim'] == 'sgd':
@@ -20,7 +20,6 @@ def get_optimizer(cfg, model, checkpoint_file=None):
             weight_decay=cfg['weight_decay'])
     else:
         raise Exception('optimizer {} not recognized.'.format(cfg['optim']))
-    if checkpoint_file:
-        checkpoint = torch.load(checkpoint_file)
+    if checkpoint is not None:
         optim.load_state_dict(checkpoint['optim_state_dict'])
     return optim

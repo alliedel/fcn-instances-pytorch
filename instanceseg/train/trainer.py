@@ -13,6 +13,7 @@ from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
 from instanceseg.utils import datasets
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 DEBUG_ASSERTS = True
 
@@ -37,7 +38,8 @@ class Trainer(object):
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False, write_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False,
-                 export_activations=False, activation_layers_to_export=()):
+                 export_activations=False, activation_layers_to_export=(),
+                 lr_scheduler: ReduceLROnPlateau=None):
 
         # System parameters
         self.cuda = cuda
@@ -86,6 +88,7 @@ class Trainer(object):
         self.eval_loss_object_with_matching = self.build_my_loss()  # Uses matching
         self.loss_fcn = self.loss_object.loss_fcn  # scores, sem_lbl, inst_lbl
         self.eval_loss_fcn_with_matching = self.eval_loss_object_with_matching.loss_fcn
+        self.lr_scheduler = lr_scheduler
 
         metric_maker_kwargs = {
             'problem_config': self.instance_problem,
@@ -256,6 +259,9 @@ class Trainer(object):
 
     def train_epoch(self):
         self.model.train()
+        if self.lr_scheduler is not None:
+            val_loss, val_metrics, _ = self.validate_split('val')
+            self.lr_scheduler.step(val_loss, epoch=self.state.epoch)
 
         if self.generate_new_synthetic_data_each_epoch:
             seed = np.random.randint(100)

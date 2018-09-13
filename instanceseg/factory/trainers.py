@@ -4,7 +4,7 @@ from instanceseg.train import metrics
 import instanceseg
 
 
-def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
+def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir, scheduler=None):
     writer = SummaryWriter(log_dir=out_dir)
     trainer = instanceseg.Trainer(cuda=cuda, model=model, optimizer=optim, train_loader=dataloaders['train'],
                                   val_loader=dataloaders['val'], out_dir=out_dir, max_iter=cfg['max_iteration'],
@@ -17,5 +17,6 @@ def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
                                   activation_layers_to_export=cfg['activation_layers_to_export'],
                                   write_instance_metrics=cfg['write_instance_metrics'],
                                   generate_new_synthetic_data_each_epoch=(
-                                              cfg['dataset'] == 'synthetic' and cfg['infinite_synthetic']))
+                                              cfg['dataset'] == 'synthetic' and cfg['infinite_synthetic']),
+                                  lr_scheduler=scheduler)
     return trainer

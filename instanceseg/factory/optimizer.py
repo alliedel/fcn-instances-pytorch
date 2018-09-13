@@ -1,6 +1,7 @@
 import torch
 
 from instanceseg.utils.configs import get_parameters
+from torch.optim import lr_scheduler
 
 
 def get_optimizer(cfg, model, checkpoint=None):
@@ -23,3 +24,17 @@ def get_optimizer(cfg, model, checkpoint=None):
     if checkpoint is not None:
         optim.load_state_dict(checkpoint['optim_state_dict'])
     return optim
+
+
+def get_scheduler(optimizer, scheduler_type='plateau'):
+    if scheduler_type == 'plateau':
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                   threshold_mode='abs',
+                                                   mode='min',  # 'min': smaller metric == better (used for loss)
+                                                   threshold=0.01,
+                                                   patience=5,
+                                                   cooldown=5)
+    else:
+        raise NotImplementedError('I dont recognize scheduler type {}'.format(scheduler_type))
+    return scheduler
+

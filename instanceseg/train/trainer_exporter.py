@@ -216,9 +216,9 @@ class TrainerExporter(object):
     def write_loss_updates(self, old_loss, new_loss, old_pred_permutations, new_pred_permutations, iteration):
         loss_improvement = old_loss - new_loss
         num_reassignments = np.sum(new_pred_permutations != old_pred_permutations)
-        self.tensorboard_writer.add_scalar('eval_metrics/train_batch_loss_improvement', loss_improvement,
+        self.tensorboard_writer.add_scalar('A_eval_metrics/train_batch_loss_improvement', loss_improvement,
                                            iteration)
-        self.tensorboard_writer.add_scalar('eval_metrics/reassignment',
+        self.tensorboard_writer.add_scalar('A_eval_metrics/reassignment',
                                            num_reassignments, iteration)
 
     def compute_and_write_instance_metrics(self, model, iteration):
@@ -320,8 +320,8 @@ class TrainerExporter(object):
             if write_basic_metrics:
                 self.write_eval_metrics(val_metrics, val_loss, split, epoch=epoch, iteration=iteration)
                 if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar('eval_metrics/{}/losses'.format(split), val_loss, iteration)
-                    self.tensorboard_writer.add_scalar('eval_metrics/{}/mIOU'.format(split), val_metrics[2], iteration)
+                    self.tensorboard_writer.add_scalar('A_eval_metrics/{}/losses'.format(split), val_loss, iteration)
+                    self.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2], iteration)
 
         if write_instance_metrics:
             self.compute_and_write_instance_metrics(model=model, iteration=iteration)
@@ -344,16 +344,16 @@ class TrainerExporter(object):
         eval_metrics = np.mean(eval_metrics, axis=0)
         self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
-            self.tensorboard_writer.add_scalar('A_eval_metrics/train_batch_loss', loss.data[0],
+            self.tensorboard_writer.add_scalar('A_eval_metrics/train_batch_loss', loss.data.sum(),
                                                iteration)
 
         if self.export_config.export_component_losses:
             for c_idx, c_lbl in enumerate(self.instance_problem.get_model_channel_labels('{}_{}')):
                 self.tensorboard_writer.add_scalar('B_component_losses/train/{}'.format(c_lbl),
-                                                   loss_components.data[c_idx], iteration)
+                                                   loss_components.data[:, c_idx].sum(), iteration)
 
         if self.export_config.run_loss_updates:
-            self.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.data[0],
+            self.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.sum(),
                                     old_pred_permutations=pred_permutations,
                                     new_pred_permutations=new_pred_permutations,
                                     iteration=iteration)

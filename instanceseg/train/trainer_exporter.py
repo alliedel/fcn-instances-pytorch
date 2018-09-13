@@ -308,6 +308,10 @@ class TrainerExporter(object):
                 score_viz, self.export_config.downsample_multiplier_score_images)
         return segmentation_viz, score_viz
 
+    def export_score_and_seg_images(self, segmentation_visualizations, score_visualizations, iteration, split):
+        self.export_visualizations(segmentation_visualizations, iteration, basename='seg_' + split, tile=True)
+        self.export_visualizations(score_visualizations, iteration, basename='score_' + split, tile=False)
+
     def export_visualizations(self, visualizations, iteration, basename='val_', tile=True, out_dir=None):
         out_dir = out_dir or osp.join(self.out_dir, 'visualization_viz')
         visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer, iteration,
@@ -321,7 +325,8 @@ class TrainerExporter(object):
                 self.write_eval_metrics(val_metrics, val_loss, split, epoch=epoch, iteration=iteration)
                 if self.tensorboard_writer is not None:
                     self.tensorboard_writer.add_scalar('A_eval_metrics/{}/losses'.format(split), val_loss, iteration)
-                    self.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2], iteration)
+                    self.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2],
+                                                       iteration)
 
         if write_instance_metrics:
             self.compute_and_write_instance_metrics(model=model, iteration=iteration)

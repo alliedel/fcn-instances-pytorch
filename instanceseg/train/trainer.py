@@ -212,11 +212,8 @@ class Trainer(object):
             score_visualizations += score_visualizations_sb
 
         if should_export_visualizations:
-            self.exporter.export_visualizations(segmentation_visualizations, self.state.iteration,
-                                                basename='seg_' + split, tile=True)
-            self.exporter.export_visualizations(score_visualizations, self.state.iteration,
-                                                basename='score_' + split, tile=False)
-
+            self.exporter.export_score_and_seg_images(segmentation_visualizations, score_visualizations,
+                                                      self.state.iteration, split)
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss
 

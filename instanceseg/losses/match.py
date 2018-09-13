@@ -12,57 +12,29 @@ logger = get_logger()
 # TODO(allie): Allow for more target (gt) channels than prediction channels
 
 
-def compute_optimal_match_loss(single_class_component_loss_fcn, log_predictions, sem_lbl, inst_lbl,
-                               semantic_instance_labels, instance_id_labels, size_average=True):
-    """
-    target: C,H,W.  C is the number of instances for ALL semantic classes.
-    predictions: C,H,W
-    semantic_instance_labels: the mapping from ground truth index to semantic labels.  This is
-    needed so we only allow instances in the same semantic class to compete.
-    gt_indices, perm_permutation -- indices into (0, ..., C-1) for gt and predictions of the
-     matches.
-    costs -- cost of each of the matches (also length C)
-    """
-    assert len(semantic_instance_labels) == log_predictions.size(0)
-    gt_indices, pred_permutations, costs = [], [], []
-    num_inst_classes = len(semantic_instance_labels)
-    unique_semantic_values = unique(semantic_instance_labels)
-    for sem_val in unique_semantic_values:
-        idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
-        cost_list_2d = create_pytorch_cost_matrix(single_class_component_loss_fcn, log_predictions,
-                                                  sem_lbl, inst_lbl, semantic_instance_labels,
-                                                  instance_id_labels, sem_val, size_average=size_average)
-        cost_matrix, multiplier = convert_pytorch_costs_to_ints(cost_list_2d)
-        assignment = pywrapgraph.LinearSumAssignment()
-
-        for ground_truth in range(len(cost_matrix)):
-            for prediction in range(len(cost_matrix[0])):
-                try:
-                    assignment.AddArcWithCost(ground_truth, prediction,
-                                              cost_matrix[prediction][ground_truth])
-                except:
-                    print(cost_matrix[prediction][ground_truth])
-                    import ipdb;
-                    ipdb.set_trace()
-                    raise
-        check_status(assignment.Solve(), assignment)
-        debug_print_assignments(assignment, multiplier)
-        gt_indices += idxs
-        pred_permutations += [idxs[assignment.RightMate(i)] for i in range(len(idxs))]
-        costs += [cost_list_2d[assignment.RightMate(i)][i] for i in range(len(idxs))]
-    sorted_indices = np.argsort(gt_indices)
-    gt_indices = np.array(gt_indices)[sorted_indices]
-    pred_permutations = np.array(pred_permutations)[sorted_indices]
-    costs = [costs[i] for i in sorted_indices]
-    return gt_indices, pred_permutations, costs
+def solve_matching_problem(cost_matrix, multiplier_for_db_print=1.0):
+    assignment = pywrapgraph.LinearSumAssignment()
+    for ground_truth in range(len(cost_matrix)):
+        for prediction in range(len(cost_matrix[0])):
+            try:
+                assignment.AddArcWithCost(ground_truth, prediction,
+                                          cost_matrix[prediction][ground_truth])
+            except:
+                print(cost_matrix[prediction][ground_truth])
+                import ipdb;
+                ipdb.set_trace()
+                raise
+    check_status(assignment.Solve(), assignment)
+    debug_print_assignments(assignment, multiplier_for_db_print)
+    return assignment
 
 
-def create_pytorch_cost_matrix(single_class_component_loss_fcn, log_predictions, sem_lbl, inst_lbl,
+def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem_lbl, inst_lbl,
                                semantic_instance_labels, instance_id_labels, sem_val, size_average=True):
     """
 
     :param single_class_component_loss_fcn: f(yhat, binary_y) where yhat, binary_2d_gt are (N, H, W)
-    :param log_predictions: C,H,W
+    :param predictions: C,H,W
     :param sem_lbl: (H,W)
     :param inst_lbl: (H,W)
     :param semantic_instance_labels:
@@ -75,7 +47,7 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, log_predictions,
 
     if DEBUG_ASSERTS:
         assert inst_lbl.size() == sem_lbl.size()
-        assert log_predictions.size()[1:] == inst_lbl.size()
+        assert predictions.size()[1:] == inst_lbl.size()
     if size_average:
         # TODO(allie): Verify this is correct (and not sem_lbl >=0, or some combo)
         normalizer = (inst_lbl >= 0).data.sum()
@@ -92,7 +64,7 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, log_predictions,
     else:
         cost_list_2d = [[
             single_class_component_loss_fcn(
-                log_predictions[sem_inst_idx, :, :],
+                predictions[sem_inst_idx, :, :],
                 (sem_lbl == sem_val).float() * (inst_lbl == inst_val).float()) / normalizer
             for inst_val in inst_id_lbls_for_this_class]
             for sem_inst_idx in sem_inst_idxs_for_this_class]

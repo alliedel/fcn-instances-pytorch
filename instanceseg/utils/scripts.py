@@ -31,6 +31,14 @@ CFG_ORDER = {}
 DEBUG_ASSERTS = True
 
 
+def construct_args_list_to_replace_sys(dataset_name, gpu=None, config_idx=None, sampler_name=None, resume=None):
+    default_args_list = [dataset_name]
+    for key, val in {'-g': gpu, '-c': config_idx, '--sampler': sampler_name, '--resume': resume}.items():
+        if val is not None:
+            default_args_list += [key, str(val)]
+    return default_args_list
+
+
 def set_random_seeds(np_seed=1337, torch_seed=1337, torch_cuda_seed=1337):
     if np_seed is not None:
         np.random.seed(np_seed)
@@ -90,11 +98,20 @@ def get_parser():
     return parser
 
 
-def parse_args():
+def parse_args_without_sys(dataset_name, gpu=0, **kwargs):
+    replacement_args_list = construct_args_list_to_replace_sys(dataset_name, gpu=gpu, **kwargs)
+    print(replacement_args_list)
+    args, override_cfg_args = parse_args(replacement_args_list=replacement_args_list)
+    return args, override_cfg_args
+
+
+def parse_args(replacement_args_list=None):
     # Get initial parser
     parser = get_parser()
-
-    args, argv = parser.parse_known_args()
+    if replacement_args_list is not None:
+        args, argv = parser.parse_known_args(replacement_args_list)
+    else:
+        args, argv = parser.parse_known_args()
 
     # Config override parser
     assert args.dataset is not None, ValueError('dataset argument must not be None.  Run with --help for more details.')
@@ -205,9 +222,10 @@ def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_
     return trainer
 
 
-def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscript.py', cfg_override_args=None):
+def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscript.py', cfg_override_args=None,
+              parent_script_directory='scripts'):
     script_basename = osp.basename(script_py_file).replace('.py', '')
-    parent_directory = os.path.join(PROJECT_ROOT, 'logs', dataset_name)
+    parent_directory = os.path.join(PROJECT_ROOT, parent_script_directory, 'logs', dataset_name)
     cfg, cfg_to_print = get_cfgs(dataset_name=dataset_name, config_idx=config_idx, cfg_override_args=cfg_override_args)
     cfg['sampler'] = sampler_name
     assert cfg['dataset'] == dataset_name, 'Debug Error: cfg[\'dataset\']: {}, args.dataset: {}'.format(cfg['dataset'],

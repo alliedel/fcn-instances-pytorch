@@ -16,6 +16,17 @@ except ImportError:  # py3k
     from itertools import filterfalse
 
 
+def my_soft_iou(predictions_as_probabilities, binary_target):
+    intersection_per_pixel = predictions_as_probabilities.view(-1).dot(binary_target.view(-1))
+    intersection = intersection_per_pixel.sum()
+
+    #Denominator
+    union_per_pixel = (predictions_as_probabilities + binary_target) - intersection_per_pixel
+    ## Sum over all pixels N x C x H x W => N x C
+    union = union_per_pixel.sum()
+    return intersection / union
+
+
 def lovasz_grad(gt_sorted):
     """
     Computes gradient of the Lovasz extension w.r.t sorted errors

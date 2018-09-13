@@ -49,7 +49,7 @@ def main_check_cost_matrix():
     inst_lbl = torch.autograd.Variable(data0[1][1].cuda())
     scores = model.forward(img)
     log_predictions = F.log_softmax(scores, dim=1)
-    size_average=True
+    size_average = True
     semantic_instance_labels = my_trainer.instance_problem.semantic_instance_class_list
     instance_id_labels = my_trainer.instance_problem.instance_count_id_list
 

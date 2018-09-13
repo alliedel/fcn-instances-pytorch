@@ -17,6 +17,8 @@ from instanceseg.datasets import runtime_transformations
 from instanceseg.utils import instance_utils
 from instanceseg.utils.misc import flatten_dict
 
+display_pyutils.set_my_rc_defaults()
+
 MY_TIMEZONE = 'America/New_York'
 
 
@@ -40,6 +42,8 @@ class ExportConfig(object):
 
         self.write_activation_condition = should_write_activations
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
+
+        self.downsample_multiplier_score_images = 0.5
 
 
 class TrainerExporter(object):
@@ -123,7 +127,6 @@ class TrainerExporter(object):
         self.iterations_for_losses_stored.append(iteration)
         if self.joint_train_val_loss_mpl_figure is None:
             self.joint_train_val_loss_mpl_figure = plt.figure(figure_name)
-            display_pyutils.set_my_rc_defaults()
 
         h = plt.figure(figure_name)
 
@@ -300,6 +303,8 @@ class TrainerExporter(object):
                                                            channel_labels=channel_labels,
                                                            channels_to_visualize=channels_to_visualize,
                                                            input_image=img_untransformed)
+        score_viz.resize(visualization_utils.get_new_size(score_viz,
+                                                          self.export_config.downsample_multiplier_score_images))
         return segmentation_viz, score_viz
 
     def export_visualizations(self, visualizations, iteration, basename='val_', tile=True, out_dir=None):
@@ -314,8 +319,8 @@ class TrainerExporter(object):
             if write_basic_metrics:
                 self.write_eval_metrics(val_metrics, val_loss, split, epoch=epoch, iteration=iteration)
                 if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar('metrics/{}/losses'.format(split), val_loss, iteration)
-                    self.tensorboard_writer.add_scalar('metrics/{}/mIOU'.format(split), val_metrics[2], iteration)
+                    self.tensorboard_writer.add_scalar('eval_metrics/{}/losses'.format(split), val_loss, iteration)
+                    self.tensorboard_writer.add_scalar('eval_metrics/{}/mIOU'.format(split), val_metrics[2], iteration)
 
         if write_instance_metrics:
             self.compute_and_write_instance_metrics(model=model, iteration=iteration)
@@ -338,7 +343,7 @@ class TrainerExporter(object):
         eval_metrics = np.mean(eval_metrics, axis=0)
         self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
-            self.tensorboard_writer.add_scalar('metrics/train_batch_loss', loss.data[0],
+            self.tensorboard_writer.add_scalar('eval_metrics/train_batch_loss', loss.data[0],
                                                iteration)
         if self.export_config.run_loss_updates:
             self.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.data[0],

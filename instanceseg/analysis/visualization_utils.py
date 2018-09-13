@@ -201,7 +201,6 @@ def get_tile_image(imgs, tile_shape=None, result_img=None, margin_color=None, ma
     @param tile_shape: shape for which images should be concatenated
     @param result_img: numpy array to put result image
     """
-    from skimage.transform import resize
 
     def get_tile_shape(img_num):
         x_num = 0
@@ -216,18 +215,10 @@ def get_tile_image(imgs, tile_shape=None, result_img=None, margin_color=None, ma
     if margin_color is None:
         margin_size = 0
     # get max tile size to which each image should be resized
-    max_height, max_width = np.inf, np.inf
-    for img in imgs:
-        max_height = min([max_height, img.shape[0]])
-        max_width = min([max_width, img.shape[1]])
+    max_height, max_width = get_max_height_and_width(imgs)
     # resize and concatenate images
     for i, img in enumerate(imgs):
-        h, w = img.shape[:2]
-        dtype = img.dtype
-        h_scale, w_scale = max_height / h, max_width / w
-        scale = min([h_scale, w_scale])
-        h, w = int(scale * h), int(scale * w)
-        img = resize(img, (h, w), preserve_range=True).astype(dtype)
+        img = resize_img_to_sz(img, max_height, max_width)
         if len(img.shape) == 3:
             img = centerize(img, (max_height + margin_size * 2, max_width + margin_size * 2, 3),
                             margin_color)
@@ -236,6 +227,39 @@ def get_tile_image(imgs, tile_shape=None, result_img=None, margin_color=None, ma
                             margin_color)
         imgs[i] = img
     return _tile_images(imgs, tile_shape, result_img)
+
+
+def get_max_height_and_width(imgs):
+    max_height, max_width = np.inf, np.inf
+    for img in imgs:
+        max_height = min([max_height, img.shape[0]])
+        max_width = min([max_width, img.shape[1]])
+    return max_height, max_width
+
+
+def resize_img_to_sz(img, height, width):
+    from skimage.transform import resize
+    h, w = img.shape[:2]
+    dtype = img.dtype
+    h_scale, w_scale = height / h, width / w
+    scale = min([h_scale, w_scale])
+    h, w = int(scale * h), int(scale * w)
+    img = resize(img, (h, w), preserve_range=True).astype(dtype)
+    return img
+
+
+def get_new_size(img, multiplier):
+    h, w = img.shape[:2]
+    h, w = int(multiplier * h), int(multiplier * w)
+    return h, w
+
+
+def resize_img_by_multiplier(img, multiplier):
+    from skimage.transform import resize
+    dtype = img.dtype
+    h, w = get_new_size(img, multiplier)
+    img = resize(img, (h, w), preserve_range=True).astype(dtype)
+    return img
 
 
 def label2rgb(lbl, img=None, label_names=None, n_labels=None,

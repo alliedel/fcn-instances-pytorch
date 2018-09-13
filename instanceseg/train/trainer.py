@@ -81,11 +81,15 @@ class Trainer(object):
         self.state = TrainingState(max_iteration=max_iter)
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
-        self.loss_fcn = self.build_my_loss_function()
-        self.loss_fcn_matching_override = self.build_my_loss_function(matching_override=True)
+
+        self.loss_object = self.build_my_loss()
+        self.eval_loss_object_with_matching = self.build_my_loss()  # Uses matching
+        self.loss_fcn = self.loss_object.loss_fcn  # scores, sem_lbl, inst_lbl
+        self.eval_loss_fcn_with_matching = self.eval_loss_object_with_matching.loss_fcn
+
         metric_maker_kwargs = {
             'problem_config': self.instance_problem,
-            'component_loss_function': self.loss_fcn,
+            'component_loss_function': self.eval_loss_fcn_with_matching,
             'augment_function_img_sem': self.augment_image
             if self.augment_input_with_semantic_masks else None
         }
@@ -125,14 +129,16 @@ class Trainer(object):
             Variable(inst_lbl, requires_grad=requires_grad)
         return full_input, sem_lbl, inst_lbl
 
-    def build_my_loss_function(self, matching_override=None):
+    def build_my_loss(self, matching_override=None):
         # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
+
         matching = matching_override if matching_override is not None else self.matching_loss
-        my_loss_fcn = instanceseg.losses.loss.loss_2d_factory(  # f(scores, sem_lbl, inst_lbl)
-            self.loss_type, self.instance_problem.semantic_instance_class_list,
-            self.instance_problem.instance_count_id_list,
-            return_loss_components=True, matching=matching)
-        return my_loss_fcn
+
+        my_loss_object = instanceseg.losses.loss.loss_object_factory(self.loss_type,
+                                                                     self.instance_problem.semantic_instance_class_list,
+                                                                     self.instance_problem.instance_count_id_list,
+                                                                     matching, self.size_average)
+        return my_loss_object
 
     def compute_loss(self, score, sem_lbl, inst_lbl, val_matching_override=False):
         # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
@@ -142,12 +148,9 @@ class Trainer(object):
 
         if map_to_semantic:
             inst_lbl[inst_lbl > 1] = 1
-        loss_fcn = self.loss_fcn if not val_matching_override else self.loss_fcn_matching_override
-
+        loss_fcn = self.loss_fcn if not val_matching_override else self.eval_loss_fcn_with_matching
         permutations, total_loss, loss_components = loss_fcn(score, sem_lbl, inst_lbl)
         avg_loss = total_loss / score.size(0)
-        if self.state.iteration > 100:
-            import ipdb; ipdb.set_trace()
         return permutations, avg_loss, loss_components
 
     def augment_image(self, img, sem_lbl):
@@ -218,6 +221,8 @@ class Trainer(object):
                                                        should_compute_basic_metrics, split, val_loss, val_metrics,
                                                        write_basic_metrics, write_instance_metrics,
                                                        self.state.epoch, self.state.iteration, self.model)
+        if save_checkpoint:
+            self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2])
 
         # Restore training settings set prior to function call
         if training:
@@ -229,7 +234,7 @@ class Trainer(object):
     def save_checkpoint_and_update_if_best(self, mean_iu):
         current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch, self.state.iteration, self.model,
                                                                 self.optim, self.best_mean_iu)
-        if mean_iu > self.best_mean_iu:
+        if mean_iu > self.best_mean_iu or self.best_mean_iu == 0:
             self.best_mean_iu = mean_iu
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
 
@@ -275,6 +280,7 @@ class Trainer(object):
             self.train_iteration(img_data, target)
 
             if self.state.training_complete():
+                self.validate_all_splits()
                 break
 
     def train_iteration(self, img_data, target):
@@ -312,12 +318,13 @@ class Trainer(object):
         if self.train_loader_for_val is not None:
             train_loss, train_metrics, _ = self.validate_split('train')
         else:
-            train_loss = None
+            train_loss, train_metrics = None, None
         if train_loss is not None:
             self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, self.state.iteration)
         if self.exporter.tensorboard_writer is not None:
             self.exporter.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
                                                         self.state.iteration)
+        return train_metrics, train_loss, val_metrics, val_loss
 
 
 def debug_check_values_are_valid(loss, score, iteration):

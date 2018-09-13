@@ -319,8 +319,8 @@ class Trainer(object):
         else:
             new_pred_permutations, new_loss = None, None
 
-        self.exporter.run_post_train_iteration(full_input, inst_lbl, loss, pred_permutations, score, sem_lbl,
-                                               epoch=self.state.epoch, iteration=self.state.iteration,
+        self.exporter.run_post_train_iteration(full_input, inst_lbl, loss, loss_components, pred_permutations, score,
+                                               sem_lbl, epoch=self.state.epoch, iteration=self.state.iteration,
                                                new_pred_permutations=new_pred_permutations, new_loss=new_loss,
                                                get_activations_fcn=self.model.get_activations)
 

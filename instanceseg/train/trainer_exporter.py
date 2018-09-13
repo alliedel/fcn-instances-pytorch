@@ -44,6 +44,7 @@ class ExportConfig(object):
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
 
         self.downsample_multiplier_score_images = 0.5
+        self.export_component_losses = True
 
 
 class TrainerExporter(object):
@@ -326,8 +327,8 @@ class TrainerExporter(object):
             self.compute_and_write_instance_metrics(model=model, iteration=iteration)
         return val_metrics
 
-    def run_post_train_iteration(self, full_input, inst_lbl, loss, pred_permutations, score, sem_lbl, epoch,
-                                 iteration, new_pred_permutations=None, new_loss=None, get_activations_fcn=None):
+    def run_post_train_iteration(self, full_input, inst_lbl, loss, loss_components, pred_permutations, score, sem_lbl,
+                                 epoch, iteration, new_pred_permutations=None, new_loss=None, get_activations_fcn=None):
         """
         get_activations_fcn=self.model.get_activations
         """
@@ -343,8 +344,14 @@ class TrainerExporter(object):
         eval_metrics = np.mean(eval_metrics, axis=0)
         self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
-            self.tensorboard_writer.add_scalar('eval_metrics/train_batch_loss', loss.data[0],
+            self.tensorboard_writer.add_scalar('A_eval_metrics/train_batch_loss', loss.data[0],
                                                iteration)
+
+        if self.export_config.export_component_losses:
+            for c_idx, c_lbl in enumerate(self.instance_problem.get_model_channel_labels('{}_{}')):
+                self.tensorboard_writer.add_scalar('B_component_losses/train/{}'.format(c_lbl),
+                                                   loss_components.data[c_idx], iteration)
+
         if self.export_config.run_loss_updates:
             self.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.data[0],
                                     old_pred_permutations=pred_permutations,

@@ -22,6 +22,7 @@ def get_nonlinearity(nonlinearity):
     else:
         assert False, "Unknown non-linearity: {}".format(nonlinearity)
 
+
 ### Basic Conv + Pool + BN + Non-linearity structure
 class BasicConv2D(nn.Module):
     def __init__(self, in_channels, out_channels, use_pool=False, use_bn=True, nonlinearity='prelu', **kwargs):

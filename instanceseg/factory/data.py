@@ -21,10 +21,10 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     train_dataset, val_dataset = get_datasets_with_transformations(dataset_type, cfg, transform=True)
 
     # 2. samplers
-    train_sampler, val_sampler, train_for_val_sampler = get_samplers(dataset_type, sampler_cfg,
-                                                                     train_dataset, val_dataset)
     if sampler_cfg is not None and isinstance(sampler_cfg['val'], str) and sampler_cfg['val'] == 'copy_train':
         val_dataset = train_dataset
+    train_sampler, val_sampler, train_for_val_sampler = get_samplers(dataset_type, sampler_cfg,
+                                                                     train_dataset, val_dataset)
 
     # Create dataloaders from datasets and samplers
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}

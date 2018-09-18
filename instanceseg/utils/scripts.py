@@ -93,7 +93,7 @@ def get_parser():
                                                        '\'~/data/models/pytorch/semantic_synthetic.pth\'', default=None)
         subparser.add_argument('--single-image-index', type=int, help='Image index to use for train/validation set',
                                default=None)
-        subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default='default',
+        subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default=None,
                                help='Sampler for dataset')
     return parser
 

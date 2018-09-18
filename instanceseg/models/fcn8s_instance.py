@@ -1,4 +1,7 @@
 import os.path as osp
+from collections import OrderedDict
+
+from instanceseg.models.model_utils import copy_tensor, copy_conv, module_has_params, get_activations
 
 try:
     import fcn
@@ -18,8 +21,70 @@ DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.
 
 DEBUG = True
 
+'''
+        100 padding for 2 reasons:
+            1) support very small input size
+            2) allow cropping in order to match size of different layers' feature maps
+        Note that the cropped part corresponds to a part of the 100 padding
+        Spatial information of different layers' feature maps cannot be align exactly because of cropping, which is bad
+'''
+
+
+def isiterable(x):
+    try:
+        iter(x)
+        is_iterable = True
+    except TypeError:
+        is_iterable = False
+    return is_iterable
+
+
+def get_default_sublayer_names(block_num, n_convs):
+    default_names = []
+    for c in range(n_convs):
+        # default_names.append('convblock{}_conv{}'.format(block_num, c))
+        # default_names.append('convblock{}_relu{}'.format(block_num, c))
+        default_names.append('conv{}'.format(c))
+        default_names.append('relu{}'.format(c))
+    # default_names.append('pool{}'.format(block_num))
+    default_names.append('pool')
+    return default_names
+
+
+def make_conv_block(in_channels, out_channels, n_convs=3, kernel_sizes: tuple = 3, stride=2,
+                    paddings: tuple = 1, nonlinear_type=nn.ReLU, pool_type=nn.MaxPool2d, pool_size=2,
+                    layer_names: list or bool=None, block_num=None):
+    if layer_names is None:
+        layer_names = True
+    if layer_names is True:
+        assert block_num is not None, 'I need the block number to create a default sublayer name'
+        layer_names = get_default_sublayer_names(block_num, n_convs)
+
+    paddings_list = paddings if isiterable(paddings) else [paddings for _ in range(n_convs)]
+    kernel_sizes_list = kernel_sizes if isiterable(kernel_sizes) else [kernel_sizes for _ in range(n_convs)]
+    in_c = in_channels
+    layers = []
+    for c in range(n_convs):
+        layers.append(nn.Conv2d(in_c, out_channels, kernel_size=kernel_sizes_list[c], padding=paddings_list[c]))
+        layers.append(nonlinear_type(inplace=True))
+        in_c = out_channels
+
+    layers.append(pool_type(kernel_size=pool_size, stride=stride, ceil_mode=True))
+    if layer_names is False:
+        return nn.Sequential(*layers)
+    else:
+        assert len(layer_names) == len(layers)
+        layers_with_names = [(name, layer) for name, layer in zip(layer_names, layers)]
+        ordered_layers_with_names = OrderedDict(layers_with_names)
+        return nn.Sequential(ordered_layers_with_names)
+
+
+def initialize_basic_conv_from_sublayers(basic_conv, conv_sublayers):
+    pass
+
 
 class FCN8sInstance(nn.Module):
+    INTERMEDIATE_CONV_CHANNEL_SIZE = 20
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
@@ -32,97 +97,6 @@ class FCN8sInstance(nn.Module):
         bottleneck_channel_capacity: n_classes (default); 'semantic': n_semantic_classes', some number
         """
         super(FCN8sInstance, self).__init__()
-
-        def build_architecture():
-            # conv1
-            self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, kernel_size=3, padding=100)
-            self.relu1_1 = nn.ReLU(inplace=True)
-            self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-            self.relu1_2 = nn.ReLU(inplace=True)
-            self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # 1/2
-
-            # conv2
-            self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-            self.relu2_1 = nn.ReLU(inplace=True)
-            self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-            self.relu2_2 = nn.ReLU(inplace=True)
-            self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/4
-
-            # conv3
-            self.conv3_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-            self.relu3_1 = nn.ReLU(inplace=True)
-            self.conv3_2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-            self.relu3_2 = nn.ReLU(inplace=True)
-            self.conv3_3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-            self.relu3_3 = nn.ReLU(inplace=True)
-            self.pool3 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/8
-
-            # conv4
-            self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
-            self.relu4_1 = nn.ReLU(inplace=True)
-            self.conv4_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-            self.relu4_2 = nn.ReLU(inplace=True)
-            self.conv4_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-            self.relu4_3 = nn.ReLU(inplace=True)
-            self.pool4 = nn.MaxPool2d(
-                kernel_size=2, stride=2, ceil_mode=True)  # 1/16
-
-            # conv5
-            self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-            self.relu5_1 = nn.ReLU(inplace=True)
-            self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-            self.relu5_2 = nn.ReLU(inplace=True)
-            self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-            self.relu5_3 = nn.ReLU(inplace=True)
-            self.pool5 = nn.MaxPool2d(
-                kernel_size=2, stride=2, ceil_mode=True)  # 1/32
-
-            # fc6
-            self.fc6 = nn.Conv2d(512, 4096, 7)
-            self.relu6 = nn.ReLU(inplace=True)
-            self.drop6 = nn.Dropout2d()
-
-            # fc7
-            self.fc7 = nn.Conv2d(4096, 4096, kernel_size=1)  # H/32 x W/32 x 4096
-            self.relu7 = nn.ReLU(inplace=True)
-            self.drop7 = nn.Dropout2d()
-
-            # H/32 x W/32 x n_semantic_cls
-            INTERMEDIATE_CONV_CHANNEL_SIZE = 20
-            intermediate_channel_size = self.bottleneck_channel_capacity if not self.use_conv8 else \
-                INTERMEDIATE_CONV_CHANNEL_SIZE
-            if self.use_conv8:
-                self.conv8 = nn.Conv2d(4096, intermediate_channel_size, kernel_size=3, padding=1)
-                fr_in_dim = intermediate_channel_size
-            else:
-                fr_in_dim = 4096
-            if self.use_attention_layer:
-                self.attn1 = attention.Self_Attn(in_dim=fr_in_dim, activation='relu')
-                # fr_in_dim = self.attn1.out_dim
-
-            self.score_fr = nn.Conv2d(fr_in_dim, intermediate_channel_size, kernel_size=1)
-
-            # H/32 x W/32 x n_semantic_cls
-            self.score_pool3 = nn.Conv2d(256, self.bottleneck_channel_capacity, 1)
-            # H/32 x W/32 x n_semantic_cls
-            self.score_pool4 = nn.Conv2d(512, self.bottleneck_channel_capacity, 1)
-
-            self.upscore2 = nn.ConvTranspose2d(  # H/16 x W/16 x n_semantic_cls
-                self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
-            self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
-                self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
-            self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
-                self.bottleneck_channel_capacity, self.n_instance_classes, kernel_size=16, stride=8, bias=False)
-            if self.score_multiplier_init is not None:
-                self.score_multiplier1x1 = nn.Conv2d(self.n_instance_classes, self.n_instance_classes,
-                                                     kernel_size=1, stride=1, bias=True)
-            self.clipping_function = None if self.clip is None else model_utils.get_clipping_function(min=-self.clip,
-                                                                                                      max=self.clip)
-
-            if self.map_to_semantic:
-                self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
-                                                              out_channels=self.n_output_channels,
-                                                              kernel_size=1, bias=False)
 
         if include_instance_channel0:
             raise NotImplementedError
@@ -166,72 +140,66 @@ class FCN8sInstance(nn.Module):
                 'bottleneck_channel_capacity must be an int')
             self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
 
-        build_architecture()
+        self.conv1 = make_conv_block(self.n_input_channels, 64, n_convs=2, paddings=(100, 1), block_num=1)  # 1/2
+        self.conv2 = make_conv_block(64, 128, n_convs=2, block_num=2)  # 1/4
+        self.conv3 = make_conv_block(128, 256, n_convs=3, block_num=3)  # 1/8
+        self.conv4 = make_conv_block(256, 512, n_convs=3, block_num=4)  # 1/16
+        self.conv5 = make_conv_block(512, 512, n_convs=3, block_num=5)  # 1/32
+
+        # fc6
+        self.fc6 = nn.Conv2d(512, 4096, 7)
+        self.relu6 = nn.ReLU(inplace=True)
+        self.drop6 = nn.Dropout2d()
+
+        # fc7
+        self.fc7 = nn.Conv2d(4096, 4096, kernel_size=1)  # H/32 x W/32 x 4096
+        self.relu7 = nn.ReLU(inplace=True)
+        self.drop7 = nn.Dropout2d()
+
+        # H/32 x W/32 x n_semantic_cls
+        intermediate_channel_size = self.bottleneck_channel_capacity if not self.use_conv8 else \
+            self.INTERMEDIATE_CONV_CHANNEL_SIZE
+        if self.use_conv8:
+            self.conv8 = nn.Conv2d(4096, intermediate_channel_size, kernel_size=3, padding=1)
+            fr_in_dim = intermediate_channel_size
+        else:
+            fr_in_dim = 4096
+        if self.use_attention_layer:
+            self.attn1 = attention.Self_Attn(in_dim=fr_in_dim, activation='relu')
+            # fr_in_dim = self.attn1.out_dim
+
+        self.score_fr = nn.Conv2d(fr_in_dim, intermediate_channel_size, kernel_size=1)
+
+        # H/32 x W/32 x n_semantic_cls
+        self.score_pool3 = nn.Conv2d(256, self.bottleneck_channel_capacity, 1)
+        # H/32 x W/32 x n_semantic_cls
+        self.score_pool4 = nn.Conv2d(512, self.bottleneck_channel_capacity, 1)
+        # Note: weight tensor is [N, 512, 1, 1]
+
+        bc, n_inst = self.bottleneck_channel_capacity, self.n_instance_classes
+        self.upscore2 = nn.ConvTranspose2d(bc, bc, kernel_size=4, stride=2, bias=False)  # H/16 x W/16 x channels
+        self.upscore_pool4 = nn.ConvTranspose2d(bc, bc, kernel_size=4, stride=2, bias=False)  # H x W x channels
+        self.upscore8 = nn.ConvTranspose2d(bc, n_inst, kernel_size=16, stride=8, bias=False)  # H/2 x W/2 x out_chn
+        self.score_multiplier1x1 = None if self.score_multiplier_init is None else \
+            nn.Conv2d(n_inst, n_inst, kernel_size=1, stride=1, bias=True)
+        self.clipping_function = None if self.clip is None else \
+            model_utils.get_clipping_function(min=-self.clip, max=self.clip)
+
+        self.conv1x1_instance_to_semantic = None if not self.map_to_semantic else \
+            nn.Conv2d(in_channels=self.n_instance_classes, out_channels=self.n_output_channels, kernel_size=1,
+                      bias=False)
 
         self._initialize_weights()
 
-        def store_activation(self, layer, input, output, layer_name):
-            if layer_name not in self.activation_layers:
-                self.activation_layers.append(layer_name)
-            if self.activations is None:
-                self.activations = {}
-            self.activations[layer_name] = output.data
-
-    def add_forward_hook(self, layer_name):
-        try:
-            layer = getattr(self, layer_name)
-        except AttributeError:
-            raise AttributeError('Could not find attribute with name {} in {}'.format(layer_name, self.__class__))
-
-        self.my_forward_hooks[layer_name] = layer.register_forward_hook(lambda *args, **kwargs:
-                                                                        self.store_activation(*args, **kwargs,
-                                                                                              layer_name=layer_name))
-
-    def clear_forward_hooks_and_activations(self):
-        self.activations = None
-        self.activation_layers = []
-        for name, hook in self.my_forward_hooks.items():
-            hook.remove()
-        self.my_forward_hooks = {}
-
-    def get_activations(self, input, layer_names):
-        training = self.training
-        self.eval()
-        for layer_name in layer_names:
-            self.add_forward_hook(layer_name)
-        self.forward(input)
-        activations = self.activations
-        self.clear_forward_hooks_and_activations()
-        if training:
-            self.train()
-        return activations
-
     def forward(self, x):
         h = x
-        h = self.relu1_1(self.conv1_1(h))
-        h = self.relu1_2(self.conv1_2(h))
-        h = self.pool1(h)
-
-        h = self.relu2_1(self.conv2_1(h))
-        h = self.relu2_2(self.conv2_2(h))
-        h = self.pool2(h)
-
-        h = self.relu3_1(self.conv3_1(h))
-        h = self.relu3_2(self.conv3_2(h))
-        h = self.relu3_3(self.conv3_3(h))
-        h = self.pool3(h)
-        pool3 = h  # 1/8
-
-        h = self.relu4_1(self.conv4_1(h))
-        h = self.relu4_2(self.conv4_2(h))
-        h = self.relu4_3(self.conv4_3(h))
-        h = self.pool4(h)
-        pool4 = h  # 1/16
-
-        h = self.relu5_1(self.conv5_1(h))
-        h = self.relu5_2(self.conv5_2(h))
-        h = self.relu5_3(self.conv5_3(h))
-        h = self.pool5(h)
+        h = self.conv1(h)  # 1/2
+        h = self.conv2(h)  # 1/4
+        h = self.conv3(h)  # 1/8
+        pool3 = h
+        h = self.conv4(h)  # 1/16
+        pool4 = h
+        h = self.conv5(h)  # 1/32
 
         h = self.relu6(self.fc6(h))
         h = self.drop6(h)
@@ -290,17 +258,6 @@ class FCN8sInstance(nn.Module):
     def copy_params_from_fcn8s(self, fcn16s):
         raise NotImplementedError('function not yet adapted for instance rather than semantic networks (gotta copy '
                                   'weights to each instance from the same semantic class)')
-        # for name, l1 in fcn16s.named_children():
-        #     try:
-        #         l2 = getattr(self, name)
-        #         l2.weight  # skip ReLU / Dropout
-        #     except Exception:
-        #         continue
-        #     assert l1.weight.size() == l2.weight.size()
-        #     l2.weight.data.copy_(l1.weight.data)
-        #     if l1.bias is not None:
-        #         assert l1.bias.size() == l2.bias.size()
-        #         l2.bias.data.copy_(l1.bias.data)
 
     def _initialize_weights(self):
         num_modules = len(list(self.modules()))
@@ -333,29 +290,16 @@ class FCN8sInstance(nn.Module):
             self.score_multiplier1x1.bias.data.zero_()
 
     def copy_params_from_vgg16(self, vgg16):
-        features = [
-            self.conv1_1, self.relu1_1,
-            self.conv1_2, self.relu1_2,
-            self.pool1,
-            self.conv2_1, self.relu2_1,
-            self.conv2_2, self.relu2_2,
-            self.pool2,
-            self.conv3_1, self.relu3_1,
-            self.conv3_2, self.relu3_2,
-            self.conv3_3, self.relu3_3,
-            self.pool3,
-            self.conv4_1, self.relu4_1,
-            self.conv4_2, self.relu4_2,
-            self.conv4_3, self.relu4_3,
-            self.pool4,
-            self.conv5_1, self.relu5_1,
-            self.conv5_2, self.relu5_2,
-            self.conv5_3, self.relu5_3,
-            self.pool5,
-        ]
+        features = []
+        for conv_block in [self.conv1, self.conv2, self.conv3, self.conv4, self.conv5]:
+            features.append(conv_block.modules())
+
+        self.copy_from_vgg16_to_modules(features, vgg16)
+
+    def copy_from_vgg16_to_modules(self, features, vgg16):
         for l1, l2 in zip(vgg16.features, features):
             if isinstance(l1, nn.Conv2d) and isinstance(l2, nn.Conv2d):
-                if l2 == self.conv1_1 and self.n_input_channels != 3:  # accomodate different input size
+                if l2 == self.conv1[0] and self.n_input_channels != 3:  # accomodate different input size
                     assert self.n_input_channels > 3, NotImplementedError('Only know how to initialize with # '
                                                                           'input channels >= 3')
                     copy_tensor(src=l1.weight.data, dest=l2.weight.data[:, :3, ...])
@@ -387,125 +331,31 @@ class FCN8sInstance(nn.Module):
         if last_features.weight.size(1) != n_semantic_classes:
             raise ValueError('The semantic model I tried to copy from has {} output channels, but I need {} channels '
                              'for each of my semantic classes'.format(last_features.weight.size(1), n_semantic_classes))
-
-        for module_name, my_module in self.named_children():
-            if module_name in module_names_to_ignore:
-                continue
-            module_to_copy = getattr(semantic_model, module_name)
-            if module_name in conv2d_with_repeated_channels:
-                for p_name, my_p in my_module.named_parameters():
-                    p_to_copy = getattr(module_to_copy, p_name)
-                    if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
-                        import ipdb;
-                        ipdb.set_trace()
-                        raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
-                    if DEBUG:
-                        assert my_p.data.size(0) == len(self.semantic_instance_class_list) \
-                               and p_to_copy.data.size(0) == n_semantic_classes
-                    for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
-                        # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
-                        # so we use slicing)
-                        n_instances_this_class = float(sum(
-                            [1 if sic == sem_cls else 0 for sic in self.semantic_instance_class_list]))
-                        copy_tensor(src=p_to_copy.data[sem_cls:(sem_cls + 1), ...] / n_instances_this_class,
-                                    dest=my_p.data[inst_cls:(inst_cls + 1), ...])
-            elif module_name in conv2dT_with_repeated_channels:
-                assert isinstance(module_to_copy, nn.ConvTranspose2d)
-                # assert l1.weight.size() == l2.weight.size()
-                # assert l1.bias.size() == l2.bias.size()
-                for p_name, my_p in my_module.named_parameters():
-                    p_to_copy = getattr(module_to_copy, p_name)
-                    if not all(my_p.size()[c] == p_to_copy.size()[c]
-                               for c in [0] + list(range(2, len(p_to_copy.size())))):
-                        import ipdb;
-                        ipdb.set_trace()
-                        raise ValueError('semantic model formatted incorrectly for repeating params.')
-
-                    for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
-                        # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
-                        # so we use slicing)
-                        copy_tensor(src=p_to_copy.data[:, sem_cls:(sem_cls + 1), ...],
-                                    dest=my_p.data[:, inst_cls:(inst_cls + 1), ...])
-            elif isinstance(my_module, nn.Conv2d) or isinstance(my_module, nn.ConvTranspose2d):
-                assert type(module_to_copy) == type(my_module)
-                for p_name, my_p in my_module.named_parameters():
-                    p_to_copy = getattr(module_to_copy, p_name)
-                    if not my_p.size() == p_to_copy.size():
-                        import ipdb;
-                        ipdb.set_trace()
-                        raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
-                    copy_tensor(src=p_to_copy.data, dest=my_p.data)
-                    assert torch.equal(my_p.data, p_to_copy.data)
-            elif any([isinstance(my_module, type) for type in module_types_to_ignore]):
-                continue
-            else:
-                if not module_has_params(my_module):
-                    print('Skipping module of type {} (name: {}) because it has no params.  But please place it in '
-                          'list of module types to not copy.'.format(type(my_module), my_module))
-                    continue
-                else:
-                    raise Exception('Haven''t handled copying of {}, of type {}'.format(module_name, type(my_module)))
+        copy_modules_from_semantic_to_instance(self, semantic_model, conv2dT_with_repeated_channels,
+                                               conv2d_with_repeated_channels, module_names_to_ignore,
+                                               module_types_to_ignore, n_semantic_classes,
+                                               self.semantic_instance_class_list)
 
         # Assert that all the weights equal each other
         if DEBUG:
-            successfully_copied_modules = []
-            unsuccessfully_copied_modules = []
-            for module_name, my_module in self.named_children():
-                if module_name in module_names_to_ignore:
-                    import ipdb;
-                    ipdb.set_trace()
-                    continue
-                module_to_copy = getattr(semantic_model, module_name)
-                for i, (my_p, p_to_copy) in enumerate(
-                        zip(my_module.named_parameters(), module_to_copy.named_parameters())):
-                    assert my_p[0] == p_to_copy[0]
-                    if torch.equal(my_p[1].data, p_to_copy[1].data):
-                        successfully_copied_modules.append(module_name + ' ' + str(i))
-                        continue
-                    else:
-                        if module_name in (conv2d_with_repeated_channels + conv2dT_with_repeated_channels):
-                            are_equal = True
-                            for inst_cls, sem_cls in enumerate(self.semantic_instance_class_list):
-                                are_equal = torch.equal(my_p[1].data[:, inst_cls, :, :],
-                                                        p_to_copy[1].data[:, sem_cls, :, :])
-                                if not are_equal:
-                                    break
-                            if are_equal:
-                                successfully_copied_modules.append(module_name + ' ' + str(i))
-                            else:
-                                unsuccessfully_copied_modules.append(module_name + ' ' + str(i))
-            if len(unsuccessfully_copied_modules) > 0:
-                raise Exception('modules were not copied correctly: {}'.format(unsuccessfully_copied_modules))
-            else:
-                print('All modules copied correctly: {}'.format(successfully_copied_modules))
+            assert_successful_copy_from_semantic_model(self, semantic_model, self.semantic_instance_class_list,
+                                                       conv2dT_with_repeated_channels,
+                                                       conv2d_with_repeated_channels, module_names_to_ignore)
+
         if self.map_to_semantic:
             self.conv1x1_instance_to_semantic = nn.Conv2d(in_channels=self.n_instance_classes,
                                                           out_channels=self.n_semantic_classes,
                                                           kernel_size=1, bias=False)
 
+    def store_activation(self, layer, input, output, layer_name):
+        if layer_name not in self.activation_layers:
+            self.activation_layers.append(layer_name)
+        if self.activations is None:
+            self.activations = {}
+        self.activations[layer_name] = output.data
 
-def copy_tensor(src, dest):
-    """
-    Just used to help me remember which direction the copy_ happens
-    """
-    dest.copy_(src)
-
-
-def copy_conv(src_conv_module, dest_conv_module):
-    assert src_conv_module.weight.size() == dest_conv_module.weight.size()
-    assert src_conv_module.bias.size() == dest_conv_module.bias.size()
-    copy_tensor(src=src_conv_module.weight.data, dest=dest_conv_module.weight.data)
-    copy_tensor(src=src_conv_module.bias.data, dest=dest_conv_module.bias.data)
-
-
-def module_has_params(module):
-    module_params = module.named_parameters()
-    try:
-        next(module_params)
-        has_params = True
-    except StopIteration:
-        has_params = False
-    return has_params
+    def get_activations(self, input, layer_names):
+        return get_activations(self, input, layer_names)
 
 
 def FCN8sInstancePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, n_instance_classes=21,
@@ -518,3 +368,100 @@ def FCN8sInstancePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, n_instance_clas
         'model_state_dict']
     model.load_state_dict(state_dict)
     return model
+
+
+def assert_successful_copy_from_semantic_model(instance_model, semantic_model,
+                                               semantic_instance_class_list, conv2dT_with_repeated_channels,
+                                               conv2d_with_repeated_channels, module_names_to_ignore):
+    successfully_copied_modules = []
+    unsuccessfully_copied_modules = []
+    for module_name, my_module in instance_model.named_children():
+        if module_name in module_names_to_ignore:
+            import ipdb;
+            ipdb.set_trace()
+            continue
+        module_to_copy = getattr(semantic_model, module_name)
+        for i, (my_p, p_to_copy) in enumerate(
+                zip(my_module.named_parameters(), module_to_copy.named_parameters())):
+            assert my_p[0] == p_to_copy[0]
+            if torch.equal(my_p[1].data, p_to_copy[1].data):
+                successfully_copied_modules.append(module_name + ' ' + str(i))
+                continue
+            else:
+                if module_name in (conv2d_with_repeated_channels + conv2dT_with_repeated_channels):
+                    are_equal = True
+                    for inst_cls, sem_cls in enumerate(semantic_instance_class_list):
+                        are_equal = torch.equal(my_p[1].data[:, inst_cls, :, :],
+                                                p_to_copy[1].data[:, sem_cls, :, :])
+                        if not are_equal:
+                            break
+                    if are_equal:
+                        successfully_copied_modules.append(module_name + ' ' + str(i))
+                    else:
+                        unsuccessfully_copied_modules.append(module_name + ' ' + str(i))
+    if len(unsuccessfully_copied_modules) > 0:
+        raise Exception('modules were not copied correctly: {}'.format(unsuccessfully_copied_modules))
+    else:
+        print('All modules copied correctly: {}'.format(successfully_copied_modules))
+
+
+def copy_modules_from_semantic_to_instance(instance_model_dest, semantic_model, conv2dT_with_repeated_channels,
+                                           conv2d_with_repeated_channels, module_names_to_ignore,
+                                           module_types_to_ignore, n_semantic_classes, semantic_instance_class_list):
+    for module_name, my_module in instance_model_dest.named_children():
+        if module_name in module_names_to_ignore:
+            continue
+        module_to_copy = getattr(semantic_model, module_name)
+        if module_name in conv2d_with_repeated_channels:
+            for p_name, my_p in my_module.named_parameters():
+                p_to_copy = getattr(module_to_copy, p_name)
+                if not all(my_p.size()[c] == p_to_copy.size()[c] for c in range(1, len(my_p.size()))):
+                    import ipdb;
+                    ipdb.set_trace()
+                    raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
+                if DEBUG:
+                    assert my_p.data.size(0) == len(semantic_instance_class_list) \
+                           and p_to_copy.data.size(0) == n_semantic_classes
+                for inst_cls, sem_cls in enumerate(semantic_instance_class_list):
+                    # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
+                    # so we use slicing)
+                    n_instances_this_class = float(sum(
+                        [1 if sic == sem_cls else 0 for sic in semantic_instance_class_list]))
+                    copy_tensor(src=p_to_copy.data[sem_cls:(sem_cls + 1), ...] / n_instances_this_class,
+                                dest=my_p.data[inst_cls:(inst_cls + 1), ...])
+        elif module_name in conv2dT_with_repeated_channels:
+            assert isinstance(module_to_copy, nn.ConvTranspose2d)
+            # assert l1.weight.size() == l2.weight.size()
+            # assert l1.bias.size() == l2.bias.size()
+            for p_name, my_p in my_module.named_parameters():
+                p_to_copy = getattr(module_to_copy, p_name)
+                if not all(my_p.size()[c] == p_to_copy.size()[c]
+                           for c in [0] + list(range(2, len(p_to_copy.size())))):
+                    import ipdb;
+                    ipdb.set_trace()
+                    raise ValueError('semantic model formatted incorrectly for repeating params.')
+
+                for inst_cls, sem_cls in enumerate(semantic_instance_class_list):
+                    # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
+                    # so we use slicing)
+                    copy_tensor(src=p_to_copy.data[:, sem_cls:(sem_cls + 1), ...],
+                                dest=my_p.data[:, inst_cls:(inst_cls + 1), ...])
+        elif isinstance(my_module, nn.Conv2d) or isinstance(my_module, nn.ConvTranspose2d):
+            assert type(module_to_copy) == type(my_module)
+            for p_name, my_p in my_module.named_parameters():
+                p_to_copy = getattr(module_to_copy, p_name)
+                if not my_p.size() == p_to_copy.size():
+                    import ipdb;
+                    ipdb.set_trace()
+                    raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
+                copy_tensor(src=p_to_copy.data, dest=my_p.data)
+                assert torch.equal(my_p.data, p_to_copy.data)
+        elif any([isinstance(my_module, type) for type in module_types_to_ignore]):
+            continue
+        else:
+            if not module_has_params(my_module):
+                print('Skipping module of type {} (name: {}) because it has no params.  But please place it in '
+                      'list of module types to not copy.'.format(type(my_module), my_module))
+                continue
+            else:
+                raise Exception('Haven''t handled copying of {}, of type {}'.format(module_name, type(my_module)))

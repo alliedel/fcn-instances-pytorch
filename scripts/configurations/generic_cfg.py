@@ -32,9 +32,9 @@ _default_config = dict(
     # export
     interval_validate=4000,
     export_activations=False,
-    activation_layers_to_export=('conv1_1',
-                                 'pool3', 'pool4', 'pool5', 'drop6', 'fc7', 'drop7',
-                                 'upscore8', 'conv1x1_instance_to_semantic'),
+    activation_layers_to_export=('conv1.conv0',
+                                 'conv3.pool', 'conv4.pool', 'conv5.pool', 'drop6', 'fc7', 'drop7', 'upscore8'),
+                                # 'conv1x1_instance_to_semantic'
     write_instance_metrics=False,
 
     # data

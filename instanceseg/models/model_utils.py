@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 from torch.nn import functional as F
+from torch import nn
 
 import instanceseg
 
@@ -166,3 +167,74 @@ def get_non_symmetric_upsampling_weight(in_channels, out_channels, kernel_size, 
             weight[sem_cls, inst_cls_idx, :, :] = filt
         weight = weight
     return torch.from_numpy(weight).float()
+
+
+def copy_tensor(src, dest):
+    """
+    Just used to help me remember which direction the copy_ happens
+    """
+    dest.copy_(src)
+
+
+def copy_conv(src_conv_module, dest_conv_module):
+    assert src_conv_module.weight.size() == dest_conv_module.weight.size()
+    assert src_conv_module.bias.size() == dest_conv_module.bias.size()
+    copy_tensor(src=src_conv_module.weight.data, dest=dest_conv_module.weight.data)
+    copy_tensor(src=src_conv_module.bias.data, dest=dest_conv_module.bias.data)
+
+
+def module_has_params(module):
+    module_params = module.named_parameters()
+    try:
+        next(module_params)
+        has_params = True
+    except StopIteration:
+        has_params = False
+    return has_params
+
+
+def add_forward_hook(model: nn.Module, layer_name, storage_function=None):
+    if storage_function is None:
+        try:
+            getattr(model, 'store_activation')
+        except AttributeError:
+            print('Model must have a store_activation function.')
+        storage_function = model.store_activation
+
+    try:
+        if '.' in layer_name:
+            layer_hierarchy = layer_name.split('.')
+            suplayer = model
+            for i, superlayer_name in enumerate(layer_hierarchy):
+                suplayer = getattr(suplayer, superlayer_name)
+            layer = suplayer
+        else:
+            layer = getattr(model, layer_name)
+    except AttributeError:
+        print('layer names: {}'.format('\n'.join([n for n, _ in model.named_children()])))
+        raise AttributeError('Could not find attribute with name {} in {}'.format(layer_name, model.__class__))
+
+    model.my_forward_hooks[layer_name] = layer.register_forward_hook(lambda *args, **kwargs:
+                                                                     storage_function(*args, **kwargs,
+                                                                                      layer_name=layer_name))
+
+
+def clear_forward_hooks_and_activations(model):
+    model.activations = None
+    model.activation_layers = []
+    for name, hook in model.my_forward_hooks.items():
+        hook.remove()
+    model.my_forward_hooks = {}
+
+
+def get_activations(model, input, layer_names):
+    training = model.training
+    model.eval()
+    for layer_name in layer_names:
+        add_forward_hook(model, layer_name)
+    model.forward(input)
+    activations = model.activations
+    clear_forward_hooks_and_activations(model)
+    if training:
+        model.train()
+    return activations

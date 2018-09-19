@@ -1,4 +1,5 @@
 import os.path as osp
+from collections import OrderedDict
 
 from instanceseg.models.model_utils import copy_tensor, copy_conv, module_has_params, get_activations
 
@@ -36,6 +37,50 @@ def isiterable(x):
     except TypeError:
         is_iterable = False
     return is_iterable
+
+
+def get_default_sublayer_names(block_num, n_convs):
+    default_names = []
+    for c in range(n_convs):
+        # default_names.append('convblock{}_conv{}'.format(block_num, c))
+        # default_names.append('convblock{}_relu{}'.format(block_num, c))
+        default_names.append('conv{}'.format(c))
+        default_names.append('relu{}'.format(c))
+    # default_names.append('pool{}'.format(block_num))
+    default_names.append('pool')
+    return default_names
+
+
+def make_conv_block(in_channels, out_channels, n_convs=3, kernel_sizes: tuple = 3, stride=2,
+                    paddings: tuple = 1, nonlinear_type=nn.ReLU, pool_type=nn.MaxPool2d, pool_size=2,
+                    layer_names: list or bool=None, block_num=None):
+    if layer_names is None:
+        layer_names = True
+    if layer_names is True:
+        assert block_num is not None, 'I need the block number to create a default sublayer name'
+        layer_names = get_default_sublayer_names(block_num, n_convs)
+
+    paddings_list = paddings if isiterable(paddings) else [paddings for _ in range(n_convs)]
+    kernel_sizes_list = kernel_sizes if isiterable(kernel_sizes) else [kernel_sizes for _ in range(n_convs)]
+    in_c = in_channels
+    layers = []
+    for c in range(n_convs):
+        layers.append(nn.Conv2d(in_c, out_channels, kernel_size=kernel_sizes_list[c], padding=paddings_list[c]))
+        layers.append(nonlinear_type(inplace=True))
+        in_c = out_channels
+
+    layers.append(pool_type(kernel_size=pool_size, stride=stride, ceil_mode=True))
+    if layer_names is False:
+        return nn.Sequential(*layers)
+    else:
+        assert len(layer_names) == len(layers)
+        layers_with_names = [(name, layer) for name, layer in zip(layer_names, layers)]
+        ordered_layers_with_names = OrderedDict(layers_with_names)
+        return nn.Sequential(ordered_layers_with_names)
+
+
+def initialize_basic_conv_from_sublayers(basic_conv, conv_sublayers):
+    pass
 
 
 class FCN8sInstance(nn.Module):
@@ -166,25 +211,22 @@ class FCN8sInstance(nn.Module):
         self.score_pool3 = nn.Conv2d(256, self.bottleneck_channel_capacity, 1)
         # H/32 x W/32 x n_semantic_cls
         self.score_pool4 = nn.Conv2d(512, self.bottleneck_channel_capacity, 1)
+        # Note: weight tensor is [N, 512, 1, 1]
 
-        self.upscore2 = nn.ConvTranspose2d(  # H/16 x W/16 x n_semantic_cls
-            self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
-        self.upscore_pool4 = nn.ConvTranspose2d(  # H x W x n_semantic_cls
-            self.bottleneck_channel_capacity, self.bottleneck_channel_capacity, kernel_size=4, stride=2, bias=False)
-        self.upscore8 = nn.ConvTranspose2d(  # H/2 x W/2 x n_semantic_cls
-            self.bottleneck_channel_capacity, self.n_instance_classes, kernel_size=16, stride=8, bias=False)
-        if self.score_multiplier_init is not None:
-            self.score_multiplier1x1 = nn.Conv2d(self.n_instance_classes, self.n_instance_classes,
-                                                 kernel_size=1, stride=1, bias=True)
-        self.clipping_function = None if self.clip is None else model_utils.get_clipping_function(min=-self.clip,
-                                                                                                  max=self.clip)
+        bc, n_inst = self.bottleneck_channel_capacity, self.n_instance_classes
+        self.upscore2 = nn.ConvTranspose2d(bc, bc, kernel_size=4, stride=2, bias=False)  # H/16 x W/16 x channels
+        self.upscore_pool4 = nn.ConvTranspose2d(bc, bc, kernel_size=4, stride=2, bias=False)  # H x W x channels
+        self.upscore8 = nn.ConvTranspose2d(bc, n_inst, kernel_size=16, stride=8, bias=False)  # H/2 x W/2 x out_chn
+        self.score_multiplier1x1 = None if self.score_multiplier_init is None else \
+            nn.Conv2d(n_inst, n_inst, kernel_size=1, stride=1, bias=True)
+        self.clipping_function = None if self.clip is None else \
+            model_utils.get_clipping_function(min=-self.clip, max=self.clip)
 
         self.conv1x1_instance_to_semantic = None if not self.map_to_semantic else \
             nn.Conv2d(in_channels=self.n_instance_classes, out_channels=self.n_output_channels, kernel_size=1,
                       bias=False)
 
         self._initialize_weights()
-
 
     def forward(self, x):
         h = x

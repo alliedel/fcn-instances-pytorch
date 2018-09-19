@@ -52,7 +52,6 @@ def main(loss='cross_entropy'):
 
     trainer = setup(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
                     semantic_init=args.semantic_init)
-
     trainer.train()
     train_loss, train_metrics, _ = trainer.validate_split('train')
 

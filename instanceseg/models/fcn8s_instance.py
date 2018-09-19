@@ -140,48 +140,11 @@ class FCN8sInstance(nn.Module):
                 'bottleneck_channel_capacity must be an int')
             self.bottleneck_channel_capacity = int(bottleneck_channel_capacity)
 
-        # conv1
-        self.conv1_1 = nn.Conv2d(self.n_input_channels, 64, kernel_size=3, padding=100)
-        self.relu1_1 = nn.ReLU(inplace=True)
-        self.conv1_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-        self.relu1_2 = nn.ReLU(inplace=True)
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # 1/2
-
-        # conv2
-        self.conv2_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.relu2_1 = nn.ReLU(inplace=True)
-        self.conv2_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.relu2_2 = nn.ReLU(inplace=True)
-        self.pool2 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/4
-
-        # conv3
-        self.conv3_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        self.relu3_1 = nn.ReLU(inplace=True)
-        self.conv3_2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.relu3_2 = nn.ReLU(inplace=True)
-        self.conv3_3 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.relu3_3 = nn.ReLU(inplace=True)
-        self.pool3 = nn.MaxPool2d(2, stride=2, ceil_mode=True)  # 1/8
-
-        # conv4
-        self.conv4_1 = nn.Conv2d(256, 512, kernel_size=3, padding=1)
-        self.relu4_1 = nn.ReLU(inplace=True)
-        self.conv4_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu4_2 = nn.ReLU(inplace=True)
-        self.conv4_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu4_3 = nn.ReLU(inplace=True)
-        self.pool4 = nn.MaxPool2d(
-            kernel_size=2, stride=2, ceil_mode=True)  # 1/16
-
-        # conv5
-        self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_1 = nn.ReLU(inplace=True)
-        self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_2 = nn.ReLU(inplace=True)
-        self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.relu5_3 = nn.ReLU(inplace=True)
-        self.pool5 = nn.MaxPool2d(
-            kernel_size=2, stride=2, ceil_mode=True)  # 1/32
+        self.conv1 = make_conv_block(self.n_input_channels, 64, n_convs=2, paddings=(100, 1), block_num=1)  # 1/2
+        self.conv2 = make_conv_block(64, 128, n_convs=2, block_num=2)  # 1/4
+        self.conv3 = make_conv_block(128, 256, n_convs=3, block_num=3)  # 1/8
+        self.conv4 = make_conv_block(256, 512, n_convs=3, block_num=4)  # 1/16
+        self.conv5 = make_conv_block(512, 512, n_convs=3, block_num=5)  # 1/32
 
         # fc6
         self.fc6 = nn.Conv2d(512, 4096, 7)
@@ -230,30 +193,13 @@ class FCN8sInstance(nn.Module):
 
     def forward(self, x):
         h = x
-        h = self.relu1_1(self.conv1_1(h))
-        h = self.relu1_2(self.conv1_2(h))
-        h = self.pool1(h)
-
-        h = self.relu2_1(self.conv2_1(h))
-        h = self.relu2_2(self.conv2_2(h))
-        h = self.pool2(h)
-
-        h = self.relu3_1(self.conv3_1(h))
-        h = self.relu3_2(self.conv3_2(h))
-        h = self.relu3_3(self.conv3_3(h))
-        h = self.pool3(h)
-        pool3 = h  # 1/8
-
-        h = self.relu4_1(self.conv4_1(h))
-        h = self.relu4_2(self.conv4_2(h))
-        h = self.relu4_3(self.conv4_3(h))
-        h = self.pool4(h)
-        pool4 = h  # 1/16
-
-        h = self.relu5_1(self.conv5_1(h))
-        h = self.relu5_2(self.conv5_2(h))
-        h = self.relu5_3(self.conv5_3(h))
-        h = self.pool5(h)
+        h = self.conv1(h)  # 1/2
+        h = self.conv2(h)  # 1/4
+        h = self.conv3(h)  # 1/8
+        pool3 = h
+        h = self.conv4(h)  # 1/16
+        pool4 = h
+        h = self.conv5(h)  # 1/32
 
         h = self.relu6(self.fc6(h))
         h = self.drop6(h)
@@ -344,29 +290,16 @@ class FCN8sInstance(nn.Module):
             self.score_multiplier1x1.bias.data.zero_()
 
     def copy_params_from_vgg16(self, vgg16):
-        features = [
-            self.conv1_1, self.relu1_1,
-            self.conv1_2, self.relu1_2,
-            self.pool1,
-            self.conv2_1, self.relu2_1,
-            self.conv2_2, self.relu2_2,
-            self.pool2,
-            self.conv3_1, self.relu3_1,
-            self.conv3_2, self.relu3_2,
-            self.conv3_3, self.relu3_3,
-            self.pool3,
-            self.conv4_1, self.relu4_1,
-            self.conv4_2, self.relu4_2,
-            self.conv4_3, self.relu4_3,
-            self.pool4,
-            self.conv5_1, self.relu5_1,
-            self.conv5_2, self.relu5_2,
-            self.conv5_3, self.relu5_3,
-            self.pool5,
-        ]
+        features = []
+        for conv_block in [self.conv1, self.conv2, self.conv3, self.conv4, self.conv5]:
+            features += list(conv_block.children())
+
+        self.copy_from_vgg16_to_modules(features, vgg16)
+
+    def copy_from_vgg16_to_modules(self, features, vgg16):
         for l1, l2 in zip(vgg16.features, features):
             if isinstance(l1, nn.Conv2d) and isinstance(l2, nn.Conv2d):
-                if l2 == self.conv1_1 and self.n_input_channels != 3:  # accomodate different input size
+                if l2 == self.conv1[0] and self.n_input_channels != 3:  # accomodate different input size
                     assert self.n_input_channels > 3, NotImplementedError('Only know how to initialize with # '
                                                                           'input channels >= 3')
                     copy_tensor(src=l1.weight.data, dest=l2.weight.data[:, :3, ...])

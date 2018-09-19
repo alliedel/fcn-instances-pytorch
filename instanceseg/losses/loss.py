@@ -197,6 +197,12 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         return assignment, cost_list_2d
 
     def build_all_sem_cls_cost_matrices_as_tensor_data(self, predictions, sem_lbl, inst_lbl, cost_list_only=True):
+        if len(predictions.size()) == 4:
+            if predictions.size(0) == 1:
+                raise Exception('predictions, sem_lbl, inst_lbl should be formatted as coming from a single image.  '
+                                'Yours is formatted as a minibatch, with size {}'.format(predictions.size()))
+            else:
+                raise Exception('predictions, sem_lbl, and inst_lbl should be a 3-D tensor (not 4-D)')
         unique_semantic_values = range(max(self.semantic_instance_labels) + 1)
         cost_matrix_tuples = [self.build_cost_matrix_for_one_sem_cls(predictions, sem_lbl, inst_lbl, sem_val=sem_val)
                               for sem_val in unique_semantic_values]
@@ -216,7 +222,6 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                                                         size_average=self.size_average)
         cost_matrix, multiplier = match.convert_pytorch_costs_to_ints(cost_list_2d)
         return cost_matrix, multiplier, cost_list_2d
-
 
 
 class CrossEntropyComponentMatchingLoss(ComponentMatchingLossBase):

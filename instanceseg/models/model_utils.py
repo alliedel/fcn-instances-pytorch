@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 from torch.nn import functional as F
+from torch import nn
 
 import instanceseg
 
@@ -166,3 +167,29 @@ def get_non_symmetric_upsampling_weight(in_channels, out_channels, kernel_size, 
             weight[sem_cls, inst_cls_idx, :, :] = filt
         weight = weight
     return torch.from_numpy(weight).float()
+
+
+def copy_tensor(src, dest):
+    """
+    Just used to help me remember which direction the copy_ happens
+    """
+    dest.copy_(src)
+
+
+def copy_conv(src_conv_module, dest_conv_module):
+    assert src_conv_module.weight.size() == dest_conv_module.weight.size()
+    assert src_conv_module.bias.size() == dest_conv_module.bias.size()
+    copy_tensor(src=src_conv_module.weight.data, dest=dest_conv_module.weight.data)
+    copy_tensor(src=src_conv_module.bias.data, dest=dest_conv_module.bias.data)
+
+
+def module_has_params(module):
+    module_params = module.named_parameters()
+    try:
+        next(module_params)
+        has_params = True
+    except StopIteration:
+        has_params = False
+    return has_params
+
+

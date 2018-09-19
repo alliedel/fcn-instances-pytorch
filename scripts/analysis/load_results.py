@@ -99,7 +99,8 @@ if __name__ == '__main__':
         instanceseg.utils.logs.load_everything_from_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
     cuda = torch.cuda.is_available()
     initial_model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config,
-                                                                                       checkpoint_file=None, semantic_init=None,
+                                                                                       checkpoint_file=None,
+                                                                                       semantic_init=None,
                                                                                        cuda=cuda)
     import ipdb; ipdb.set_trace()
     # main_check_freeze()

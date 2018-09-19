@@ -4,11 +4,14 @@ import numpy as np
 import torch
 import tqdm
 from torch.autograd import Variable
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.optimizer import Optimizer
 
 import instanceseg
 import instanceseg.losses.loss
 import instanceseg.utils.export
 import instanceseg.utils.misc
+from instanceseg.utils.instance_utils import InstanceProblemConfig
 from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
@@ -31,13 +34,14 @@ class TrainingState(object):
 
 
 class Trainer(object):
-    def __init__(self, cuda, model: FCN8sInstance, optimizer, train_loader, val_loader, out_dir, max_iter,
-                 instance_problem,
+    def __init__(self, cuda, model: FCN8sInstance, optimizer: Optimizer, train_loader, val_loader, out_dir, max_iter,
+                 instance_problem: InstanceProblemConfig,
                  size_average=True, interval_validate=None, loss_type='cross_entropy', matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False, write_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False,
-                 export_activations=False, activation_layers_to_export=()):
+                 export_activations=False, activation_layers_to_export=(),
+                 lr_scheduler: ReduceLROnPlateau = None):
 
         # System parameters
         self.cuda = cuda
@@ -86,6 +90,7 @@ class Trainer(object):
         self.eval_loss_object_with_matching = self.build_my_loss()  # Uses matching
         self.loss_fcn = self.loss_object.loss_fcn  # scores, sem_lbl, inst_lbl
         self.eval_loss_fcn_with_matching = self.eval_loss_object_with_matching.loss_fcn
+        self.lr_scheduler = lr_scheduler
 
         metric_maker_kwargs = {
             'problem_config': self.instance_problem,
@@ -209,11 +214,8 @@ class Trainer(object):
             score_visualizations += score_visualizations_sb
 
         if should_export_visualizations:
-            self.exporter.export_visualizations(segmentation_visualizations, self.state.iteration,
-                                                basename='seg_' + split, tile=True)
-            self.exporter.export_visualizations(score_visualizations, self.state.iteration,
-                                                basename='score_' + split, tile=False)
-
+            self.exporter.export_score_and_seg_images(segmentation_visualizations, score_visualizations,
+                                                      self.state.iteration, split)
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss
 
@@ -256,6 +258,9 @@ class Trainer(object):
 
     def train_epoch(self):
         self.model.train()
+        if self.lr_scheduler is not None:
+            val_loss, val_metrics, _ = self.validate_split('val')
+            self.lr_scheduler.step(val_loss, epoch=self.state.epoch)
 
         if self.generate_new_synthetic_data_each_epoch:
             seed = np.random.randint(100)
@@ -299,6 +304,26 @@ class Trainer(object):
         #     import ipdb; ipdb.set_trace()
         loss.backward()
         self.optim.step()
+
+        try:
+            iteration = self.state.iteration
+            upscore8_grad = self.model.upscore8.weight.grad
+            for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
+                self.exporter.tensorboard_writer.add_histogram('Z_upscore8_gradients/{}'.format(channel_idx),
+                                                               upscore8_grad[channel_idx, :, :, :], self.state.iteration)
+            score_pool4_weight_grad = self.model.score_pool4.weight.grad
+            score_pool4_bias_grad = self.model.score_pool4.bias.grad
+            assert len(score_pool4_bias_grad) == self.instance_problem.n_classes
+            for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
+                self.exporter.tensorboard_writer.add_histogram('Z_score_pool4_weight_gradients/{}'.format(channel_idx),
+                                                               score_pool4_weight_grad[channel_idx, :, :, :], self.state.iteration)
+                self.exporter.tensorboard_writer.add_histogram('score_pool4_bias_gradients/{}'.format(channel_idx),
+                                                               score_pool4_bias_grad[channel_idx], self.state.iteration)
+        except:
+            import ipdb;
+            ipdb.set_trace()
+            raise
+
         if self.exporter.run_loss_updates:
             self.model.eval()
             new_score = self.model(full_input)
@@ -313,10 +338,17 @@ class Trainer(object):
         else:
             new_pred_permutations, new_loss = None, None
 
-        self.exporter.run_post_train_iteration(full_input, inst_lbl, loss, pred_permutations, score, sem_lbl,
+        group_lrs = []
+        for grp_idx, param_group in enumerate(self.optim.param_groups):
+            group_lr = self.optim.param_groups[grp_idx]['lr']
+            group_lrs.append(group_lr)
+        self.exporter.run_post_train_iteration(full_input=full_input,
+                                               inst_lbl=inst_lbl, sem_lbl=sem_lbl,
+                                               loss=loss, loss_components=loss_components,
+                                               pred_permutations=pred_permutations, score=score,
                                                epoch=self.state.epoch, iteration=self.state.iteration,
                                                new_pred_permutations=new_pred_permutations, new_loss=new_loss,
-                                               get_activations_fcn=self.model.get_activations)
+                                               get_activations_fcn=self.model.get_activations, lrs_by_group=group_lrs)
 
     def debug_loss(self, score, sem_lbl, inst_lbl, new_score, new_loss, loss_components, new_loss_components):
         predictions = self.loss_object.transform_scores_to_predictions(score)
@@ -350,7 +382,8 @@ class Trainer(object):
         if train_loss is not None:
             self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, self.state.iteration)
         if self.exporter.tensorboard_writer is not None:
-            self.exporter.tensorboard_writer.add_scalar('val_minus_train_loss', val_loss - train_loss,
+            self.exporter.tensorboard_writer.add_scalar('B_intermediate_metrics/val_minus_train_loss', val_loss -
+                                                        train_loss,
                                                         self.state.iteration)
         return train_metrics, train_loss, val_metrics, val_loss
 

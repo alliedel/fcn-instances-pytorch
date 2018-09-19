@@ -1,4 +1,7 @@
 import os.path as osp
+from collections import OrderedDict
+
+from instanceseg.models.model_utils import copy_tensor, copy_conv, module_has_params
 
 try:
     import fcn
@@ -18,8 +21,27 @@ DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.
 
 DEBUG = True
 
+'''
+        100 padding for 2 reasons:
+            1) support very small input size
+            2) allow cropping in order to match size of different layers' feature maps
+        Note that the cropped part corresponds to a part of the 100 padding
+        Spatial information of different layers' feature maps cannot be align exactly because of cropping, which is bad
+'''
+
+
+def isiterable(x):
+    try:
+        iter(x)
+        is_iterable = True
+    except TypeError:
+        is_iterable = False
+    return is_iterable
+
+
 
 class FCN8sInstance(nn.Module):
+    INTERMEDIATE_CONV_CHANNEL_SIZE = 20
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
@@ -88,9 +110,8 @@ class FCN8sInstance(nn.Module):
             self.drop7 = nn.Dropout2d()
 
             # H/32 x W/32 x n_semantic_cls
-            INTERMEDIATE_CONV_CHANNEL_SIZE = 20
             intermediate_channel_size = self.bottleneck_channel_capacity if not self.use_conv8 else \
-                INTERMEDIATE_CONV_CHANNEL_SIZE
+                self.INTERMEDIATE_CONV_CHANNEL_SIZE
             if self.use_conv8:
                 self.conv8 = nn.Conv2d(4096, intermediate_channel_size, kernel_size=3, padding=1)
                 fr_in_dim = intermediate_channel_size
@@ -290,17 +311,6 @@ class FCN8sInstance(nn.Module):
     def copy_params_from_fcn8s(self, fcn16s):
         raise NotImplementedError('function not yet adapted for instance rather than semantic networks (gotta copy '
                                   'weights to each instance from the same semantic class)')
-        # for name, l1 in fcn16s.named_children():
-        #     try:
-        #         l2 = getattr(self, name)
-        #         l2.weight  # skip ReLU / Dropout
-        #     except Exception:
-        #         continue
-        #     assert l1.weight.size() == l2.weight.size()
-        #     l2.weight.data.copy_(l1.weight.data)
-        #     if l1.bias is not None:
-        #         assert l1.bias.size() == l2.bias.size()
-        #         l2.bias.data.copy_(l1.bias.data)
 
     def _initialize_weights(self):
         num_modules = len(list(self.modules()))
@@ -484,28 +494,6 @@ class FCN8sInstance(nn.Module):
                                                           kernel_size=1, bias=False)
 
 
-def copy_tensor(src, dest):
-    """
-    Just used to help me remember which direction the copy_ happens
-    """
-    dest.copy_(src)
-
-
-def copy_conv(src_conv_module, dest_conv_module):
-    assert src_conv_module.weight.size() == dest_conv_module.weight.size()
-    assert src_conv_module.bias.size() == dest_conv_module.bias.size()
-    copy_tensor(src=src_conv_module.weight.data, dest=dest_conv_module.weight.data)
-    copy_tensor(src=src_conv_module.bias.data, dest=dest_conv_module.bias.data)
-
-
-def module_has_params(module):
-    module_params = module.named_parameters()
-    try:
-        next(module_params)
-        has_params = True
-    except StopIteration:
-        has_params = False
-    return has_params
 
 
 def FCN8sInstancePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, n_instance_classes=21,

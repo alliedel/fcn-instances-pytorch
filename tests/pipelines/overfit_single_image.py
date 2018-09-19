@@ -1,4 +1,5 @@
 import os.path as osp
+import sys
 
 import instanceseg.utils.configs
 import instanceseg.utils.logs
@@ -17,34 +18,45 @@ def get_single_img_data(dataloader, idx=0):
     return img, (sem_lbl, inst_lbl)
 
 
-def main():
-    # resume = '/home/adelgior/code/fcn-instance-cityscapes/tests/logs/synthetic/'
-    # 'TIME-20180911-162519_VCS-7f69ed0_MODEL-overfit_single_image_CFG-000_SAMPLER-overfit_1_INSTMET-1_ITR-1000'
-    # '_LOSS-cross_entropy_N_IMAGES_TRAIN-0_N_IMAGES_VAL-0_SA-0_VAL-10/model_best.pth'
-    resume = 'tests/logs/synthetic/TIME-20180912-101236_VCS-7f69ed0_MODEL-' \
-             'overfit_single_image_CFG-000_SAMPLER-overfit_1_INSTMET-1' \
-             '_ITR-500_LOSS-cross_entropy_N_IMAGES_TRAIN-0_N_IMAGES_VAL-0_SA-0_VAL-10/model_best.pth.tar'
-    args, cfg_override_args = instanceseg.utils.scripts.parse_args_without_sys(dataset_name='synthetic', resume=resume)
-    cfg_override_args.loss_type, cfg_override_args.size_average, cfg_override_args.lr = 'soft_iou', False, 1.0e-5
-    # cfg_override_args.loss_type, cfg_override_args.size_average, cfg_override_args.lr = 'cross_entropy', True, 1.0e-5
-    cfg_override_args.max_iteration = 500
-    cfg_override_args.interval_validate = 10
-    cfg_override_args.sampler = 'overfit_1'
-    cfg_override_args.n_images_train = 1
-    cfg_override_args.n_images_val = 1
-    cfg_override_args.write_instance_metrics = False
-    # cfg_override_args.lr = 1.0e-4
+def local_setup(loss):
+    if loss == 'iou':
+        resume = 'tests/logs/synthetic/TIME-20180912-101236_VCS-7f69ed0_MODEL-' \
+                 'overfit_single_image_CFG-000_SAMPLER-overfit_1_INSTMET-1' \
+                 '_ITR-500_LOSS-cross_entropy_N_IMAGES_TRAIN-0_N_IMAGES_VAL-0_SA-0_VAL-10/model_best.pth.tar'
+    else:
+        resume = None
+
+    if loss == 'iou':
+        override_args_list = ['-c', 'test_overfit_1_iou']
+    else:
+        override_args_list = ['-c', 'test_overfit_1_xent']
+    replacement_args_list = \
+        instanceseg.utils.scripts.construct_args_list_to_replace_sys(dataset_name='synthetic', gpu=0, resume=resume)
+    replacement_args_list += override_args_list
+    replacement_args_list += sys.argv[1:]
+
+    args, cfg_override_args = instanceseg.utils.scripts.parse_args(replacement_args_list=replacement_args_list)
+
+    return args, cfg_override_args
+
+
+def main(loss='cross_entropy'):
+    args, cfg_override_args = local_setup(loss)
+    args.resume = None
     cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
                                           config_idx=args.config,
                                           sampler_name=args.sampler,
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args,
                                           parent_script_directory=osp.basename(osp.dirname(here)))
+
     trainer = setup(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
                     semantic_init=args.semantic_init)
 
     trainer.train()
     train_loss, train_metrics, _ = trainer.validate_split('train')
+
+    img, (sem_lbl, inst_lbl) = [x for x in trainer.train_loader][0]
 
     import ipdb;
     ipdb.set_trace()

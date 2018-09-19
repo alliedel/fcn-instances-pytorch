@@ -16,6 +16,7 @@ from instanceseg.analysis import visualization_utils
 from instanceseg.datasets import runtime_transformations
 from instanceseg.utils import instance_utils
 from instanceseg.utils.misc import flatten_dict
+from tensorboardX import SummaryWriter
 
 display_pyutils.set_my_rc_defaults()
 
@@ -44,6 +45,9 @@ class ExportConfig(object):
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
 
         self.downsample_multiplier_score_images = 0.5
+        self.export_component_losses = True
+
+        self.write_lr = True
 
 
 class TrainerExporter(object):
@@ -64,7 +68,7 @@ class TrainerExporter(object):
     ]
 
     def __init__(self, out_dir, instance_problem, export_config: ExportConfig = None,
-                 tensorboard_writer=None, metric_makers=None):
+                 tensorboard_writer: SummaryWriter=None, metric_makers=None):
 
         self.export_config = export_config or ExportConfig()
 
@@ -214,11 +218,10 @@ class TrainerExporter(object):
 
     def write_loss_updates(self, old_loss, new_loss, old_pred_permutations, new_pred_permutations, iteration):
         loss_improvement = old_loss - new_loss
-        num_reassignments = np.sum(new_pred_permutations != old_pred_permutations)
-        self.tensorboard_writer.add_scalar('eval_metrics/train_batch_loss_improvement', loss_improvement,
+        num_reassignments = float(np.sum(new_pred_permutations != old_pred_permutations))
+        self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss_improvement', loss_improvement,
                                            iteration)
-        self.tensorboard_writer.add_scalar('eval_metrics/reassignment',
-                                           num_reassignments, iteration)
+        self.tensorboard_writer.add_scalar('A_eval_metrics/reassignment', num_reassignments, iteration)
 
     def compute_and_write_instance_metrics(self, model, iteration):
         if self.tensorboard_writer is not None:
@@ -229,7 +232,8 @@ class TrainerExporter(object):
                 metrics_as_nested_dict = metric_maker.get_aggregated_scalar_metrics_as_nested_dict()
                 metrics_as_flattened_dict = flatten_dict(metrics_as_nested_dict)
                 for name, metric in metrics_as_flattened_dict.items():
-                    self.tensorboard_writer.add_scalar('instance_metrics_{}/{}'.format(split, name), metric, iteration)
+                    self.tensorboard_writer.add_scalar('C_{}_{}'.format(name, split), metric,
+                                                       iteration)
                 histogram_metrics_as_nested_dict = metric_maker.get_aggregated_histogram_metrics_as_nested_dict()
                 histogram_metrics_as_flattened_dict = flatten_dict(histogram_metrics_as_nested_dict)
                 if iteration != 0:  # screws up the axes if we do it on the first iteration with weird inits
@@ -237,10 +241,10 @@ class TrainerExporter(object):
                                                   total=len(histogram_metrics_as_flattened_dict.items()),
                                                   desc='Writing histogram metrics', leave=False):
                         if torch.is_tensor(metric):
-                            self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
+                            self.tensorboard_writer.add_histogram('C_instance_metrics_{}/{}'.format(split, name),
                                                                   metric.numpy(), iteration, bins='auto')
                         elif isinstance(metric, np.ndarray):
-                            self.tensorboard_writer.add_histogram('instance_metrics_{}/{}'.format(split, name),
+                            self.tensorboard_writer.add_histogram('C_instance_metrics_{}/{}'.format(split, name),
                                                                   metric, iteration, bins='auto')
                         elif metric is None:
                             import ipdb;
@@ -307,6 +311,10 @@ class TrainerExporter(object):
                 score_viz, self.export_config.downsample_multiplier_score_images)
         return segmentation_viz, score_viz
 
+    def export_score_and_seg_images(self, segmentation_visualizations, score_visualizations, iteration, split):
+        self.export_visualizations(segmentation_visualizations, iteration, basename='seg_' + split, tile=True)
+        self.export_visualizations(score_visualizations, iteration, basename='score_' + split, tile=False)
+
     def export_visualizations(self, visualizations, iteration, basename='val_', tile=True, out_dir=None):
         out_dir = out_dir or osp.join(self.out_dir, 'visualization_viz')
         visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer, iteration,
@@ -319,15 +327,17 @@ class TrainerExporter(object):
             if write_basic_metrics:
                 self.write_eval_metrics(val_metrics, val_loss, split, epoch=epoch, iteration=iteration)
                 if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar('eval_metrics/{}/losses'.format(split), val_loss, iteration)
-                    self.tensorboard_writer.add_scalar('eval_metrics/{}/mIOU'.format(split), val_metrics[2], iteration)
+                    self.tensorboard_writer.add_scalar('A_eval_metrics/{}/losses'.format(split), val_loss, iteration)
+                    self.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2],
+                                                       iteration)
 
         if write_instance_metrics:
             self.compute_and_write_instance_metrics(model=model, iteration=iteration)
         return val_metrics
 
-    def run_post_train_iteration(self, full_input, inst_lbl, loss, pred_permutations, score, sem_lbl, epoch,
-                                 iteration, new_pred_permutations=None, new_loss=None, get_activations_fcn=None):
+    def run_post_train_iteration(self, full_input, inst_lbl, loss, loss_components, pred_permutations, score, sem_lbl,
+                                 epoch, iteration, new_pred_permutations=None, new_loss=None,
+                                 get_activations_fcn=None, lrs_by_group=None):
         """
         get_activations_fcn=self.model.get_activations
         """
@@ -337,16 +347,27 @@ class TrainerExporter(object):
         for sem_lbl_np, inst_lbl_np, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
             lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
             acc, acc_cls, mean_iu, fwavacc = \
-                self.compute_eval_metrics(label_trues=[lt_combined], label_preds=[lp], permutations=[
-                    pred_permutations])
+                self.compute_eval_metrics(
+                    label_trues=[lt_combined], label_preds=[lp], permutations=[pred_permutations])
             eval_metrics.append((acc, acc_cls, mean_iu, fwavacc))
         eval_metrics = np.mean(eval_metrics, axis=0)
         self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
-            self.tensorboard_writer.add_scalar('eval_metrics/train_batch_loss', loss.data[0],
+		# TODO(allie): Check dimensionality of loss to prevent potential bugs
+            self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.data.sum(),
                                                iteration)
+
+        if self.export_config.write_lr:
+            for group_idx, lr in enumerate(lrs_by_group):
+                self.tensorboard_writer.add_scalar('Z_hyperparameters/lr_group{}'.format(group_idx), lr, iteration)
+
+        if self.export_config.export_component_losses:
+            for c_idx, c_lbl in enumerate(self.instance_problem.get_model_channel_labels('{}_{}')):
+                self.tensorboard_writer.add_scalar('B_component_losses/train/{}'.format(c_lbl),
+                                                   loss_components.data[:, c_idx].sum(), iteration)
+
         if self.export_config.run_loss_updates:
-            self.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.data[0],
+            self.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.sum(),
                                     old_pred_permutations=pred_permutations,
                                     new_pred_permutations=new_pred_permutations,
                                     iteration=iteration)

@@ -93,7 +93,7 @@ def get_parser():
                                                        '\'~/data/models/pytorch/semantic_synthetic.pth\'', default=None)
         subparser.add_argument('--single-image-index', type=int, help='Image index to use for train/validation set',
                                default=None)
-        subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default='default',
+        subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default=None,
                                help='Sampler for dataset')
     return parser
 
@@ -208,6 +208,8 @@ def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_
     # TODO(allie): something is wrong with adam... fix it.
     checkpoint_for_optim = checkpoint if (checkpoint is not None and not cfg['reset_optim']) else None
     optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, checkpoint_for_optim)
+    scheduler = instanceseg.factory.optimizer.get_scheduler(optim, cfg['lr_scheduler']) \
+        if cfg['lr_scheduler'] is not None else None
     if cfg['freeze_vgg']:
         for module_name, module in model.named_children():
             if module_name in model_utils.VGG_CHILDREN_NAMES:
@@ -216,7 +218,8 @@ def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_
     if not cfg['map_to_semantic']:
         cfg['activation_layers_to_export'] = tuple([x for x in cfg[
             'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
-    trainer = instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir)
+    trainer = instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config,
+                                                       out_dir, scheduler=scheduler)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     return trainer

@@ -236,23 +236,18 @@ def main():
 
             assigned_instance_sizes = convert_arr_to_nested_list_without_zeros(assigned_instance_sizes_2d)
             print('{} instances < 10 pixels'.format((assigned_instance_sizes_2d < 10).sum()))
-            xent_losses_by_channel = convert_arr_to_nested_list_without_zeros(
-                xent_losses_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
-            ious_by_channel = convert_arr_to_nested_list_without_zeros(
-                ious_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
-            soft_iou_loss_by_channel = convert_arr_to_nested_list_without_zeros(
-                soft_iou_loss_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
-            soft_ious_by_channel = convert_arr_to_nested_list_without_zeros(
-                soft_ious_by_channel_2d, zeros_reference_array=assigned_instance_sizes_2d)
-            diff_soft_iou_hard_iou = convert_arr_to_nested_list_without_zeros(
-                diff_soft_iou_hard_iou_2d, zeros_reference_array=assigned_instance_sizes_2d)
-            attributes_by_channel = OrderedDict()
-            attributes_by_channel['instance_size'] = assigned_instance_sizes
-            attributes_by_channel['iou'] = ious_by_channel
-            attributes_by_channel['soft_iou'] = soft_ious_by_channel
-            attributes_by_channel['soft_iou_loss'] = soft_iou_loss_by_channel
-            attributes_by_channel['diff_soft_iou_hard_iou'] = diff_soft_iou_hard_iou
-            attributes_by_channel['xent_loss_contribution'] = xent_losses_by_channel
+            attributes_by_channel = OrderedDict([(name, convert_arr_to_nested_list_without_zeros(
+                metric_2d, zeros_reference_array=assigned_instance_sizes_2d)) for name, metric_2d in
+                                                 [
+                                                 ('instance_size', assigned_instance_sizes_2d),
+                                                 ('iou', ious_by_channel_2d),
+                                                 ('soft_iou', soft_ious_by_channel_2d),
+                                                 ('soft_iou_loss', soft_iou_loss_by_channel_2d),
+                                                 ('diff_soft_iou_hard_iou', diff_soft_iou_hard_iou_2d),
+                                                 ('xent_loss_contribution', xent_losses_by_channel_2d)
+                                                ]]
+            )
+
             # iou values
             for i, x_attribute_name in enumerate(attributes_by_channel.keys()):
                 x = attributes_by_channel[x_attribute_name]

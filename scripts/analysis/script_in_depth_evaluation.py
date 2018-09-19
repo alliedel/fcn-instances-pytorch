@@ -234,7 +234,6 @@ def main():
             plt.figure(0)
             plt.clf()
 
-            assigned_instance_sizes = convert_arr_to_nested_list_without_zeros(assigned_instance_sizes_2d)
             print('{} instances < 10 pixels'.format((assigned_instance_sizes_2d < 10).sum()))
             attributes_by_channel = OrderedDict([(name, convert_arr_to_nested_list_without_zeros(
                 metric_2d, zeros_reference_array=assigned_instance_sizes_2d)) for name, metric_2d in

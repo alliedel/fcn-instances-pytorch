@@ -193,3 +193,48 @@ def module_has_params(module):
     return has_params
 
 
+def add_forward_hook(model: nn.Module, layer_name, storage_function=None):
+    if storage_function is None:
+        try:
+            getattr(model, 'store_activation')
+        except AttributeError:
+            print('Model must have a store_activation function.')
+        storage_function = model.store_activation
+
+    try:
+        if '.' in layer_name:
+            layer_hierarchy = layer_name.split('.')
+            suplayer = model
+            for i, superlayer_name in enumerate(layer_hierarchy):
+                suplayer = getattr(suplayer, superlayer_name)
+            layer = suplayer
+        else:
+            layer = getattr(model, layer_name)
+    except AttributeError:
+        print('layer names: {}'.format('\n'.join([n for n, _ in model.named_children()])))
+        raise AttributeError('Could not find attribute with name {} in {}'.format(layer_name, model.__class__))
+
+    model.my_forward_hooks[layer_name] = layer.register_forward_hook(lambda *args, **kwargs:
+                                                                     storage_function(*args, **kwargs,
+                                                                                      layer_name=layer_name))
+
+
+def clear_forward_hooks_and_activations(model):
+    model.activations = None
+    model.activation_layers = []
+    for name, hook in model.my_forward_hooks.items():
+        hook.remove()
+    model.my_forward_hooks = {}
+
+
+def get_activations(model, input, layer_names):
+    training = model.training
+    model.eval()
+    for layer_name in layer_names:
+        add_forward_hook(model, layer_name)
+    model.forward(input)
+    activations = model.activations
+    clear_forward_hooks_and_activations(model)
+    if training:
+        model.train()
+    return activations

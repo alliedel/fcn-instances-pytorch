@@ -360,7 +360,8 @@ class Trainer(object):
         ch_idx = 1
         pred_for_ch = predictions[0, ch_idx, :, :]
         binary_gt_for_ch = self.loss_object.get_binary_gt_for_channel(sem_lbl[0, ...], inst_lbl[0, ...], ch_idx)
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
         loss_component_example = self.loss_object.component_loss(single_channel_prediction=pred_for_ch,
                                                                  binary_target=binary_gt_for_ch)
 

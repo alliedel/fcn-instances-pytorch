@@ -35,27 +35,27 @@ configurations = {
         infinite_synthetic=True
     ),
     'test_overfit_1_iou': dict(
-        interval_validate=10,
+        interval_validate=50,
         n_images_train=1,
         n_images_val=1,
         write_instance_metrics=True,
-        export_activations=True,
+        export_activations=False,
         loss_type='soft_iou',
         size_average=False,
         lr=1.0e-3,
-        max_iteration=10,
+        max_iteration=500,
         sampler='overfit_1'
     ),
     'test_overfit_1_xent': dict(
-        interval_validate=10,
+        interval_validate=50,
         n_images_train=1,
         n_images_val=1,
         write_instance_metrics=True,
-        export_activations=True,
+        export_activations=False,
         loss_type='cross_entropy',
         size_average=1,
-        lr=1.0e-4,
-        max_iteration=50,
+        lr=1.0e-5,
+        max_iteration=500,
         sampler='overfit_1'
     )
 }

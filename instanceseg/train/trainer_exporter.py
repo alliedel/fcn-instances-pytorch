@@ -22,6 +22,7 @@ display_pyutils.set_my_rc_defaults()
 
 MY_TIMEZONE = 'America/New_York'
 
+
 def should_write_activations(iteration, epoch):
     if iteration < 3000:
         return True
@@ -217,11 +218,10 @@ class TrainerExporter(object):
 
     def write_loss_updates(self, old_loss, new_loss, old_pred_permutations, new_pred_permutations, iteration):
         loss_improvement = old_loss - new_loss
-        num_reassignments = np.sum(new_pred_permutations != old_pred_permutations)
-        self.tensorboard_writer.add_scalar('A_eval_metrics/train_batch_loss_improvement', loss_improvement,
+        num_reassignments = float(np.sum(new_pred_permutations != old_pred_permutations))
+        self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss_improvement', loss_improvement,
                                            iteration)
-        self.tensorboard_writer.add_scalar('A_eval_metrics/reassignment',
-                                           num_reassignments, iteration)
+        self.tensorboard_writer.add_scalar('A_eval_metrics/reassignment', num_reassignments, iteration)
 
     def compute_and_write_instance_metrics(self, model, iteration):
         if self.tensorboard_writer is not None:
@@ -353,7 +353,7 @@ class TrainerExporter(object):
         eval_metrics = np.mean(eval_metrics, axis=0)
         self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
-            self.tensorboard_writer.add_scalar('A_eval_metrics/train_batch_loss', loss.data.sum(),
+            self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.data.sum(),
                                                iteration)
 
         if self.export_config.write_lr:

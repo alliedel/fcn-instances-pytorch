@@ -41,7 +41,6 @@ def local_setup(loss):
 
 
 def main(loss='cross_entropy'):
-    # cfg_override_args.lr = 1.0e-4
     args, cfg_override_args = local_setup(loss)
     args.resume = None
     cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,

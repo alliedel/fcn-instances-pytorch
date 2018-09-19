@@ -310,15 +310,15 @@ class Trainer(object):
             upscore8_grad = self.model.upscore8.weight.grad
             for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
                 self.exporter.tensorboard_writer.add_histogram('Z_upscore8_gradients/{}'.format(channel_idx),
-                                                               upscore8_grad[channel_idx, :, :, :])
+                                                               upscore8_grad[channel_idx, :, :, :], self.state.iteration)
             score_pool4_weight_grad = self.model.score_pool4.weight.grad
             score_pool4_bias_grad = self.model.score_pool4.bias.grad
             assert len(score_pool4_bias_grad) == self.instance_problem.n_classes
             for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
                 self.exporter.tensorboard_writer.add_histogram('Z_score_pool4_weight_gradients/{}'.format(channel_idx),
-                                                               score_pool4_weight_grad[channel_idx, :, :, :])
+                                                               score_pool4_weight_grad[channel_idx, :, :, :], self.state.iteration)
                 self.exporter.tensorboard_writer.add_histogram('score_pool4_bias_gradients/{}'.format(channel_idx),
-                                                               score_pool4_bias_grad[channel_idx])
+                                                               score_pool4_bias_grad[channel_idx], self.state.iteration)
         except:
             import ipdb;
             ipdb.set_trace()

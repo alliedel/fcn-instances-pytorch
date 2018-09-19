@@ -27,7 +27,7 @@ _default_config = dict(
     momentum=0.99,
     weight_decay=0.0005,
     clip=1e20,
-    lr_scheduler='plateau',
+    lr_scheduler=None,  #'plateau',
 
     # export
     interval_validate=4000,

@@ -7,7 +7,7 @@ import yaml
 import instanceseg
 import instanceseg.utils
 from instanceseg.datasets import dataset_registry
-from instanceseg.models import attention
+from graveyard.models import attention_old
 from instanceseg.utils.misc import str2bool
 from . import misc
 
@@ -107,7 +107,7 @@ def get_parameters(model, bias=False):
             # weight is frozen because it is just a bilinear upsampling
             if bias:
                 assert m.bias is None
-        elif isinstance(m, attention.Self_Attn):
+        elif isinstance(m, attention_old.Self_Attn):
             if bias:
                 yield m.query_conv.bias
                 yield m.key_conv.bias

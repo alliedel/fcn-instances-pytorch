@@ -1,6 +1,9 @@
 import os.path as osp
 
-import fcn
+try:
+    import fcn
+except:
+    fcn = None
 import torch
 import torchvision
 

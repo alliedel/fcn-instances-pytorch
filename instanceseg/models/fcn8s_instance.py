@@ -11,7 +11,8 @@ import torch
 import torch.nn as nn
 from instanceseg.utils import instance_utils
 
-from instanceseg.models import model_utils, attention
+from instanceseg.models import model_utils
+from graveyard.models import attention_old
 
 DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
@@ -165,7 +166,7 @@ class FCN8sInstance(nn.Module):
         else:
             fr_in_dim = 4096
         if self.use_attention_layer:
-            self.attn1 = attention.Self_Attn(in_dim=fr_in_dim, activation='relu')
+            self.attn1 = attention_old.Self_Attn(in_dim=fr_in_dim, activation='relu')
             # fr_in_dim = self.attn1.out_dim
 
         self.score_fr = nn.Conv2d(fr_in_dim, intermediate_channel_size, kernel_size=1)

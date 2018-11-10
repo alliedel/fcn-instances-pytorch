@@ -10,3 +10,12 @@ dist/
 profile_backup/
 viz_evaluate*.png
 cmake-build-debug
+
+scripts/sandbox/data
+venv
+*.chkpt
+*.de
+*.en
+htmlcov
+CMakeLists.txt
+pred.txt

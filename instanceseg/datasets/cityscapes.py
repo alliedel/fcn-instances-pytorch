@@ -17,7 +17,7 @@ CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
 def get_default_cityscapes_root():
     other_options = [osp.abspath(osp.expanduser(p))
                      for p in ['~/afs_directories/kalman/data/cityscapes/']]
-    cityscapes_root = osp.abspath(osp.expanduser('~/data/cityscapes/'))
+    cityscapes_root = osp.abspath(osp.expanduser('data/cityscapes/'))
     if not osp.isdir(cityscapes_root):
         for option in other_options:
             if osp.isdir(option):
@@ -104,7 +104,7 @@ def get_raw_cityscapes_files(dataset_dir, split):
     images = sorted(glob(osp.join(images_base, '*', '*.png')))
     for index, img_file in enumerate(images):
         img_file = img_file.rstrip()
-        sem_lbl_file = img_file.replace('leftImg8bit/', 'gtFine_trainvaltest/gtFine/').replace(
+        sem_lbl_file = img_file.replace('leftImg8bit/', 'gtFine/').replace(
             'leftImg8bit.png', 'gtFine_labelIds.png')
         raw_inst_lbl_file = sem_lbl_file.replace('labelIds', 'instanceIds')
         assert osp.isfile(img_file), '{} does not exist'.format(img_file)

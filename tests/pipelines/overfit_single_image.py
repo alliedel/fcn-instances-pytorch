@@ -2,7 +2,6 @@ import os.path as osp
 import sys
 
 import instanceseg.utils.configs
-import instanceseg.utils.logs
 import instanceseg.utils.misc
 import instanceseg.utils.scripts
 from instanceseg.utils.scripts import setup, configure

@@ -5,7 +5,6 @@ import numpy as np
 import skimage.io
 
 import instanceseg.utils.configs
-import instanceseg.utils.logs
 import instanceseg.utils.misc
 import instanceseg.utils.scripts
 from instanceseg.analysis import visualization_utils

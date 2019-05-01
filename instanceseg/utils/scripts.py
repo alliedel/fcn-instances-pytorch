@@ -174,6 +174,7 @@ def convert_comma_separated_string_to_list(string, conversion_type=None):
 
 
 def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_init=None):
+    print('Using gpu {}'.format(gpu))
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     set_random_seeds()
     cuda = torch.cuda.is_available()

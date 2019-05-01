@@ -128,10 +128,17 @@ class Trainer(object):
             img_data, (sem_lbl, inst_lbl) = img_data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         full_input = img_data if not self.augment_input_with_semantic_masks \
             else self.augment_image(img_data, sem_lbl)
-        full_input, sem_lbl, inst_lbl = \
-            Variable(full_input, volatile=(not requires_grad)), \
-            Variable(sem_lbl, requires_grad=requires_grad), \
-            Variable(inst_lbl, requires_grad=requires_grad)
+        if not requires_grad:
+            with torch.no_grad():
+                full_input, sem_lbl, inst_lbl = \
+                    Variable(full_input, volatile=(not requires_grad)), \
+                    Variable(sem_lbl, requires_grad=requires_grad), \
+                    Variable(inst_lbl, requires_grad=requires_grad)
+        else:
+            full_input, sem_lbl, inst_lbl = \
+                Variable(full_input, volatile=(not requires_grad)), \
+                Variable(sem_lbl, requires_grad=requires_grad), \
+                Variable(inst_lbl, requires_grad=requires_grad)
         return full_input, sem_lbl, inst_lbl
 
     def build_my_loss(self, matching_override=None):

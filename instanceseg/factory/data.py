@@ -35,11 +35,11 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
                                                        sampler=train_for_val_sampler, **loader_kwargs)
 
     if DEBUG_ASSERTS:
-        try:
-            i, [sl, il] = [d for i, d in enumerate(train_loader) if i == 0][0]
-        except:
-            raise
-
+#        try:
+#            i, [sl, il] = [d for i, d in enumerate(train_loader) if i == 0][0]
+#        except:
+#            raise
+        pass
     return {
         'train': train_loader,
         'val': val_loader,

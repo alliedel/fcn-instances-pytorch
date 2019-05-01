@@ -284,7 +284,7 @@ class TrainerExporter(object):
         # TODO(allie): Fix this -- bug(?!)
         lp = np.argmax(sp, axis=0)
         if self.export_config.which_heatmaps_to_visualize == 'same semantic':
-            inst_sem_classes_present = torch.np.unique(true_labels)
+            inst_sem_classes_present = torch.from_numpy(np.unique(true_labels))  # torch.np.unique
             inst_sem_classes_present = inst_sem_classes_present[inst_sem_classes_present != -1]
             sem_classes_present = np.unique([self.instance_problem.semantic_instance_class_list[c]
                                              for c in inst_sem_classes_present])

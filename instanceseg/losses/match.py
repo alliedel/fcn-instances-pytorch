@@ -88,7 +88,7 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
         absolute_max = float(0.0)
         for cl in cost_list_2d_variables:
             for c in cl:
-                absolute_max = max(absolute_max, abs(c.data[0]))
+                absolute_max = max(absolute_max, abs(c.data.item()))
         if absolute_max == 0:
             multiplier = 1
             # multiplier = 10 ** 10
@@ -96,7 +96,7 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
             multiplier = 10 ** (log_infinity_cap - int(np.log10(absolute_max)))
 
     num_classes = len(cost_list_2d_variables)
-    cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r_pred][c_gt].data[0])
+    cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r_pred][c_gt].data.item())
                         for c_gt in range(num_classes)]
                        for r_pred in range(num_classes)]
     if DEBUG_ASSERTS:

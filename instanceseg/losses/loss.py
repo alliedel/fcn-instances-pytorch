@@ -110,7 +110,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                 continue
             component_losses.append(new_loss)  # TODO(allie): Fix if we move away from batch size 1
 
-        losses = torch.cat([c[torch.np.newaxis, :] for c in losses], dim=0).float()
+        losses = torch.cat([c[None, :] for c in losses], dim=0).float()
         loss = sum(losses)
         if self.size_average:
             normalizer = (inst_lbl >= 0).data.float().sum()
@@ -147,8 +147,12 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                 self.compute_optimal_match_loss_single_img(predictions[i, ...], sem_lbl[i, ...], inst_lbl[i, ...])
             all_gt_indices[i, ...] = gt_indices
             all_pred_permutations[i, ...] = pred_permutation
-            all_costs.append(torch.cat(costs))
-        all_costs = torch.cat([c[torch.np.newaxis, :] for c in all_costs], dim=0).float()
+            try:
+                all_costs.append(torch.stack(costs))
+            except:
+                import ipdb; ipdb.set_trace()
+                raise
+        all_costs = torch.cat([c[None, :] for c in all_costs], dim=0).float()
         loss_train = all_costs.sum()
         if DEBUG_ASSERTS:
             if all_costs.size(1) != len(self.semantic_instance_labels):

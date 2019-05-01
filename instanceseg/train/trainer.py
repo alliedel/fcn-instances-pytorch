@@ -248,7 +248,7 @@ class Trainer(object):
 
         score = self.model(full_input)
         pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
-        val_loss = float(loss.data[0])
+        val_loss = float(loss.data.item())
         true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
             self.exporter.run_post_val_iteration(
                 imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
@@ -390,9 +390,9 @@ class Trainer(object):
 
 
 def debug_check_values_are_valid(loss, score, iteration):
-    if is_nan(loss.data[0]):
+    if is_nan(loss.data.item()):
         raise ValueError('losses is nan while training')
-    if loss.data[0] > 1e4:
-        print('WARNING: losses={} at iteration {}'.format(loss.data[0], iteration))
+    if loss.data.item() > 1e4:
+        print('WARNING: losses={} at iteration {}'.format(loss.data.item(), iteration))
     if any_nan(score.data):
         raise ValueError('score is nan while training')

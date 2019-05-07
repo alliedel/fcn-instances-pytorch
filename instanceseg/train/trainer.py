@@ -284,11 +284,6 @@ class Trainer(object):
                         del var
 
         if should_export_visualizations:
-            print('image type: {}, size {}'.format(segmentation_visualizations[0].dtype,
-                                                   segmentation_visualizations[0].shape))
-            print('image type: {}, size {}'.format(score_visualizations[0].dtype,
-                                                   score_visualizations[0].shape))
-
             self.exporter.export_score_and_seg_images(segmentation_visualizations,
                                                       score_visualizations, self.state.iteration,
                                                       split)

@@ -5,7 +5,7 @@ from instanceseg.losses.xentropy import DEBUG_ASSERTS
 from instanceseg.models.model_utils import any_nan, is_nan
 from instanceseg.utils.misc import get_logger, unique
 
-logger = get_logger()
+logger = get_logger(file='debug_log_matches.txt')
 
 
 # TODO(allie): Test different normalization schemes

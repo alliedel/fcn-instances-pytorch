@@ -15,7 +15,6 @@ def convert_mpl_to_np(figure_handle):
 
 def log_images(writer: SummaryWriter, tag, images, step, numbers=None, bgr=False):
     assert type(images[0]) is np.ndarray
-    print('Exporting image type: {}, size {}'.format(images[0].dtype, images[0].shape))
     if numbers is None:
         numbers = range(len(images))
     for nr, img in enumerate(images):

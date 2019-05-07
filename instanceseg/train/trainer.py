@@ -258,7 +258,7 @@ class Trainer(object):
                         else:
                             var_size = get_array_size(value)
                             var_type = type(value)
-                        print('{}: {}, {}'.format(var_name, , var_size))
+                        print('{}: {}, {}'.format(var_name, var_type, var_size))
                 should_visualize = len(segmentation_visualizations) < num_images_to_visualize
                 if not (should_compute_basic_metrics or should_visualize):
                     # Don't waste computation if we don't need to run on the remaining images

@@ -161,7 +161,9 @@ class Trainer(object):
         if map_to_semantic:
             inst_lbl[inst_lbl > 1] = 1
         loss_fcn = self.loss_fcn if not val_matching_override else self.eval_loss_fcn_with_matching
+        print('Running loss fcn')
         permutations, total_loss, loss_components = loss_fcn(score, sem_lbl, inst_lbl)
+        print('Finished running loss fcn')
         avg_loss = total_loss / score.size(0)
         return permutations, avg_loss, loss_components
 
@@ -255,12 +257,15 @@ class Trainer(object):
             imgs = img_data.cpu()
 
             score = self.model(full_input)
+            print('Computing loss')
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
+            print('Finished computing loss')
             val_loss = float(loss.data.item())
             true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
                 self.exporter.run_post_val_iteration(
                     imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
                     data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
+            print('Finished iteration')
         return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
                score_visualizations
 

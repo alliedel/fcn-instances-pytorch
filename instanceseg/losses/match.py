@@ -60,7 +60,7 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
     if normalizer == 0:
         print(Warning('WARNING: image contained all void class.  '
                       'Setting error to 0 for all channels.'))
-        cost_list_2d = [[0 for inst_val in inst_id_lbls_for_this_class
+        cost_list_2d = [[normalizer for inst_val in inst_id_lbls_for_this_class
                          for sem_inst_idx in sem_inst_idxs_for_this_class]]
     else:
         cost_list_2d = [[
@@ -72,11 +72,11 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
     if DEBUG_ASSERTS:
         try:
             if len(inst_id_lbls_for_this_class) == 1 and len(sem_inst_idxs_for_this_class) == 1:
-                assert not is_nan(cost_list_2d[0][0])
+                assert not is_nan(cost_list_2d[0][0].item())
             else:
                 assert all([not any_nan(cost_list_1d[j])
                             for cost_list_1d in cost_list_2d for j in range(len(cost_list_1d))])
-        except:
+        except AssertionError as ae:
             import ipdb;
             ipdb.set_trace()
             raise Exception('costs reached nan in cost_list_2d')

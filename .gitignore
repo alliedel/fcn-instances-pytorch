@@ -10,6 +10,7 @@ dist/
 profile_backup/
 viz_evaluate*.png
 cmake-build-debug
+data/
 
 scripts/sandbox/data
 venv

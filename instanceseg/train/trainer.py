@@ -26,6 +26,15 @@ BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
 
 
+def get_array_size(obj):
+    if type(obj) is np.ndarray:
+        return obj.size
+    elif torch.is_tensor(obj):
+        return obj.size()
+    else:
+        return None
+
+
 class TrainingState(object):
     def __init__(self, max_iteration):
         self.iteration = 0
@@ -209,7 +218,7 @@ class Trainer(object):
 
         val_loss = 0
         segmentation_visualizations, score_visualizations = [], []
-        label_trues, label_preds, scores, pred_permutations = [], [], [], []
+        label_trues, label_preds, pred_permutations = [], [], []
         num_images_to_visualize = min(len(data_loader), 9)
         memory_allocated = torch.cuda.memory_allocated(device=None)
         mem_report_dict = torch_utils.generate_mem_report_dict()
@@ -238,10 +247,18 @@ class Trainer(object):
                                      'segmentation_visualizations_sb', 'score_visualizations_sb']
                     for var_name in vars_to_check:
                         value = eval(var_name)
-                        try:
-                            print('{}: {}, {}'.format(var_name, type(var_name), value.size()))
-                        except:
-                            print('{}: {}, NOSIZE'.format(var_name, type(var_name)))
+                        if type(value) is list:
+                            element_sizes = [get_array_size(v) for v in value]
+                            if all([s == element_sizes[0] for s in element_sizes]):
+                                var_size = \
+                                    '{} of {}'.format(len(element_sizes), element_sizes[0])
+                            else:
+                                var_size = element_sizes
+                            var_type = 'list of {}'.format(type(value[0]))
+                        else:
+                            var_size = get_array_size(value)
+                            var_type = type(value)
+                        print('{}: {}, {}'.format(var_name, , var_size))
                 should_visualize = len(segmentation_visualizations) < num_images_to_visualize
                 if not (should_compute_basic_metrics or should_visualize):
                     # Don't waste computation if we don't need to run on the remaining images
@@ -255,7 +272,7 @@ class Trainer(object):
                 label_trues += true_labels_sb
                 label_preds += pred_labels_sb
                 val_loss += val_loss_sb
-                scores += [score_sb]
+                # scores += [score_sb]  # This takes up way too much memory
                 pred_permutations += [pred_permutations_sb]
                 segmentation_visualizations += segmentation_visualizations_sb
                 score_visualizations += score_visualizations_sb

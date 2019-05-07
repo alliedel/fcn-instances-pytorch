@@ -1,4 +1,5 @@
 import math
+import pprint
 
 import numpy as np
 import torch
@@ -6,18 +7,18 @@ import tqdm
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
+import sys
 
 import instanceseg
 import instanceseg.losses.loss
 import instanceseg.utils.export
 import instanceseg.utils.misc
-from instanceseg.utils.instance_utils import InstanceProblemConfig
 from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
 from instanceseg.utils import datasets
 from instanceseg.utils import torch_utils
-
+from instanceseg.utils.instance_utils import InstanceProblemConfig
 
 DEBUG_ASSERTS = True
 
@@ -36,11 +37,14 @@ class TrainingState(object):
 
 
 class Trainer(object):
-    def __init__(self, cuda, model: FCN8sInstance, optimizer: Optimizer, train_loader, val_loader, out_dir, max_iter,
+    def __init__(self, cuda, model: FCN8sInstance, optimizer: Optimizer, train_loader, val_loader,
+                 out_dir, max_iter,
                  instance_problem: InstanceProblemConfig,
-                 size_average=True, interval_validate=None, loss_type='cross_entropy', matching_loss=True,
+                 size_average=True, interval_validate=None, loss_type='cross_entropy',
+                 matching_loss=True,
                  tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
-                 use_semantic_loss=False, augment_input_with_semantic_masks=False, write_instance_metrics=True,
+                 use_semantic_loss=False, augment_input_with_semantic_masks=False,
+                 write_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False,
                  export_activations=False, activation_layers_to_export=(),
                  lr_scheduler: ReduceLROnPlateau = None):
@@ -82,7 +86,8 @@ class Trainer(object):
         # Stored values
         self.last_val_loss = None
 
-        self.interval_validate = interval_validate if interval_validate is not None else len(self.train_loader)
+        self.interval_validate = interval_validate if interval_validate is not None else len(
+            self.train_loader)
 
         self.state = TrainingState(max_iteration=max_iter)
         self.best_mean_iu = 0
@@ -102,14 +107,16 @@ class Trainer(object):
         }
         metric_makers = {
             'val': metrics.InstanceMetrics(self.val_loader, **metric_maker_kwargs),
-            'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val, **metric_maker_kwargs)
+            'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val,
+                                                     **metric_maker_kwargs)
         }
         export_config = trainer_exporter.ExportConfig(export_activations=export_activations,
                                                       activation_layers_to_export=activation_layers_to_export,
                                                       write_instance_metrics=write_instance_metrics)
         self.exporter = trainer_exporter.TrainerExporter(
             out_dir=out_dir, instance_problem=instance_problem,
-            export_config=export_config, tensorboard_writer=tensorboard_writer, metric_makers=metric_makers)
+            export_config=export_config, tensorboard_writer=tensorboard_writer,
+            metric_makers=metric_makers)
 
     def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
         """
@@ -171,7 +178,8 @@ class Trainer(object):
         return permutations, avg_loss, loss_components
 
     def augment_image(self, img, sem_lbl):
-        semantic_one_hot = datasets.labels_to_one_hot(sem_lbl, self.instance_problem.n_semantic_classes)
+        semantic_one_hot = datasets.labels_to_one_hot(sem_lbl,
+                                                      self.instance_problem.n_semantic_classes)
         return datasets.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
                                          (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
 
@@ -206,22 +214,34 @@ class Trainer(object):
         memory_allocated = torch.cuda.memory_allocated(device=None)
         mem_report_dict = torch_utils.generate_mem_report_dict()
         with torch.set_grad_enabled(split == 'train'):
-            description = 'Valid iteration (split=%s)=%d, memory %g GB\n' %\
+            description = 'Valid iteration (split=%s)=%d, memory %g GB\n' % \
                           (split, self.state.iteration, memory_allocated / 1e9)
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 desc=description,
-                ncols=80, leave=False)
+                ncols=80, leave=True)
             for batch_idx, (img_data, lbls) in t:
                 description = 'Valid iteration (split=%s)=%d, memory %g GB\n' % \
                               (split, self.state.iteration, memory_allocated / 1e9)
                 t.set_description(description)
                 mem_report_dict_old = mem_report_dict
                 mem_report_dict = torch_utils.generate_mem_report_dict()
-                new_vars_as_dict, diff_size_as_dict, same_vars_as_dict = \
+                new_vars_as_dict, diff_counts_as_dict, same_vars_as_dict = \
                     torch_utils.diff_mem_reports(mem_report_dict_old, mem_report_dict)
-                print('New vars: \n {}', new_vars_as_dict)
-                print('Diff vars: \n {}', diff_size_as_dict)
+                if batch_idx > num_images_to_visualize:
+                    pprint.pprint('New vars:')
+                    pprint.pprint(new_vars_as_dict)
+                    pprint.pprint('Diff vars:')
+                    pprint.pprint(diff_counts_as_dict)
+                    vars_to_check = ['true_labels_sb, pred_labels_sb, score_sb, '
+                                     'pred_permutations_sb, val_loss_sb, '
+                                     'segmentation_visualizations_sb, score_visualizations_sb']
+                    for var_name in vars_to_check:
+                        value = eval(var_name)
+                        try:
+                            print('{}: {}, {}'.format(var_name, type(var_name), value.size()))
+                        except:
+                            print('{}: {}, NOSIZE'.format(var_name, type(var_name)))
                 should_visualize = len(segmentation_visualizations) < num_images_to_visualize
                 if not (should_compute_basic_metrics or should_visualize):
                     # Don't waste computation if we don't need to run on the remaining images
@@ -231,7 +251,7 @@ class Trainer(object):
                     self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                                should_visualize=should_visualize)
                 memory_allocated = torch.cuda.memory_allocated(device=None)
-                print('APD: Memory allocated after validating {} GB'.format(memory_allocated / 1e9))
+                # print('APD: Memory allocated after validating {} GB'.format(memory_allocated / 1e9))
                 label_trues += true_labels_sb
                 label_preds += pred_labels_sb
                 val_loss += val_loss_sb
@@ -249,9 +269,11 @@ class Trainer(object):
         self.last_val_loss = val_loss
 
         val_metrics = self.exporter.run_post_val_epoch(label_preds, label_trues, pred_permutations,
-                                                       should_compute_basic_metrics, split, val_loss, val_metrics,
+                                                       should_compute_basic_metrics, split,
+                                                       val_loss, val_metrics,
                                                        write_basic_metrics, write_instance_metrics,
-                                                       self.state.epoch, self.state.iteration, self.model)
+                                                       self.state.epoch, self.state.iteration,
+                                                       self.model)
         if save_checkpoint:
             self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2])
 
@@ -263,7 +285,8 @@ class Trainer(object):
         return val_loss, val_metrics, visualizations
 
     def save_checkpoint_and_update_if_best(self, mean_iu):
-        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch, self.state.iteration, self.model,
+        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
+                                                                self.state.iteration, self.model,
                                                                 self.optim, self.best_mean_iu)
         if mean_iu > self.best_mean_iu or self.best_mean_iu == 0:
             self.best_mean_iu = mean_iu
@@ -271,8 +294,8 @@ class Trainer(object):
 
     def validate_single_batch(self, img_data, sem_lbl, inst_lbl, data_loader, should_visualize):
         with torch.no_grad():
-            full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, (sem_lbl, inst_lbl),
-                                                                               requires_grad=False)
+            full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(
+                img_data, (sem_lbl, inst_lbl), requires_grad=False)
             imgs = img_data.cpu()
 
             score = self.model(full_input)
@@ -286,10 +309,12 @@ class Trainer(object):
             true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
                 self.exporter.run_post_val_iteration(
                     imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
-                    data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
+                    data_to_img_transformer=lambda i, l: self.exporter.untransform_data(
+                        data_loader, i, l))
+
             # print('APD: Finished iteration')
-        return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
-               score_visualizations
+        return true_labels, pred_labels, score, pred_permutations, val_loss, \
+               segmentation_visualizations, score_visualizations
 
     def train_epoch(self):
         self.model.train()
@@ -325,7 +350,8 @@ class Trainer(object):
 
     def train_iteration(self, img_data, target):
         assert self.model.training
-        full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target, requires_grad=True)
+        full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target,
+                                                                           requires_grad=True)
         self.optim.zero_grad()
         score = self.model(full_input)
         pred_permutations, loss, loss_components = self.compute_loss(score, sem_lbl, inst_lbl)
@@ -344,16 +370,19 @@ class Trainer(object):
             iteration = self.state.iteration
             upscore8_grad = self.model.upscore8.weight.grad
             for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
-                self.exporter.tensorboard_writer.add_histogram('Z_upscore8_gradients/{}'.format(channel_idx),
-                                                               upscore8_grad[channel_idx, :, :, :], self.state.iteration)
+                self.exporter.tensorboard_writer.add_histogram(
+                    'Z_upscore8_gradients/{}'.format(channel_idx),
+                    upscore8_grad[channel_idx, :, :, :], self.state.iteration)
             score_pool4_weight_grad = self.model.score_pool4.weight.grad
             score_pool4_bias_grad = self.model.score_pool4.bias.grad
             assert len(score_pool4_bias_grad) == self.instance_problem.n_classes
             for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
-                self.exporter.tensorboard_writer.add_histogram('Z_score_pool4_weight_gradients/{}'.format(channel_idx),
-                                                               score_pool4_weight_grad[channel_idx, :, :, :], self.state.iteration)
-                self.exporter.tensorboard_writer.add_histogram('score_pool4_bias_gradients/{}'.format(channel_idx),
-                                                               score_pool4_bias_grad[channel_idx], self.state.iteration)
+                self.exporter.tensorboard_writer.add_histogram(
+                    'Z_score_pool4_weight_gradients/{}'.format(channel_idx),
+                    score_pool4_weight_grad[channel_idx, :, :, :], self.state.iteration)
+                self.exporter.tensorboard_writer.add_histogram(
+                    'score_pool4_bias_gradients/{}'.format(channel_idx),
+                    score_pool4_bias_grad[channel_idx], self.state.iteration)
         except:
             import ipdb;
             ipdb.set_trace()
@@ -362,7 +391,8 @@ class Trainer(object):
         if self.exporter.run_loss_updates:
             self.model.eval()
             new_score = self.model(full_input)
-            new_pred_permutations, new_loss, new_loss_components = self.compute_loss(new_score, sem_lbl,
+            new_pred_permutations, new_loss, new_loss_components = self.compute_loss(new_score,
+                                                                                     sem_lbl,
                                                                                      inst_lbl)
             # num_reassignments = np.sum(new_pred_permutations != pred_permutations)
             # if not num_reassignments == 0:
@@ -381,11 +411,15 @@ class Trainer(object):
                                                inst_lbl=inst_lbl, sem_lbl=sem_lbl,
                                                loss=loss, loss_components=loss_components,
                                                pred_permutations=pred_permutations, score=score,
-                                               epoch=self.state.epoch, iteration=self.state.iteration,
-                                               new_pred_permutations=new_pred_permutations, new_loss=new_loss,
-                                               get_activations_fcn=self.model.get_activations, lrs_by_group=group_lrs)
+                                               epoch=self.state.epoch,
+                                               iteration=self.state.iteration,
+                                               new_pred_permutations=new_pred_permutations,
+                                               new_loss=new_loss,
+                                               get_activations_fcn=self.model.get_activations,
+                                               lrs_by_group=group_lrs)
 
-    def debug_loss(self, score, sem_lbl, inst_lbl, new_score, new_loss, loss_components, new_loss_components):
+    def debug_loss(self, score, sem_lbl, inst_lbl, new_score, new_loss, loss_components,
+                   new_loss_components):
         predictions = self.loss_object.transform_scores_to_predictions(score)
         new_predictions = self.loss_object.transform_scores_to_predictions(new_score)
         old_cost_matrix = self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
@@ -394,11 +428,13 @@ class Trainer(object):
             predictions[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
         ch_idx = 1
         pred_for_ch = predictions[0, ch_idx, :, :]
-        binary_gt_for_ch = self.loss_object.get_binary_gt_for_channel(sem_lbl[0, ...], inst_lbl[0, ...], ch_idx)
+        binary_gt_for_ch = self.loss_object.get_binary_gt_for_channel(sem_lbl[0, ...],
+                                                                      inst_lbl[0, ...], ch_idx)
         import ipdb;
         ipdb.set_trace()
-        loss_component_example = self.loss_object.component_loss(single_channel_prediction=pred_for_ch,
-                                                                 binary_target=binary_gt_for_ch)
+        loss_component_example = self.loss_object.component_loss(
+            single_channel_prediction=pred_for_ch,
+            binary_target=binary_gt_for_ch)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.train_loader)))
@@ -416,11 +452,13 @@ class Trainer(object):
         else:
             train_loss, train_metrics = None, None
         if train_loss is not None:
-            self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, self.state.iteration)
+            self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss,
+                                                                 self.state.iteration)
         if self.exporter.tensorboard_writer is not None:
-            self.exporter.tensorboard_writer.add_scalar('B_intermediate_metrics/val_minus_train_loss', val_loss -
-                                                        train_loss,
-                                                        self.state.iteration)
+            self.exporter.tensorboard_writer.add_scalar(
+                'B_intermediate_metrics/val_minus_train_loss', val_loss -
+                train_loss,
+                self.state.iteration)
         return train_metrics, train_loss, val_metrics, val_loss
 
 

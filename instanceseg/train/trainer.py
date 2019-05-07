@@ -222,17 +222,14 @@ class Trainer(object):
         memory_allocated = torch.cuda.memory_allocated(device=None)
         mem_report_dict = torch_utils.generate_mem_report_dict()
         with torch.set_grad_enabled(split == 'train'):
-            description = 'Val (split=%s)=%d, memory %g GB\n' % \
-                          (split, self.state.iteration, memory_allocated / 1e9)
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
-                desc=description,
                 ncols=150, leave=False)
             for batch_idx, (img_data, lbls) in t:
                 memory_allocated = torch.cuda.memory_allocated(device=None)
                 description = 'Valid iteration (split=%s)=%d, %g GB\n' % \
                               (split, self.state.iteration, memory_allocated / 1e9)
-                t.set_description(description)
+                t.set_description_str(description)
                 mem_report_dict_old = mem_report_dict
                 mem_report_dict = torch_utils.generate_mem_report_dict()
                 new_vars_as_dict, diff_counts_as_dict, same_vars_as_dict = \

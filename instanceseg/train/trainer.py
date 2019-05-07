@@ -16,6 +16,8 @@ from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
 from instanceseg.utils import datasets
+from instanceseg.utils import torch_utils
+
 
 DEBUG_ASSERTS = True
 
@@ -202,12 +204,24 @@ class Trainer(object):
         label_trues, label_preds, scores, pred_permutations = [], [], [], []
         num_images_to_visualize = min(len(data_loader), 9)
         memory_allocated = torch.cuda.memory_allocated(device=None)
+        mem_report_dict = torch_utils.generate_mem_report_dict()
         with torch.set_grad_enabled(split == 'train'):
-            for batch_idx, (img_data, lbls) in tqdm.tqdm(
-                    enumerate(data_loader), total=len(data_loader),
-                    desc='Valid iteration (split=%s)=%d, memory %g GB\n' %
-                         (split, self.state.iteration, memory_allocated / 1e9),
-                    ncols=80, leave=False):
+            description = 'Valid iteration (split=%s)=%d, memory %g GB\n' %\
+                          (split, self.state.iteration, memory_allocated / 1e9)
+            t = tqdm.tqdm(
+                enumerate(data_loader), total=len(data_loader),
+                desc=description,
+                ncols=80, leave=False)
+            for batch_idx, (img_data, lbls) in t:
+                description = 'Valid iteration (split=%s)=%d, memory %g GB\n' % \
+                              (split, self.state.iteration, memory_allocated / 1e9)
+                t.set_description(description)
+                mem_report_dict_old = mem_report_dict
+                mem_report_dict = torch_utils.generate_mem_report_dict()
+                new_vars_as_dict, diff_size_as_dict, same_vars_as_dict = \
+                    torch_utils.diff_mem_reports(mem_report_dict_old, mem_report_dict)
+                print('New vars: \n {}', new_vars_as_dict)
+                print('Diff vars: \n {}', diff_size_as_dict)
                 should_visualize = len(segmentation_visualizations) < num_images_to_visualize
                 if not (should_compute_basic_metrics or should_visualize):
                     # Don't waste computation if we don't need to run on the remaining images
@@ -228,8 +242,9 @@ class Trainer(object):
                 memory_allocated = torch.cuda.memory_allocated(device=None)
 
         if should_export_visualizations:
-            self.exporter.export_score_and_seg_images(segmentation_visualizations, score_visualizations,
-                                                      self.state.iteration, split)
+            self.exporter.export_score_and_seg_images(segmentation_visualizations,
+                                                      score_visualizations, self.state.iteration,
+                                                      split)
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss
 

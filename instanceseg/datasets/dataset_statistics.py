@@ -3,6 +3,12 @@ import torch
 import tqdm
 
 
+def subsample_n_images(n_original_images, n_images):
+    new_valid_indices = InstanceDatasetStatistics.subsample_n_valid_images(
+        valid_indices=[True for _ in range(n_original_images)], n_images=n_images)
+    return new_valid_indices
+
+
 class InstanceDatasetStatistics(object):
     def __init__(self, dataset, existing_instance_count_file=None):
         self.dataset = dataset
@@ -47,11 +53,18 @@ class InstanceDatasetStatistics(object):
         valid_indices = [True for _ in range(len(self.dataset))]
         if n_instance_ranges is not None or sem_cls_filter is not None:
             valid_indices = pairwise_and(valid_indices,
-                                         self.valid_indices_overlap(sem_cls_filter, n_instance_ranges, union=False))
+                                         self.valid_indices_overlap(sem_cls_filter,
+                                                                    n_instance_ranges, union=False))
+        valid_indices = self.subsample_n_valid_images(valid_indices, n_images)
+        return valid_indices
+
+    @staticmethod
+    def subsample_n_valid_images(valid_indices, n_images):
         if n_images is not None:
             if sum(valid_indices) < n_images:
-                raise Exception('Too few images to sample {}.  Choose a smaller value for n_images in the sampler '
-                                'config, or change your filtering requirements for the sampler.'.format(n_images))
+                raise Exception('Too few images to sample {}.  Choose a smaller value for n_images '
+                                'in the sampler config, or change your filtering requirements for '
+                                'the sampler.'.format(n_images))
             # Subsample n_images
             n_images_chosen = 0
             for idx in np.random.permutation(len(valid_indices)):

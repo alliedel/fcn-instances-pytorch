@@ -12,24 +12,29 @@ def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, n_
         to still sample images that have them.
         If it matches dataset, just pass dataset in for this parameter as well.
     """
-
-    if any(x is not None for x in [sem_cls_filter, n_instances_range, n_images]):
-        assert dataset_configured_for_stats is not None, 'No default dataset provided.  ' \
-                                                         'Cannot compute stats.'
-        assert len(dataset_configured_for_stats) == len(dataset), \
-            AssertionError('Bug here.  Assumed same set of images (untransformed).')
-
-        if not os.path.isfile(instance_count_file):
-            print('Generating file {}'.format(instance_count_file))
-            stats = dataset_statistics.InstanceDatasetStatistics(dataset_configured_for_stats)
-            stats.compute_statistics(filename_to_write_instance_counts=instance_count_file)
-        else:
-            print('Reading from instance counts file {}'.format(instance_count_file))
-            stats = dataset_statistics.InstanceDatasetStatistics(
-                dataset_configured_for_stats, existing_instance_count_file=instance_count_file)
-        valid_indices = stats.get_valid_indices(n_instances_range, sem_cls_filter, n_images)
-    else:
+    if sem_cls_filter is None and n_instances_range is None and n_images is None:
         valid_indices = None  # 'all'
+    elif sem_cls_filter is not None or n_instances_range is not None:
+            assert dataset_configured_for_stats is not None, 'No default dataset provided.  ' \
+                                                             'Cannot compute stats.'
+            assert len(dataset_configured_for_stats) == len(dataset), \
+                AssertionError('Bug here.  Assumed same set of images (untransformed).')
+
+            if not os.path.isfile(instance_count_file):
+                print('Generating file {}'.format(instance_count_file))
+                stats = dataset_statistics.InstanceDatasetStatistics(dataset_configured_for_stats)
+                stats.compute_statistics(filename_to_write_instance_counts=instance_count_file)
+            else:
+                print('Reading from instance counts file {}'.format(instance_count_file))
+                stats = dataset_statistics.InstanceDatasetStatistics(
+                    dataset_configured_for_stats, existing_instance_count_file=instance_count_file)
+            valid_indices = stats.get_valid_indices(n_instances_range, sem_cls_filter, n_images)
+    elif n_images is not None:
+        valid_indices = dataset_statistics.subsample_n_images(n_original_images=len(
+            dataset_configured_for_stats), n_images=n_images)
+    else:
+        raise NotImplementedError('We shouldn\'t get here with the set of configs I\'m aware '
+                                  'of at the moment')
 
     my_sampler = sampler.sampler_factory(sequential, bool_index_subset=valid_indices)(dataset)
     if len(my_sampler) == 0:

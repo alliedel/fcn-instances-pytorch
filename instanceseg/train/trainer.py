@@ -216,7 +216,8 @@ class Trainer(object):
                 segmentation_visualizations_sb, score_visualizations_sb = \
                     self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                                should_visualize=should_visualize)
-
+                memory_allocated = torch.cuda.memory_allocated(device=None)
+                print('APD: Memory allocated after validating {} GB'.format(memory_allocated / 1e9))
                 label_trues += true_labels_sb
                 label_preds += pred_labels_sb
                 val_loss += val_loss_sb
@@ -262,11 +263,11 @@ class Trainer(object):
             score = self.model(full_input)
             # print('APD: Computing loss')
             memory_allocated = torch.cuda.memory_allocated(device=None)
-            pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
+            pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl,
+                                                           val_matching_override=True)
             memory_allocated = torch.cuda.memory_allocated(device=None)
-            print('APD: Memory allocated after loss: {} GB'.format(memory_allocated/1e9))
             # print('APD: Finished computing loss')
-            val_loss = float(loss.data.item())
+            val_loss = float(loss.item())
             true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
                 self.exporter.run_post_val_iteration(
                     imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,

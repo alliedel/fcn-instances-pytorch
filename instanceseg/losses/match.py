@@ -58,7 +58,8 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
     inst_id_lbls_for_this_class = [instance_id_labels[i] for i in sem_inst_idxs_for_this_class]
 
     if normalizer == 0:
-        print(Warning('WARNING: image contained all void class.  Setting error to 0 for all channels.'))
+        print(Warning('WARNING: image contained all void class.  '
+                      'Setting error to 0 for all channels.'))
         cost_list_2d = [[0 for inst_val in inst_id_lbls_for_this_class
                          for sem_inst_idx in sem_inst_idxs_for_this_class]]
     else:
@@ -70,12 +71,12 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
             for sem_inst_idx in sem_inst_idxs_for_this_class]
     if DEBUG_ASSERTS:
         try:
-            assert all([not any_nan(cost_list_1d[j].data)
+            assert all([not any_nan(cost_list_1d[j])
                         for cost_list_1d in cost_list_2d for j in range(len(cost_list_1d))])
         except:
             import ipdb;
             ipdb.set_trace()
-            raise Exception('costs reached nan')
+            raise Exception('costs reached nan in cost_list_2d')
     return cost_list_2d
 
 
@@ -88,7 +89,7 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
         absolute_max = float(0.0)
         for cl in cost_list_2d_variables:
             for c in cl:
-                absolute_max = max(absolute_max, abs(c.data.item()))
+                absolute_max = max(absolute_max, abs(c.item()))
         if absolute_max == 0:
             multiplier = 1
             # multiplier = 10 ** 10
@@ -96,7 +97,7 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None):
             multiplier = 10 ** (log_infinity_cap - int(np.log10(absolute_max)))
 
     num_classes = len(cost_list_2d_variables)
-    cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r_pred][c_gt].data.item())
+    cost_matrix_int = [[int(multiplier * cost_list_2d_variables[r_pred][c_gt].item())
                         for c_gt in range(num_classes)]
                        for r_pred in range(num_classes)]
     if DEBUG_ASSERTS:

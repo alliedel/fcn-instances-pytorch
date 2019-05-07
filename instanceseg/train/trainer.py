@@ -129,14 +129,14 @@ class Trainer(object):
         full_input = img_data if not self.augment_input_with_semantic_masks \
             else self.augment_image(img_data, sem_lbl)
         if not requires_grad:
-            with torch.no_grad():
+            with torch.no_grad():  # volatile replacement
                 full_input, sem_lbl, inst_lbl = \
-                    Variable(full_input, volatile=(not requires_grad)), \
+                    Variable(full_input, requires_grad=requires_grad), \
                     Variable(sem_lbl, requires_grad=requires_grad), \
                     Variable(inst_lbl, requires_grad=requires_grad)
         else:
             full_input, sem_lbl, inst_lbl = \
-                Variable(full_input, volatile=(not requires_grad)), \
+                Variable(full_input), \
                 Variable(sem_lbl, requires_grad=requires_grad), \
                 Variable(inst_lbl, requires_grad=requires_grad)
         return full_input, sem_lbl, inst_lbl
@@ -198,27 +198,28 @@ class Trainer(object):
         segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds, scores, pred_permutations = [], [], [], []
         num_images_to_visualize = min(len(data_loader), 9)
-        for batch_idx, (img_data, lbls) in tqdm.tqdm(
-                enumerate(data_loader), total=len(data_loader),
-                desc='Valid iteration (split=%s)=%d' % (split, self.state.iteration), ncols=80,
-                leave=False):
+        with torch.set_grad_enabled(split == 'train'):
+            for batch_idx, (img_data, lbls) in tqdm.tqdm(
+                    enumerate(data_loader), total=len(data_loader),
+                    desc='Valid iteration (split=%s)=%d' % (split, self.state.iteration), ncols=80,
+                    leave=False):
 
-            should_visualize = len(segmentation_visualizations) < num_images_to_visualize
-            if not (should_compute_basic_metrics or should_visualize):
-                # Don't waste computation if we don't need to run on the remaining images
-                continue
-            true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
-            segmentation_visualizations_sb, score_visualizations_sb = \
-                self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
-                                           should_visualize=should_visualize)
+                should_visualize = len(segmentation_visualizations) < num_images_to_visualize
+                if not (should_compute_basic_metrics or should_visualize):
+                    # Don't waste computation if we don't need to run on the remaining images
+                    continue
+                true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
+                segmentation_visualizations_sb, score_visualizations_sb = \
+                    self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
+                                               should_visualize=should_visualize)
 
-            label_trues += true_labels_sb
-            label_preds += pred_labels_sb
-            val_loss += val_loss_sb
-            scores += [score_sb]
-            pred_permutations += [pred_permutations_sb]
-            segmentation_visualizations += segmentation_visualizations_sb
-            score_visualizations += score_visualizations_sb
+                label_trues += true_labels_sb
+                label_preds += pred_labels_sb
+                val_loss += val_loss_sb
+                scores += [score_sb]
+                pred_permutations += [pred_permutations_sb]
+                segmentation_visualizations += segmentation_visualizations_sb
+                score_visualizations += score_visualizations_sb
 
         if should_export_visualizations:
             self.exporter.export_score_and_seg_images(segmentation_visualizations, score_visualizations,
@@ -248,18 +249,18 @@ class Trainer(object):
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
 
     def validate_single_batch(self, img_data, sem_lbl, inst_lbl, data_loader, should_visualize):
+        with torch.no_grad():
+            full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, (sem_lbl, inst_lbl),
+                                                                               requires_grad=False)
+            imgs = img_data.cpu()
 
-        full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, (sem_lbl, inst_lbl),
-                                                                           requires_grad=False)
-        imgs = img_data.cpu()
-
-        score = self.model(full_input)
-        pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
-        val_loss = float(loss.data.item())
-        true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
-            self.exporter.run_post_val_iteration(
-                imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
-                data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
+            score = self.model(full_input)
+            pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
+            val_loss = float(loss.data.item())
+            true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
+                self.exporter.run_post_val_iteration(
+                    imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
+                    data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
         return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
                score_visualizations
 

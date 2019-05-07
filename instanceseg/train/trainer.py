@@ -161,9 +161,9 @@ class Trainer(object):
         if map_to_semantic:
             inst_lbl[inst_lbl > 1] = 1
         loss_fcn = self.loss_fcn if not val_matching_override else self.eval_loss_fcn_with_matching
-        print('Running loss fcn')
+        # print('APD: Running loss fcn')
         permutations, total_loss, loss_components = loss_fcn(score, sem_lbl, inst_lbl)
-        print('Finished running loss fcn')
+        # print('APD: Finished running loss fcn')
         avg_loss = total_loss / score.size(0)
         return permutations, avg_loss, loss_components
 
@@ -200,12 +200,13 @@ class Trainer(object):
         segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds, scores, pred_permutations = [], [], [], []
         num_images_to_visualize = min(len(data_loader), 9)
+        memory_allocated = torch.cuda.memory_allocated(device=None)
         with torch.set_grad_enabled(split == 'train'):
             for batch_idx, (img_data, lbls) in tqdm.tqdm(
                     enumerate(data_loader), total=len(data_loader),
-                    desc='Valid iteration (split=%s)=%d' % (split, self.state.iteration), ncols=80,
-                    leave=False):
-
+                    desc='Valid iteration (split=%s)=%d, memory %g GB' %
+                         (split, self.state.iteration, memory_allocated / 1e9),
+                    ncols=80, leave=False):
                 should_visualize = len(segmentation_visualizations) < num_images_to_visualize
                 if not (should_compute_basic_metrics or should_visualize):
                     # Don't waste computation if we don't need to run on the remaining images
@@ -222,6 +223,7 @@ class Trainer(object):
                 pred_permutations += [pred_permutations_sb]
                 segmentation_visualizations += segmentation_visualizations_sb
                 score_visualizations += score_visualizations_sb
+                memory_allocated = torch.cuda.memory_allocated(device=None)
 
         if should_export_visualizations:
             self.exporter.export_score_and_seg_images(segmentation_visualizations, score_visualizations,
@@ -257,15 +259,15 @@ class Trainer(object):
             imgs = img_data.cpu()
 
             score = self.model(full_input)
-            print('Computing loss')
+            # print('APD: Computing loss')
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
-            print('Finished computing loss')
+            # print('APD: Finished computing loss')
             val_loss = float(loss.data.item())
             true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
                 self.exporter.run_post_val_iteration(
                     imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
                     data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
-            print('Finished iteration')
+            # print('APD: Finished iteration')
         return true_labels, pred_labels, score, pred_permutations, val_loss, segmentation_visualizations, \
                score_visualizations
 

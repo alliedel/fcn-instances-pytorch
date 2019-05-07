@@ -146,10 +146,11 @@ class Trainer(object):
 
         matching = matching_override if matching_override is not None else self.matching_loss
 
-        my_loss_object = instanceseg.losses.loss.loss_object_factory(self.loss_type,
-                                                                     self.instance_problem.semantic_instance_class_list,
-                                                                     self.instance_problem.instance_count_id_list,
-                                                                     matching, self.size_average)
+        my_loss_object = instanceseg.losses.loss.loss_object_factory(
+            self.loss_type,
+            self.instance_problem.semantic_instance_class_list,
+            self.instance_problem.instance_count_id_list,
+            matching, self.size_average)
         return my_loss_object
 
     def compute_loss(self, score, sem_lbl, inst_lbl, val_matching_override=False):
@@ -204,7 +205,7 @@ class Trainer(object):
         with torch.set_grad_enabled(split == 'train'):
             for batch_idx, (img_data, lbls) in tqdm.tqdm(
                     enumerate(data_loader), total=len(data_loader),
-                    desc='Valid iteration (split=%s)=%d, memory %g GB' %
+                    desc='Valid iteration (split=%s)=%d, memory %g GB\n' %
                          (split, self.state.iteration, memory_allocated / 1e9),
                     ncols=80, leave=False):
                 should_visualize = len(segmentation_visualizations) < num_images_to_visualize
@@ -260,7 +261,10 @@ class Trainer(object):
 
             score = self.model(full_input)
             # print('APD: Computing loss')
+            memory_allocated = torch.cuda.memory_allocated(device=None)
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
+            memory_allocated = torch.cuda.memory_allocated(device=None)
+            print('APD: Memory allocated after loss: {} GB'.format(memory_allocated/1e9))
             # print('APD: Finished computing loss')
             val_loss = float(loss.data.item())
             true_labels, pred_labels, segmentation_visualizations, score_visualizations = \

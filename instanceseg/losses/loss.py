@@ -181,7 +181,9 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         gt_indices, pred_permutations, costs = [], [], []
         num_inst_classes = len(semantic_instance_labels)
         unique_semantic_values = range(max(semantic_instance_labels) + 1)
+        memory_allocated_orig = torch.cuda.memory_allocated(device=None)
         for sem_val in unique_semantic_values:
+
             # print('APD: Running on sem_val {}'.format(sem_val))
             idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
 
@@ -200,6 +202,11 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                 print(exc)
                 import ipdb; ipdb.set_trace()
                 raise
+
+            memory_allocated = torch.cuda.memory_allocated(device=None)
+            if memory_allocated != memory_allocated_orig:
+                print('APD: Memory allocated after sem_val {}: {} GB'.format(sem_val,
+                                                                             memory_allocated/1e9))
         # print('APD: finished looping over classes')
         sorted_indices = np.argsort(gt_indices)
         gt_indices = np.array(gt_indices)[sorted_indices]

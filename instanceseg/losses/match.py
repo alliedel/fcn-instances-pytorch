@@ -62,7 +62,7 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
         #                                                 sem_inst_idxs_for_this_class))
         print(Warning('WARNING: image contained all void class.  '
                       'Setting error to 0 for all channels.'))
-        cost_list_2d = [[normalizer for inst_val in inst_id_lbls_for_this_class]
+        cost_list_2d = [[normalizer.detach() for inst_val in inst_id_lbls_for_this_class]
                          for sem_inst_idx in sem_inst_idxs_for_this_class]
     else:
         cost_list_2d = [[

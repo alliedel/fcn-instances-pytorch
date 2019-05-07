@@ -229,13 +229,13 @@ class Trainer(object):
                 new_vars_as_dict, diff_counts_as_dict, same_vars_as_dict = \
                     torch_utils.diff_mem_reports(mem_report_dict_old, mem_report_dict)
                 if batch_idx > num_images_to_visualize:
-                    pprint.pprint('New vars:')
+                    print('\nNew vars:')
                     pprint.pprint(new_vars_as_dict)
-                    pprint.pprint('Diff vars:')
+                    print('\nDiff vars:')
                     pprint.pprint(diff_counts_as_dict)
-                    vars_to_check = ['true_labels_sb, pred_labels_sb, score_sb, '
-                                     'pred_permutations_sb, val_loss_sb, '
-                                     'segmentation_visualizations_sb, score_visualizations_sb']
+                    vars_to_check = ['true_labels_sb', 'pred_labels_sb', 'score_sb',
+                                     'pred_permutations_sb', 'val_loss_sb',
+                                     'segmentation_visualizations_sb', 'score_visualizations_sb']
                     for var_name in vars_to_check:
                         value = eval(var_name)
                         try:

@@ -71,8 +71,11 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
             for sem_inst_idx in sem_inst_idxs_for_this_class]
     if DEBUG_ASSERTS:
         try:
-            assert all([not any_nan(cost_list_1d[j])
-                        for cost_list_1d in cost_list_2d for j in range(len(cost_list_1d))])
+            if len(inst_id_lbls_for_this_class) == 1 and len(sem_inst_idxs_for_this_class) == 1:
+                assert not is_nan(cost_list_2d[0][0])
+            else:
+                assert all([not any_nan(cost_list_1d[j])
+                            for cost_list_1d in cost_list_2d for j in range(len(cost_list_1d))])
         except:
             import ipdb;
             ipdb.set_trace()

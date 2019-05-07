@@ -4,9 +4,7 @@ import os.path as osp
 import numpy as np
 import skimage.io
 
-import instanceseg.utils.configs
-import instanceseg.utils.misc
-import instanceseg.utils.scripts
+import instanceseg.utils.scripts as script_utils
 from instanceseg.analysis import visualization_utils
 from instanceseg.utils.scripts import setup, configure
 
@@ -14,12 +12,12 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def parse_args():
-    args, cfg_override_args = instanceseg.utils.scripts.parse_args()
+    args, cfg_override_args = script_utils.parse_args()
     return args, cfg_override_args
 
 
 def main():
-    instanceseg.utils.scripts.check_clean_work_tree()
+    script_utils.check_clean_work_tree()
     args, cfg_override_args = parse_args()
     cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
                                           config_idx=args.config,

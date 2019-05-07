@@ -11,6 +11,8 @@ def sampler_factory(sequential, index_weights=None, bool_index_subset=None):
 
     class SubsetWeightedSampler(sampler.Sampler):
         def __init__(self, datasource):
+            if len(datasource) == 0:
+                raise Exception('datasource must be nonempty')
             self.initial_indices = range(len(datasource))
             self.sequential = sequential
             self.indices = self.get_sample_indices_from_initial(self.initial_indices)

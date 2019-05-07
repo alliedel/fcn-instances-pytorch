@@ -2,26 +2,29 @@ import os
 
 import numpy as np
 import torch
+import torch.utils.data
 
 from instanceseg.datasets import dataset_generator_registry, sampler, dataset_registry
 from instanceseg.utils.misc import pop_without_del
 from instanceseg.factory.samplers import get_configured_sampler
 
-
 DEBUG_ASSERTS = True
 
 
 def get_datasets_with_transformations(dataset_type, cfg, transform=True):
-    train_dataset, val_dataset = dataset_generator_registry.get_dataset(dataset_type, cfg, transform)
+    train_dataset, val_dataset = dataset_generator_registry.get_dataset(dataset_type, cfg,
+                                                                        transform)
     return train_dataset, val_dataset
 
 
 def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     # 1. dataset
-    train_dataset, val_dataset = get_datasets_with_transformations(dataset_type, cfg, transform=True)
+    train_dataset, val_dataset = get_datasets_with_transformations(dataset_type, cfg,
+                                                                   transform=True)
 
     # 2. samplers
-    if sampler_cfg is not None and isinstance(sampler_cfg['val'], str) and sampler_cfg['val'] == 'copy_train':
+    if sampler_cfg is not None and isinstance(sampler_cfg['val'], str) and \
+            sampler_cfg['val'] == 'copy_train':
         val_dataset = train_dataset
     train_sampler, val_sampler, train_for_val_sampler = get_samplers(dataset_type, sampler_cfg,
                                                                      train_dataset, val_dataset)
@@ -29,16 +32,19 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
     # Create dataloaders from datasets and samplers
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_sampler, **loader_kwargs)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler, **loader_kwargs)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, sampler=train_sampler,
+                                               **loader_kwargs)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=val_sampler,
+                                             **loader_kwargs)
     train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=1,
-                                                       sampler=train_for_val_sampler, **loader_kwargs)
+                                                       sampler=train_for_val_sampler,
+                                                       **loader_kwargs)
 
     if DEBUG_ASSERTS:
-#        try:
-#            i, [sl, il] = [d for i, d in enumerate(train_loader) if i == 0][0]
-#        except:
-#            raise
+        #        try:
+        #            i, [sl, il] = [d for i, d in enumerate(train_loader) if i == 0][0]
+        #        except:
+        #            raise
         pass
     return {
         'train': train_loader,
@@ -48,7 +54,6 @@ def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
 
 
 def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
-
     if sampler_cfg is None:
         train_sampler = sampler.sampler.RandomSampler(train_dataset)
         val_sampler = sampler.sampler.SequentialSampler(val_dataset)
@@ -79,9 +84,11 @@ def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
     return train_sampler, val_sampler, train_for_val_sampler
 
 
-def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_cfg, sampler_type, transformer_tag):
+def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_cfg, sampler_type,
+                             transformer_tag):
     instance_count_file = os.path.join(dataset_registry.REGISTRY[dataset_type].dataset_path,
-                                       '{}_instance_counts_{}.npy'.format(sampler_type, transformer_tag))
+                                       '{}_instance_counts_{}.npy'.format(sampler_type,
+                                                                          transformer_tag))
     sem_cls_filter = sampler_cfg[sampler_type].sem_cls_filter
     sem_cls_filter_values = convert_sem_cls_filter_from_names_to_values(
         sem_cls_filter, default_dataset.semantic_class_names) \

@@ -227,7 +227,7 @@ class Trainer(object):
                 ncols=150, leave=False)
             for batch_idx, (img_data, lbls) in t:
                 memory_allocated = torch.cuda.memory_allocated(device=None)
-                description = 'Valid iteration (split=%s)=%d, %g GB\n' % \
+                description = 'Valid iteration (split=%s)=%d, %g GB' % \
                               (split, self.state.iteration, memory_allocated / 1e9)
                 t.set_description_str(description)
                 mem_report_dict_old = mem_report_dict
@@ -274,11 +274,15 @@ class Trainer(object):
                 segmentation_visualizations += segmentation_visualizations_sb
                 score_visualizations += score_visualizations_sb
                 # num_collected, mem_collected = torch_utils.garbage_collect(verbose=True)
-                vars_to_delete = ['score_sb']
-                for var in vars_to_delete:
-                    del var
+                if not should_visualize:
+                    vars_to_delete = ['score_sb']
+                    for var in vars_to_delete:
+                        del var
 
         if should_export_visualizations:
+            print('image type: {}'.format(type(segmentation_visualizations[0])))
+            print('image type: {}'.format(type(score_visualizations[0])))
+
             self.exporter.export_score_and_seg_images(segmentation_visualizations,
                                                       score_visualizations, self.state.iteration,
                                                       split)

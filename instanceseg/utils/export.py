@@ -1,6 +1,8 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
+from tensorboardX import SummaryWriter
+
 
 def convert_mpl_to_np(figure_handle):
     figure_handle.canvas.draw()
@@ -11,18 +13,18 @@ def convert_mpl_to_np(figure_handle):
     return data
 
 
-def log_images(writer, tag, images, step, numbers=None, bgr=False):
-    print('image type: {}'.format(type(images[0])))
+def log_images(writer: SummaryWriter, tag, images, step, numbers=None, bgr=False):
+    assert type(images[0]) is np.ndarray
+    print('Exporting image type: {}, size {}'.format(images[0].dtype, images[0].shape))
     if numbers is None:
         numbers = range(len(images))
     for nr, img in enumerate(images):
         if writer is not None:
-            writer.add_image('%s/%d' % (tag, numbers[nr]), img.astype(float) /
-                             255.0,
-                             global_step=step)
+            writer.add_image('%s/%d' % (tag, numbers[nr]), (img.astype(float) /
+                             255.0).astype('uint8'), global_step=step, dataformats='HWC')
 
 
-def log_plots(writer, tag, plot_handles, step, numbers=None):
+def log_plots(writer: SummaryWriter, tag, plot_handles, step, numbers=None):
     """Logs a list of images."""
     if numbers is None:
         numbers = range(len(plot_handles))
@@ -35,4 +37,5 @@ def log_plots(writer, tag, plot_handles, step, numbers=None):
 
         # Create an Image object
         if writer is not None:
-            writer.add_image('%s/%d' % (tag, numbers[nr]), plt_as_np_array, global_step=step)
+            writer.add_image('%s/%d' % (tag, numbers[nr]), plt_as_np_array, global_step=step,
+                             dataformats='HWC')  # APD: havent yet confirmed this is correct

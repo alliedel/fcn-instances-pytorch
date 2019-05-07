@@ -341,8 +341,8 @@ class TrainerExporter(object):
         """
         get_activations_fcn=self.model.get_activations
         """
-        inst_lbl_pred = score.data.max(1)[1].cpu().numpy()[:, :, :]
-        lbl_true_sem, lbl_true_inst = sem_lbl.data.cpu().numpy(), inst_lbl.data.cpu().numpy()
+        inst_lbl_pred = score.detach().max(1)[1].cpu().numpy()[:, :, :]
+        lbl_true_sem, lbl_true_inst = sem_lbl.detach().cpu().numpy(), inst_lbl.detach().cpu().numpy()
         eval_metrics = []
         for sem_lbl_np, inst_lbl_np, lp in zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred):
             lt_combined = self.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
@@ -354,7 +354,7 @@ class TrainerExporter(object):
         self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
 		# TODO(allie): Check dimensionality of loss to prevent potential bugs
-            self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.data.sum(),
+            self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.detach().sum(),
                                                iteration)
 
         if self.export_config.write_lr:
@@ -364,10 +364,11 @@ class TrainerExporter(object):
         if self.export_config.export_component_losses:
             for c_idx, c_lbl in enumerate(self.instance_problem.get_model_channel_labels('{}_{}')):
                 self.tensorboard_writer.add_scalar('B_component_losses/train/{}'.format(c_lbl),
-                                                   loss_components.data[:, c_idx].sum(), iteration)
+                                                   loss_components.detach()[:, c_idx].sum(),
+                                                   iteration)
 
         if self.export_config.run_loss_updates:
-            self.write_loss_updates(old_loss=loss.data[0], new_loss=new_loss.sum(),
+            self.write_loss_updates(old_loss=loss.item(), new_loss=new_loss.sum(),
                                     old_pred_permutations=pred_permutations,
                                     new_pred_permutations=new_pred_permutations,
                                     iteration=iteration)
@@ -388,9 +389,9 @@ class TrainerExporter(object):
         segmentation_visualizations = []
         score_visualizations = []
 
-        softmax_scores = F.softmax(score, dim=1).data.cpu().numpy()
-        inst_lbl_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
-        lbl_true_sem, lbl_true_inst = (sem_lbl.data.cpu(), inst_lbl.data.cpu())
+        softmax_scores = F.softmax(score, dim=1).detach().cpu().numpy()
+        inst_lbl_pred = score.detach().max(dim=1)[1].cpu().numpy()[:, :, :]
+        lbl_true_sem, lbl_true_inst = (sem_lbl.detach().cpu(), inst_lbl.detach().cpu())
         if DEBUG_ASSERTS:
             assert inst_lbl_pred.shape == lbl_true_inst.shape
         for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):

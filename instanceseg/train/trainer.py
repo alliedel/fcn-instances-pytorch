@@ -25,6 +25,7 @@ DEBUG_MEMORY_ISSUES = False
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
 
+
 def get_array_size(obj):
     if type(obj) is np.ndarray:
         return obj.shape
@@ -145,17 +146,19 @@ class Trainer(object):
             img_data, (sem_lbl, inst_lbl) = img_data.cuda(), (sem_lbl.cuda(), inst_lbl.cuda())
         full_input = img_data if not self.augment_input_with_semantic_masks \
             else self.augment_image(img_data, sem_lbl)
-        if not requires_grad:
+        if requires_grad:
+            # APD: Still not sure it's okay to set requires_grad to False on all labels (was True
+            #  previously)
+            full_input, sem_lbl, inst_lbl = \
+                Variable(full_input, True), \
+                Variable(sem_lbl, requires_grad=False), \
+                Variable(inst_lbl, requires_grad=False)
+        else:
             with torch.no_grad():  # volatile replacement
                 full_input, sem_lbl, inst_lbl = \
-                    Variable(full_input, requires_grad=requires_grad), \
-                    Variable(sem_lbl, requires_grad=requires_grad), \
-                    Variable(inst_lbl, requires_grad=requires_grad)
-        else:
-            full_input, sem_lbl, inst_lbl = \
-                Variable(full_input), \
-                Variable(sem_lbl, requires_grad=requires_grad), \
-                Variable(inst_lbl, requires_grad=requires_grad)
+                    Variable(full_input, requires_grad=False), \
+                    Variable(sem_lbl, requires_grad=False), \
+                    Variable(inst_lbl, requires_grad=False)
         return full_input, sem_lbl, inst_lbl
 
     def build_my_loss(self, matching_override=None):
@@ -241,7 +244,8 @@ class Trainer(object):
                         print('\nDiff vars:')
                         pprint.pprint(diff_counts_as_dict)
                         vars_to_check = ['pred_permutations_sb', 'val_loss_sb',
-                                         'segmentation_visualizations_sb', 'score_visualizations_sb']
+                                         'segmentation_visualizations_sb',
+                                         'score_visualizations_sb']
                         for var_name in vars_to_check:
                             value = eval(var_name)
                             if type(value) is list and len(value) > 0:
@@ -262,7 +266,7 @@ class Trainer(object):
                     # Don't waste computation if we don't need to run on the remaining images
                     continue
                 true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
-                    segmentation_visualizations_sb, score_visualizations_sb = \
+                segmentation_visualizations_sb, score_visualizations_sb = \
                     self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                                should_visualize=should_visualize)
                 # print('APD: Memory allocated after validating {} GB'.format(memory_allocated / 1e9))
@@ -280,8 +284,10 @@ class Trainer(object):
                         del var
 
         if should_export_visualizations:
-            print('image type: {}'.format(type(segmentation_visualizations[0])))
-            print('image type: {}'.format(type(score_visualizations[0])))
+            print('image type: {}, size {}'.format(segmentation_visualizations[0].dtype,
+                                                   segmentation_visualizations[0].shape))
+            print('image type: {}, size {}'.format(score_visualizations[0].dtype,
+                                                   score_visualizations[0].shape))
 
             self.exporter.export_score_and_seg_images(segmentation_visualizations,
                                                       score_visualizations, self.state.iteration,
@@ -478,7 +484,7 @@ class Trainer(object):
         if self.exporter.tensorboard_writer is not None:
             self.exporter.tensorboard_writer.add_scalar(
                 'B_intermediate_metrics/val_minus_train_loss', val_loss -
-                train_loss,
+                                                               train_loss,
                 self.state.iteration)
         return train_metrics, train_loss, val_metrics, val_loss
 

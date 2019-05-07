@@ -151,7 +151,7 @@ def filter_images_by_instance_range_from_counts(instance_counts, n_instances_ran
 
 def compute_instance_counts(dataset, semantic_classes=None):
     semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
-    instance_counts = torch.ones(len(dataset), len(semantic_classes)) * torch.np.nan
+    instance_counts = torch.ones(len(dataset), len(semantic_classes)) * -1
     for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataset), total=len(dataset),
                                                      desc='Running instance statistics on dataset'.format(dataset),
                                                      leave=False):

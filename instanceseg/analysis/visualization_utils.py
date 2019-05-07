@@ -10,7 +10,7 @@ from os import path as osp
 
 import scipy.misc
 
-import instanceseg.utils.export
+import instanceseg.utils.export as export_utils
 from instanceseg.utils import instance_utils
 
 try:
@@ -559,7 +559,7 @@ def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration
                                  margin_size=50)
         tag = '{}images'.format(basename)
         if tensorboard_writer is not None:
-            instanceseg.utils.export.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
+            export_utils.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[0])
         out_subdir = osp.join(out_dir, tag)
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)
@@ -572,7 +572,8 @@ def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration
             os.makedirs(out_subdir)
         for img_idx, out_img in enumerate(visualizations):
             if tensorboard_writer is not None:
-                instanceseg.utils.export.log_images(tensorboard_writer, tag, [out_img], iteration, numbers=[img_idx])
+                export_utils.log_images(tensorboard_writer, tag, [out_img], iteration,
+                                        numbers=[img_idx])
             out_subsubdir = osp.join(out_subdir, str(img_idx))
             if not osp.exists(out_subsubdir):
                 os.makedirs(out_subsubdir)

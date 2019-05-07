@@ -60,10 +60,12 @@ class TermColors:
     UNDERLINE = '\033[4m'
 
 
-def color_text(text, color):
+def color_text(text, color=None):
     """
     color can either be a string, like 'OKGREEN', or the value itself, like TermColors.OKGREEN
     """
+    if color is None:
+        return text
     color_keys = TermColors.__dict__.keys()
     color_vals = [getattr(TermColors, k) for k in color_keys]
     if color in color_keys:

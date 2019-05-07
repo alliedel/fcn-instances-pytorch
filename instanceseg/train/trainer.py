@@ -7,7 +7,6 @@ import tqdm
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
-import sys
 
 import instanceseg
 import instanceseg.losses.loss
@@ -21,14 +20,14 @@ from instanceseg.utils import torch_utils
 from instanceseg.utils.instance_utils import InstanceProblemConfig
 
 DEBUG_ASSERTS = True
+DEBUG_MEMORY_ISSUES = False
 
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
 
-
 def get_array_size(obj):
     if type(obj) is np.ndarray:
-        return obj.size
+        return obj.shape
     elif torch.is_tensor(obj):
         return obj.size()
     else:
@@ -223,51 +222,52 @@ class Trainer(object):
         memory_allocated = torch.cuda.memory_allocated(device=None)
         mem_report_dict = torch_utils.generate_mem_report_dict()
         with torch.set_grad_enabled(split == 'train'):
-            description = 'Valid iteration (split=%s)=%d, memory %g GB\n' % \
+            description = 'Val (split=%s)=%d, memory %g GB\n' % \
                           (split, self.state.iteration, memory_allocated / 1e9)
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 desc=description,
-                ncols=80, leave=True)
+                ncols=150, leave=False)
             for batch_idx, (img_data, lbls) in t:
-                description = 'Valid iteration (split=%s)=%d, memory %g GB\n' % \
+                memory_allocated = torch.cuda.memory_allocated(device=None)
+                description = 'Valid iteration (split=%s)=%d, %g GB\n' % \
                               (split, self.state.iteration, memory_allocated / 1e9)
                 t.set_description(description)
                 mem_report_dict_old = mem_report_dict
                 mem_report_dict = torch_utils.generate_mem_report_dict()
                 new_vars_as_dict, diff_counts_as_dict, same_vars_as_dict = \
                     torch_utils.diff_mem_reports(mem_report_dict_old, mem_report_dict)
-                if batch_idx > num_images_to_visualize:
-                    print('\nNew vars:')
-                    pprint.pprint(new_vars_as_dict)
-                    print('\nDiff vars:')
-                    pprint.pprint(diff_counts_as_dict)
-                    vars_to_check = ['true_labels_sb', 'pred_labels_sb', 'score_sb',
-                                     'pred_permutations_sb', 'val_loss_sb',
-                                     'segmentation_visualizations_sb', 'score_visualizations_sb']
-                    for var_name in vars_to_check:
-                        value = eval(var_name)
-                        if type(value) is list:
-                            element_sizes = [get_array_size(v) for v in value]
-                            if all([s == element_sizes[0] for s in element_sizes]):
-                                var_size = \
-                                    '{} of {}'.format(len(element_sizes), element_sizes[0])
+                if DEBUG_MEMORY_ISSUES:
+                    if batch_idx > num_images_to_visualize:
+                        print('\nNew vars:')
+                        pprint.pprint(new_vars_as_dict)
+                        print('\nDiff vars:')
+                        pprint.pprint(diff_counts_as_dict)
+                        vars_to_check = ['pred_permutations_sb', 'val_loss_sb',
+                                         'segmentation_visualizations_sb', 'score_visualizations_sb']
+                        for var_name in vars_to_check:
+                            value = eval(var_name)
+                            if type(value) is list and len(value) > 0:
+                                element_sizes = [get_array_size(v) for v in value]
+                                if all([s == element_sizes[0] for s in element_sizes]):
+                                    var_size = \
+                                        '{} of {}'.format(len(element_sizes), element_sizes[0])
+                                else:
+                                    var_size = element_sizes
+                                var_type = 'list of {}'.format(type(value[0]))
                             else:
-                                var_size = element_sizes
-                            var_type = 'list of {}'.format(type(value[0]))
-                        else:
-                            var_size = get_array_size(value)
-                            var_type = type(value)
-                        print('{}: {}, {}'.format(var_name, var_type, var_size))
+                                var_size = get_array_size(value)
+                                var_type = type(value)
+                            print('{}: {}, {}'.format(var_name, var_type, var_size))
+
                 should_visualize = len(segmentation_visualizations) < num_images_to_visualize
                 if not (should_compute_basic_metrics or should_visualize):
                     # Don't waste computation if we don't need to run on the remaining images
                     continue
                 true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
-                segmentation_visualizations_sb, score_visualizations_sb = \
+                    segmentation_visualizations_sb, score_visualizations_sb = \
                     self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                                should_visualize=should_visualize)
-                memory_allocated = torch.cuda.memory_allocated(device=None)
                 # print('APD: Memory allocated after validating {} GB'.format(memory_allocated / 1e9))
                 label_trues += true_labels_sb
                 label_preds += pred_labels_sb
@@ -276,7 +276,10 @@ class Trainer(object):
                 pred_permutations += [pred_permutations_sb]
                 segmentation_visualizations += segmentation_visualizations_sb
                 score_visualizations += score_visualizations_sb
-                memory_allocated = torch.cuda.memory_allocated(device=None)
+                # num_collected, mem_collected = torch_utils.garbage_collect(verbose=True)
+                vars_to_delete = ['score_sb']
+                for var in vars_to_delete:
+                    del var
 
         if should_export_visualizations:
             self.exporter.export_score_and_seg_images(segmentation_visualizations,
@@ -456,7 +459,7 @@ class Trainer(object):
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.train_loader)))
         for epoch in tqdm.trange(self.state.epoch, max_epoch,
-                                 desc='Train', ncols=80, leave=True):
+                                 desc='Train', ncols=80, leave=False):
             self.state.epoch = epoch
             self.train_epoch()
             if self.state.training_complete():

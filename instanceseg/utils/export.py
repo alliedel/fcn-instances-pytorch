@@ -12,13 +12,18 @@ def convert_mpl_to_np(figure_handle):
 
 
 def log_images(writer, tag, images, step, numbers=None, bgr=False):
+
     if numbers is None:
         numbers = range(len(images))
     for nr, img in enumerate(images):
         if writer is not None:
-            writer.add_image('%s/%d' % (tag, numbers[nr]), img.astype(float) /
-                             255.0,
-                             global_step=step)
+            try:
+                writer.add_image('%s/%d' % (tag, numbers[nr]), img.astype(float) /
+                                 255.0,
+                                 global_step=step)
+            except:
+                print('Image type: {}'.format(type(img.astype(float))))
+                raise
 
 
 def log_plots(writer, tag, plot_handles, step, numbers=None):

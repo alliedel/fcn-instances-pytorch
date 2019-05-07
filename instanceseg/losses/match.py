@@ -14,6 +14,7 @@ logger = get_logger()
 
 def solve_matching_problem(cost_matrix, multiplier_for_db_print=1.0):
     assignment = pywrapgraph.LinearSumAssignment()
+    print('APD: Cost matrix size: {}'.format((len(cost_matrix), len(cost_matrix[0]))))
     for ground_truth in range(len(cost_matrix)):
         for prediction in range(len(cost_matrix[0])):
             try:
@@ -56,12 +57,13 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
     sem_inst_idxs_for_this_class = [i for i, sem_inst_val in enumerate(semantic_instance_labels) if
                                     sem_inst_val == sem_val]
     inst_id_lbls_for_this_class = [instance_id_labels[i] for i in sem_inst_idxs_for_this_class]
-
     if normalizer == 0:
+        print('Found {} idxs for this class: {}'.format(len(sem_inst_idxs_for_this_class),
+                                                        sem_inst_idxs_for_this_class))
         print(Warning('WARNING: image contained all void class.  '
                       'Setting error to 0 for all channels.'))
-        cost_list_2d = [[normalizer for inst_val in inst_id_lbls_for_this_class
-                         for sem_inst_idx in sem_inst_idxs_for_this_class]]
+        cost_list_2d = [[normalizer for inst_val in inst_id_lbls_for_this_class]
+                         for sem_inst_idx in sem_inst_idxs_for_this_class]
     else:
         cost_list_2d = [[
             single_class_component_loss_fcn(

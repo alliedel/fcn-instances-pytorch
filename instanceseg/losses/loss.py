@@ -173,7 +173,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
          matches.
         costs -- cost of each of the matches (also length C)
         """
-        print('inside compute_optimal_match_loss_single_img')
+        print('APD: inside compute_optimal_match_loss_single_img')
         semantic_instance_labels = self.semantic_instance_labels
         assert len(semantic_instance_labels) == predictions.size(0), \
             'first dimension of predictions should be the number of channels.  It is {} instead. ' \
@@ -182,19 +182,25 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         num_inst_classes = len(semantic_instance_labels)
         unique_semantic_values = range(max(semantic_instance_labels) + 1)
         for sem_val in unique_semantic_values:
+            print('APD: Running on sem_val {}'.format(sem_val))
             idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
 
-            assignment, cost_list_2d = self.compute_optimal_match_loss_for_one_sem_cls(predictions, sem_lbl,
-                                                                                       inst_lbl, sem_val)
+            assignment, cost_list_2d = self.compute_optimal_match_loss_for_one_sem_cls(
+                predictions, sem_lbl, inst_lbl, sem_val)
+            print('APD: Finished compute_optimal_match_loss_for_one_sem_cls')
             gt_indices += idxs
             try:
+                print('APD: Inside try statement')
+                print(len(idxs), assignment.NumNodes())
                 pred_permutations += [idxs[assignment.RightMate(i)] for i in range(len(idxs))]
+                print('past pred_permutations')
                 costs += [cost_list_2d[assignment.RightMate(i)][i] for i in range(len(idxs))]
+                print('past costs')
             except Exception as exc:
                 print(exc)
                 import ipdb; ipdb.set_trace()
                 raise
-        print('finished looping over classes')
+        print('APD: finished looping over classes')
         sorted_indices = np.argsort(gt_indices)
         gt_indices = np.array(gt_indices)[sorted_indices]
         pred_permutations = np.array(pred_permutations)[sorted_indices]
@@ -202,10 +208,8 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         return gt_indices, pred_permutations, costs
 
     def compute_optimal_match_loss_for_one_sem_cls(self, predictions, sem_lbl, inst_lbl, sem_val):
-
         cost_matrix, multiplier, cost_list_2d = self.build_cost_matrix_for_one_sem_cls(
             predictions, sem_lbl, inst_lbl, sem_val)
-        print('Solving the matching problem in compute_optimal_match_loss')
         assignment = match.solve_matching_problem(cost_matrix, multiplier)
         return assignment, cost_list_2d
 
@@ -231,10 +235,13 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
     def build_cost_matrix_for_one_sem_cls(self, predictions, sem_lbl, inst_lbl, sem_val):
         print('building cost list 2d')
         cost_list_2d = match.create_pytorch_cost_matrix(self.component_loss, predictions,
-                                                        sem_lbl, inst_lbl, self.semantic_instance_labels,
+                                                        sem_lbl, inst_lbl,
+                                                        self.semantic_instance_labels,
                                                         self.instance_id_labels, sem_val,
                                                         size_average=self.size_average)
+        print('APD: Cost list 2d size: {}'.format((len(cost_list_2d), len(cost_list_2d[0]))))
         cost_matrix, multiplier = match.convert_pytorch_costs_to_ints(cost_list_2d)
+        print('APD: Cost matrix size: {}'.format((len(cost_matrix), len(cost_matrix[0]))))
         print('leaving build_cost_matrix_for_one_sem_cls')
         return cost_matrix, multiplier, cost_list_2d
 

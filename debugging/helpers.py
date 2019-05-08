@@ -19,7 +19,7 @@ def transform_and_export_input_images(trainer: Trainer, img_data, sem_lbl, inst_
     segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
         lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
         overlay=False)
-    trainer.exporter.export_score_and_seg_images([segmentation_viz], None,
+    trainer.exporter.export_score_and_seg_images(segmentation_viz, None,
                                                  trainer.state.iteration, split)
 
 

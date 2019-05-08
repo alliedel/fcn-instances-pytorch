@@ -2,7 +2,8 @@
 from instanceseg.datasets.sampler import SamplerConfig
 
 
-def get_sampler_cfg_set(n_images_train=None, n_images_val=None, n_images_train_for_val=None, sem_cls_filter=None,
+def get_sampler_cfg_set(n_images_train=None, n_images_val=None, n_images_train_for_val=None,
+                        sem_cls_filter=None,
                         n_instances_range=None, val_copy_train=False):
     assert val_copy_train is False or n_images_val is None
     train_sampler_cfg = SamplerConfig(n_images=n_images_train, sem_cls_filter=sem_cls_filter,
@@ -23,6 +24,9 @@ sampler_cfgs = {
     'overfit_1_car_person': get_sampler_cfg_set(n_images_train=1, val_copy_train=True,
                                                 sem_cls_filter=['car', 'person'],
                                                 n_instances_range=[(2, 3 + 1), (2, 3 + 1)]),
+    'overfit_10_car_person': get_sampler_cfg_set(n_images_train=10, val_copy_train=True,
+                                                 sem_cls_filter=['car', 'person'],
+                                                 n_instances_range=[(2, 3 + 1), (2, 3 + 1)]),
     'car_2_4': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 4 + 1)),
     'person_car_2_4': get_sampler_cfg_set(sem_cls_filter=['car', 'person'],
                                           n_instances_range=[(2, 4 + 1), (2, 4 + 1)]),

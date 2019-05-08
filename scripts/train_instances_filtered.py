@@ -8,6 +8,10 @@ import instanceseg.utils.scripts as script_utils
 from instanceseg.analysis import visualization_utils
 from instanceseg.utils.scripts import setup, configure
 
+# import logging
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 here = osp.dirname(osp.abspath(__file__))
 
 

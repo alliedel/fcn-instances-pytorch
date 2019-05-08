@@ -109,9 +109,10 @@ def mkdir_if_needed(dirname):
 
 
 def get_logger(name='my_logger', file=None):
-    logger = logging.getLogger('my_logger')
+    logger = logging.getLogger(name)
     if not len(logger.handlers):
-        logger.setLevel(logging.DEBUG)
+        # logger.setLevel(logging.DEBUG)
+
         if file == None:
             file = '/tmp/my_log.log'
             print('Logging file in {}'.format(file))
@@ -127,6 +128,7 @@ def get_logger(name='my_logger', file=None):
         ch.setLevel(logging.INFO)
         ch.setFormatter(formatter)
         logger.addHandler(ch)
+
     return logger
 
 

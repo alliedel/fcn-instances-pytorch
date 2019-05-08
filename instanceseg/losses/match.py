@@ -5,7 +5,7 @@ from instanceseg.losses.xentropy import DEBUG_ASSERTS
 from instanceseg.models.model_utils import any_nan, is_nan
 from instanceseg.utils.misc import get_logger, unique
 
-logger = get_logger(file='debug_log_matches.txt')
+logger = get_logger(name='match', file='/tmp/debug_match.txt')
 
 
 # TODO(allie): Test different normalization schemes
@@ -22,8 +22,7 @@ def solve_matching_problem(cost_matrix, multiplier_for_db_print=1.0):
                                           cost_matrix[prediction][ground_truth])
             except:
                 print(cost_matrix[prediction][ground_truth])
-                import ipdb;
-                ipdb.set_trace()
+                import ipdb; ipdb.set_trace()
                 raise
     check_status(assignment.Solve(), assignment)
     debug_print_assignments(assignment, multiplier_for_db_print)

@@ -30,7 +30,7 @@ def main():
                     semantic_init=args.semantic_init)
 
     if cfg['debug_dataloader_only']:
-        debug_helper.debug_dataloader(trainer.train_loader)
+        debug_helper.debug_dataloader(trainer)
         return
 
     print('Evaluating final model')

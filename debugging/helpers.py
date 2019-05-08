@@ -33,6 +33,9 @@ def debug_dataloader(trainer, split='train'):
         ncols=150, leave=False)
     for batch_idx, (img_data, (sem_lbl, inst_lbl)) in t:
         for datapoint_idx in range(img_data.size(0)):
+            assert all([img_data.size(0), sem_lbl.size(0), inst_lbl.size(0)]), \
+                'Batch sizes not the same: {}'.format([img_data.size(0), sem_lbl.size(0),
+                                                       inst_lbl.size(0)])
             transform_and_export_input_images(
                 trainer, img_data[batch_idx, ...], sem_lbl[batch_idx, ...],
                 inst_lbl[batch_idx, ...], split)

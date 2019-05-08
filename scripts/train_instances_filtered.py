@@ -7,9 +7,7 @@ import skimage.io
 import instanceseg.utils.scripts as script_utils
 from instanceseg.analysis import visualization_utils
 from instanceseg.utils.scripts import setup, configure
-
-# import logging
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import debugging.helpers as debug_helper
 
 
 here = osp.dirname(osp.abspath(__file__))
@@ -31,6 +29,10 @@ def main():
     trainer = setup(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
                     semantic_init=args.semantic_init)
 
+    if cfg['debug_dataloader_only']:
+        debug_helper.debug_dataloader(trainer.train_loader)
+        return
+
     print('Evaluating final model')
     metrics = run(trainer)
     print('''\
@@ -44,7 +46,7 @@ def run(trainer):
     trainer.train()
     val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = \
         trainer.validate_split(should_export_visualizations=False)
-    viz = visualization_utils.get_tile_image(segmentation_visualizations)
+    viz = visualization_utils.get_tile_image(segmentation_visualizations)   
     skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     eval_metrics = np.array(eval_metrics)
     eval_metrics *= 100

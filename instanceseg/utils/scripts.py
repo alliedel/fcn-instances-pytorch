@@ -227,14 +227,16 @@ def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_
     return trainer
 
 
-def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscript.py', cfg_override_args=None,
-              parent_script_directory='scripts'):
+def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscript.py',
+              cfg_override_args=None, parent_script_directory='scripts'):
     script_basename = osp.basename(script_py_file).replace('.py', '')
     parent_directory = os.path.join(PROJECT_ROOT, parent_script_directory, 'logs', dataset_name)
-    cfg, cfg_to_print = get_cfgs(dataset_name=dataset_name, config_idx=config_idx, cfg_override_args=cfg_override_args)
-    cfg['sampler'] = sampler_name
-    assert cfg['dataset'] == dataset_name, 'Debug Error: cfg[\'dataset\']: {}, args.dataset: {}'.format(cfg['dataset'],
-                                                                                                        dataset_name)
+    cfg, cfg_to_print = get_cfgs(dataset_name=dataset_name, config_idx=config_idx,
+                                 cfg_override_args=cfg_override_args)
+    if sampler_name is not None or 'sampler' not in cfg:
+        cfg['sampler'] = sampler_name
+    assert cfg['dataset'] == dataset_name, 'Debug Error: cfg[\'dataset\']: {}, ' \
+                                           'args.dataset: {}'.format(cfg['dataset'], dataset_name)
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
     sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg(sampler_name)

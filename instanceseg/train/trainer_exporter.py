@@ -274,7 +274,8 @@ class TrainerExporter(object):
         shutil.copy(current_checkpoint_file, best_checkpoint_file)
         return best_checkpoint_file
 
-    def visualize_one_img_prediction(self, img_untransformed, lp, lt_combined, pp, softmax_scores, true_labels, idx):
+    def visualize_one_img_prediction(self, img_untransformed, lp, lt_combined, pp, softmax_scores,
+                                     true_labels, idx):
         # Segmentations
         segmentation_viz = visualization_utils.visualize_segmentation(
             lbl_pred=lp, lbl_true=lt_combined, pred_permutations=pp, img=img_untransformed,
@@ -313,9 +314,12 @@ class TrainerExporter(object):
 
     def export_score_and_seg_images(self, segmentation_visualizations, score_visualizations, iteration, split):
         self.export_visualizations(segmentation_visualizations, iteration, basename='seg_' + split, tile=True)
-        self.export_visualizations(score_visualizations, iteration, basename='score_' + split, tile=False)
+        if score_visualizations is not None:
+            self.export_visualizations(score_visualizations, iteration, basename='score_' + split, tile=False)
 
     def export_visualizations(self, visualizations, iteration, basename='val_', tile=True, out_dir=None):
+        if visualizations is None:
+            return
         out_dir = out_dir or osp.join(self.out_dir, 'visualization_viz')
         visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer, iteration,
                                                   basename=basename, tile=tile)

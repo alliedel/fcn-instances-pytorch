@@ -1,4 +1,5 @@
 class PARAM_CLASSIFICATIONS(object):
+    debug = {'debug_dataloader_only'}
     optim = {'optim', 'max_iteration', 'lr', 'momentum', 'weight_decay', 'clip', 'reset_optim'}
     export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics'}
     loss = {'matching', 'size_average', 'loss_type', 'lr_scheduler'}
@@ -14,6 +15,10 @@ class PARAM_CLASSIFICATIONS(object):
 # this one.  Ran into issues not copying this dictionary when I started changing it, and it changes all the config
 # dictionaries.
 _default_config = dict(
+
+    # debug
+    debug_dataloader_only=False,
+
     # losses
     matching=True,
     size_average=True,
@@ -83,3 +88,5 @@ def assert_all_cfg_keys_classified():
 
 
 assert_all_cfg_keys_classified()
+
+

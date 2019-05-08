@@ -224,7 +224,7 @@ class Trainer(object):
         num_images_to_visualize = min(len(data_loader), 9)
         memory_allocated = torch.cuda.memory_allocated(device=None)
         mem_report_dict = torch_utils.generate_mem_report_dict()
-        with torch.set_grad_enabled(split == 'train'):
+        with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
                 ncols=150, leave=False)

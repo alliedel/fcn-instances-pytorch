@@ -86,5 +86,18 @@ configurations = {
         dataset_instance_cap='match_model',
         ordering=None,
         semantic_subset=['car', 'bus', 'train'],
+    ),
+    'debug_dataloader_only': dict(
+        debug_dataloader_only=True,
+        sampler='overfit_1_car'
     )
+    # 'debug_all': dict(
+    #     max_iteration=10000,
+    #     interval_validate=100,
+    #     n_instances_per_class=3,
+    #     dataset_instance_cap='match_model',
+    #     ordering=None,
+    #     sampler='overfit_1_car',
+    #     debug_dataloader=True
+    # ),
 }

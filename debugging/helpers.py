@@ -8,7 +8,8 @@ from instanceseg.train.trainer import Trainer
 from instanceseg.analysis import visualization_utils
 
 
-def transform_and_export_input_images(trainer: Trainer, img_data, sem_lbl, inst_lbl, split='train'):
+def transform_and_export_input_images(trainer: Trainer, img_data, sem_lbl, inst_lbl,
+                                      split='train', out_dir=None):
     # Transform back to numpy format (rather than tensor that's formatted for model)
     data_to_img_transformer = lambda i, l: trainer.exporter.untransform_data(
         trainer.train_loader, i, l)
@@ -21,15 +22,14 @@ def transform_and_export_input_images(trainer: Trainer, img_data, sem_lbl, inst_
     segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
         lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
         overlay=False)
-    out_dir = osp.join(trainer.exporter.out_dir, 'debug_viz')
+    out_dir = out_dir or osp.join(trainer.exporter.out_dir, 'debug_viz')
     visualization_utils.export_visualizations(segmentation_viz, out_dir,
                                               trainer.exporter.tensorboard_writer,
                                               trainer.state.iteration,
-                                              basename='loader_' + split, tile=False)
-    print('Wrote images as loaded into {}'.format(out_dir))
+                                              basename='loader_' + split, tile=True)
 
 
-def debug_dataloader(trainer, split='train'):
+def debug_dataloader(trainer, split='train', out_dir=None):
     # TODO(allie, someday): Put cap on num images
 
     data_loader = {'train': trainer.train_loader, 'val': trainer.val_loader}[split]
@@ -41,4 +41,5 @@ def debug_dataloader(trainer, split='train'):
         for datapoint_idx in range(img_data.size(0)):
             transform_and_export_input_images(
                 trainer, img_data[datapoint_idx, ...], sem_lbl[datapoint_idx, ...],
-                inst_lbl[datapoint_idx, ...], split)
+                inst_lbl[datapoint_idx, ...], split, out_dir=out_dir)
+    print('Wrote images as loaded into {}'.format(out_dir))

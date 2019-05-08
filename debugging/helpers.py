@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import os.path as osp
 
+from instanceseg.utils.misc import value_as_string
 from instanceseg.train import trainer_exporter
 from instanceseg.train.trainer import Trainer
 from instanceseg.analysis import visualization_utils
@@ -29,17 +30,30 @@ def transform_and_export_input_images(trainer: Trainer, img_data, sem_lbl, inst_
                                               basename='loader_' + split, tile=True)
 
 
-def debug_dataloader(trainer, split='train', out_dir=None):
+def write_dataloader_properties(dataloader, outfile):
+    precomputed_file_transformation = dataloader.dataset.precomputed_file_transformation
+    runtime_transformation = dataloader.dataset.runtime_transformation
+    transformer_tag = ''
+    for tr in [precomputed_file_transformation, runtime_transformation]:
+        attributes = tr.get_attribute_items() if tr is not None else {}.items()
+        transformer_tag += '__'.join(['{}-{}'.format(k, value_as_string(v)) for k, v in attributes])
+    with open(outfile, 'w') as fid:
+        fid.write(transformer_tag)
+
+    return
+
+
+def debug_dataloader(trainer: Trainer, split='train', out_dir=None):
     # TODO(allie, someday): Put cap on num images
 
     data_loader = {'train': trainer.train_loader, 'val': trainer.val_loader}[split]
-
-    t = tqdm.tqdm(
-        enumerate(data_loader), total=len(data_loader),
-        ncols=150, leave=False)
+    out_dir = trainer.exporter.out_dir or out_dir
+    outfile = osp.join(out_dir, 'dataloader_info_' + split + '.txt')
+    write_dataloader_properties(data_loader, outfile)
+    t = tqdm.tqdm(enumerate(data_loader), total=len(data_loader), ncols=150, leave=False)
     for batch_idx, (img_data, (sem_lbl, inst_lbl)) in t:
         for datapoint_idx in range(img_data.size(0)):
             transform_and_export_input_images(
                 trainer, img_data[datapoint_idx, ...], sem_lbl[datapoint_idx, ...],
-                inst_lbl[datapoint_idx, ...], split, out_dir=out_dir)
+                inst_lbl[datapoint_idx, ...], split, out_dir=None)
     print('Wrote images as loaded into {}'.format(out_dir))

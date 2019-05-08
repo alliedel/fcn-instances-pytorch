@@ -93,7 +93,8 @@ configurations = {
     ),
     'debug_dataloader_only_10_imgs': dict(
         debug_dataloader_only=True,
-        sampler='overfit_10_car_person'
+        sampler='overfit_10_car_person',
+        semantic_subset=['car', 'person', 'background'],
     )
     # 'debug_all': dict(
     #     max_iteration=10000,

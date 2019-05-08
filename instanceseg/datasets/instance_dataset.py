@@ -59,7 +59,8 @@ class TransformedInstanceDataset(InstanceDatasetBase):
 
     def get_semantic_class_names(self):
         """
-        If we changed the semantic subset, we have to account for that change in the semantic class name list.
+        If we changed the semantic subset, we have to account for that change in the semantic class
+         name list.
         """
         if self.should_use_runtime_transform and self.runtime_transformation is not None:
             transformation_list = self.runtime_transformation.transformer_sequence if isinstance(

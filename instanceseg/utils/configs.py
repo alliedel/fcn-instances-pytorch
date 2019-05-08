@@ -186,6 +186,11 @@ def get_cfgs(dataset_name, config_idx, cfg_override_args=None):
             cfg[key] = override_val
             non_default_options[key] = override_val
 
+    if cfg['semantic_subset'] is not None and 'background' not in cfg['semantic_subset']:
+            print(UserWarning('background was not in the list of semantic classes.  I added it.  '
+                              'If you truly don\'t want it, deal with this code.'))
+            cfg['semantic_subset'].append('background')
+
     print(misc.color_text('non-default cfg values: {}'.format(non_default_options),
                           misc.TermColors.OKBLUE))
     cfg_to_print = non_default_options

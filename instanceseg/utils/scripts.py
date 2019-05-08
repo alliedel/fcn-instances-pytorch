@@ -235,6 +235,8 @@ def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscr
                                  cfg_override_args=cfg_override_args)
     if sampler_name is not None or 'sampler' not in cfg:
         cfg['sampler'] = sampler_name
+    else:
+        sampler_name = cfg['sampler']
     assert cfg['dataset'] == dataset_name, 'Debug Error: cfg[\'dataset\']: {}, ' \
                                            'args.dataset: {}'.format(cfg['dataset'], dataset_name)
     if cfg['dataset_instance_cap'] == 'match_model':

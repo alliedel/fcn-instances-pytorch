@@ -55,3 +55,6 @@ class SamplerConfig(object):
         self.n_images = n_images
         self.sem_cls_filter = sem_cls_filter
         self.n_instances_range = n_instances_range
+
+    def __str__(self):
+        return str(self.__dict__)

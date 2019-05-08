@@ -32,4 +32,7 @@ def debug_dataloader(trainer, split='train'):
         enumerate(data_loader), total=len(data_loader),
         ncols=150, leave=False)
     for batch_idx, (img_data, (sem_lbl, inst_lbl)) in t:
-        transform_and_export_input_images(trainer, img_data, sem_lbl, inst_lbl, split)
+        for datapoint_idx in range(img_data.size(0)):
+            transform_and_export_input_images(
+                trainer, img_data[batch_idx, ...], sem_lbl[batch_idx, ...],
+                inst_lbl[batch_idx, ...], split)

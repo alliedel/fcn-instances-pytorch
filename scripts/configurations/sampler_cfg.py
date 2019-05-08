@@ -20,8 +20,9 @@ def get_sampler_cfg_set(n_images_train=None, n_images_val=None, n_images_train_f
 sampler_cfgs = {
     None: get_sampler_cfg_set(),
     'default': get_sampler_cfg_set(),
-    'overfit_1_car': get_sampler_cfg_set(n_images_train=1, val_copy_train=True, sem_cls_filter=[
-        'car', 'person'], n_instances_range=(2, 3 + 1)),
+    'overfit_1_car_person': get_sampler_cfg_set(n_images_train=1, val_copy_train=True,
+                                                sem_cls_filter=['car', 'person'],
+                                                n_instances_range=[(2, 3 + 1), (2, 3 + 1)]),
     'car_2_4': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 4 + 1)),
     'person_car_2_4': get_sampler_cfg_set(sem_cls_filter=['car', 'person'],
                                           n_instances_range=[(2, 4 + 1), (2, 4 + 1)]),

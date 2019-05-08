@@ -89,7 +89,7 @@ configurations = {
     ),
     'debug_dataloader_only': dict(
         debug_dataloader_only=True,
-        sampler='overfit_1_car'
+        sampler='overfit_1_car_person'
     )
     # 'debug_all': dict(
     #     max_iteration=10000,

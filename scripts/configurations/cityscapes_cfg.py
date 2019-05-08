@@ -100,6 +100,8 @@ configurations = {
     'overfit_1': dict(
         sampler='overfit_10_car_person',
         semantic_subset=['car', 'person'],
+        n_instances_per_class=3,
+        dataset_instance_cap='match_model',
     )
     # 'debug_all': dict(
     #     max_iteration=10000,

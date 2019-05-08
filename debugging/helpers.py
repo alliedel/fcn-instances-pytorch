@@ -1,9 +1,11 @@
 import tqdm
 import torch
 import numpy as np
+import os.path as osp
 
 from instanceseg.train import trainer_exporter
 from instanceseg.train.trainer import Trainer
+from instanceseg.analysis import visualization_utils
 
 
 def transform_and_export_input_images(trainer: Trainer, img_data, sem_lbl, inst_lbl, split='train'):
@@ -19,8 +21,12 @@ def transform_and_export_input_images(trainer: Trainer, img_data, sem_lbl, inst_
     segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
         lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
         overlay=False)
-    trainer.exporter.export_score_and_seg_images(segmentation_viz, None,
-                                                 trainer.state.iteration, split)
+    out_dir = osp.join(trainer.exporter.out_dir, 'debug_viz')
+    visualization_utils.export_visualizations(segmentation_viz, out_dir,
+                                              trainer.exporter.tensorboard_writer,
+                                              trainer.state.iteration,
+                                              basename='loader_' + split, tile=False)
+    print('Wrote images as loaded into {}'.format(out_dir))
 
 
 def debug_dataloader(trainer, split='train'):

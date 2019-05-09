@@ -20,7 +20,7 @@ def log_images(writer: SummaryWriter, tag, images, step, numbers=None, bgr=False
     for nr, img in enumerate(images):
         if writer is not None:
             writer.add_image('%s/%d' % (tag, numbers[nr]), (img.astype(float) /
-                             255.0).astype('uint8'), global_step=step, dataformats='HWC')
+                             255.0), global_step=step, dataformats='HWC')
 
 
 def log_plots(writer: SummaryWriter, tag, plot_handles, step, numbers=None):

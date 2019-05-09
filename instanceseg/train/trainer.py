@@ -18,21 +18,13 @@ from instanceseg.train import metrics, trainer_exporter
 from instanceseg.utils import datasets
 from instanceseg.utils import torch_utils
 from instanceseg.utils.instance_utils import InstanceProblemConfig
+from instanceseg.utils.misc import get_array_size
 
 DEBUG_ASSERTS = True
 DEBUG_MEMORY_ISSUES = False
 
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
-
-
-def get_array_size(obj):
-    if type(obj) is np.ndarray:
-        return obj.shape
-    elif torch.is_tensor(obj):
-        return obj.size()
-    else:
-        return None
 
 
 class TrainingState(object):
@@ -388,34 +380,11 @@ class Trainer(object):
         loss.backward()
         self.optim.step()
 
-        try:
-            iteration = self.state.iteration
-            upscore8_grad = self.model.upscore8.weight.grad
-            for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
-                self.exporter.tensorboard_writer.add_histogram(
-                    'Z_upscore8_gradients/{}'.format(channel_idx),
-                    upscore8_grad[channel_idx, :, :, :], self.state.iteration)
-            score_pool4_weight_grad = self.model.score_pool4.weight.grad
-            score_pool4_bias_grad = self.model.score_pool4.bias.grad
-            assert len(score_pool4_bias_grad) == self.instance_problem.n_classes
-            for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
-                self.exporter.tensorboard_writer.add_histogram(
-                    'Z_score_pool4_weight_gradients/{}'.format(channel_idx),
-                    score_pool4_weight_grad[channel_idx, :, :, :], self.state.iteration)
-                self.exporter.tensorboard_writer.add_histogram(
-                    'score_pool4_bias_gradients/{}'.format(channel_idx),
-                    score_pool4_bias_grad[channel_idx], self.state.iteration)
-        except:
-            import ipdb;
-            ipdb.set_trace()
-            raise
-
         if self.exporter.run_loss_updates:
             self.model.eval()
             new_score = self.model(full_input)
-            new_pred_permutations, new_loss, new_loss_components = self.compute_loss(new_score,
-                                                                                     sem_lbl,
-                                                                                     inst_lbl)
+            new_pred_permutations, new_loss, new_loss_components = \
+                self.compute_loss(new_score, sem_lbl, inst_lbl)
             # num_reassignments = np.sum(new_pred_permutations != pred_permutations)
             # if not num_reassignments == 0:
             #     self.debug_loss(score, sem_lbl, inst_lbl, new_score, new_loss, loss_components, new_loss_components)

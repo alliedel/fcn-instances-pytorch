@@ -357,7 +357,7 @@ class TrainerExporter(object):
         eval_metrics = np.mean(eval_metrics, axis=0)
         self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
-		# TODO(allie): Check dimensionality of loss to prevent potential bugs
+        # TODO(allie): Check dimensionality of loss to prevent potential bugs
             self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.detach().sum(),
                                                iteration)
 
@@ -450,3 +450,28 @@ class TrainerExporter(object):
             img_untransformed, lbl_untransformed = img, (sem_lbl, inst_lbl)
         return img_untransformed, lbl_untransformed
 
+
+
+
+        # if self.exporter.export_config.export_activations:
+        #     try:
+        #         iteration = self.state.iteration
+        #         upscore8_grad = self.model.upscore8.weight.grad
+        #         for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
+        #             self.exporter.tensorboard_writer.add_histogram(
+        #                 'Z_upscore8_gradients/{}'.format(channel_idx),
+        #                 upscore8_grad[channel_idx, :, :, :], self.state.iteration)
+        #         score_pool4_weight_grad = self.model.score_pool4.weight.grad
+        #         score_pool4_bias_grad = self.model.score_pool4.bias.grad
+        #         assert len(score_pool4_bias_grad) == self.instance_problem.n_classes
+        #         for channel_idx, channel_name in enumerate(self.instance_problem.get_channel_labels()):
+        #             self.exporter.tensorboard_writer.add_histogram(
+        #                 'Z_score_pool4_weight_gradients/{}'.format(channel_idx),
+        #                 score_pool4_weight_grad[channel_idx, :, :, :], self.state.iteration)
+        #             self.exporter.tensorboard_writer.add_histogram(
+        #                 'score_pool4_bias_gradients/{}'.format(channel_idx),
+        #                 score_pool4_bias_grad[channel_idx], self.state.iteration)
+        #     except:
+        #         import ipdb;
+        #         ipdb.set_trace()
+        #         raise

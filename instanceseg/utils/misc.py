@@ -4,6 +4,7 @@ import logging
 import os
 
 import numpy as np
+import torch
 
 
 def _fast_hist(label_true, label_pred, n_class):
@@ -151,3 +152,12 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def get_array_size(obj):
+    if type(obj) is np.ndarray:
+        return obj.shape
+    elif torch.is_tensor(obj):
+        return obj.size()
+    else:
+        return None

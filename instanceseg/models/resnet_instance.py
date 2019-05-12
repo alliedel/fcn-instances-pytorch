@@ -7,13 +7,12 @@ try:
     import fcn
 except ImportError:
     fcn = None
+
 import torch
 import torch.nn as nn
 from instanceseg.utils import instance_utils
 
 from instanceseg.models import model_utils
-from graveyard.models import attention_old
-
 from instanceseg.models import resnet_extracted
 
 DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
@@ -77,6 +76,9 @@ class ResNet50Instance(nn.Module):
         self.my_forward_hooks = {}
         self.use_conv8 = use_conv8
 
+        self.conv1x1_to_instance_channels = None if not self.map_to_semantic else \
+            nn.Conv2d(in_channels=self.n_resnet_out_channels, out_channels=self.n_output_channels, kernel_size=1,
+                      bias=False)
         self.conv1x1_instance_to_semantic = None if not self.map_to_semantic else \
             nn.Conv2d(in_channels=self.n_instance_classes, out_channels=self.n_output_channels, kernel_size=1,
                       bias=False)
@@ -85,7 +87,7 @@ class ResNet50Instance(nn.Module):
 
     def forward(self, x):
         h = self.backbone(x)
-
+        h = self.conv1x1_instance_to_semantic(h)
         if self.map_to_semantic:
             h = self.conv1x1_instance_to_semantic(h)
 

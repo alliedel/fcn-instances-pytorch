@@ -24,9 +24,9 @@ class resnet_upsnet(resnet_rcnn):
 
     def __init__(self, backbone_depth):
         super(resnet_upsnet, self).__init__()
-        self.num_classes = config.dataset.num_classes
-        self.num_seg_classes = config.dataset.num_seg_classes
-        self.num_reg_classes = (2 if config.network.cls_agnostic_bbox_reg else config.dataset.num_classes)
+        # self.num_classes = config.dataset.num_classes
+        # self.num_seg_classes = config.dataset.num_seg_classes
+        # self.num_reg_classes = (2 if config.network.cls_agnostic_bbox_reg else config.dataset.num_classes)
 
         # backbone net
         self.resnet_backbone = ResNetBackbone(backbone_depth)

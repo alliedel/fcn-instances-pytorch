@@ -16,13 +16,12 @@ RESNET_RNN_URL = 'http://www.yuwenxiong.com/pretrained_model/resnet-50-caffe.pth
 
 def pretrained_resnet_rnn_state_dict(cache_path=None, url=None):
     cache_path = cache_path or RESNET_RNN_CACHE_PATH
-    if osp.exists(cache_path):
-        return cache_path
-    url = url or RESNET_RNN_URL
-    child = subprocess.Popen(['curl', url, '-o', cache_path], stdout=subprocess.PIPE)
-    stdout = child.communicate()[0]
-    exit_code = child.returncode
-    assert exit_code == 0
+    if not osp.exists(cache_path):
+        url = url or RESNET_RNN_URL
+        child = subprocess.Popen(['curl', url, '-o', cache_path], stdout=subprocess.PIPE)
+        stdout = child.communicate()[0]
+        exit_code = child.returncode
+        assert exit_code == 0
     state_dict = torch.load(cache_path)
     return state_dict
 

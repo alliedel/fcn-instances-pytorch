@@ -20,14 +20,14 @@ import torch
 import torch.nn as nn
 import torch.utils.checkpoint
 from torch.nn.parameter import Parameter
-from instanceseg.ext.upsnet.config.config import config
-from instanceseg.ext.upsnet.operators.modules.deform_conv import DeformConv
+
+from upsnet.config.config import config
+from upsnet.operators.modules.deform_conv import DeformConv
 
 if not config.network.backbone_fix_bn and config.network.use_syncbn:
-    raise NotImplementedError('APD: not provided with package.')
-#     from instanceseg.ext.upsnet.operators.modules. import BatchNorm2d
-#
-#     nn.BatchNorm2d = BatchNorm2d
+    from upsnet.operators.modules.distbatchnorm import BatchNorm2d
+
+    nn.BatchNorm2d = BatchNorm2d
 
 
 def get_params(model, prefixs, suffixes, exclude=None):

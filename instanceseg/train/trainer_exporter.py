@@ -161,8 +161,8 @@ class TrainerExporter(object):
         # zoom
         zoom_filename = os.path.join(self.out_dir, 'val_train_loss_zoom_last_{}.png'.format(ylim_buffer_size))
         if ymin is not None:
-            plt.ylim(ymin=ymin, ymax=ymax)
-            plt.xlim(xmin=(last_x - ylim_buffer_size - 1), xmax=last_x)
+            plt.ylim(bottom=ymin, top=ymax)  # ymin, ymax, xmin, xmax deprecated Matplotlib 3.0
+            plt.xlim(left=(last_x - ylim_buffer_size - 1), right=last_x)
             if self.tensorboard_writer is not None:
                 instanceseg.utils.export.log_plots(self.tensorboard_writer,
                                                    'joint_loss_last_{}'.format(ylim_buffer_size),

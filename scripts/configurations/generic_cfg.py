@@ -59,6 +59,7 @@ _default_config = dict(
     single_instance=False,  # map_to_single_instance_problem
 
     # model
+    backbone='fcn8',
     initialize_from_semantic=False,
     bottleneck_channel_capacity=None,
     score_multiplier=None,

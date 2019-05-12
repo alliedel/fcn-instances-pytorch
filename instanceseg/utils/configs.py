@@ -44,7 +44,6 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         'reset_optim': 'ropt'
                                         }
 
-
 CONFIG_VAL_REPLACEMENTS_FOR_FILENAME = {
     True: '0',
     False: '1'
@@ -95,7 +94,8 @@ def get_parameters(model, bias=False):
         nn.Dropout2d,
         nn.Sequential,
         nn.Softmax,
-        instanceseg.models.FCN8sInstance
+        instanceseg.models.FCN8sInstance,
+        instanceseg.models.trainer.exporter.ance
     )
     for m in model.modules():
         if isinstance(m, nn.Conv2d):
@@ -141,8 +141,12 @@ def get_cfg_override_parser(cfg_default):
     return cfg_override_parser
 
 
-def create_config_copy(config_dict, config_key_replacements=CONFIG_KEY_REPLACEMENTS_FOR_FILENAME,
-                       reverse_replacements=False, config_val_replacements=CONFIG_VAL_REPLACEMENTS_FOR_FILENAME):
+def create_config_copy(config_dict, config_key_replacements='default',
+                       reverse_replacements=False, config_val_replacements='default'):
+    if config_val_replacements is 'default':
+        config_val_replacements = CONFIG_VAL_REPLACEMENTS_FOR_FILENAME
+    if config_key_replacements is 'default':
+        config_key_replacements = CONFIG_KEY_REPLACEMENTS_FOR_FILENAME
     if reverse_replacements:
         config_key_replacements = {v: k for k, v in config_key_replacements.items()}
         config_val_replacements = {v: k for k, v in config_val_replacements.items()}
@@ -187,9 +191,9 @@ def get_cfgs(dataset_name, config_idx, cfg_override_args=None):
             non_default_options[key] = override_val
 
     if cfg['semantic_subset'] is not None and 'background' not in cfg['semantic_subset']:
-            print(UserWarning('background was not in the list of semantic classes.  I added it.  '
-                              'If you truly don\'t want it, deal with this code.'))
-            cfg['semantic_subset'].append('background')
+        print(UserWarning('background was not in the list of semantic classes.  I added it.  '
+                          'If you truly don\'t want it, deal with this code.'))
+        cfg['semantic_subset'].append('background')
 
     print(misc.color_text('non-default cfg values: {}'.format(non_default_options),
                           misc.TermColors.OKBLUE))

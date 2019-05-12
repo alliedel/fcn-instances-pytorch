@@ -5,25 +5,28 @@ import torch
 import instanceseg
 from instanceseg.utils import instance_utils
 from instanceseg.models import model_utils
+from instanceseg.utils.instance_utils import InstanceProblemConfig
 
 
-def get_model(cfg, problem_config, checkpoint_file, semantic_init, cuda):
+def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, semantic_init, cuda):
     n_input_channels = 3 if not cfg['augment_semantic'] else 3 + problem_config.n_semantic_classes
-    try:
-        model = instanceseg.models.FCN8sInstance(
-            semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
-            map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
-            bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'], score_multiplier_init=cfg['score_multiplier'],
-            n_input_channels=n_input_channels, clip=cfg['clip'], use_conv8=cfg['use_conv8'], use_attention_layer=cfg[
-                'use_attn_layer'])
-    except:
-        print('Warning: deprecated.')
+    if cfg['backbone'] == 'fcn':
         model = instanceseg.models.FCN8sInstance(
             semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
             map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
             bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'],
             score_multiplier_init=cfg['score_multiplier'],
-            n_input_channels=n_input_channels, clip=cfg['clip'])
+            n_input_channels=n_input_channels, clip=cfg['clip'], use_conv8=cfg['use_conv8'], use_attention_layer=cfg[
+                'use_attn_layer'])
+    elif cfg['backbone'] == 'resnet50':
+        model = instanceseg.models.ResNet50Instance(
+            semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
+            map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
+            bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'],
+            score_multiplier_init=cfg['score_multiplier'], n_input_channels=n_input_channels, clip=cfg['clip'])
+    else:
+        raise ValueError('Unknown backbone architecture {}'.format(cfg['backbone']))
+
     if checkpoint_file is not None:
         checkpoint = torch.load(checkpoint_file)
         model.load_state_dict(checkpoint['model_state_dict'])

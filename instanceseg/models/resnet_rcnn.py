@@ -11,7 +11,7 @@ import warnings
 
 
 RESNET_RNN_CACHE_PATH = osp.expanduser('~/data/models/pytorch/resnet-50-caffe.pth')
-RESNET_RNN_URL = 'http://www.yuwenxiong.com/pretrained_model/resnet-50-caffe.pth',
+RESNET_RNN_URL = 'http://www.yuwenxiong.com/pretrained_model/resnet-50-caffe.pth'
 
 
 def pretrained_resnet_rnn_state_dict(cache_path=None, url=None):

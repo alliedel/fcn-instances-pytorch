@@ -43,9 +43,8 @@ class Resnet(nn.Module):
     def initialize(self):
         pass
 
-    def forward(self, data, label=None):
-
-        res2, res3, res4, res5 = self.resnet_backbone(data['data'])
+    def forward(self, data):
+        res2, res3, res4, res5 = self.resnet_backbone(data)
         # fpn_p2, fpn_p3, fpn_p4, fpn_p5, fpn_p6 = self.fpn(res2, res3, res4, res5)
 
         # generate gt for panoptic head

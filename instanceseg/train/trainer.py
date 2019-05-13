@@ -218,18 +218,18 @@ class Trainer(object):
         mem_report_dict = torch_utils.generate_mem_report_dict()
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
-                enumerate(data_loader), total=len(data_loader),
-                ncols=150, leave=False)
+                enumerate(data_loader), total=len(data_loader), desc='Valid iteration (split=%s)=%d' %
+                (split, self.state.iteration), ncols=150, leave=False)
             for batch_idx, (img_data, lbls) in t:
-                memory_allocated = torch.cuda.memory_allocated(device=None)
-                description = 'Valid iteration (split=%s)=%d, %g GB' % \
-                              (split, self.state.iteration, memory_allocated / 1e9)
-                t.set_description_str(description)
-                mem_report_dict_old = mem_report_dict
-                mem_report_dict = torch_utils.generate_mem_report_dict()
-                new_vars_as_dict, diff_counts_as_dict, same_vars_as_dict = \
-                    torch_utils.diff_mem_reports(mem_report_dict_old, mem_report_dict)
                 if DEBUG_MEMORY_ISSUES:
+                    memory_allocated = torch.cuda.memory_allocated(device=None)
+                    description = 'Valid iteration (split=%s)=%d, %g GB' % \
+                                  (split, self.state.iteration, memory_allocated / 1e9)
+                    t.set_description_str(description)
+                    mem_report_dict_old = mem_report_dict
+                    mem_report_dict = torch_utils.generate_mem_report_dict()
+                    new_vars_as_dict, diff_counts_as_dict, same_vars_as_dict = \
+                        torch_utils.diff_mem_reports(mem_report_dict_old, mem_report_dict)
                     if batch_idx > num_images_to_visualize:
                         print('\nNew vars:')
                         pprint.pprint(new_vars_as_dict)

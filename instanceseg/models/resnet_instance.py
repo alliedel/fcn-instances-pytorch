@@ -47,7 +47,7 @@ class ResNet50Instance(nn.Module):
         super(ResNet50Instance, self).__init__()
 
         self.backbone = resnet.resnet_50_upsnet()
-        self.n_backbone_out_channels = sum(self.backbone.backbone_depth)  # specifically for resnet
+        self.n_backbone_out_channels = 2048 + 1024 + 512 + 256  # specifically for resnet
 
         if include_instance_channel0:
             raise NotImplementedError

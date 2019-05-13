@@ -218,4 +218,6 @@ def get_parameters(model: nn.Module, bias=False):
     for n, p in model.named_parameters():
         if n.endswith('bias') and bias is False:
             continue
+        elif not n.endswith('bias') and bias is True:
+            continue
         yield p

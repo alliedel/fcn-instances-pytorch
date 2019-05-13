@@ -90,7 +90,6 @@ class ResNet50Instance(nn.Module):
         h = self.conv1x1_to_instance_channels(h)
         if self.map_to_semantic:
             h = self.conv1x1_instance_to_semantic(h)
-
         return h
 
     def copy_params_from_fcn8s(self, fcn16s):

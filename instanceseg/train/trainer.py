@@ -341,9 +341,14 @@ class Trainer(object):
             self.train_loader.dataset.raw_dataset.initialize_locations_per_image(seed)
             self.train_loader_for_val.dataset.raw_dataset.initialize_locations_per_image(seed)
 
-        for batch_idx, (img_data, target) in tqdm.tqdm(  # tqdm: progress bar
-                enumerate(self.train_loader), total=len(self.train_loader),
-                desc='Train epoch=%d' % self.state.epoch, ncols=80, leave=False):
+        t = tqdm.tqdm(  # tqdm: progress bar
+            enumerate(self.train_loader), total=len(self.train_loader),
+            desc='Train epoch=%d' % self.state.epoch, ncols=80, leave=False)
+
+        for batch_idx, (img_data, target) in t:
+            memory_allocated = torch.cuda.memory_allocated(device=None)
+            description = 'Train epoch=%d, %g GB' % (self.state.epoch, memory_allocated / 1e9)
+            t.set_description_str(description)
 
             # Check/update iteration
             iteration = batch_idx + self.state.epoch * len(self.train_loader)

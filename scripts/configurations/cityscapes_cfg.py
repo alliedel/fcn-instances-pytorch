@@ -102,6 +102,7 @@ configurations = {
         semantic_subset=['car', 'person'],
         n_instances_per_class=3,
         dataset_instance_cap='match_model',
+        interval_validate=100
     ),
     'overfit_1': dict(
         sampler='overfit_1_car_person',

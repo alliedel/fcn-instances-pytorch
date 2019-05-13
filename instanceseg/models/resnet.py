@@ -77,8 +77,8 @@ class Resnet(nn.Module):
         # }
         # concat_features = torch.cat([fpn_p2, fpn_p3, fpn_p4, fpn_p5, fpn_p6])
 
-        concat_features = torch.cat([self.upsample([res2, res3, res4, res5], size=data.shape[2:4],
-                                                   upsample_method='nearest')])
+        concat_features = torch.cat([self.upsample(f, size=data.shape[2:4], upsample_method='nearest')
+                                     for f in [res2, res3, res4, res5]])
         return concat_features
 
     def upsample(self, tensor, size, upsample_method):

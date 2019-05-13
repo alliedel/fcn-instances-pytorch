@@ -21,6 +21,7 @@ from upsnet.models.resnet import get_params, resnet_rcnn, ResNetBackbone
 import warnings
 from torch.nn.parameter import Parameter
 import numpy as np
+import torch.nn.functional as F
 
 
 class Resnet(nn.Module):
@@ -74,10 +75,15 @@ class Resnet(nn.Module):
         #     'panoptic_loss': panoptic_loss.unsqueeze(0),
         #     'panoptic_accuracy': panoptic_acc.unsqueeze(0),
         # }
-        import ipdb; ipdb.set_trace()
         # concat_features = torch.cat([fpn_p2, fpn_p3, fpn_p4, fpn_p5, fpn_p6])
-        concat_features = torch.cat([res2, res3, res4, res5])
+
+        concat_features = torch.cat([self.upsample([res2, res3, res4, res5], size=data.shape[2:4],
+                                                   upsample_method='nearest')])
         return concat_features
+
+    def upsample(self, tensor, size, upsample_method):
+        return F.interpolate(tensor, size=size, mode=upsample_method,
+                             align_corners=False if upsample_method == 'bilinear' else None)
 
     def calc_panoptic_acc(self, panoptic_logits, gt):
         _, output_cls = torch.max(panoptic_logits.data, 1, keepdim=True)
@@ -194,7 +200,7 @@ class Resnet(nn.Module):
         for name, param in state_dict.items():
             name = self.name_mapping(name, resume)
             if name not in own_state:
-                warnings.warn('unexpected key "{}" in state_dict'.format(name))
+                print(Warning('unexpected key "{}" in state_dict'.format(name)))
                 continue
             if isinstance(param, Parameter):
                 # backwards compatibility for serialized parameters
@@ -202,9 +208,9 @@ class Resnet(nn.Module):
             if own_state[name].shape == param.shape:
                 own_state[name].copy_(param)
             else:
-                warnings.warn('While copying the parameter named {}, whose dimensions in the models are'
+                print(Warning('While copying the parameter named {}, whose dimensions in the models are'
                               ' {} and whose dimensions in the checkpoint are {}, ...'.format(
-                    name, own_state[name].size(), param.size()))
+                    name, own_state[name].size(), param.size())))
 
         missing = set(own_state.keys()) - set([self.name_mapping(_, resume) for _ in state_dict.keys()])
         if len(missing) > 0:
@@ -213,9 +219,9 @@ class Resnet(nn.Module):
                 num_missing = len(missing)
                 missing = [m for m in missing if not m.endswith(suffix)]
                 if len(missing) != num_missing:
-                    warnings.warn('Missing params ending in {}'.format(suffix))
+                    print(Warning('Missing params ending in {}'.format(suffix)))
             if len(missing) > 0:
-                warnings.warn('missing keys in state_dict: "{}"'.format(missing))
+                print(Warning('missing keys in state_dict: "{}"'.format(missing)))
         copied = set(own_state.keys()).intersection(set([self.name_mapping(_, resume) for _ in state_dict.keys()]))
 
 

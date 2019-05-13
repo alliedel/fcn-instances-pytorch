@@ -87,7 +87,6 @@ class ResNet50Instance(nn.Module):
 
     def forward(self, x):
         h = self.backbone(x)
-        import ipdb; ipdb.set_trace()
         h = self.conv1x1_to_instance_channels(h)
         if self.map_to_semantic:
             h = self.conv1x1_instance_to_semantic(h)

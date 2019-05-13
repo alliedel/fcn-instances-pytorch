@@ -47,6 +47,7 @@ class ResNet50Instance(nn.Module):
         super(ResNet50Instance, self).__init__()
 
         self.backbone = resnet.resnet_50_upsnet()
+        self.n_backbone_out_channels = sum(self.backbone.backbone_depth)  # specifically for resnet
 
         if include_instance_channel0:
             raise NotImplementedError
@@ -76,9 +77,8 @@ class ResNet50Instance(nn.Module):
         self.my_forward_hooks = {}
         self.use_conv8 = use_conv8
 
-        self.conv1x1_to_instance_channels = None if not self.map_to_semantic else \
-            nn.Conv2d(in_channels=self.n_resnet_out_channels, out_channels=self.n_output_channels, kernel_size=1,
-                      bias=False)
+        self.conv1x1_to_instance_channels = nn.Conv2d(in_channels=self.n_backbone_out_channels,
+                                                      out_channels=self.n_output_channels, kernel_size=1, bias=False)
         self.conv1x1_instance_to_semantic = None if not self.map_to_semantic else \
             nn.Conv2d(in_channels=self.n_instance_classes, out_channels=self.n_output_channels, kernel_size=1,
                       bias=False)
@@ -87,7 +87,8 @@ class ResNet50Instance(nn.Module):
 
     def forward(self, x):
         h = self.backbone(x)
-        h = self.conv1x1_instance_to_semantic(h)
+        import ipdb; ipdb.set_trace()
+        h = self.conv1x1_to_instance_channels(h)
         if self.map_to_semantic:
             h = self.conv1x1_instance_to_semantic(h)
 

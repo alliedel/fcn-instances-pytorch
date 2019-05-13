@@ -33,6 +33,7 @@ class Resnet(nn.Module):
         # self.num_reg_classes = (2 if config.network.cls_agnostic_bbox_reg else config.dataset.num_classes)
 
         # backbone net
+        self.backbone_depth = backbone_depth
         self.resnet_backbone = ResNetBackbone(backbone_depth)
         # self.fpn = FPN(feature_dim=config.network.fpn_feature_dim, with_norm=config.network.fpn_with_norm,
         #                upsample_method=config.network.fpn_upsample_method)

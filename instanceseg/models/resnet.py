@@ -80,7 +80,6 @@ class Resnet(nn.Module):
 
         concat_features = torch.cat([self.upsample(f, size=data.shape[2:4], upsample_method='nearest')
                                      for f in [res2, res3, res4, res5]], dim=1)
-        import ipdb; ipdb.set_trace()
         return concat_features
 
     def upsample(self, tensor, size, upsample_method):

@@ -95,7 +95,7 @@ def get_parameters(model, bias=False):
         nn.Sequential,
         nn.Softmax,
         instanceseg.models.FCN8sInstance,
-        instanceseg.models.trainer.exporter.ance
+        instanceseg.models.resnet_instance.ResNet50Instance
     )
     for m in model.modules():
         if isinstance(m, nn.Conv2d):

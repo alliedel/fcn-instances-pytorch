@@ -42,7 +42,7 @@ class resnet_rcnn(nn.Module):
         own_state = self.state_dict()
 
         if 'rcnn.cls_score.weight' in state_dict and own_state['rcnn.cls_score.weight'].shape[0] == 9 and state_dict['rcnn.cls_score.weight'].shape[0] == 81:
-            cls_map = {
+            cls_map = {  # Imagenet -> COCO
                 0: 0,  # background
                 1: 1,  # person
                 2: -1,  # rider, ignore
@@ -67,7 +67,7 @@ class resnet_rcnn(nn.Module):
                 state_dict[weight_name] = torch.from_numpy(weight_blobs)
 
         if 'fcn_head.score.weight' in own_state and 'fcn_head.score.weight' in state_dict and own_state['fcn_head.score.weight'].shape[0] == 19 and state_dict['fcn_head.score.weight'].shape[0] == 133:
-            cls_map = {
+            cls_map = {  # ImageNet->cityscapes
                 0: 20,  # road
                 1: 43,  # sidewalk (pavement-merged -> sidewalk)
                 2: 49,  # building

@@ -60,7 +60,7 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
                 model.copy_params_from_vgg16(vgg16)
         elif cfg['backbone'] == 'resnet50':
             print('Copying params from rcnn resnet')
-            model.load_state_dict(resnet_rcnn.pretrained_resnet_rnn_state_dict())
+            model.backbone.load_state_dict(resnet_rcnn.pretrained_resnet_rnn_state_dict())
 
     if cuda:
         model = model.cuda()

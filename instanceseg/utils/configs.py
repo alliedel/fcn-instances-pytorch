@@ -4,10 +4,7 @@ from os import path as osp
 
 import yaml
 
-import instanceseg
-import instanceseg.utils
 from instanceseg.datasets import dataset_registry
-from graveyard.models import attention_old
 from instanceseg.utils.misc import str2bool
 from . import misc
 
@@ -84,45 +81,6 @@ def load_config(config_path):
     with open(config_path, 'r') as f:
         cfg = yaml.safe_load(f)
     return cfg
-
-
-def get_parameters(model, bias=False):
-    import torch.nn as nn
-    modules_skipped = (
-        nn.ReLU,
-        nn.MaxPool2d,
-        nn.Dropout2d,
-        nn.Sequential,
-        nn.Softmax,
-        instanceseg.models.FCN8sInstance,
-        instanceseg.models.resnet_instance.ResNet50Instance
-    )
-    for m in model.modules():
-        if isinstance(m, nn.Conv2d):
-            if bias:
-                yield m.bias
-            else:
-                yield m.weight
-        elif isinstance(m, nn.ConvTranspose2d):
-            # weight is frozen because it is just a bilinear upsampling
-            if bias:
-                assert m.bias is None
-        elif isinstance(m, attention_old.Self_Attn):
-            if bias:
-                yield m.query_conv.bias
-                yield m.key_conv.bias
-                yield m.value_conv.bias
-            else:
-                yield m.query_conv.weight
-                yield m.key_conv.weight
-                yield m.value_conv.weight
-                yield m.gamma
-        elif isinstance(m, modules_skipped):
-            continue
-        else:
-            import ipdb
-            ipdb.set_trace()
-            raise ValueError('Unexpected module: %s' % str(m))
 
 
 def get_cfg_override_parser(cfg_default):

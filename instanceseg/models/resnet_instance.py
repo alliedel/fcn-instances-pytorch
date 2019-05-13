@@ -13,7 +13,7 @@ import torch.nn as nn
 from instanceseg.utils import instance_utils
 
 from instanceseg.models import model_utils
-from instanceseg.models import resnet_extracted
+from instanceseg.models import resnet
 
 DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')
 
@@ -46,7 +46,7 @@ class ResNet50Instance(nn.Module):
         """
         super(ResNet50Instance, self).__init__()
 
-        self.backbone = resnet_extracted.resnet_50_upsnet()
+        self.backbone = resnet.resnet_50_upsnet()
 
         if include_instance_channel0:
             raise NotImplementedError

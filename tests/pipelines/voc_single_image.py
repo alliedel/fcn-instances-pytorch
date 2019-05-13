@@ -11,6 +11,7 @@ from tensorboardX import SummaryWriter
 
 import instanceseg
 import instanceseg.datasets.voc
+import instanceseg.models.model_utils
 import instanceseg.utils.configs
 import instanceseg.utils.logs
 import instanceseg.utils.misc
@@ -141,8 +142,8 @@ def main():
     elif cfg['optim'] == 'sgd':
         optim = torch.optim.SGD(
             [
-                {'params': instanceseg.utils.configs.get_parameters(model, bias=False)},
-                {'params': instanceseg.utils.configs.get_parameters(model, bias=True),
+                {'params': instanceseg.models.model_utils.get_parameters(model, bias=False)},
+                {'params': instanceseg.models.model_utils.get_parameters(model, bias=True),
                  #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
                  #                model, bias=False))},
                  #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(

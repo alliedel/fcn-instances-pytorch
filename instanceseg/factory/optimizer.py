@@ -1,6 +1,6 @@
 import torch
 
-from instanceseg.utils.configs import get_parameters
+from instanceseg.models.model_utils import get_parameters
 from torch.optim import lr_scheduler
 
 

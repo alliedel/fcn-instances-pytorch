@@ -112,7 +112,7 @@ configurations = {
         max_iteration=10000,
         interval_validate=10
     ),
-    'resnet_car_person_instance': dict(
+    'resnet_car_2_4': dict(
         max_iteration=1000000,
         sampler='car_2_4',
         interval_validate=4000,

@@ -100,8 +100,8 @@ class InstanceDatasetStatistics(object):
         """
         if len(n_instance_ranges) == 2:  # Check if just one range provided.
             assert isinstance(n_instance_ranges[0], (int, float)) and isinstance(n_instance_ranges[1], (int, float))
-        else:
-            assert len(semantic_class_vals) == len(n_instance_ranges)
+            n_instance_ranges = [n_instance_ranges]
+        assert len(semantic_class_vals) == len(n_instance_ranges)
         try:
             assert not isinstance(n_instance_ranges[0], int)
             assert all([len(i) == 2 for i in n_instance_ranges])

@@ -114,6 +114,7 @@ configurations = {
     ),
     'resnet_car_person_instance': dict(
         max_iteration=1000000,
+        sampler='car_2_4',
         interval_validate=4000,
         n_instances_per_class=4,
         dataset_instance_cap='match_model',

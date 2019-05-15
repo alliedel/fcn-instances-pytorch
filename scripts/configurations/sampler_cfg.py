@@ -28,6 +28,7 @@ sampler_cfgs = {
                                                  sem_cls_filter=['car', 'person'],
                                                  n_instances_range=[(2, 3 + 1), (2, 3 + 1)]),
     'car_2_4': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 4 + 1)),
+    'car_2_5': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 5 + 1)),
     'person_car_2_4': get_sampler_cfg_set(sem_cls_filter=['car', 'person'],
                                           n_instances_range=[(2, 4 + 1), (2, 4 + 1)]),
     'car_2_3': get_sampler_cfg_set(sem_cls_filter=['car'], n_instances_range=(2, 3 + 1)),

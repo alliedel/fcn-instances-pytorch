@@ -8,6 +8,12 @@ import scripts.configurations.synthetic_cfg
 import scripts.configurations.voc_cfg
 from instanceseg.datasets import dataset_generator_registry
 from scripts.configurations import cityscapes_cfg
+import os
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(os.path.join(__file__, '..', '..')))
+CACHE_DIR = os.path.join(PROJECT_ROOT, 'cache')
+if not os.path.exists(CACHE_DIR):
+    os.makedirs(CACHE_DIR)
 
 
 class RegisteredDataset(object):
@@ -20,6 +26,13 @@ class RegisteredDataset(object):
         self.original_semantic_class_names = original_semantic_class_names
         self.dataset_path = dataset_path
         self.dataset_generator = dataset_generator
+
+    @property
+    def cache_path(self):
+        path = os.path.join(CACHE_DIR, self.name)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
 
 
 REGISTRY = {

@@ -1,52 +1,104 @@
 import os
 
-from instanceseg.datasets import sampler, dataset_statistics
+from instanceseg.datasets import sampler, dataset_statistics, indexfilter, dataset_registry, dataset_generator_registry
+from instanceseg.utils.misc import pop_without_del
 
 
-def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, n_instances_range,
-                           n_images, sem_cls_filter, instance_count_file):
+def get_valid_indices_given_dataset(dataset_configured_for_stats, sampler_config_with_vals: sampler.SamplerConfig,
+                                    instance_count_file=None, semantic_pixel_count_file=None):
+    semantic_class_pixel_counts_cache = dataset_statistics.PixelsPerSemanticClass(
+        range(len(dataset_configured_for_stats.semantic_class_names)), cache_file=semantic_pixel_count_file)
+    instance_counts_cache = dataset_statistics.NumberofInstancesPerSemanticClass(
+        range(len(dataset_configured_for_stats.semantic_class_names)), cache_file=instance_count_file)
+
+    if sampler_config_with_vals.requires_instance_counts:
+        instance_counts_cache.compute_or_retrieve(dataset_configured_for_stats)
+        instance_counts = instance_counts_cache.stat_tensor
+    else:
+        instance_counts = None
+    if sampler_config_with_vals.requires_semantic_pixel_counts:
+        print('Computing semantic pixel counts')
+        semantic_class_pixel_counts_cache.compute_or_retrieve(dataset_configured_for_stats)
+        semantic_pixel_counts = semantic_class_pixel_counts_cache.stat_tensor
+    else:
+        semantic_pixel_counts = None
+
+    index_filter = indexfilter.ValidIndexFilter(n_original_images=len(dataset_configured_for_stats),
+                                                sampler_config=sampler_config_with_vals,
+                                                instance_counts=instance_counts,
+                                                semantic_class_pixel_counts=semantic_pixel_counts)
+    return index_filter.valid_indices
+
+
+def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, sampler_config_with_vals,
+                           instance_count_file,
+                           semantic_pixel_count_file):
     """
+    Builds a sampler of a dataset, which requires a list of valid indices and whether it's random/sequential,
+    as well as the dataset itself.
+
     dataset: the actual dataset you want to sample from in the end
     dataset_configured_for_stats: the dataset you want to compute stats from (to inform how you
         sample 'dataset') -- useful if you're going to get rid of semantic classes, etc. but want
         to still sample images that have them.
         If it matches dataset, just pass dataset in for this parameter as well.
     """
-    if sem_cls_filter is None and n_instances_range is None and n_images is None:
-        valid_indices = None  # 'all'
-    elif sem_cls_filter is not None or n_instances_range is not None:
-            assert dataset_configured_for_stats is not None, 'No default dataset provided.  ' \
-                                                             'Cannot compute stats.'
-            assert len(dataset_configured_for_stats) == len(dataset), \
-                AssertionError('Bug here.  Assumed same set of images (untransformed).')
+    if dataset_configured_for_stats is not None:
+        assert len(dataset_configured_for_stats) == len(dataset)
 
-            if not os.path.isfile(instance_count_file):
-                print('Generating file {}'.format(instance_count_file))
-                stats = dataset_statistics.InstanceDatasetStatistics(dataset_configured_for_stats)
-                stats.compute_statistics(filename_to_write_instance_counts=instance_count_file)
-            else:
-                print('Reading from instance counts file {}'.format(instance_count_file))
-                stats = dataset_statistics.InstanceDatasetStatistics(
-                    dataset_configured_for_stats, existing_instance_count_file=instance_count_file)
-            valid_indices = stats.get_valid_indices(n_instances_range, sem_cls_filter, n_images)
-    elif n_images is not None:
-        valid_indices = dataset_statistics.subsample_n_images(n_original_images=len(
-            dataset_configured_for_stats), n_images=n_images)
-    else:
-        raise NotImplementedError('We shouldn\'t get here with the set of configs I\'m aware '
-                                  'of at the moment')
+    valid_indices = get_valid_indices_given_dataset(dataset_configured_for_stats, sampler_config_with_vals,
+                                                    instance_count_file=instance_count_file,
+                                                    semantic_pixel_count_file=semantic_pixel_count_file)
 
-    my_sampler = sampler.sampler_factory(sequential, bool_index_subset=valid_indices)(dataset)
+    my_sampler = sampler.get_pytorch_sampler(sequential, bool_index_subset=valid_indices)(dataset)
     if len(my_sampler) == 0:
         raise ValueError('length of sampler is 0; {} valid indices'.format(sum(valid_indices)))
-    if n_images:
-        try:
-            assert len(my_sampler.indices) == n_images, \
-                AssertionError('Specified {} images, but len(sampler) is {}.  '
-                               'You may need to make n_images smaller. There were {} valid '
-                               'indices.'.format(len(my_sampler.indices), n_images,
-                                                 sum(valid_indices)))
-        except:
-            import ipdb; ipdb.set_trace()
-            raise
     return my_sampler
+
+
+def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_config, sampler_type,
+                             transformer_tag):
+    instance_count_filename = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
+                                           '{}_instance_counts_{}.npy'.format(
+                                               sampler_type, transformer_tag))
+    semantic_pixel_count_filename = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
+                                                 '{}_semantic_pixel_counts_{}.npy'.format(
+                                                     sampler_type, transformer_tag))
+    filter_config = sampler.SamplerConfig.create_from_cfg_without_vals(
+        sampler_config[sampler_type], default_dataset.semantic_class_names)
+    my_sampler = get_configured_sampler(
+        dataset, default_dataset, sequential=True, sampler_config_with_vals=filter_config,
+        instance_count_file=instance_count_filename,
+        semantic_pixel_count_file=semantic_pixel_count_filename)
+    return my_sampler
+
+
+def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
+    if sampler_cfg is None:
+        train_sampler = sampler.sampler.RandomSampler(train_dataset)
+        val_sampler = sampler.sampler.SequentialSampler(val_dataset)
+        train_for_val_sampler = sampler.sampler.SequentialSampler(train_dataset)
+    else:
+        # Get 'clean' datasets for instance counting
+        default_train_dataset, default_val_dataset, transformer_tag = \
+            dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type)
+
+        # train sampler
+        train_sampler = sampler_generator_helper(dataset_type, train_dataset, default_train_dataset,
+                                                 sampler_cfg, 'train', transformer_tag)
+
+        # val sampler
+        if isinstance(sampler_cfg['val'], str) and sampler_cfg['val'] == 'copy_train':
+            val_sampler = train_sampler.copy(sequential_override=True)
+        else:
+            val_sampler = sampler_generator_helper(dataset_type, val_dataset, default_val_dataset,
+                                                   sampler_cfg, 'val', transformer_tag)
+
+        # train_for_val sampler
+        sampler_cfg['train_for_val'] = pop_without_del(sampler_cfg, 'train_for_val', None)
+        cut_n_images = sampler_cfg['train_for_val'].n_images or len(train_dataset)
+        train_for_val_sampler = train_sampler.copy(sequential_override=True,
+                                                   cut_n_images=None if cut_n_images is None
+                                                   else min(cut_n_images, len(train_sampler)))
+
+    return train_sampler, val_sampler, train_for_val_sampler

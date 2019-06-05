@@ -450,9 +450,6 @@ class TrainerExporter(object):
             img_untransformed, lbl_untransformed = img, (sem_lbl, inst_lbl)
         return img_untransformed, lbl_untransformed
 
-
-
-
         # if self.exporter.export_config.export_activations:
         #     try:
         #         iteration = self.state.iteration

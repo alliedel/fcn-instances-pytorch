@@ -4,14 +4,40 @@ import torch.utils.data
 import tqdm
 
 from instanceseg.datasets import dataset_generator_registry
-from scripts.configurations import voc_cfg
+from scripts.configurations import cityscapes_cfg
 from instanceseg.datasets import sampler
+from instanceseg.factory import samplers as sampler_factory
+from scripts.configurations import sampler_cfg_registry
+
+testing_level = 0
+
+
+def test_instance_sampler(train_dataset, val_dataset, loader_kwargs):
+    # Get sampler
+    sampler_cfg = sampler_cfg_registry.sampler_cfgs['instance_test']
+    train_sampler, val_sampler, train_for_val_sampler = sampler_factory.get_samplers('cityscapes', sampler_cfg,
+                                                                                     train_dataset, val_dataset)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
+                                               sampler=train_sampler, **loader_kwargs)
+    class_vals_present = [train_dataset.semantic_class_names.index(cls_name)
+                          for cls_name in sampler_cfg['train'].sem_cls_filter]
+    cfg_n_instances_per_class = sampler_cfg['train'].n_instances_ranges
+    for idx, (d, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(train_loader), desc='Iterating through new dataloader',
+                                                   total=len(train_loader)):
+        for sem_val, n_inst_range in zip(class_vals_present, cfg_n_instances_per_class):
+            if n_inst_range is not None and n_inst_range[0] is not None:  # min number of instances of this class
+                num_pixels_this_cls = (sem_lbl == sem_val).sum()
+                assert num_pixels_this_cls > 0  # Assert that the class exists
+                n_instances_this_cls = torch.unique(inst_lbl[sem_lbl == sem_val])
+                assert n_instances_this_cls >= n_inst_range[0]
+                if n_inst_range[1] is not None:
+                    assert n_instances_this_cls <= n_inst_range[1]
 
 
 def test_vanilla_sampler(train_dataset, loader_kwargs):
     # Get sampler
-    full_sequential_train_sampler = sampler.sampler_factory(sequential=True)(train_dataset)
-    full_random_train_sampler = sampler.sampler_factory(sequential=False)(train_dataset)
+    full_sequential_train_sampler = sampler.get_pytorch_sampler(sequential=True)(train_dataset)
+    full_random_train_sampler = sampler.get_pytorch_sampler(sequential=False)(train_dataset)
 
     # Apply sampler to dataloaders
     sequential_train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
@@ -38,10 +64,10 @@ def test_vanilla_sampler(train_dataset, loader_kwargs):
 def test_single_image_sampler(train_dataset, loader_kwargs, image_index=0):
     # Get sampler
     bool_index_subset = [idx == image_index for idx in range(len(train_dataset))]
-    single_image_train_sampler = sampler.sampler_factory(sequential=True,
-                                                         bool_index_subset=bool_index_subset)(train_dataset)
-    shuffled_single_image_train_sampler = sampler.sampler_factory(sequential=False,
-                                                                  bool_index_subset=bool_index_subset)(train_dataset)
+    single_image_train_sampler = sampler.get_pytorch_sampler(sequential=True,
+                                                             bool_index_subset=bool_index_subset)(train_dataset)
+    shuffled_single_image_train_sampler = sampler.get_pytorch_sampler(sequential=False,
+                                                                      bool_index_subset=bool_index_subset)(train_dataset)
 
     # Apply sampler to dataloaders
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
@@ -62,9 +88,9 @@ def test_single_image_sampler(train_dataset, loader_kwargs, image_index=0):
 
 def main():
     # Setup
-    cfg = voc_cfg.get_default_config()
+    cfg = cityscapes_cfg.get_default_config()
     print('Getting datasets')
-    train_dataset, val_dataset = dataset_generator_registry.get_dataset('voc', cfg)
+    train_dataset, val_dataset = dataset_generator_registry.get_dataset('cityscapes', cfg)
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
     cuda = torch.cuda.is_available()
@@ -73,6 +99,8 @@ def main():
         torch.cuda.manual_seed(1337)
 
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
+    print('Running instance-based sampler test')
+    test_instance_sampler(train_dataset, val_dataset, loader_kwargs)
     print('Running single-image test')
     test_single_image_sampler(train_dataset, loader_kwargs, image_index=10)
     print('Running vanilla test')

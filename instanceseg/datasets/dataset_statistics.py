@@ -1,208 +1,163 @@
 import numpy as np
 import torch
 import tqdm
+import cv2
+import abc
+import os
 
 
-def subsample_n_images(n_original_images, n_images):
-    new_valid_indices = InstanceDatasetStatistics.subsample_n_valid_images(
-        valid_indices=[True for _ in range(n_original_images)], n_images=n_images)
-    return new_valid_indices
+class DatasetStatisticCacheInterface(object):
+    """
+    Stores some statistic about a set of images contained in a Dataset class (e.g. - number of instances in the image).
+    Inheriting from this handles some of the save/load/caching.
+    """
+    __metaclass__ = abc.ABCMeta
 
+    def __init__(self, cache_file=None, override=False):
+        self._stat_tensor = None
+        self.cache_file = cache_file
+        self.override = override
 
-class InstanceDatasetStatistics(object):
-    def __init__(self, dataset, existing_instance_count_file=None):
-        self.dataset = dataset
-        self.instance_counts = None
-        self.non_bground_images = None
-        if existing_instance_count_file is not None:
-            self.load_counts(existing_instance_count_file)
+    @abc.abstractmethod
+    def labels(self):
+        raise NotImplementedError
 
-    def save_counts(self, instance_count_file):
-        np.save(instance_count_file, self.instance_counts.numpy())
+    @property
+    def shape(self):
+        return self.stat_tensor.shape
 
-    def load_counts(self, instance_count_file):
-        self.instance_counts = torch.from_numpy(np.load(instance_count_file))
-
-    def compute_statistics(self, filename_to_write_instance_counts=None):
-        instance_counts = self.compute_instance_counts()
-        self.instance_counts = instance_counts
-        if filename_to_write_instance_counts is not None:
-            self.save_counts(filename_to_write_instance_counts)
-
-    def compute_instance_counts(self, semantic_classes=None):
-        dataset = self.dataset
-        instance_counts = compute_instance_counts(dataset, semantic_classes)
-        return instance_counts
-
-    def filter_images_by_semantic_classes(self, semantic_classes):
-        valid_indices = filter_images_by_semantic_classes(self.dataset, semantic_classes)
-        return valid_indices
-
-    def filter_images_by_n_instances(self, n_instances_range=None, semantic_classes=None):
-        if self.instance_counts is None:
-            self.compute_statistics()
-        valid_indices = filter_images_by_instance_range_from_counts(self.instance_counts, n_instances_range,
-                                                                    semantic_classes)
-        return valid_indices
-
-    def filter_images_by_non_bground(self, bground_val=0, void_val=-1):
-        valid_indices = filter_images_by_non_bground(self.dataset, bground_val, void_val)
-        return valid_indices
-
-    def get_valid_indices(self, n_instance_ranges, sem_cls_filter, n_images):
-        valid_indices = [True for _ in range(len(self.dataset))]
-        if n_instance_ranges is not None or sem_cls_filter is not None:
-            valid_indices = pairwise_and(valid_indices,
-                                         self.valid_indices_overlap(sem_cls_filter,
-                                                                    n_instance_ranges, union=False))
-        valid_indices = self.subsample_n_valid_images(valid_indices, n_images)
-        return valid_indices
+    @property
+    def n_images(self):
+        return self.shape[0]
 
     @staticmethod
-    def subsample_n_valid_images(valid_indices, n_images):
-        if n_images is not None:
-            if sum(valid_indices) < n_images:
-                raise Exception('Too few images to sample {}.  Choose a smaller value for n_images '
-                                'in the sampler config, or change your filtering requirements for '
-                                'the sampler.'.format(n_images))
-            # Subsample n_images
-            n_images_chosen = 0
-            for idx in np.random.permutation(len(valid_indices)):
-                if valid_indices[idx]:
-                    if n_images_chosen == n_images:
-                        valid_indices[idx] = False
-                    else:
-                        n_images_chosen += 1
-            assert sum(valid_indices) == n_images
-        return valid_indices
+    def load(stats_filename):
+        return torch.from_numpy(np.load(stats_filename))
 
-    def get_valid_indices_single_sem_cls(self, single_sem_cls, n_instances_range):
-        valid_indices = [True for _ in range(len(self.dataset))]
-        if n_instances_range is not None:
-            valid_indices = pairwise_and(valid_indices,
-                                         self.filter_images_by_n_instances(n_instances_range, [single_sem_cls]))
-        elif single_sem_cls is not None:
-            valid_indices = pairwise_and(valid_indices,
-                                         self.filter_images_by_semantic_classes([single_sem_cls]))
-        return valid_indices
+    @staticmethod
+    def save(statistics, stats_filename):
+        np.save(stats_filename, statistics)
 
-    def valid_indices_overlap(self, semantic_class_vals, n_instance_ranges, union=False):
-        """
-        Example:
-                semantic_classes = [15, 16]
-                n_instance_ranges = [(2,4), (None,3)]
-                union = False
+    @property
+    def stat_tensor(self):
+        if self._stat_tensor is None:
+            raise Exception('Statistic has not yet been computed.  Run {}.compute(<dataset>)'.format(
+                self.__class__.__name__))
+        return self._stat_tensor
 
-                Result: boolean array where True represents an image that has 2 or 3 instances of semantic class 15
-                and fewer than 3 instances of semantic class 16.
-
-                If union = True, finds union of these images instead.
-        """
-        if len(n_instance_ranges) == 2:  # Check if just one range provided.
-            assert isinstance(n_instance_ranges[0], (int, float)) and isinstance(n_instance_ranges[1], (int, float))
-            n_instance_ranges = [n_instance_ranges]
-        assert len(semantic_class_vals) == len(n_instance_ranges)
-        try:
-            assert not isinstance(n_instance_ranges[0], int)
-            assert all([len(i) == 2 for i in n_instance_ranges])
-        except AssertionError:
-            raise Exception('There must be {} tuples assigned to n_instances to match the number of semantic ' \
-                            'classes.'.format(len(semantic_class_vals)))
-        pairwise_combine = pairwise_and if not union else pairwise_or
-        valid_indices = None
-        for sem_cls, n_instances_range in zip(semantic_class_vals, n_instance_ranges):
-            valid_indices_single_set = self.get_valid_indices_single_sem_cls(single_sem_cls=sem_cls,
-                                                                             n_instances_range=n_instances_range)
-            if valid_indices is None:
-                valid_indices = valid_indices_single_set
-            else:
-                valid_indices = pairwise_combine(valid_indices, valid_indices_single_set)
-        return valid_indices
-
-
-def filter_images_by_semantic_classes(dataset, semantic_classes):
-    valid_indices = []
-    for index, (img, (sem_lbl, _)) in enumerate(dataset):
-        is_valid = sum([(sem_lbl == sem_val).sum() for sem_val in semantic_classes])
-        if is_valid:
-            valid_indices.append(True)
+    def compute_or_retrieve(self, dataset):
+        if self.cache_file is None:
+            print('Computing statistics without cache')
+            self._stat_tensor = self._compute(dataset)
+        elif self.override or not os.path.exists(self.cache_file):
+            print('Computing statistics for file {}'.format(self.cache_file))
+            self._stat_tensor = self._compute(dataset)
+            self.save(self._stat_tensor, self.cache_file)
         else:
-            valid_indices.append(False)
-    if sum(valid_indices) == 0:
-        print(Warning('Found no valid images'))
-    return valid_indices
+            print('Loading statistics from file {}'.format(self.cache_file))
+            self._stat_tensor = self.load(self.cache_file)
+
+    @abc.abstractmethod
+    def _compute(self, dataset):
+        raise NotImplementedError
 
 
-def max_or_default(tensor, default_val=0):
-    return default_val if torch.numel(tensor) == 0 else torch.max(tensor)
+class PixelsPerSemanticClass(DatasetStatisticCacheInterface):
+
+    def __init__(self, semantic_class_vals, semantic_class_names=None, cache_file=None, override=False):
+        super(PixelsPerSemanticClass, self).__init__(cache_file, override)
+        self.semantic_class_names = semantic_class_names or ['{}'.format(v) for v in semantic_class_vals]
+        self.semantic_class_vals = semantic_class_vals
+
+    @property
+    def labels(self):
+        return self.semantic_class_names
+
+    def _compute(self, dataset):
+        # semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
+        semantic_pixel_counts = self.compute_semantic_pixel_counts(dataset, self.semantic_class_vals)
+        self._stat_tensor = semantic_pixel_counts
+        return semantic_pixel_counts
+
+    @staticmethod
+    def compute_semantic_pixel_counts(dataset, semantic_class_vals):
+        semantic_pixel_counts_nested_list = []
+        for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(
+                enumerate(dataset), total=len(dataset),
+                desc='Running semantic pixel statistics on dataset'.format(dataset), leave=False):
+            semantic_pixel_counts_nested_list.append([(sem_lbl == sem_val).sum() for sem_val in \
+                                                      semantic_class_vals])
+        semantic_pixel_counts = torch.IntTensor(semantic_pixel_counts_nested_list)
+        return semantic_pixel_counts
 
 
-def filter_images_by_instance_range_from_counts(instance_counts, n_instances_range=None,
-                                                semantic_classes=None):
+class NumberofInstancesPerSemanticClass(DatasetStatisticCacheInterface):
     """
-    n_instances_range: (min, max+1), where value is None if you don't want to bound that direction
-        -- default None is equivalent to (None, None) (All indices are valid.)
-    python "range" rules -- [n_instances_min, n_instances_max)
+    Computes NxS nparray: For each of N images, contains the number of instances of each of S semantic classes
     """
-    if n_instances_range is None:
-        return [True for _ in range(instance_counts.size(0))]
 
-    assert len(n_instances_range) == 2, ValueError('range must be a tuple of (min, max).  You can set None for either '
-                                                   'end of that range.')
-    n_instances_min, n_instances_max = n_instances_range
-    has_at_least_n_instances = instance_counts >= n_instances_min
-    has_at_most_n_instances = instance_counts < n_instances_max \
-        if n_instances_max is not None else torch.ByteTensor(instance_counts.size()).fill_(1)
-    if semantic_classes is None:
-        valid_indices_as_tensor = has_at_least_n_instances.sum(dim=1) * has_at_most_n_instances.sum(dim=1)
-    else:
-        valid_indices_as_tensor = sum([has_at_least_n_instances[:, sem_cls] for sem_cls in semantic_classes]) * \
-                                  sum([has_at_most_n_instances[:, sem_cls] for sem_cls in semantic_classes])
-    valid_indices = [x for x in valid_indices_as_tensor]
-    if len(valid_indices) == 0:
-        print(Warning('Found no valid images'))
-    assert len(valid_indices) == instance_counts.size(0)
-    return valid_indices
+    def __init__(self, semantic_classes, cache_file=None, override=False):
+        super(NumberofInstancesPerSemanticClass, self).__init__(cache_file, override)
+        self.semantic_classes = semantic_classes
+
+    @property
+    def labels(self):
+        return self.semantic_classes
+
+    def _compute(self, dataset):
+        # semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
+        instance_counts = self.compute_instance_counts(dataset, self.semantic_classes)
+        self._stat_tensor = instance_counts
+        return instance_counts
+
+    @staticmethod
+    def compute_instance_counts(dataset, semantic_classes):
+        instance_counts = torch.ones(len(dataset), len(semantic_classes)) * -1
+        for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataset), total=len(dataset),
+                                                         desc='Running instance statistics on dataset'.format(dataset),
+                                                         leave=False):
+            for sem_idx, sem_val in enumerate(semantic_classes):
+                sem_locations_bool = sem_lbl == sem_val
+                if torch.sum(sem_locations_bool) > 0:
+                    my_max = inst_lbl[sem_locations_bool].max()
+                    instance_counts[idx, sem_idx] = my_max
+                else:
+                    instance_counts[idx, sem_idx] = 0
+                if sem_idx == 0 and instance_counts[idx, sem_idx] > 0:
+                    import ipdb
+                    ipdb.set_trace()
+                    raise Exception('inst_lbl should be 0 wherever sem_lbl is 0')
+        return instance_counts
 
 
-def compute_instance_counts(dataset, semantic_classes=None):
+def compute_occlusion_counts(dataset, semantic_classes=None):
     semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
-    instance_counts = torch.ones(len(dataset), len(semantic_classes)) * -1
+    occlusion_counts = torch.ones(len(dataset), len(semantic_classes), len(semantic_classes)) * 0
     for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataset), total=len(dataset),
-                                                     desc='Running instance statistics on dataset'.format(dataset),
+                                                     desc='Running occlusion statistics on dataset'.format(dataset),
                                                      leave=False):
+
+        # Get overlapping instances of same semantic class
+        inst_lbl_dilated = inst_lbl.copy()
         for sem_idx, sem_val in enumerate(semantic_classes):
+            n_occlusions_this_sem_cls = 0
             sem_locations_bool = sem_lbl == sem_val
-            if torch.sum(sem_locations_bool) > 0:
-                my_max = inst_lbl[sem_locations_bool].max()
-                instance_counts[idx, sem_idx] = my_max
+            if torch.sum(sem_locations_bool) > 1:  # needs to be more than one instance to have occlusion with same
+                # class.
+                num_instances = inst_lbl[sem_locations_bool].max()
+                if num_instances > 0:
+                    intermediate_union = sem_locations_bool
+                    for inst_val in range(num_instances):
+                        dilated_instance_mask = cv2.dilate(inst_lbl == inst_val, kernel=np.ones((3, 3)), iterations=2)
+                        intersections_with_previous_instances = (sem_locations_bool * dilated_instance_mask *
+                                                                 intermediate_union).int()
+                        intermediate_union += (sem_locations_bool * (inst_lbl == inst_val)).int()
+                        amt_of_overlap = intersections_with_previous_instances.sum()
+                        n_occlusions_this_sem_cls += int(amt_of_overlap > 0)
+                    cv2.dilate(inst_lbl, kernel=np.ones((3, 3)), dst=inst_lbl_dilated, iterations=1)
             else:
-                instance_counts[idx, sem_idx] = 0
-            if sem_idx == 0 and instance_counts[idx, sem_idx] > 0:
-                import ipdb;
-                ipdb.set_trace()
-                raise Exception('inst_lbl should be 0 wherever sem_lbl is 0')
-    return instance_counts
+                occlusion_counts[idx, sem_idx] = 0
 
+        # Get overlapping instances of any semantic class
 
-def filter_images_by_non_bground(dataset, bground_val=0, void_val=-1):
-    valid_indices = []
-    for index, (img, (sem_lbl, _)) in enumerate(dataset):
-        is_valid = (torch.sum(sem_lbl == bground_val) + torch.sum(sem_lbl == void_val)) != torch.numel(sem_lbl)
-        if is_valid:
-            valid_indices.append(True)
-        else:
-            valid_indices.append(False)
-    if len(valid_indices) == 0:
-        import ipdb;
-        ipdb.set_trace()
-        raise Exception('Found no valid images')
-    return valid_indices
-
-
-def pairwise_and(list1, list2):
-    return [a and b for a, b in zip(list1, list2)]
-
-
-def pairwise_or(list1, list2):
-    return [a or b for a, b in zip(list1, list2)]
+    return occlusion_counts

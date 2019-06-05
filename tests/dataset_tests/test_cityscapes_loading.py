@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import tqdm
 
-import scripts.configurations.sampler_cfg
+import scripts.configurations.sampler_cfg_registry
 import instanceseg.factory.data
 from instanceseg.datasets.dataset_registry import REGISTRY
 from instanceseg.factory import samplers
@@ -20,7 +20,7 @@ def test_get_datasets():
 
 def test_get_dataloaders_with_two_semantic_classes():
     cfg = REGISTRY['cityscapes'].default_config
-    sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg()
+    sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg()
     dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
     person_val = dataloaders['train'].dataset.semantic_class_names.index('person')
 
@@ -38,7 +38,7 @@ def test_get_dataloaders_with_two_semantic_classes():
 
 def test_get_dataloaders_with_semantic_person_filtering():
     cfg = REGISTRY['cityscapes'].default_config
-    sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg('person_2inst_20img_sameval')
+    sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg('person_2inst_20img_sameval')
     dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
     person_val = dataloaders['train'].dataset.semantic_class_names.index('person')
 
@@ -58,7 +58,7 @@ def test_get_dataloaders_with_instance_car_mapping():
     cfg = REGISTRY['cityscapes'].default_config
     cfg['semantic_subset'] = ['car', 'background']
     cfg['dataset_instance_cap'] = None
-    sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg('car_2_4')
+    sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg('car_2_4')
     dataloaders_default = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
     cfg['dataset_instance_cap'] = 4
     dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)

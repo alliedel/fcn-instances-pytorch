@@ -1,12 +1,75 @@
+import numpy as np
 import torch
 from torch.utils.data import sampler
 
 
-def sampler_factory(sequential, index_weights=None, bool_index_subset=None):
+class SamplerConfigWithoutValues(object):
+
+    def __init__(self, n_images=None, sem_cls_filter_names=None, n_instances_ranges=None):
+        self.n_images = n_images
+        self.sem_cls_filter_names = sem_cls_filter_names
+        self.n_instances_ranges = n_instances_ranges
+
+        if self.n_instances_ranges is not None:  # Check if just one range
+            # provided (should be list of tuples, one per class)
+            if self.is_valid_tuple(self.n_instances_ranges):
+                self.n_instances_ranges = [self.n_instances_ranges for _ in range(len(self.sem_cls_filter_names))]
+
+        self.assert_valid()
+
+    @staticmethod
+    def is_valid_tuple(instance_range):
+        return len(instance_range) == 2 and all(SamplerConfig.is_valid_instance_limit_val(val) for val in
+                                                instance_range)
+
+    @staticmethod
+    def is_valid_instance_limit_val(inst_lim_val):
+        return (inst_lim_val is None) or isinstance(inst_lim_val, (int, float))
+
+    def assert_valid(self):
+        if self.sem_cls_filter_names is None:
+            assert self.n_instances_ranges is None
+        else:
+            assert len(self.sem_cls_filter_names) == len(self.n_instances_ranges)
+            assert all([i is None or self.is_valid_tuple(i) for i in self.n_instances_ranges]), \
+                'Instance limits {} not valid'.format(self.n_instances_ranges)
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    @property
+    def requires_semantic_pixel_counts(self):
+        if self.sem_cls_filter_names is not None:
+            return True
+
+    @property
+    def requires_instance_counts(self):
+        if self.n_instances_ranges is None:
+            return False
+        elif type(self.n_instances_ranges) is list:
+            return not all(i is None for i in self.n_instances_ranges)
+        else:
+            return True
+
+
+class SamplerConfig(SamplerConfigWithoutValues):
+    def __init__(self, n_images=None, sem_cls_filter_names=None, n_instances_ranges=None, semantic_class_names=None):
+        super(SamplerConfig, self).__init__(n_images=n_images, sem_cls_filter_names=sem_cls_filter_names,
+                                            n_instances_ranges=n_instances_ranges)
+        self.sem_cls_filter_values = convert_sem_cls_filter_from_names_to_values(self.sem_cls_filter_names,
+                                                                                 semantic_class_names)
+
+    @classmethod
+    def create_from_cfg_without_vals(cls, old_inst: SamplerConfigWithoutValues, semantic_class_names):
+        return cls(n_images=old_inst.n_images, sem_cls_filter_names=old_inst.sem_cls_filter_names,
+                   n_instances_ranges=old_inst.n_instances_ranges, semantic_class_names=semantic_class_names)
+
+
+def get_pytorch_sampler(sequential, index_weights=None, bool_index_subset=None):
     """
     sequential: False -- will shuffle the images.  True -- will return the same order of images for each call
-    weights: weights to assign to each image
-    bool_filter: True for each index you'd like to include in the sampler
+    index_weights: weights to assign to each image
+    bool_index_subset: True for each index you'd like to include in the sampler.  None if select all.
     """
 
     class SubsetWeightedSampler(sampler.Sampler):
@@ -50,11 +113,11 @@ def sampler_factory(sequential, index_weights=None, bool_index_subset=None):
     return SubsetWeightedSampler
 
 
-class SamplerConfig(object):
-    def __init__(self, n_images=None, sem_cls_filter=None, n_instances_range=None):
-        self.n_images = n_images
-        self.sem_cls_filter = sem_cls_filter
-        self.n_instances_range = n_instances_range
-
-    def __str__(self):
-        return str(self.__dict__)
+def convert_sem_cls_filter_from_names_to_values(sem_cls_filter, semantic_class_names):
+    try:
+        sem_cls_filter_values = [semantic_class_names.index(class_name)
+                                 for class_name in sem_cls_filter]
+    except:
+        sem_cls_filter_values = [int(np.where(semantic_class_names == class_name)[0][0])
+                                 for class_name in sem_cls_filter]
+    return sem_cls_filter_values

@@ -20,7 +20,7 @@ from instanceseg.datasets import dataset_registry
 from instanceseg.models import model_utils
 from instanceseg.utils.configs import get_cfgs
 from instanceseg.utils.misc import TermColors
-from scripts.configurations.sampler_cfg import sampler_cfgs
+from scripts.configurations.sampler_cfg_registry import sampler_cfgs
 
 from local_pyutils import get_log_dir
 
@@ -241,7 +241,7 @@ def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscr
                                            'args.dataset: {}'.format(cfg['dataset'], dataset_name)
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
-    sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg(sampler_name)
+    sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg(sampler_name)
     out_dir = get_log_dir(os.path.join(parent_directory, script_basename), cfg_to_print)
     instanceseg.utils.configs.save_config(out_dir, cfg)
     print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir), instanceseg.utils.misc.TermColors.OKGREEN))

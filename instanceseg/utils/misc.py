@@ -161,3 +161,11 @@ def get_array_size(obj):
         return obj.size()
     else:
         return None
+
+
+def pairwise_and(list1, list2):
+    return [a and b for a, b in zip(list1, list2)]
+
+
+def pairwise_or(list1, list2):
+    return [a or b for a, b in zip(list1, list2)]

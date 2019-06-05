@@ -4,7 +4,7 @@ import os.path as osp
 import torch
 import torch.utils.data
 
-import scripts.configurations.sampler_cfg
+import scripts.configurations.sampler_cfg_registry
 import instanceseg.factory.data
 import instanceseg.factory.models
 import instanceseg.factory.optimizer
@@ -35,7 +35,7 @@ def main():
                                                                                                         args.dataset)
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
-    sampler_cfg = scripts.configurations.sampler_cfg.get_sampler_cfg(args.sampler)
+    sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg(args.sampler)
 
     out_dir = instanceseg.utils.logs.get_log_dir(osp.basename(__file__).replace('.py', ''), config_idx,
                                                  cfg_to_print,
@@ -51,7 +51,7 @@ def main():
     print('Getting dataloaders...')
     dataloaders = instanceseg.factory.data.get_dataloaders(cfg, args.dataset, args.cuda, sampler_cfg)
     dataloaders_default = instanceseg.factory.data.get_dataloaders(cfg, args.dataset, args.cuda,
-                                                                   scripts.configurations.sampler_cfg.get_sampler_cfg_set())
+                                                                   scripts.configurations.sampler_cfg_registry.get_sampler_cfg_set())
     print('Done getting dataloaders')
 
     # reduce dataloaders to semantic subset before running / generating problem config:

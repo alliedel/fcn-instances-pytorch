@@ -10,7 +10,7 @@ class InstanceDatasetBase(data.Dataset):
     @property
     @abc.abstractmethod
     def semantic_class_names(self):
-        pass
+        raise NotImplementedError
 
     # __getitem__(self, index) enforced by data.Dataset
     # __len__(self) enforced by data.Dataset

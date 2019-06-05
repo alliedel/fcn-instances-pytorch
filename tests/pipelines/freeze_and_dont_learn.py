@@ -10,7 +10,7 @@ from scripts.configurations import voc_cfg
 from instanceseg.datasets.voc import ALL_VOC_CLASS_NAMES
 from instanceseg.models import model_utils
 from instanceseg.factory import trainers
-from scripts.configurations.sampler_cfg import sampler_cfgs
+from scripts.configurations.sampler_cfg_registry import sampler_cfgs
 
 
 def test(frozen=True):

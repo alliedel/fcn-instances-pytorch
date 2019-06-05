@@ -35,28 +35,28 @@ def get_instance_counts(dataset_type):
 
     # Compute statistics
     split = 'train'
-    instance_count_file = os.path.join(dataset_registry.REGISTRY[dataset_type].dataset_path,
+    instance_count_file = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
                                        '{}_instance_counts_{}.npy'.format(split, transformer_tag))
     if not os.path.isfile(instance_count_file):
         print('Generating file {}'.format(instance_count_file))
-        stats = dataset_statistics.InstanceDatasetStatistics(default_datasets[split])
+        stats = dataset_statistics.DatasetStatisticsFilter(default_datasets[split])
         stats.compute_statistics(filename_to_write_instance_counts=instance_count_file)
     else:
         print('Reading from instance counts file {}'.format(instance_count_file))
-        stats = dataset_statistics.InstanceDatasetStatistics(
+        stats = dataset_statistics.DatasetStatisticsFilter(
             default_datasets[split], existing_instance_count_file=instance_count_file)
     train_stats = stats
 
     split = 'val'
-    instance_count_file = os.path.join(dataset_registry.REGISTRY[dataset_type].dataset_path,
+    instance_count_file = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
                                        '{}_instance_counts_{}.npy'.format(split, transformer_tag))
     if not os.path.isfile(instance_count_file):
         print('Generating file {}'.format(instance_count_file))
-        stats = dataset_statistics.InstanceDatasetStatistics(default_datasets[split])
+        stats = dataset_statistics.DatasetStatisticsFilter(default_datasets[split])
         stats.compute_statistics(filename_to_write_instance_counts=instance_count_file)
     else:
         print('Reading from instance counts file {}'.format(instance_count_file))
-        stats = dataset_statistics.InstanceDatasetStatistics(
+        stats = dataset_statistics.DatasetStatisticsFilter(
             default_datasets[split], existing_instance_count_file=instance_count_file)
     val_stats = stats
     return train_stats, val_stats, default_train_dataset, default_val_dataset

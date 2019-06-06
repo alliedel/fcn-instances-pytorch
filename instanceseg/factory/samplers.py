@@ -1,7 +1,11 @@
 import os
+import logging
 
 from instanceseg.datasets import sampler, dataset_statistics, indexfilter, dataset_registry, dataset_generator_registry
 from instanceseg.utils.misc import pop_without_del
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_valid_indices_given_dataset(dataset_configured_for_stats, sampler_config_with_vals: sampler.SamplerConfig,
@@ -17,7 +21,7 @@ def get_valid_indices_given_dataset(dataset_configured_for_stats, sampler_config
     else:
         instance_counts = None
     if sampler_config_with_vals.requires_semantic_pixel_counts:
-        print('Computing semantic pixel counts')
+        logger.info('Computing semantic pixel counts')
         semantic_class_pixel_counts_cache.compute_or_retrieve(dataset_configured_for_stats)
         semantic_pixel_counts = semantic_class_pixel_counts_cache.stat_tensor
     else:
@@ -30,8 +34,8 @@ def get_valid_indices_given_dataset(dataset_configured_for_stats, sampler_config
     return index_filter.valid_indices
 
 
-def get_configured_sampler(dataset, dataset_configured_for_stats, sequential, sampler_config_with_vals,
-                           instance_count_file,
+def get_configured_sampler(dataset, dataset_configured_for_stats, sequential,
+                           sampler_config_with_vals, instance_count_file,
                            semantic_pixel_count_file):
     """
     Builds a sampler of a dataset, which requires a list of valid indices and whether it's random/sequential,

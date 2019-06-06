@@ -4,6 +4,9 @@ import tqdm
 import cv2
 import abc
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DatasetStatisticCacheInterface(object):
@@ -47,14 +50,14 @@ class DatasetStatisticCacheInterface(object):
 
     def compute_or_retrieve(self, dataset):
         if self.cache_file is None:
-            print('Computing statistics without cache')
+            logger.info('Computing statistics without cache')
             self._stat_tensor = self._compute(dataset)
         elif self.override or not os.path.exists(self.cache_file):
-            print('Computing statistics for file {}'.format(self.cache_file))
+            logger.info('Computing statistics for file {}'.format(self.cache_file))
             self._stat_tensor = self._compute(dataset)
             self.save(self._stat_tensor, self.cache_file)
         else:
-            print('Loading statistics from file {}'.format(self.cache_file))
+            logger.info('Loading statistics from file {}'.format(self.cache_file))
             self._stat_tensor = self.load(self.cache_file)
 
     @abc.abstractmethod
@@ -64,9 +67,11 @@ class DatasetStatisticCacheInterface(object):
 
 class PixelsPerSemanticClass(DatasetStatisticCacheInterface):
 
-    def __init__(self, semantic_class_vals, semantic_class_names=None, cache_file=None, override=False):
+    def __init__(self, semantic_class_vals, semantic_class_names=None, cache_file=None,
+                 override=False):
         super(PixelsPerSemanticClass, self).__init__(cache_file, override)
-        self.semantic_class_names = semantic_class_names or ['{}'.format(v) for v in semantic_class_vals]
+        self.semantic_class_names = semantic_class_names or ['{}'.format(v) for v in
+                                                             semantic_class_vals]
         self.semantic_class_vals = semantic_class_vals
 
     @property

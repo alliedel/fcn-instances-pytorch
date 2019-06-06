@@ -20,15 +20,16 @@ def test_instance_sampler(train_dataset, val_dataset, loader_kwargs):
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
                                                sampler=train_sampler, **loader_kwargs)
     class_vals_present = [train_dataset.semantic_class_names.index(cls_name)
-                          for cls_name in sampler_cfg['train'].sem_cls_filter]
+                          for cls_name in sampler_cfg['train'].sem_cls_filter_names]
     cfg_n_instances_per_class = sampler_cfg['train'].n_instances_ranges
-    for idx, (d, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(train_loader), desc='Iterating through new dataloader',
+    for idx, (d, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(train_loader),
+                                                   desc='Iterating through new dataloader',
                                                    total=len(train_loader)):
         for sem_val, n_inst_range in zip(class_vals_present, cfg_n_instances_per_class):
             if n_inst_range is not None and n_inst_range[0] is not None:  # min number of instances of this class
                 num_pixels_this_cls = (sem_lbl == sem_val).sum()
                 assert num_pixels_this_cls > 0  # Assert that the class exists
-                n_instances_this_cls = torch.unique(inst_lbl[sem_lbl == sem_val])
+                n_instances_this_cls = len(torch.unique(inst_lbl[sem_lbl == sem_val]))
                 assert n_instances_this_cls >= n_inst_range[0]
                 if n_inst_range[1] is not None:
                     assert n_instances_this_cls <= n_inst_range[1]

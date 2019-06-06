@@ -1,8 +1,12 @@
 import numpy as np
 import torch
+import logging
 
 from instanceseg.datasets import sampler
 from instanceseg.utils.misc import pairwise_and, pairwise_or
+
+
+logger = logging.getLogger(__name__)
 
 
 class ValidIndexFilter(object):
@@ -77,7 +81,7 @@ class ValidIndexFilter(object):
             is_valid = semantic_class_pixel_counts[:, semantic_classes].sum() > 0
             valid_indices.append(bool(is_valid))
         if sum(valid_indices) == 0:
-            print(Warning('Found no valid images'))
+            logger.warning('Found no valid images')
         return valid_indices
 
     def valid_indices_from_instance_stats_config(self, semantic_class_vals, n_instance_ranges,
@@ -173,6 +177,6 @@ class ValidIndexFilter(object):
                                            semantic_classes])
         valid_indices = [x for x in valid_indices_as_tensor]
         if len(valid_indices) == 0:
-            print(Warning('Found no valid images'))
+            logger.warning('Found no valid images')
         assert len(valid_indices) == instance_counts.size(0)
         return valid_indices

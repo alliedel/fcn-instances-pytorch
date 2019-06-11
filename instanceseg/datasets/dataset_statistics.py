@@ -300,7 +300,7 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
             # noinspection PyTypeChecker
             inst_loc_bool = cls.intersect_two_binary_masks(semantic_cls_bool,
                                                            (inst_lbl_np == inst_val))
-            if inst_loc_bool.sum() == 0:
+            if not np.any(inst_loc_bool):
                 continue
             else:
                 dilated_instance_masks.append(cls.dilate(inst_loc_bool.astype(np.uint8),
@@ -354,7 +354,10 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
 
     @staticmethod
     def intersect_two_binary_masks(mask1: np.ndarray, mask2: np.ndarray):
-        return mask1.astype(int) * mask2.astype(int)
+        # would check that only int values are in (0,1), but too much computation.
+        assert mask1.dtype in [np.bool, np.int]
+        assert mask2.dtype in [np.bool, np.int]
+        return mask1 * mask2
 
         # if debug:
         #     for img_idx in range(batch_sz):

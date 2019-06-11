@@ -247,7 +247,8 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
             batch_sz = sem_lbl_batch.shape[0]
             # Populates occlusion_counts
             batch_occlusion_counts = self.compute_occlusions_from_batch(
-                sem_lbl_batch, inst_lbl_batch, semantic_classes, batch_idx, debug=debug)
+                sem_lbl_batch, inst_lbl_batch, semantic_classes, start_img_idx=batch_img_idx,
+                debug=debug)
             occlusion_counts[batch_img_idx:(batch_img_idx + batch_sz), :] = torch.from_numpy(
                 batch_occlusion_counts)
             batch_img_idx += batch_sz
@@ -258,7 +259,7 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
         return tensor.numpy().astype(np.uint8).transpose(1, 2, 0)
 
     def compute_occlusions_from_batch(self, sem_lbl_batch, inst_lbl_batch, semantic_classes,
-                                      batch_idx=None, debug=False):
+                                      start_img_idx=None, debug=False):
         batch_sz = sem_lbl_batch.size(0)
         batch_occlusion_counts = np.zeros((batch_sz, len(semantic_classes)), dtype=int)
         # h x w x b (for dilation)
@@ -276,7 +277,8 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
                                         (sem_lbl_np == sem_idx).astype('uint8')
                 self.export_debug_images_from_batch(
                     occlusion_and_sem_cls, ['occlusion_locations_{}_{}_n_occlusions_{}'.format(
-                        batch_idx, self.semantic_class_names[sem_idx], n_occlusion_pairings[i])
+                        start_img_idx + i, self.semantic_class_names[sem_idx],
+                        n_occlusion_pairings[i])
                         for i in range(batch_sz)])
 
         # dilate occlusion locations for visibility
@@ -311,7 +313,8 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
                 mask_pair_intersection = cls.intersect_two_binary_masks(
                     dilated_instance_masks[dilate_idx1], dilated_instance_masks[dilate_idx2])
                 all_occlusion_locations += mask_pair_intersection
-                n_occlusion_pairings += (mask_pair_intersection.sum(axis=(0, 1)) > 0).astype(int)
+                #  NOTE(allie): Below is the computationally expensive line.
+                n_occlusion_pairings += (np.any(mask_pair_intersection, axis=(0, 1))).astype(int)
 
         # n_occlusion_pairings: (b,) ,  all_occlusion_locations: (h,w,b)
         return n_occlusion_pairings, all_occlusion_locations
@@ -355,8 +358,9 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
     @staticmethod
     def intersect_two_binary_masks(mask1: np.ndarray, mask2: np.ndarray):
         # would check that only int values are in (0,1), but too much computation.
-        assert mask1.dtype in [np.bool, np.int]
-        assert mask2.dtype in [np.bool, np.int]
+        for mask in [mask1, mask2]:
+            assert mask.dtype in [np.bool, np.int, np.uint8], \
+                'I didnt expect a boolean mask with dtype {}'.format(mask1.dtype)
         return mask1 * mask2
 
         # if debug:

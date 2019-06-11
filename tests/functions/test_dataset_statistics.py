@@ -21,19 +21,16 @@ OCCLUSION_COUNT_GT = {
                       ),
     'occlusion_counts': (
         torch.IntTensor(
-            [
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 8, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 9, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0]
-            ])
-
+            [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 9, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 8, 0, 0, 0, 0, 0]])
     )
 }
 
@@ -61,15 +58,23 @@ def test_occlusions_on_select_cityscapes_car_images():
     occlusion_cache = dataset_statistics.OcclusionsOfSameClass(
         range(len(unittest_cityscapes_dataset.semantic_class_names)),
         semantic_class_names=unittest_cityscapes_dataset.semantic_class_names,
-        cache_file=None, compute_batch_size=2, debug=debug)
+        cache_file=None, compute_batch_size=5, debug=debug)
     # occlusion_cache.compute_or_retrieve(unittest_cityscapes_dataset)
     occlusion_counts = occlusion_cache.compute_occlusion_counts(
         unittest_cityscapes_dataset,
         occlusion_cache.semantic_class_vals,
-        compute_batch_size=occlusion_cache.compute_batch_size)
-    occlusion_cache.pprint_stat_tensor(stat_tensor=occlusion_counts,
-                                       labels=occlusion_cache.labels, with_labels=True)
-    assert occlusion_counts.equal(OCCLUSION_COUNT_GT['occlusion_counts'])
+        compute_batch_size=occlusion_cache.compute_batch_size, debug=debug)
+    try:
+        assert occlusion_counts.equal(OCCLUSION_COUNT_GT['occlusion_counts'])
+    except AssertionError:
+        print('Correct ones (cached)')
+        occlusion_cache.pprint_stat_tensor(stat_tensor=OCCLUSION_COUNT_GT['occlusion_counts'],
+                                           labels=occlusion_cache.labels, with_labels=True)
+        print('Computed')
+        occlusion_cache.pprint_stat_tensor(stat_tensor=occlusion_counts,
+                                           labels=occlusion_cache.labels, with_labels=True)
+
+        raise AssertionError('Counts dont match')
     return occlusion_counts
 
 

@@ -2,12 +2,15 @@ import os
 
 import torch.utils.data
 import tqdm
+import shutil
 
 from instanceseg.datasets import dataset_generator_registry
 from scripts.configurations import cityscapes_cfg
 from instanceseg.datasets import sampler
 from instanceseg.factory import samplers as sampler_factory
 from scripts.configurations import sampler_cfg_registry
+from instanceseg.train.trainer_exporter import TrainerExporter
+from instanceseg.analysis.visualization_utils import label2rgb, write_image
 
 testing_level = 0
 
@@ -33,6 +36,67 @@ def test_instance_sampler(train_dataset, val_dataset, loader_kwargs):
                 assert n_instances_this_cls >= n_inst_range[0]
                 if n_inst_range[1] is not None:
                     assert n_instances_this_cls <= n_inst_range[1]
+
+
+def y_or_n_input(msg_to_user):
+    y_or_n = input(msg_to_user)
+    while y_or_n not in ['y', 'n']:
+        print('Answer y or n.')
+        y_or_n = input(msg_to_user)
+    return y_or_n
+
+
+def write_images_and_confirm(dataloader, rule_as_string_to_user):
+    img_dir = '/tmp/unittest/'
+    if os.path.exists(img_dir):
+        y_or_n = y_or_n_input('{} exists.  Would you like to remove it? (y/n)'.format(img_dir))
+        if y_or_n == 'y':
+            shutil.rmtree(img_dir)
+        else:
+            msg = 'Specify a new directory:'
+            new_dir = input(msg)
+            while new_dir != '' and os.path.exists(new_dir):
+                new_dir = input('Directory already exists. \n' + msg)
+    os.makedirs(img_dir)
+
+    for idx, (d, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataloader),
+                                                   desc='Iterating through new dataloader',
+                                                   total=len(dataloader)):
+        batch_sz = sem_lbl.size(0)
+        sem_lbl_rgb = label2rgb(sem_lbl.numpy())
+        inst_lbl_rgb = label2rgb(inst_lbl.numpy())
+        for img_idx in range(batch_sz):
+            img_untransformed, _ = \
+                TrainerExporter.untransform_data(dataloader, d[img_idx, ...], None)
+            write_image(os.path.join(img_dir, 'inst_lbl_{:06d}.png'.format(idx)), inst_lbl_rgb[
+                img_idx, ...])
+            write_image(os.path.join(img_dir, 'sem_lbl_{:06d}.png'.format(idx)), sem_lbl_rgb[
+                img_idx, ...])
+            write_image(os.path.join(img_dir, 'img_{:06d}.png'.format(idx)), img_untransformed)
+
+    msg_to_user = 'Confirm that the images written to {} follow the rule: ' \
+                  '{} y/n:'.format(img_dir, rule_as_string_to_user)
+    y_or_n = input(msg_to_user)
+    if y_or_n == 'n':
+        raise Exception('Test error according to user')
+
+    y_or_n = y_or_n_input('Remove test directory {}?'.format(img_dir))
+    if y_or_n == 'y':
+        shutil.rmtree(img_dir)
+
+
+def test_occlusion_sampler(train_dataset, val_dataset, loader_kwargs):
+    # Get sampler
+    sampler_cfg = sampler_cfg_registry.sampler_cfgs['occlusion_test']
+    assert sampler_cfg['train'].n_occlusions_range is not None
+    train_sampler, val_sampler, train_for_val_sampler = sampler_factory.get_samplers(
+        'cityscapes', sampler_cfg, train_dataset, val_dataset)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
+                                               sampler=train_sampler, **loader_kwargs)
+    n_occlusions_range = sampler_cfg['train'].n_occlusions_range
+    write_images_and_confirm(train_loader, 'Number of occlusions in image is >={} and '
+                                           '<{}'.format(n_occlusions_range[0],
+                                                        n_occlusions_range[1]))
 
 
 def test_vanilla_sampler(train_dataset, loader_kwargs):
@@ -100,6 +164,8 @@ def main():
         torch.cuda.manual_seed(1337)
 
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
+    print('Running occlusion-based sampler test')
+    test_occlusion_sampler(train_dataset, val_dataset, loader_kwargs)
     print('Running instance-based sampler test')
     test_instance_sampler(train_dataset, val_dataset, loader_kwargs)
     print('Running single-image test')

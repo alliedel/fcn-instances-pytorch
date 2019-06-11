@@ -7,9 +7,9 @@ import numpy as np
 from . import labels_table_cityscapes
 from .cityscapes_transformations import CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer, \
     ConvertLblstoPModePILImages
-from instanceseg.datasets.precomputed_file_transformations import GenericSequencePrecomputedDatasetFileTransformer
+from instanceseg.datasets.precomputed_file_transformations import \
+    GenericSequencePrecomputedDatasetFileTransformer
 from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
-
 
 CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
 
@@ -30,13 +30,20 @@ CITYSCAPES_ROOT = get_default_cityscapes_root()
 
 
 class RawCityscapesBase(InstanceDatasetBase):
-
     original_semantic_class_names = labels_table_cityscapes.class_names  # by id (not trainId)
     precomputed_file_transformer = GenericSequencePrecomputedDatasetFileTransformer(
         [CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(),
          ConvertLblstoPModePILImages()])
 
     def __init__(self, root, split):
+        """
+        Root must have the following directory structure:
+            leftImg8bit/
+                <split>/
+                    *leftImg8bit.png
+            gtFine/
+                <split>/
+        """
         self.root = root
         self.split = split
         self.files = self.get_files()
@@ -46,7 +53,8 @@ class RawCityscapesBase(InstanceDatasetBase):
 
     def __getitem__(self, index):
         data_file = self.files[index]
-        img, lbl = load_cityscapes_files(data_file['img'], data_file['sem_lbl'], data_file['inst_lbl'])
+        img, lbl = load_cityscapes_files(data_file['img'], data_file['sem_lbl'],
+                                         data_file['inst_lbl'])
         return img, lbl
 
     def get_files(self):
@@ -76,11 +84,13 @@ class RawCityscapesBase(InstanceDatasetBase):
     @classmethod
     def get_semantic_class_names(cls):
         """
-        If we changed the semantic subset, we have to account for that change in the semantic class name list.
+        If we changed the semantic subset, we have to account for that change in the semantic
+        class name list.
         """
         if cls.precomputed_file_transformer is not None:
-            transformation_list = cls.precomputed_file_transformer.transformer_sequence if isinstance(
-                cls.precomputed_file_transformer, GenericSequencePrecomputedDatasetFileTransformer) else \
+            transformation_list = cls.precomputed_file_transformer.transformer_sequence \
+                if isinstance(cls.precomputed_file_transformer,
+                              GenericSequencePrecomputedDatasetFileTransformer) else \
                 [cls.precomputed_file_transformer]
             semantic_class_names = cls.original_semantic_class_names
             for transformer in transformation_list:
@@ -89,8 +99,9 @@ class RawCityscapesBase(InstanceDatasetBase):
                         semantic_class_names)
         else:
             semantic_class_names = cls.original_semantic_class_names
-        assert AssertionError('There must be a bug somewhere.  The first semantic class name should always be '
-                              'background.')
+        assert AssertionError(
+            'There must be a bug somewhere.  The first semantic class name should always be '
+            'background.')
         return semantic_class_names
 
     @property
@@ -135,12 +146,14 @@ class TransformedCityscapes(TransformedInstanceDataset):
     Has a raw dataset
     """
 
-    def __init__(self, root, split, precomputed_file_transformation=None, runtime_transformation=None):
+    def __init__(self, root, split, precomputed_file_transformation=None,
+                 runtime_transformation=None):
         raw_dataset = RawCityscapesBase(root, split=split)
-        super(TransformedCityscapes, self).__init__(raw_dataset=raw_dataset, raw_dataset_returns_images=False,
-                                                    precomputed_file_transformation=precomputed_file_transformation,
-                                                    runtime_transformation=runtime_transformation)
+        super(TransformedCityscapes, self).__init__(
+            raw_dataset=raw_dataset,
+            raw_dataset_returns_images=False,
+            precomputed_file_transformation=precomputed_file_transformation,
+            runtime_transformation=runtime_transformation)
 
     def load_files(self, img_file, sem_lbl_file, inst_lbl_file):
         return load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file)
-

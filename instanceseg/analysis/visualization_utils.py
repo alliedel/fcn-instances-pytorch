@@ -551,7 +551,25 @@ def get_text_color(bg_color):
     return (255, 255, 255)
 
 
-def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_', tile=True):
+def write_image(out_file, out_img):
+    try:
+        scipy.misc.imsave(out_file, out_img)
+    except ValueError:
+        print('size, shape of out_img: {}'.format(type(out_img), out_img.shape))
+        raise
+
+
+def write_label(out_file, out_lbl):
+    out_img = label2rgb(out_lbl)
+    try:
+        scipy.misc.imsave(out_file, out_img)
+    except ValueError:
+        print('size, shape of out_img: {}'.format(type(out_img), out_img.shape))
+        raise
+
+
+def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_',
+                          tile=True):
     if not osp.exists(out_dir):
         os.makedirs(out_dir)
     if tile:
@@ -564,7 +582,7 @@ def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)
         out_file = osp.join(out_subdir, 'iter-%012d.jpg' % iteration)
-        scipy.misc.imsave(out_file, out_img)
+        write_image(out_file, out_img)
     else:
         tag = '{}images'.format(basename)
         out_subdir = osp.join(out_dir, tag)

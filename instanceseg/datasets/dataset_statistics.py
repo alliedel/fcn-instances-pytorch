@@ -3,8 +3,14 @@ import torch
 import tqdm
 import cv2
 import abc
-import os
 import logging
+import os, shutil
+from instanceseg.analysis import visualization_utils
+
+try:
+    from tabulate import tabulate
+except:
+    tabulate = None
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +50,9 @@ class DatasetStatisticCacheInterface(object):
     @property
     def stat_tensor(self):
         if self._stat_tensor is None:
-            raise Exception('Statistic has not yet been computed.  Run {}.compute(<dataset>)'.format(
-                self.__class__.__name__))
+            raise Exception(
+                'Statistic has not yet been computed.  Run {}.compute(<dataset>)'.format(
+                    self.__class__.__name__))
         return self._stat_tensor
 
     def compute_or_retrieve(self, dataset):
@@ -64,6 +71,30 @@ class DatasetStatisticCacheInterface(object):
     def _compute(self, dataset):
         raise NotImplementedError
 
+    def print_stat_tensor_for_txt_storage(self, stat_tensor):
+        print(stat_tensor)
+
+    def pprint_stat_tensor(self, stat_tensor=None, labels=None, with_labels=True):
+        if stat_tensor is None:
+            stat_tensor = self.stat_tensor
+        n_columns = stat_tensor.size(1)
+        if with_labels:
+            try:
+                headings = labels if labels is not None else self.labels
+            except NotImplementedError:
+                headings = ['{}'.format(x) for x in range(stat_tensor.size(1))]
+            assert n_columns == len(headings)
+            nested_list = [headings]
+        else:
+            nested_list = []
+        nested_list += stat_tensor.tolist()
+        if tabulate is None:
+            print(Warning('pretty print only works with tabulate installed'))
+            for l in nested_list:
+                print('\t'.join(['{}'.format(x) for x in l]))
+        else:
+            print(tabulate(nested_list))
+
 
 class PixelsPerSemanticClass(DatasetStatisticCacheInterface):
 
@@ -80,8 +111,13 @@ class PixelsPerSemanticClass(DatasetStatisticCacheInterface):
 
     def _compute(self, dataset):
         # semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
-        semantic_pixel_counts = self.compute_semantic_pixel_counts(dataset, self.semantic_class_vals)
+        semantic_pixel_counts = self.compute_semantic_pixel_counts(dataset,
+                                                                   self.semantic_class_vals)
         self._stat_tensor = semantic_pixel_counts
+        tensor_size = torch.Size((len(dataset), len(self.semantic_class_vals)))
+        assert semantic_pixel_counts.size() == tensor_size, \
+            'semantic pixel counts should be a matrix of size {}, not {}'.format(
+                tensor_size, semantic_pixel_counts.size())
         return semantic_pixel_counts
 
     @staticmethod
@@ -98,7 +134,8 @@ class PixelsPerSemanticClass(DatasetStatisticCacheInterface):
 
 class NumberofInstancesPerSemanticClass(DatasetStatisticCacheInterface):
     """
-    Computes NxS nparray: For each of N images, contains the number of instances of each of S semantic classes
+    Computes NxS nparray: For each of N images, contains the number of instances of each of S
+    semantic classes
     """
 
     def __init__(self, semantic_classes, cache_file=None, override=False):
@@ -118,9 +155,10 @@ class NumberofInstancesPerSemanticClass(DatasetStatisticCacheInterface):
     @staticmethod
     def compute_instance_counts(dataset, semantic_classes):
         instance_counts = torch.ones(len(dataset), len(semantic_classes)) * -1
-        for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataset), total=len(dataset),
-                                                         desc='Running instance statistics on dataset'.format(dataset),
-                                                         leave=False):
+        for idx, (img, (sem_lbl, inst_lbl)) in \
+                tqdm.tqdm(enumerate(dataset), total=len(dataset),
+                          desc='Running instance statistics on dataset'.format(dataset),
+                          leave=False):
             for sem_idx, sem_val in enumerate(semantic_classes):
                 sem_locations_bool = sem_lbl == sem_val
                 if torch.sum(sem_locations_bool) > 0:
@@ -135,34 +173,212 @@ class NumberofInstancesPerSemanticClass(DatasetStatisticCacheInterface):
         return instance_counts
 
 
-def compute_occlusion_counts(dataset, semantic_classes=None):
-    semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
-    occlusion_counts = torch.ones(len(dataset), len(semantic_classes), len(semantic_classes)) * 0
-    for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataset), total=len(dataset),
-                                                     desc='Running occlusion statistics on dataset'.format(dataset),
-                                                     leave=False):
+def get_occlusions_hws_from_labels(sem_lbl_np, inst_lbl_np, semantic_class_vals):
+    """
+    Returns (h,w,S) tensor where S is the number of semantic classes
+    """
+    # Make into batch form to use more general functions
+    sem_lbl_np = sem_lbl_np[:, :, None]
+    inst_lbl_np = inst_lbl_np[:, :, None]
+    list_of_occlusion_locations_per_cls = []
+    n_occlusion_pairings_per_sem_cls = np.zeros(len(semantic_class_vals))
+    for sem_idx, sem_val in enumerate(semantic_class_vals):
+        n_occlusion_pairings, all_occlusion_locations = \
+            OcclusionsOfSameClass.compute_occlusions_from_batch_of_one_semantic_cls(
+                sem_lbl_np, inst_lbl_np, sem_val)
+        assert all_occlusion_locations.shape[2] == 1
+        list_of_occlusion_locations_per_cls.append(all_occlusion_locations[:, :, 0])
+        n_occlusion_pairings_per_sem_cls[sem_idx] = n_occlusion_pairings
+    return n_occlusion_pairings_per_sem_cls, np.stack(list_of_occlusion_locations_per_cls, axis=2)
 
-        # Get overlapping instances of same semantic class
-        inst_lbl_dilated = inst_lbl.copy()
-        for sem_idx, sem_val in enumerate(semantic_classes):
-            n_occlusions_this_sem_cls = 0
-            sem_locations_bool = sem_lbl == sem_val
-            if torch.sum(sem_locations_bool) > 1:  # needs to be more than one instance to have occlusion with same
-                # class.
-                num_instances = inst_lbl[sem_locations_bool].max()
-                if num_instances > 0:
-                    intermediate_union = sem_locations_bool
-                    for inst_val in range(num_instances):
-                        dilated_instance_mask = cv2.dilate(inst_lbl == inst_val, kernel=np.ones((3, 3)), iterations=2)
-                        intersections_with_previous_instances = (sem_locations_bool * dilated_instance_mask *
-                                                                 intermediate_union).int()
-                        intermediate_union += (sem_locations_bool * (inst_lbl == inst_val)).int()
-                        amt_of_overlap = intersections_with_previous_instances.sum()
-                        n_occlusions_this_sem_cls += int(amt_of_overlap > 0)
-                    cv2.dilate(inst_lbl, kernel=np.ones((3, 3)), dst=inst_lbl_dilated, iterations=1)
+
+class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
+    default_compute_batch_sz = 10
+    debug_dir = None
+
+    def __init__(self, semantic_class_vals, semantic_class_names=None, cache_file=None,
+                 override=False, compute_batch_size=None, debug=False):
+        super(OcclusionsOfSameClass, self).__init__(cache_file, override)
+        self.semantic_class_names = semantic_class_names or ['{}'.format(v) for v in
+                                                             semantic_class_vals]
+        self.semantic_class_vals = semantic_class_vals
+        self.compute_batch_size = compute_batch_size or self.default_compute_batch_sz
+        self.debug = debug
+
+    @property
+    def labels(self):
+        return [s.replace(' ', '_') for s in self.semantic_class_names]
+
+    def _compute(self, dataset):
+        # semantic_classes = semantic_classes or range(dataset.n_semantic_classes)
+        occlusion_counts = self.compute_occlusion_counts(dataset, self.semantic_class_vals,
+                                                         self.compute_batch_size)
+        self._stat_tensor = occlusion_counts
+        assert occlusion_counts.size() == torch.Size((len(dataset), len(self.semantic_class_vals)))
+        return occlusion_counts
+
+    @staticmethod
+    def dilate(img_hwc, kernel=np.ones((3, 3)), iterations=1, dst=None):
+        if dst is None:
+            dilated_img = cv2.dilate(img_hwc, kernel=kernel, iterations=iterations)
+            if img_hwc.shape[2] == 1:
+                dilated_img = np.expand_dims(dilated_img, axis=2)
+        else:
+            cv2.dilate(img_hwc, kernel=kernel, iterations=iterations, dst=dst)
+            if img_hwc.shape[2] == 1:
+                np.expand_dims(dst, axis=2)
+            dilated_img = None
+        return dilated_img
+
+    def compute_occlusion_counts(self, dataset, semantic_class_vals=None, compute_batch_size=None,
+                                 debug=None):
+        debug = debug if debug is not None else self.debug
+        semantic_classes = semantic_class_vals or range(dataset.n_semantic_classes)
+        # noinspection PyTypeChecker
+        occlusion_counts = torch.zeros((
+            len(dataset), len(semantic_class_vals)), dtype=torch.int)
+        batch_size = compute_batch_size or self.default_compute_batch_sz
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False,
+                                                 sampler=None, num_workers=4)
+        batch_img_idx = 0
+
+        for batch_idx, (_, (sem_lbl_batch, inst_lbl_batch)) in tqdm.tqdm(
+                enumerate(dataloader), total=len(dataloader),
+                desc='Running occlusion statistics on dataset'.format(dataset), leave=False):
+            batch_sz = sem_lbl_batch.shape[0]
+            # Populates occlusion_counts
+            batch_occlusion_counts = self.compute_occlusions_from_batch(
+                sem_lbl_batch, inst_lbl_batch, semantic_classes, batch_idx, debug=debug)
+            batch_img_idx += batch_size
+            occlusion_counts[batch_img_idx:(batch_img_idx + batch_sz),
+            :] = torch.from_numpy(batch_occlusion_counts)
+        return occlusion_counts
+
+    @staticmethod
+    def torch_label_batch_to_np_batch_for_dilation(tensor):
+        return tensor.numpy().astype(np.uint8).transpose(1, 2, 0)
+
+    def compute_occlusions_from_batch(self, sem_lbl_batch, inst_lbl_batch, semantic_classes,
+                                      batch_idx=None, debug=False):
+        batch_sz = sem_lbl_batch.size(0)
+        batch_occlusion_counts = np.zeros((batch_sz, len(semantic_classes)), dtype=int)
+        # h x w x b (for dilation)
+        inst_lbl_np = self.torch_label_batch_to_np_batch_for_dilation(inst_lbl_batch)
+        sem_lbl_np = self.torch_label_batch_to_np_batch_for_dilation(sem_lbl_batch)
+
+        for sem_idx in semantic_classes:
+            n_occlusion_pairings, occlusion_locs = \
+                self.compute_occlusions_from_batch_of_one_semantic_cls(sem_lbl_np,
+                                                                       inst_lbl_np, sem_idx)
+            batch_occlusion_counts[:, sem_idx] = n_occlusion_pairings
+            if debug:
+                occlusion_and_sem_cls = self.dilate(occlusion_locs.astype('uint8'),
+                                                    iterations=4) + \
+                                        (sem_lbl_np == sem_idx).astype('uint8')
+                self.export_debug_images_from_batch(
+                    occlusion_and_sem_cls, ['occlusion_locations_{}_{}_n_occlusions_{}'.format(
+                        batch_idx, self.semantic_class_names[sem_idx], n_occlusion_pairings[i])
+                        for i in range(
+                            batch_sz)])
+
+        # dilate occlusion locations for visibility
+        return batch_occlusion_counts
+
+    @classmethod
+    def compute_occlusions_from_batch_of_one_semantic_cls(cls, sem_lbl_np, inst_lbl_np, sem_idx):
+        batch_sz = sem_lbl_np.shape[2]
+        all_occlusion_locations = np.zeros_like(sem_lbl_np).astype(int)
+        n_occlusion_pairings = np.zeros(batch_sz, dtype=int)
+        # sem_lbl_np, inst_lbl_np: h x w x b
+        if cls.cannot_have_occlusions(sem_lbl_np, inst_lbl_np, sem_idx):
+            return n_occlusion_pairings, all_occlusion_locations  # 0, zeros
+        semantic_cls_bool = sem_lbl_np == sem_idx
+        max_num_instances = inst_lbl_np[semantic_cls_bool].max()
+        dilated_instance_masks = []
+        possible_instance_values = range(1, max_num_instances + 1)
+
+        # Collect all the instance masks
+        for inst_val in possible_instance_values:
+            # noinspection PyTypeChecker
+            inst_loc_bool = cls.intersect_two_binary_masks(semantic_cls_bool,
+                                                           (inst_lbl_np == inst_val))
+            if inst_loc_bool.sum() == 0:
+                continue
             else:
-                occlusion_counts[idx, sem_idx] = 0
+                dilated_instance_masks.append(cls.dilate(inst_loc_bool.astype(np.uint8),
+                                                         kernel=np.ones((3, 3)), iterations=1))
+        # Compute pairwise occlusions
+        for dilate_idx1 in range(len(dilated_instance_masks)):
+            for dilate_idx2 in range(dilate_idx1 + 1, len(dilated_instance_masks)):
+                mask_pair_intersection = cls.intersect_two_binary_masks(
+                    dilated_instance_masks[dilate_idx1], dilated_instance_masks[dilate_idx2])
+                all_occlusion_locations += mask_pair_intersection
+                n_occlusion_pairings += (mask_pair_intersection.sum(axis=(0, 1)) > 0).astype(int)
 
-        # Get overlapping instances of any semantic class
+        # n_occlusion_pairings: (b,) ,  all_occlusion_locations: (h,w,b)
+        return n_occlusion_pairings, all_occlusion_locations
 
-    return occlusion_counts
+    @staticmethod
+    def clear_and_create_dir(dirname):
+        if os.path.exists(dirname):
+            shutil.rmtree(dirname)
+        os.makedirs(dirname)
+
+    def prep_debug_dir(self):
+        if self.debug_dir is None:
+            self.debug_dir = '/tmp/occlusion_debug/'
+            self.clear_and_create_dir(self.debug_dir)
+
+    @staticmethod
+    def export_label_image(img, filename):
+        visualization_utils.write_label(filename, img)
+
+    def export_debug_image(self, img, basename):
+        filename = os.path.join(self.debug_dir, '{}.png'.format(basename))
+        self.export_label_image(img, filename)
+
+    def export_debug_images_from_batch(self, imgs_as_batch, basenames):
+        self.prep_debug_dir()
+        batch_sz = imgs_as_batch.shape[2]
+        assert len(basenames) == batch_sz
+        for img_idx in range(batch_sz):
+            self.export_debug_image(imgs_as_batch[:, :, img_idx], basenames[img_idx])
+
+    @staticmethod
+    def cannot_have_occlusions(sem_lbl_batch, inst_lbl_batch, sem_idx):
+        # Check if it even contains this semantic class
+        if (sem_lbl_batch == sem_idx).sum() == 0:
+            return True
+        # Check if it contains at least two instances
+        if inst_lbl_batch[sem_lbl_batch == sem_idx].max() < 2:
+            return True
+        return False
+
+    @staticmethod
+    def intersect_two_binary_masks(mask1: np.ndarray, mask2: np.ndarray):
+        return mask1.astype(int) * mask2.astype(int)
+
+        # if debug:
+        #     for img_idx in range(batch_sz):
+        #         visualization_utils.write_label(os.path.join(
+        #             tmpdir, 'intermediate_union_before_img_{}_cls_{}.png'.format(
+        #                 img_idx + compute_batch_size * batch_idx,
+        #                 self.semantic_class_names[sem_idx])),
+        #             intermediate_union[:, :, img_idx])
+
+        # if debug:
+        #     for img_idx in range(batch_sz):
+        #         visualization_utils.write_label(os.path.join(
+        #             tmpdir, 'dilated_instance_mask_{}_cls_{}_inst_{}.png'.format(
+        #                 img_idx + compute_batch_size * batch_idx,
+        #                 self.semantic_class_names[sem_idx], inst_val)),
+        #             intersections_with_previous_instances[:, :, img_idx])
+        #
+        # if debug:
+        #     for img_idx in range(batch_sz):
+        #         visualization_utils.write_label(os.path.join(
+        #             tmpdir, 'intermediate_union_after_img_{}_cls_{}.png'.format(
+        #                 img_idx + compute_batch_size * batch_idx,
+        #                 self.semantic_class_names[sem_idx])),
+        #             intermediate_union[:, :, img_idx])
+        #

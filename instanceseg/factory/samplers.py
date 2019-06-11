@@ -1,19 +1,25 @@
 import os
 import logging
 
-from instanceseg.datasets import sampler, dataset_statistics, indexfilter, dataset_registry, dataset_generator_registry
+from instanceseg.datasets import sampler, dataset_statistics, indexfilter, dataset_registry, \
+    dataset_generator_registry
 from instanceseg.utils.misc import pop_without_del
-
 
 logger = logging.getLogger(__name__)
 
 
-def get_valid_indices_given_dataset(dataset_configured_for_stats, sampler_config_with_vals: sampler.SamplerConfig,
-                                    instance_count_file=None, semantic_pixel_count_file=None):
+def get_valid_indices_given_dataset(dataset_configured_for_stats,
+                                    sampler_config_with_vals: sampler.SamplerConfig,
+                                    instance_count_file=None, semantic_pixel_count_file=None,
+                                    occlusion_counts_file=None):
     semantic_class_pixel_counts_cache = dataset_statistics.PixelsPerSemanticClass(
-        range(len(dataset_configured_for_stats.semantic_class_names)), cache_file=semantic_pixel_count_file)
+        range(len(dataset_configured_for_stats.semantic_class_names)),
+        cache_file=semantic_pixel_count_file)
     instance_counts_cache = dataset_statistics.NumberofInstancesPerSemanticClass(
-        range(len(dataset_configured_for_stats.semantic_class_names)), cache_file=instance_count_file)
+        range(len(dataset_configured_for_stats.semantic_class_names)),
+        cache_file=instance_count_file)
+    occlusion_counts_cache = dataset_statistics.OcclusionsOfSameClass(range(len(
+        dataset_configured_for_stats.semantic_class_names)), cache_file=occlusion_counts_file)
 
     if sampler_config_with_vals.requires_instance_counts:
         instance_counts_cache.compute_or_retrieve(dataset_configured_for_stats)
@@ -21,22 +27,26 @@ def get_valid_indices_given_dataset(dataset_configured_for_stats, sampler_config
     else:
         instance_counts = None
     if sampler_config_with_vals.requires_semantic_pixel_counts:
-        logger.info('Computing semantic pixel counts')
         semantic_class_pixel_counts_cache.compute_or_retrieve(dataset_configured_for_stats)
         semantic_pixel_counts = semantic_class_pixel_counts_cache.stat_tensor
     else:
         semantic_pixel_counts = None
-
+    if sampler_config_with_vals.requires_occlusion_counts:
+        occlusion_counts_cache.compute_or_retrieve(dataset_configured_for_stats)
+        occlusion_counts = occlusion_counts_cache.stat_tensor
+    else:
+        occlusion_counts = None
     index_filter = indexfilter.ValidIndexFilter(n_original_images=len(dataset_configured_for_stats),
                                                 sampler_config=sampler_config_with_vals,
                                                 instance_counts=instance_counts,
-                                                semantic_class_pixel_counts=semantic_pixel_counts)
+                                                semantic_class_pixel_counts=semantic_pixel_counts,
+                                                occlusion_counts=occlusion_counts)
     return index_filter.valid_indices
 
 
 def get_configured_sampler(dataset, dataset_configured_for_stats, sequential,
                            sampler_config_with_vals, instance_count_file,
-                           semantic_pixel_count_file):
+                           semantic_pixel_count_file, occlusion_counts_file):
     """
     Builds a sampler of a dataset, which requires a list of valid indices and whether it's random/sequential,
     as well as the dataset itself.
@@ -50,9 +60,11 @@ def get_configured_sampler(dataset, dataset_configured_for_stats, sequential,
     if dataset_configured_for_stats is not None:
         assert len(dataset_configured_for_stats) == len(dataset)
 
-    valid_indices = get_valid_indices_given_dataset(dataset_configured_for_stats, sampler_config_with_vals,
-                                                    instance_count_file=instance_count_file,
-                                                    semantic_pixel_count_file=semantic_pixel_count_file)
+    valid_indices = get_valid_indices_given_dataset(
+        dataset_configured_for_stats, sampler_config_with_vals,
+        instance_count_file=instance_count_file,
+        semantic_pixel_count_file=semantic_pixel_count_file,
+        occlusion_counts_file=occlusion_counts_file)
 
     my_sampler = sampler.get_pytorch_sampler(sequential, bool_index_subset=valid_indices)(dataset)
     if len(my_sampler) == 0:
@@ -68,12 +80,16 @@ def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_con
     semantic_pixel_count_filename = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
                                                  '{}_semantic_pixel_counts_{}.npy'.format(
                                                      sampler_type, transformer_tag))
+    occlusion_counts_filename = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
+                                             '{}_within_class_occlusion_counts_{}.npy'.format(
+                                                 sampler_type, transformer_tag))
     filter_config = sampler.SamplerConfig.create_from_cfg_without_vals(
         sampler_config[sampler_type], default_dataset.semantic_class_names)
     my_sampler = get_configured_sampler(
         dataset, default_dataset, sequential=True, sampler_config_with_vals=filter_config,
         instance_count_file=instance_count_filename,
-        semantic_pixel_count_file=semantic_pixel_count_filename)
+        semantic_pixel_count_file=semantic_pixel_count_filename,
+        occlusion_counts_file=occlusion_counts_filename)
     return my_sampler
 
 

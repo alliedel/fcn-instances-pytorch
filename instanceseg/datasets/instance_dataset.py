@@ -19,7 +19,8 @@ class InstanceDatasetBase(data.Dataset):
 class TransformedInstanceDataset(InstanceDatasetBase):
     __metaclass__ = data.Dataset
 
-    def __init__(self, raw_dataset, raw_dataset_returns_images=False, precomputed_file_transformation=None,
+    def __init__(self, raw_dataset: InstanceDatasetBase, raw_dataset_returns_images=False,
+                 precomputed_file_transformation=None,
                  runtime_transformation=None):
         """
         :param raw_dataset_returns_images: Set to false for standard datasets that load from files; set to true for
@@ -41,7 +42,7 @@ class TransformedInstanceDataset(InstanceDatasetBase):
 
     def __getitem__(self, index):
         precomputed_file_transformation = self.precomputed_file_transformation if \
-                self.should_use_precompute_transform else None
+            self.should_use_precompute_transform else None
         runtime_transformation = self.runtime_transformation if \
             self.should_use_runtime_transform else None
         img, lbl = self.get_item(index,
@@ -80,13 +81,16 @@ class TransformedInstanceDataset(InstanceDatasetBase):
         raise NotImplementedError
 
     def get_item_from_files(self, index, precomputed_file_transformation=None):
-        data_file = self.raw_dataset.files[index]  # files populated when raw_dataset was instantiated
-        img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file['inst_lbl']
+        data_file = self.raw_dataset.files[
+            index]  # files populated when raw_dataset was instantiated
+        img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file[
+            'inst_lbl']
 
         # Get the right file
         if precomputed_file_transformation is not None:
             img_file, sem_lbl_file, inst_lbl_file = \
-                precomputed_file_transformation.transform(img_file=img_file, sem_lbl_file=sem_lbl_file,
+                precomputed_file_transformation.transform(img_file=img_file,
+                                                          sem_lbl_file=sem_lbl_file,
                                                           inst_lbl_file=inst_lbl_file)
 
         # Run data through transformation

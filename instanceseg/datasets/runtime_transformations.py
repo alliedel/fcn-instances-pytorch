@@ -183,7 +183,7 @@ class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
     def transform(self, img, lbl):
         return self.transform_img(img), self.transform_lbl(lbl)
 
-    def untransform(self, img, lbl):
+    def untransform(self, img, lbl=None):
         return self.untransform_img(img), self.untransform_lbl(lbl)
 
     def transform_img(self, img):
@@ -198,6 +198,8 @@ class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         return lbl
 
     def untransform_lbl(self, lbl):
+        if lbl is None:
+            return lbl
         if isinstance(lbl, tuple):
             assert len(lbl) == 2, 'Should be semantic, instance label tuple'
             lbl = tuple(datasets.convert_torch_lbl_to_numpy(l) for l in lbl)

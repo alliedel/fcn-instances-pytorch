@@ -440,14 +440,13 @@ class TrainerExporter(object):
 
     @staticmethod
     def untransform_data(data_loader, img, lbl):
-        (sem_lbl, inst_lbl) = lbl
         if data_loader.dataset.runtime_transformation is not None:
             runtime_transformation_undo = runtime_transformations.GenericSequenceRuntimeDatasetTransformer(
                 [t for t in (data_loader.dataset.runtime_transformation.transformer_sequence or [])
                  if isinstance(t, runtime_transformations.BasicRuntimeDatasetTransformer)])
-            img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, (sem_lbl, inst_lbl))
+            img_untransformed, lbl_untransformed = runtime_transformation_undo.untransform(img, lbl)
         else:
-            img_untransformed, lbl_untransformed = img, (sem_lbl, inst_lbl)
+            img_untransformed, lbl_untransformed = img, lbl
         return img_untransformed, lbl_untransformed
 
         # if self.exporter.export_config.export_activations:

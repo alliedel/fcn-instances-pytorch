@@ -5,22 +5,26 @@ from torch.utils.data import sampler
 
 class SamplerConfigWithoutValues(object):
 
-    def __init__(self, n_images=None, sem_cls_filter_names=None, n_instances_ranges=None):
+    def __init__(self, n_images=None, sem_cls_filter_names=None, n_instances_ranges=None,
+                 n_occlusions_range=None):
         self.n_images = n_images
         self.sem_cls_filter_names = sem_cls_filter_names
         self.n_instances_ranges = n_instances_ranges
+        self.n_occlusions_range = n_occlusions_range
 
         if self.n_instances_ranges is not None:  # Check if just one range
             # provided (should be list of tuples, one per class)
             if self.is_valid_tuple(self.n_instances_ranges):
-                self.n_instances_ranges = [self.n_instances_ranges for _ in range(len(self.sem_cls_filter_names))]
+                self.n_instances_ranges = [self.n_instances_ranges for _ in
+                                           range(len(self.sem_cls_filter_names))]
 
         self.assert_valid()
 
     @staticmethod
     def is_valid_tuple(instance_range):
-        return len(instance_range) == 2 and all(SamplerConfig.is_valid_instance_limit_val(val) for val in
-                                                instance_range)
+        return len(instance_range) == 2 and all(
+            SamplerConfig.is_valid_instance_limit_val(val) for val in
+            instance_range)
 
     @staticmethod
     def is_valid_instance_limit_val(inst_lim_val):
@@ -30,9 +34,17 @@ class SamplerConfigWithoutValues(object):
         if self.sem_cls_filter_names is None:
             assert self.n_instances_ranges is None
         else:
-            assert len(self.sem_cls_filter_names) == len(self.n_instances_ranges)
-            assert all([i is None or self.is_valid_tuple(i) for i in self.n_instances_ranges]), \
-                'Instance limits {} not valid'.format(self.n_instances_ranges)
+            if self.n_instances_ranges is not None:
+                assert len(self.sem_cls_filter_names) == len(self.n_instances_ranges)
+                assert all([i is None or self.is_valid_tuple(i) for i in self.n_instances_ranges]), \
+                    'Instance limits {} not valid'.format(self.n_instances_ranges)
+            elif self.n_occlusions_range is None:
+                print(self)
+                raise Exception('Either n_occlusions_range or n_instances_ranges must be '
+                                'specified when selecting semantic classes, even if they just '
+                                'include all None.  Change this if it becomes annoying to be '
+                                'explicit about it, but it will hopefully prevent unintentional '
+                                'configurations.')
 
     def __str__(self):
         return str(self.__dict__)
@@ -51,18 +63,35 @@ class SamplerConfigWithoutValues(object):
         else:
             return True
 
+    @property
+    def requires_occlusion_counts(self):
+        if self.n_occlusions_range is None:
+            return False
+        elif type(self.n_occlusions_range) is list or tuple:
+            assert len(self.n_occlusions_range) == 2
+            return not all(o is None for o in self.n_occlusions_range)
+        else:
+            raise NotImplementedError
+
 
 class SamplerConfig(SamplerConfigWithoutValues):
-    def __init__(self, n_images=None, sem_cls_filter_names=None, n_instances_ranges=None, semantic_class_names=None):
-        super(SamplerConfig, self).__init__(n_images=n_images, sem_cls_filter_names=sem_cls_filter_names,
-                                            n_instances_ranges=n_instances_ranges)
-        self.sem_cls_filter_values = convert_sem_cls_filter_from_names_to_values(self.sem_cls_filter_names,
-                                                                                 semantic_class_names)
+    def __init__(self, n_images=None, sem_cls_filter_names=None, n_instances_ranges=None,
+                 semantic_class_names=None, n_occlusions_range=None):
+        super(SamplerConfig, self).__init__(n_images=n_images,
+                                            sem_cls_filter_names=sem_cls_filter_names,
+                                            n_instances_ranges=n_instances_ranges,
+                                            n_occlusions_range=n_occlusions_range)
+        self.sem_cls_filter_values = convert_sem_cls_filter_from_names_to_values(
+            self.sem_cls_filter_names,
+            semantic_class_names)
 
     @classmethod
-    def create_from_cfg_without_vals(cls, old_inst: SamplerConfigWithoutValues, semantic_class_names):
+    def create_from_cfg_without_vals(cls, old_inst: SamplerConfigWithoutValues,
+                                     semantic_class_names):
         return cls(n_images=old_inst.n_images, sem_cls_filter_names=old_inst.sem_cls_filter_names,
-                   n_instances_ranges=old_inst.n_instances_ranges, semantic_class_names=semantic_class_names)
+                   n_instances_ranges=old_inst.n_instances_ranges,
+                   semantic_class_names=semantic_class_names,
+                   n_occlusions_range=old_inst.n_occlusions_range)
 
 
 def get_pytorch_sampler(sequential, index_weights=None, bool_index_subset=None):
@@ -110,6 +139,7 @@ def get_pytorch_sampler(sequential, index_weights=None, bool_index_subset=None):
             else:
                 new_indices = initial_indices
             return new_indices
+
     return SubsetWeightedSampler
 
 

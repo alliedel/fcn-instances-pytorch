@@ -241,7 +241,6 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False,
                                                  sampler=None, num_workers=4)
         batch_img_idx = 0
-
         for batch_idx, (_, (sem_lbl_batch, inst_lbl_batch)) in tqdm.tqdm(
                 enumerate(dataloader), total=len(dataloader),
                 desc='Running occlusion statistics on dataset'.format(dataset), leave=False):
@@ -249,9 +248,9 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
             # Populates occlusion_counts
             batch_occlusion_counts = self.compute_occlusions_from_batch(
                 sem_lbl_batch, inst_lbl_batch, semantic_classes, batch_idx, debug=debug)
-            batch_img_idx += batch_size
-            occlusion_counts[batch_img_idx:(batch_img_idx + batch_sz),
-            :] = torch.from_numpy(batch_occlusion_counts)
+            occlusion_counts[batch_img_idx:(batch_img_idx + batch_sz), :] = torch.from_numpy(
+                batch_occlusion_counts)
+            batch_img_idx += batch_sz
         return occlusion_counts
 
     @staticmethod
@@ -278,8 +277,7 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
                 self.export_debug_images_from_batch(
                     occlusion_and_sem_cls, ['occlusion_locations_{}_{}_n_occlusions_{}'.format(
                         batch_idx, self.semantic_class_names[sem_idx], n_occlusion_pairings[i])
-                        for i in range(
-                            batch_sz)])
+                        for i in range(batch_sz)])
 
         # dilate occlusion locations for visibility
         return batch_occlusion_counts

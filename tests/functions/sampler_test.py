@@ -85,6 +85,19 @@ def write_images_and_confirm(dataloader, rule_as_string_to_user):
         shutil.rmtree(img_dir)
 
 
+def test_all_cityscapes_occlusion_sampler(train_dataset, val_dataset, loader_kwargs):
+    sampler_cfg = sampler_cfg_registry.sampler_cfgs['occlusion_more_than_1']
+    assert sampler_cfg['train'].n_occlusions_range is not None
+    train_sampler, val_sampler, train_for_val_sampler = sampler_factory.get_samplers(
+        'cityscapes', sampler_cfg, train_dataset, val_dataset)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=False,
+                                               sampler=train_sampler, **loader_kwargs)
+    n_occlusions_range = sampler_cfg['train'].n_occlusions_range
+    write_images_and_confirm(train_loader, 'Number of occlusions in image is >={} and '
+                                           '<{}'.format(n_occlusions_range[0],
+                                                        n_occlusions_range[1]))
+
+
 def test_occlusion_sampler(train_dataset, val_dataset, loader_kwargs):
     # Get sampler
     sampler_cfg = sampler_cfg_registry.sampler_cfgs['occlusion_test']
@@ -164,6 +177,8 @@ def main():
         torch.cuda.manual_seed(1337)
 
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
+    print('Running occlusion on all cityscapes')
+    test_all_cityscapes_occlusion_sampler(train_dataset, val_dataset, loader_kwargs)
     print('Running occlusion-based sampler test')
     test_occlusion_sampler(train_dataset, val_dataset, loader_kwargs)
     print('Running instance-based sampler test')

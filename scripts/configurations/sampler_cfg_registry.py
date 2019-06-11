@@ -44,7 +44,10 @@ sampler_cfgs = {
                                          val_copy_train=True),
     'occlusion_test': get_sampler_cfg_set(sem_cls_filter_names=['car', 'background'],
                                           n_occlusions_range=(2, 5), n_images_train=10,
-                                          val_copy_train=True)
+                                          val_copy_train=True),
+    'occlusion_more_than_1':  get_sampler_cfg_set(sem_cls_filter_names=['car', 'background'],
+                                                  n_occlusions_range=(2, 5),
+                                                  val_copy_train=False)
 }
 sampler_cfgs['car_2_4inst_allimg_realval'] = sampler_cfgs['car_2_4']
 

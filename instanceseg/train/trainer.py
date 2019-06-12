@@ -314,10 +314,8 @@ class Trainer(object):
 
             score = self.model(full_input)
             # print('APD: Computing loss')
-            memory_allocated = torch.cuda.memory_allocated(device=None)
             pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl,
                                                            val_matching_override=True)
-            memory_allocated = torch.cuda.memory_allocated(device=None)
             # print('APD: Finished computing loss')
             val_loss = float(loss.item())
             true_labels, pred_labels, segmentation_visualizations, score_visualizations = \

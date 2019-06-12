@@ -1,5 +1,4 @@
-
-#!/usr/bin/env python
+# !/usr/bin/env python
 
 import argparse
 import os
@@ -75,12 +74,14 @@ def main():
     parser.add_argument('-c', '--config', type=int, default=0,
                         choices=configurations.keys())
     parser.add_argument('--resume', help='Checkpoint path')
-    parser.add_argument('--image_index', type=int, help='Image index to use for train/validation set', default=None)
+    parser.add_argument('--image_index', type=int,
+                        help='Image index to use for train/validation set', default=None)
     args = parser.parse_args()
     gpu = args.gpu
     config_idx = args.config
 
-    cfg = instanceseg.utils.configs.create_config_from_default(configurations[config_idx], default_config)
+    cfg = instanceseg.utils.configs.create_config_from_default(configurations[config_idx],
+                                                               default_config)
     if args.image_index is not None:
         cfg['image_index'] = args.image_index
 
@@ -91,7 +92,7 @@ def main():
     print('logdir: {}'.format(out))
     resume = args.resume
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
     torch.manual_seed(1337)
@@ -100,13 +101,16 @@ def main():
 
     # 0. Problem setup (instance segmentation definition)
     n_semantic_classes = 21
-    n_instances_by_semantic_id = [1] + [cfg['n_instances_per_class'] for sem_cls in range(1, n_semantic_classes)]
-    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
+    n_instances_by_semantic_id = [1] + [cfg['n_instances_per_class'] for sem_cls in
+                                        range(1, n_semantic_classes)]
+    problem_config = instance_utils.InstanceProblemConfig(
+        n_instances_by_semantic_id=n_instances_by_semantic_id)
 
     # 1. dataset
     root = osp.expanduser('~/data/datasets')
     dataset_kwargs = dict(transform=True, semantic_only_labels=cfg['semantic_only_labels'],
-                          set_extras_to_void=cfg['set_extras_to_void'], semantic_subset=cfg['semantic_subset'],
+                          set_extras_to_void=cfg['set_extras_to_void'],
+                          semantic_subset=cfg['semantic_subset'],
                           modified_indices=[cfg['image_index']])
     kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
     val_split = 'seg11valid'
@@ -144,9 +148,11 @@ def main():
             [
                 {'params': instanceseg.models.model_utils.get_parameters(model, bias=False)},
                 {'params': instanceseg.models.model_utils.get_parameters(model, bias=True),
-                 #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+                 #            {'params': filter(lambda p: False if p is None else
+                 #            p.requires_grad, get_parameters(
                  #                model, bias=False))},
-                 #            {'params': filter(lambda p: False if p is None else p.requires_grad, get_parameters(
+                 #            {'params': filter(lambda p: False if p is None else
+                 #            p.requires_grad, get_parameters(
                  #                model, bias=True)),
 
                  'lr': cfg['lr'] * 2, 'weight_decay': 0},
@@ -160,7 +166,8 @@ def main():
         optim.load_state_dict(checkpoint['optim_state_dict'])
 
     writer = SummaryWriter(log_dir=out)
-    trainer = instanceseg.Trainer(cuda=cuda, model=model, optimizer=optim, train_loader=train_loader,
+    trainer = instanceseg.Trainer(cuda=cuda, model=model, optimizer=optim,
+                                  train_loader=train_loader,
                                   val_loader=val_loader, out_dir=out, max_iter=cfg['max_iteration'],
                                   instance_problem=problem_config,
                                   interval_validate=cfg.get('interval_validate', len(train_loader)),
@@ -176,9 +183,11 @@ def main():
 
     val_loss, metrics, (segmentation_visualizations, score_visualizations) = trainer.validate_split(
         should_export_visualizations=False)
-    
-    trainer.export_visualizations(segmentation_visualizations, 'seg_' + val_split, tile=True, outdir='./tmp/')
-    trainer.export_visualizations(score_visualizations, 'score_' + val_split, tile=False, outdir='./tmp/')
+
+    trainer.export_visualizations(segmentation_visualizations, 'seg_' + val_split, tile=True,
+                                  outdir='./tmp/')
+    trainer.export_visualizations(score_visualizations, 'score_' + val_split, tile=False,
+                                  outdir='./tmp/')
     # viz = visualization_utils.get_tile_image(visualizations)
     # skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     metrics = np.array(metrics)
@@ -189,9 +198,11 @@ def main():
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
     if metrics[2] < 80:
-        print(instanceseg.utils.misc.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(metrics[2]) + instanceseg.utils.misc.TermColors.ENDC)
+        print(instanceseg.utils.misc.TermColors.FAIL + 'Test FAILED.  mIOU: {}'.format(
+            metrics[2]) + instanceseg.utils.misc.TermColors.ENDC)
     else:
-        print(instanceseg.utils.misc.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(metrics[2]) + instanceseg.utils.misc.TermColors.ENDC)
+        print(instanceseg.utils.misc.TermColors.OKGREEN + 'TEST PASSED! mIOU: {}'.format(
+            metrics[2]) + instanceseg.utils.misc.TermColors.ENDC)
 
 
 if __name__ == '__main__':

@@ -118,12 +118,12 @@ def pie_chart(values, labels, autopct='%1.1f%%'):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-g', '--gpu', type=int, required=True)
+    parser.add_argument('-g', '--gpu', type=int, nargs='+', required=True)
     parser.add_argument('--resume', help='Checkpoint path')
     args = parser.parse_args()
 
     gpu = args.gpu
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
 
     train_stats, val_stats, default_train_dataset, default_val_dataset = \
         get_instance_counts('cityscapes')

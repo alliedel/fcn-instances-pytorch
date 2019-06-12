@@ -32,9 +32,11 @@ CFG_ORDER = {}
 DEBUG_ASSERTS = True
 
 
-def construct_args_list_to_replace_sys(dataset_name, gpu=None, config_idx=None, sampler_name=None, resume=None):
+def construct_args_list_to_replace_sys(dataset_name, gpu=None, config_idx=None, sampler_name=None,
+                                       resume=None):
     default_args_list = [dataset_name]
-    for key, val in {'-g': gpu, '-c': config_idx, '--sampler': sampler_name, '--resume': resume}.items():
+    for key, val in {'-g': gpu, '-c': config_idx, '--sampler': sampler_name,
+                     '--resume': resume}.items():
         if val is not None:
             default_args_list += [key, str(val)]
     return default_args_list
@@ -57,12 +59,15 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
         override = False
         if interactive:
             override = 'y' == input(
-                TermColors.WARNING + 'Your working directory tree isn\'t clean:\n ' + TermColors.ENDC +
+                TermColors.WARNING + 'Your working directory tree isn\'t clean:\n ' +
+                TermColors.ENDC +
                 TermColors.FAIL + '{}'.format(stdout.decode()) + TermColors.ENDC +
                 'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': '
                 '' + TermColors.ENDC)
         if exit_on_error or interactive and not override:
-            raise Exception(TermColors.FAIL + 'Exiting.  Please commit or stash your changes.' + TermColors.ENDC)
+            raise Exception(
+                TermColors.FAIL + 'Exiting.  Please commit or stash your changes.' +
+                TermColors.ENDC)
     return exit_code, stdout
 
 
@@ -81,18 +86,22 @@ def get_parser():
             subparsers.add_parser(dataset_name, help='{} dataset options'.format(dataset_name),
                                   epilog='\n\nOverride options:\n' + '\n'.join(
                                       ['--{}: {}'.format(k, v)
-                                       for k, v in dataset_registry.REGISTRY[dataset_name].default_config.items()]),
+                                       for k, v in dataset_registry.REGISTRY[
+                                           dataset_name].default_config.items()]),
                                   formatter_class=argparse.RawTextHelpFormatter)
         for dataset_name in dataset_names
     }
     for dataset_name, subparser in dataset_parsers.items():
         cfg_choices = list(dataset_registry.REGISTRY[dataset_name].config_options.keys())
         subparser.add_argument('-c', '--config', type=str_or_int, default=0, choices=cfg_choices)
-        subparser.add_argument('-g', '--gpu', type=int, required=True)
+        subparser.add_argument('-g', '--gpu', type=int, nargs='+', required=True)
         subparser.add_argument('--resume', help='Checkpoint path')
-        subparser.add_argument('--semantic-init', help='Checkpoint path of semantic model (e.g. - '
-                                                       '\'~/data/models/pytorch/semantic_synthetic.pth\'', default=None)
-        subparser.add_argument('--single-image-index', type=int, help='Image index to use for train/validation set',
+        subparser.add_argument('--semantic-init',
+                               help='Checkpoint path of semantic model (e.g. - '
+                                    '\'~/data/models/pytorch/semantic_synthetic.pth\'',
+                               default=None)
+        subparser.add_argument('--single-image-index', type=int,
+                               help='Image index to use for train/validation set',
                                default=None)
         subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default=None,
                                help='Sampler for dataset')
@@ -115,7 +124,8 @@ def parse_args(replacement_args_list=None):
         args, argv = parser.parse_known_args()
 
     # Config override parser
-    assert args.dataset is not None, ValueError('dataset argument must not be None.  Run with --help for more details.')
+    assert args.dataset is not None, ValueError('dataset argument must not be None.  '
+                                                'Run with --help for more details.')
     cfg_default = dataset_registry.REGISTRY[args.dataset].default_config
     cfg_override_parser = instanceseg.utils.configs.get_cfg_override_parser(cfg_default)
 
@@ -129,27 +139,33 @@ def parse_args(replacement_args_list=None):
     # apparently this is failing, so I'm going to have to screen this on my own:
 
     # Remove options from namespace that weren't defined
-    unused_keys = [k for k in list(override_cfg_args.__dict__.keys()) if '--' + k not in argv and '-' + k not in argv]
+    unused_keys = [k for k in list(override_cfg_args.__dict__.keys()) if
+                   '--' + k not in argv and '-' + k not in argv]
     for k in unused_keys:
         delattr(override_cfg_args, k)
 
     # Fix a few values
-    replace_attr_with_function_of_val(override_cfg_args, 'clip', lambda old_val: old_val if old_val > 0 else None,
+    replace_attr_with_function_of_val(override_cfg_args, 'clip',
+                                      lambda old_val: old_val if old_val > 0 else None,
                                       error_if_attr_doesnt_exist=False)
     replace_attr_with_function_of_val(override_cfg_args, 'semantic_subset',
-                                      lambda old_val: convert_comma_separated_string_to_list(old_val, str),
+                                      lambda old_val: convert_comma_separated_string_to_list(
+                                          old_val, str),
                                       error_if_attr_doesnt_exist=False)
     replace_attr_with_function_of_val(override_cfg_args, 'img_size',
-                                      lambda old_val: convert_comma_separated_string_to_list(old_val, int),
+                                      lambda old_val: convert_comma_separated_string_to_list(
+                                          old_val, int),
                                       error_if_attr_doesnt_exist=False)
     replace_attr_with_function_of_val(override_cfg_args, 'resize_size',
-                                      lambda old_val: convert_comma_separated_string_to_list(old_val, int),
+                                      lambda old_val: convert_comma_separated_string_to_list(
+                                          old_val, int),
                                       error_if_attr_doesnt_exist=False)
 
     return args, override_cfg_args
 
 
-def replace_attr_with_function_of_val(namespace, attr, replacement_function, error_if_attr_doesnt_exist=True):
+def replace_attr_with_function_of_val(namespace, attr, replacement_function,
+                                      error_if_attr_doesnt_exist=True):
     if attr in namespace.__dict__.keys():
         setattr(namespace, attr, replacement_function(getattr(namespace, attr)))
     elif error_if_attr_doesnt_exist:
@@ -173,27 +189,30 @@ def convert_comma_separated_string_to_list(string, conversion_type=None):
         return [conversion_type(element) for element in elements]
 
 
-def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_init=None):
-    print('Using gpu {}'.format(gpu))
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), resume=None, semantic_init=None):
+    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(['{}'.format(g) for g in gpu])
+    print(os.environ['CUDA_VISIBLE_DEVICES'])
     set_random_seeds()
     cuda = torch.cuda.is_available()
+    print('Using {} devices'.format(torch.cuda.device_count()))
 
     print('Getting dataloaders...')
     dataloaders = instanceseg.factory.data.get_dataloaders(cfg, dataset_type, cuda, sampler_cfg)
     print('Done getting dataloaders')
     # reduce dataloaders to semantic subset before running / generating problem config:
     n_instances_per_class = cfg['n_instances_per_class']
-    problem_config = instanceseg.factory.models.get_problem_config(dataloaders['val'].dataset.semantic_class_names,
-                                                                   n_instances_per_class,
-                                                                   map_to_semantic=cfg['map_to_semantic'])
+    problem_config = instanceseg.factory.models.get_problem_config(
+        dataloaders['val'].dataset.semantic_class_names,
+        n_instances_per_class,
+        map_to_semantic=cfg['map_to_semantic'])
     if resume:
         checkpoint = torch.load(resume)
     else:
         checkpoint = None
 
     # 2. model
-    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, resume,
+    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config,
+                                                                               resume,
                                                                                semantic_init, cuda)
     # Run a few checks
     problem_config_semantic_classes = set([problem_config.semantic_class_names[si]
@@ -201,14 +220,16 @@ def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_
     dataset_semantic_classes = set(dataloaders['train'].dataset.semantic_class_names)
     assert problem_config_semantic_classes == dataset_semantic_classes, \
         'Model covers these semantic classes: {}.\n ' \
-        'Dataset covers these semantic classes: {}.'.format(problem_config_semantic_classes, dataset_semantic_classes)
-    print('Number of output channels in model: {}'.format(model.n_output_channels))
+        'Dataset covers these semantic classes: {}.'.format(problem_config_semantic_classes,
+                                                            dataset_semantic_classes)
+    print('Number of output channels in model: {}'.format(model.module.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
-    checkpoint_for_optim = checkpoint if (checkpoint is not None and not cfg['reset_optim']) else None
+    checkpoint_for_optim = checkpoint if (
+                checkpoint is not None and not cfg['reset_optim']) else None
     optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, checkpoint_for_optim)
     scheduler = instanceseg.factory.optimizer.get_scheduler(optim, cfg['lr_scheduler']) \
         if cfg['lr_scheduler'] is not None else None
@@ -216,11 +237,13 @@ def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=0, resume=None, semantic_
         for module_name, module in model.named_children():
             if module_name in model_utils.VGG_CHILDREN_NAMES:
                 assert all([p.requires_grad is False for p in module.parameters()])
-        print('All modules were correctly frozen: '.format({}).format(model_utils.VGG_CHILDREN_NAMES))
+        print(
+            'All modules were correctly frozen: '.format({}).format(model_utils.VGG_CHILDREN_NAMES))
     if not cfg['map_to_semantic']:
         cfg['activation_layers_to_export'] = tuple([x for x in cfg[
             'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
-    trainer = instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config,
+    trainer = instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders,
+                                                       problem_config,
                                                        out_dir, scheduler=scheduler)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
@@ -244,5 +267,6 @@ def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscr
     sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg(sampler_name)
     out_dir = get_log_dir(os.path.join(parent_directory, script_basename), cfg_to_print)
     instanceseg.utils.configs.save_config(out_dir, cfg)
-    print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir), instanceseg.utils.misc.TermColors.OKGREEN))
+    print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir),
+                                            instanceseg.utils.misc.TermColors.OKGREEN))
     return cfg, out_dir, sampler_cfg

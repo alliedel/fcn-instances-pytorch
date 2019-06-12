@@ -157,7 +157,7 @@ def main():
     print('Log in {}'.format(out))
     cuda = True  # torch.cuda.is_available()
     gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
 
     torch.manual_seed(1337)
     if cuda:

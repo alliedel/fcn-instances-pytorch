@@ -192,7 +192,7 @@ def main():
     instanceseg.utils.scripts.set_random_seeds()
     display_pyutils.set_my_rc_defaults()
     gpu = args.gpu
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
     if display_pyutils.check_for_emptied_workspace():
         print('Workspace clean.')

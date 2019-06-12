@@ -9,7 +9,7 @@ import torch
 
 if __name__ == '__main__':
     gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
     cfg = voc_cfg.get_default_config()

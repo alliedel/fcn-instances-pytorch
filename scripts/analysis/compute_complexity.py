@@ -17,7 +17,7 @@ def setup():
 
     scripts.set_random_seeds()
     gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
     cfg = synthetic_cfg.get_default_config()

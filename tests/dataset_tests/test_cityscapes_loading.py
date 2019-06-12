@@ -86,7 +86,7 @@ def test_loading_all(dataset):
 
 if __name__ == '__main__':
     gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
     # test1

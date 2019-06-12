@@ -170,7 +170,7 @@ def main():
     print('Getting datasets')
     train_dataset, val_dataset = dataset_generator_registry.get_dataset('cityscapes', cfg)
     gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
     torch.manual_seed(1337)
     if cuda:

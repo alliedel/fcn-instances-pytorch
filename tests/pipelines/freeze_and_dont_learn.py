@@ -15,7 +15,7 @@ from scripts.configurations.sampler_cfg_registry import sampler_cfgs
 
 def test(frozen=True):
     gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
     cfg = voc_cfg.get_default_config()

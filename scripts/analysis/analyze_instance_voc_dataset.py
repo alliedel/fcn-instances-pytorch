@@ -42,7 +42,7 @@ def main():
         '.py', ''), args.config, cfg, parent_directory=osp.dirname(osp.abspath(__file__)))
     print('logdir: {}'.format(out))
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
     torch.manual_seed(1337)

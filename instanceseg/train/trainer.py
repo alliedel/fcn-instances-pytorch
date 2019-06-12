@@ -214,13 +214,20 @@ class Trainer(object):
         segmentation_visualizations, score_visualizations = [], []
         label_trues, label_preds, pred_permutations = [], [], []
         num_images_to_visualize = min(len(data_loader), 9)
-        memory_allocated = torch.cuda.memory_allocated(device=None)
+        memory_allocated_before = torch.cuda.memory_allocated(device=None)
         mem_report_dict = torch_utils.generate_mem_report_dict()
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader), desc='Valid iteration (split=%s)=%d' %
                 (split, self.state.iteration), ncols=150, leave=False)
             for batch_idx, (img_data, lbls) in t:
+                memory_allocated = sum(torch.cuda.memory_allocated(device=d) for d in
+                                       range(torch.cuda.device_count()))
+                description = 'Valid iteration=%d, %g GB (%g GB at start)' % \
+                              (self.state.epoch, memory_allocated / 1e9, memory_allocated_before
+                               / 1e9)
+                t.set_description_str(description)
+
                 if DEBUG_MEMORY_ISSUES:
                     memory_allocated = torch.cuda.memory_allocated(device=None)
                     description = 'Valid iteration (split=%s)=%d, %g GB' % \
@@ -409,7 +416,7 @@ class Trainer(object):
                                                iteration=self.state.iteration,
                                                new_pred_permutations=new_pred_permutations,
                                                new_loss=new_loss,
-                                               get_activations_fcn=self.model.get_activations,
+                                               get_activations_fcn=self.model.module.get_activations,
                                                lrs_by_group=group_lrs)
 
     def debug_loss(self, score, sem_lbl, inst_lbl, new_score, new_loss, loss_components,

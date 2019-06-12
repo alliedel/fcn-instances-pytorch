@@ -12,7 +12,7 @@ from instanceseg.models import model_utils
 def build_example_model(**model_cfg_override_kwargs):
     # script_utils.check_clean_work_tree()
     gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
     cfg = voc_cfg.get_default_config()
@@ -29,7 +29,7 @@ def test_forward_hook():
     cfg = voc_cfg.get_default_config()
     print('Getting datasets')
     gpu = 0
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
     torch.manual_seed(1337)
     if cuda:

@@ -1,8 +1,9 @@
 import os
 
 import torch
+from torch import nn
 
-import instanceseg
+import instanceseg.models
 from instanceseg.utils import instance_utils
 from instanceseg.models import model_utils
 from instanceseg.utils.instance_utils import InstanceProblemConfig
@@ -22,14 +23,16 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
             map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
             bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'],
             score_multiplier_init=cfg['score_multiplier'],
-            n_input_channels=n_input_channels, clip=cfg['clip'], use_conv8=cfg['use_conv8'], use_attention_layer=cfg[
+            n_input_channels=n_input_channels, clip=cfg['clip'], use_conv8=cfg['use_conv8'],
+            use_attention_layer=cfg[
                 'use_attn_layer'])
     elif cfg['backbone'] == 'resnet50':
         model = instanceseg.models.ResNet50Instance(
             semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
             map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
             bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'],
-            score_multiplier_init=cfg['score_multiplier'], n_input_channels=n_input_channels, clip=cfg['clip'])
+            score_multiplier_init=cfg['score_multiplier'], n_input_channels=n_input_channels,
+            clip=cfg['clip'])
     else:
         raise ValueError('Unknown backbone architecture {}.  '.format(cfg['backbone'])
                          + '\nOptions:\n{}'.format(MODEL_OPTIONS.keys()))
@@ -45,10 +48,12 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
             if cfg['initialize_from_semantic']:
                 semantic_init_path = os.path.expanduser(semantic_init)
                 if not os.path.exists(semantic_init_path):
-                    raise ValueError('I could not find the path {}.  Did you set the path using the semantic-init '
-                                     'flag?'.format(semantic_init_path))
+                    raise ValueError(
+                        'I could not find the path {}.  Did you set the path using the '
+                        'semantic-init flag?'.format(semantic_init_path))
                 semantic_model = instanceseg.models.FCN8sInstance(
-                    semantic_instance_class_list=[1 for _ in range(problem_config.n_semantic_classes)],
+                    semantic_instance_class_list=[1 for _ in
+                                                  range(problem_config.n_semantic_classes)],
                     map_to_semantic=False, include_instance_channel0=False)
                 print('Copying params from preinitialized semantic model')
                 checkpoint_file = torch.load(semantic_init_path)
@@ -61,6 +66,12 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
         elif cfg['backbone'] == 'resnet50':
             print('Copying params from rcnn resnet')
             model.backbone.load_state_dict(resnet_rcnn.pretrained_resnet_rnn_state_dict())
+
+    n_gpus = torch.cuda.device_count()
+    print('Using {} GPUS for model: {}'.format(
+        n_gpus, [torch.cuda.get_device_name(i) for i in range(n_gpus)]))
+    if n_gpus > 1:
+        model = nn.DataParallel(model)
 
     if cuda:
         model = model.cuda()
@@ -75,7 +86,7 @@ def get_problem_config(class_names, n_instances_per_class: int, map_to_semantic=
     class_names = class_names
     n_semantic_classes = len(class_names)
     n_instances_by_semantic_id = [1] + [n_instances_per_class for _ in range(1, n_semantic_classes)]
-    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id,
-                                                          map_to_semantic=map_to_semantic)
+    problem_config = instance_utils.InstanceProblemConfig(
+        n_instances_by_semantic_id=n_instances_by_semantic_id, map_to_semantic=map_to_semantic)
     problem_config.set_class_names(class_names)
     return problem_config

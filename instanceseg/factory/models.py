@@ -17,7 +17,7 @@ MODEL_OPTIONS = {
 def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, semantic_init, cuda):
     n_input_channels = 3 if not cfg['augment_semantic'] else 3 + problem_config.n_semantic_classes
     if cfg['backbone'] == 'fcn8':
-        model = MODEL_OPTIONS['fcn'](
+        model = MODEL_OPTIONS['fcn8'](
             semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
             map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
             bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'],

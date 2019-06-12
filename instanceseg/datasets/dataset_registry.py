@@ -34,6 +34,10 @@ class RegisteredDataset(object):
             os.makedirs(path)
         return path
 
+    def get_instance_count_filename(self, split, transformer_tag):
+        return os.path.join(self.cache_path, '{}_instance_counts_{}.npy'.format(
+            split, transformer_tag))
+
 
 REGISTRY = {
     'cityscapes': RegisteredDataset(

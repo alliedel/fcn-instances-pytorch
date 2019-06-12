@@ -32,33 +32,18 @@ def get_instance_counts(dataset_type):
         'train': default_train_dataset,
         'val': default_val_dataset,
     }
-
+    instance_counts = {}
     # Compute statistics
-    split = 'train'
-    instance_count_file = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
-                                       '{}_instance_counts_{}.npy'.format(split, transformer_tag))
-    if not os.path.isfile(instance_count_file):
-        print('Generating file {}'.format(instance_count_file))
-        stats = dataset_statistics.DatasetStatisticsFilter(default_datasets[split])
-        stats.compute_statistics(filename_to_write_instance_counts=instance_count_file)
-    else:
-        print('Reading from instance counts file {}'.format(instance_count_file))
-        stats = dataset_statistics.DatasetStatisticsFilter(
-            default_datasets[split], existing_instance_count_file=instance_count_file)
-    train_stats = stats
-
-    split = 'val'
-    instance_count_file = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
-                                       '{}_instance_counts_{}.npy'.format(split, transformer_tag))
-    if not os.path.isfile(instance_count_file):
-        print('Generating file {}'.format(instance_count_file))
-        stats = dataset_statistics.DatasetStatisticsFilter(default_datasets[split])
-        stats.compute_statistics(filename_to_write_instance_counts=instance_count_file)
-    else:
-        print('Reading from instance counts file {}'.format(instance_count_file))
-        stats = dataset_statistics.DatasetStatisticsFilter(
-            default_datasets[split], existing_instance_count_file=instance_count_file)
-    val_stats = stats
+    for split in default_datasets.keys():
+        default_dataset = default_datasets[split]
+        semantic_class_names = default_dataset.semantic_class_names
+        instance_count_file = \
+            dataset_registry.REGISTRY[dataset_type].get_instance_count_filename(split,
+                                                                                transformer_tag)
+        instance_count_cache = dataset_statistics.NumberofInstancesPerSemanticClass(
+            range(len(semantic_class_names)), cache_file=instance_count_file)
+        instance_counts[split] = instance_count_cache.stat_tensor
+    train_stats, val_stats = instance_counts['train'], instance_counts['val']
     return train_stats, val_stats, default_train_dataset, default_val_dataset
 
 
@@ -103,7 +88,7 @@ def write_stats(train_stats, val_stats, default_train_dataset, default_val_datas
         plt.title(metric_name)
         display_pyutils.save_fig_to_workspace(metric_name + '.png')
 
-        plt.figure(3);
+        plt.figure(3)
         plt.clf()
         metric_name = split + '_' + 'num_images_with_this_many_cars'
         metric_values = num_images_with_this_many_cars
@@ -140,7 +125,8 @@ def main():
     gpu = args.gpu
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
 
-    train_stats, val_stats, default_train_dataset, default_val_dataset = get_instance_counts('cityscapes')
+    train_stats, val_stats, default_train_dataset, default_val_dataset = \
+        get_instance_counts('cityscapes')
     write_stats(train_stats, val_stats, default_train_dataset, default_val_dataset)
 
 

@@ -53,7 +53,7 @@ _default_config = dict(
     resize=False,
     resize_size=None,
     train_batch_size=1,
-    val_batch_size=10,
+    val_batch_size=1,
     # semantic_only_labels=False,
     # set_extras_to_void=True,
 

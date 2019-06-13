@@ -82,8 +82,7 @@ class SamplerConfig(SamplerConfigWithoutValues):
                                             n_instances_ranges=n_instances_ranges,
                                             n_occlusions_range=n_occlusions_range)
         self.sem_cls_filter_values = convert_sem_cls_filter_from_names_to_values(
-            self.sem_cls_filter_names,
-            semantic_class_names)
+            self.sem_cls_filter_names, semantic_class_names)
 
     @classmethod
     def create_from_cfg_without_vals(cls, old_inst: SamplerConfigWithoutValues,
@@ -144,6 +143,8 @@ def get_pytorch_sampler(sequential, index_weights=None, bool_index_subset=None):
 
 
 def convert_sem_cls_filter_from_names_to_values(sem_cls_filter, semantic_class_names):
+    if sem_cls_filter is None:
+        return None
     try:
         sem_cls_filter_values = [semantic_class_names.index(class_name)
                                  for class_name in sem_cls_filter]

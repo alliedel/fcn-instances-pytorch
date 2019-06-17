@@ -42,8 +42,8 @@ CONFIG_KEY_REPLACEMENTS_FOR_FILENAME = {'max_iteration': 'itr',
                                         }
 
 CONFIG_VAL_REPLACEMENTS_FOR_FILENAME = {
-    True: '0',
-    False: '1'
+    True: '1',
+    False: '0'
 }
 
 

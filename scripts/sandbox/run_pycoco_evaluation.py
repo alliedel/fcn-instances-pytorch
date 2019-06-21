@@ -4,8 +4,7 @@ if 'panopticapi' not in os.environ['PYTHONPATH']:
     os.environ['PYTHONPATH'] += ':' + os.path.abspath(os.path.expanduser('./instanceseg/ext/panopticapi'))
 
 import json
-
-from panopticapi import evaluation
+from instanceseg.ext.panopticapi import evaluation
 
 
 # python converters/2channels2panoptic_coco_format.py \
@@ -24,6 +23,7 @@ def main():
     json_data_example = json.load(open(json_file_example, 'r'))
 
     pred_json_file = gt_json_file
+    gt_folder = ground_truth_directory
     pred_folder = gt_folder
 
     # json.dump(json_data, pred_json_file)

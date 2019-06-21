@@ -17,10 +17,12 @@ import PIL.Image as Image
 try:
     from utils import get_traceback, rgb2id
 except ImportError:
-    from panopticapi.utils import get_traceback, rgb2id
+    # For instance segmentation project - not a separate module.
+    from instanceseg.ext.panopticapi.utils import get_traceback, rgb2id
 
 OFFSET = 256 * 256 * 256
 VOID = 0
+
 
 class PQStatCat():
         def __init__(self):

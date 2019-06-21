@@ -78,7 +78,7 @@ def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_con
         dataset_registry.REGISTRY[dataset_type].get_instance_count_filename(sampler_split_type, transformer_tag)
     semantic_pixel_count_filename = dataset_registry.REGISTRY[dataset_type].get_semantic_pixel_count_filename(
         sampler_split_type, transformer_tag)
-    occlusion_counts_filename = dataset_registry.REGISTRY[dataset_type].occlusion_counts_filename(
+    occlusion_counts_filename = dataset_registry.REGISTRY[dataset_type].get_occlusion_counts_filename(
         sampler_split_type, transformer_tag)
     filter_config = sampler.SamplerConfig.create_from_cfg_without_vals(
         sampler_config[sampler_split_type], default_dataset.semantic_class_names)

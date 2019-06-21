@@ -69,17 +69,6 @@ def main():
     gt_json_file, pred_json_file, gt_folder, pred_folder = make_short_json_example(split=split)
     # json.dump(json_data, pred_json_file)
     evaluation.pq_compute(gt_json_file, pred_json_file, gt_folder=gt_folder, pred_folder=pred_folder)
-    #
-    # pred_annotations = {el['image_id']: el for el in pred_json['annotations']}
-    # matched_annotations_list = []
-    # for gt_ann in gt_json['annotations']:
-    #     image_id = gt_ann['image_id']
-    #     if image_id not in pred_annotations:
-    #         raise Exception('no prediction for the image with id: {}'.format(image_id))
-    #     matched_annotations_list.append((gt_ann, pred_annotations[image_id]))
-    #
-    # pq_stat = evaluation.pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, categories)
-    #
 
 
 if __name__ == '__main__':

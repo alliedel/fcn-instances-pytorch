@@ -72,17 +72,16 @@ def get_configured_sampler(dataset, dataset_configured_for_stats, sequential,
     return my_sampler
 
 
-def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_config, sampler_type,
+def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_config, sampler_split_type,
                              transformer_tag):
-    instance_count_filename = dataset_registry.REGISTRY[dataset_type].get_instance_count_filename()
-    semantic_pixel_count_filename = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
-                                                 '{}_semantic_pixel_counts_{}.npy'.format(
-                                                     sampler_type, transformer_tag))
-    occlusion_counts_filename = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
-                                             '{}_within_class_occlusion_counts_{}.npy'.format(
-                                                 sampler_type, transformer_tag))
+    instance_count_filename = \
+        dataset_registry.REGISTRY[dataset_type].get_instance_count_filename(sampler_split_type, transformer_tag)
+    semantic_pixel_count_filename = dataset_registry.REGISTRY[dataset_type].get_semantic_pixel_count_filename(
+        sampler_split_type, transformer_tag)
+    occlusion_counts_filename = dataset_registry.REGISTRY[dataset_type].occlusion_counts_filename(
+        sampler_split_type, transformer_tag)
     filter_config = sampler.SamplerConfig.create_from_cfg_without_vals(
-        sampler_config[sampler_type], default_dataset.semantic_class_names)
+        sampler_config[sampler_split_type], default_dataset.semantic_class_names)
     my_sampler = get_configured_sampler(
         dataset, default_dataset, sequential=True, sampler_config_with_vals=filter_config,
         instance_count_file=instance_count_filename,

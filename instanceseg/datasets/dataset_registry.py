@@ -35,8 +35,16 @@ class RegisteredDataset(object):
         return path
 
     def get_instance_count_filename(self, split, transformer_tag):
-        return os.path.join(self.cache_path, '{}_instance_counts_{}.npy'.format(
+        return os.path.join(self.cache_path,
+                            '{}_instance_counts_{}.npy'.format(split, transformer_tag))
+
+    def get_semantic_pixel_count_filename(self, split, transformer_tag):
+        return os.path.join(self.cache_path, '{}_semantic_pixel_counts_{}.npy'.format(
             split, transformer_tag))
+
+    def get_occlusion_counts_filename(self, split, transformer_tag):
+        return os.path.join(self.cache_path, '{}_within_class_occlusion_counts_{}.npy'.format(
+                                                 split, transformer_tag))
 
 
 REGISTRY = {

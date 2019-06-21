@@ -482,7 +482,7 @@ def imscale(image):
     return image
 
 
-def pie_chart(values, labels, autopct='%1.1f%%'):
+def pie_chart(values, labels, autopct='%1.1f%%', sort_legend=True):
     explode = [0.1 * int(val != max(values)) for i, val in enumerate(values)]  # explode largest slice
     # Plot
     colors = [GOOD_COLORS[np.mod(i, len(GOOD_COLORS))] for i in range(len(values))]
@@ -490,7 +490,6 @@ def pie_chart(values, labels, autopct='%1.1f%%'):
                                 autopct=autopct, shadow=True, startangle=140)
     plt.axis('equal')
 
-    sort_legend = True
     if sort_legend:
         patches, labels, dummy = zip(*sorted(zip(patches, labels, values),
                                              key=lambda x: x[2],

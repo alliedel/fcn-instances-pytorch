@@ -70,7 +70,7 @@ def write_stats(train_stats, val_stats, default_train_dataset, default_val_datas
         assert int(num_cars_per_image.max()) == num_cars_per_image.max()
         num_images_with_this_many_cars = [np.sum(num_cars_per_image == x) for x in range(int(num_cars_per_image.max()))]
 
-        plt.figure(1);
+        plt.figure(1)
         plt.clf()
         metric_name = split + '_' + 'instance_counts_per_class'
         metric_values = instance_counts_per_class

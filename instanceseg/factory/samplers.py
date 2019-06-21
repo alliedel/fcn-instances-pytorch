@@ -74,9 +74,7 @@ def get_configured_sampler(dataset, dataset_configured_for_stats, sequential,
 
 def sampler_generator_helper(dataset_type, dataset, default_dataset, sampler_config, sampler_type,
                              transformer_tag):
-    instance_count_filename = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
-                                           '{}_instance_counts_{}.npy'.format(
-                                               sampler_type, transformer_tag))
+    instance_count_filename = dataset_registry.REGISTRY[dataset_type].get_instance_count_filename()
     semantic_pixel_count_filename = os.path.join(dataset_registry.REGISTRY[dataset_type].cache_path,
                                                  '{}_semantic_pixel_counts_{}.npy'.format(
                                                      sampler_type, transformer_tag))

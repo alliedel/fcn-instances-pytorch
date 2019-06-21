@@ -1,3 +1,4 @@
 mkdir data
 mkdir cache
 ln -s ~/data/datasets/cityscapes data/cityscapes
+mkdir scripts/logs/

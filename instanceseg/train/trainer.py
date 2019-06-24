@@ -416,7 +416,9 @@ class Trainer(object):
                                                iteration=self.state.iteration,
                                                new_pred_permutations=new_pred_permutations,
                                                new_loss=new_loss,
-                                               get_activations_fcn=self.model.module.get_activations,
+                                               get_activations_fcn=self.model.module.get_activations
+                                               if isinstance(self.model, torch.nn.DataParallel)
+                                               else self.model.get_activations,
                                                lrs_by_group=group_lrs)
 
     def debug_loss(self, score, sem_lbl, inst_lbl, new_score, new_loss, loss_components,

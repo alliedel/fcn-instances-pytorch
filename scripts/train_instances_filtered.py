@@ -13,14 +13,14 @@ import debugging.helpers as debug_helper
 here = osp.dirname(osp.abspath(__file__))
 
 
-def parse_args():
-    args, cfg_override_args = script_utils.parse_args()
+def parse_args(replacement_dict_for_sys_args=None):
+    args, cfg_override_args = script_utils.parse_args(replacement_dict_for_sys_args)
     return args, cfg_override_args
 
 
-def main():
+def main(replacement_dict_for_sys_args=None):
     script_utils.check_clean_work_tree()
-    args, cfg_override_args = parse_args()
+    args, cfg_override_args = parse_args(replacement_dict_for_sys_args)
     cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
                                           config_idx=args.config,
                                           sampler_name=args.sampler,

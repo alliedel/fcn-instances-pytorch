@@ -33,10 +33,13 @@ DEBUG_ASSERTS = True
 
 
 def construct_args_list_to_replace_sys(dataset_name, gpu=None, config_idx=None, sampler_name=None,
-                                       resume=None):
+                                       resume=None, **kwargs):
     default_args_list = [dataset_name]
     for key, val in {'-g': gpu, '-c': config_idx, '--sampler': sampler_name,
                      '--resume': resume}.items():
+        if val is not None:
+            default_args_list += [key, str(val)]
+    for key, val in kwargs:
         if val is not None:
             default_args_list += [key, str(val)]
     return default_args_list
@@ -222,7 +225,9 @@ def setup(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), resume=None, semant
         'Model covers these semantic classes: {}.\n ' \
         'Dataset covers these semantic classes: {}.'.format(problem_config_semantic_classes,
                                                             dataset_semantic_classes)
-    print('Number of output channels in model: {}'.format(model.module.n_output_channels))
+    print('Number of output channels in model: {}'.format(model.module.n_output_channels
+                                                          if isinstance(model, torch.nn.DataParallel)
+                                                          else model.n_output_channels))
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
 

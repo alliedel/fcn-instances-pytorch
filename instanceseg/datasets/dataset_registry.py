@@ -18,8 +18,7 @@ if not os.path.exists(CACHE_DIR):
 
 class RegisteredDataset(object):
     def __init__(self, name, default_config, config_option_dict, dataset_generator,
-                 dataset_path='/tmp/',
-                 original_semantic_class_names=None):
+                 dataset_path='/tmp/', original_semantic_class_names=None):
         self.name = name
         self.default_config = default_config
         self.config_options = config_option_dict

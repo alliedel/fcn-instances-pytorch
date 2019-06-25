@@ -15,15 +15,15 @@ file_comments = {
                                                   'Used for dataset analysis as well as samplers (filtering images '
                                                   'by image stats)',
     'instanceseg/ext': 'external (third party) code',
-    'instanceseg/xentropy.py': 'losses functions (cross entropy, etc.)',
-    'instanceseg/metrics.py': 'various intermediate metrics for analysis (e.g. - channel usage)',
-    'instanceseg/trainer.py': 'implements the Trainer, which orchestrates model training/validation',
+    'instanceseg/losses/xentropy.py': 'losses functions (cross entropy, etc.)',
+    'instanceseg/train/metrics.py': 'various intermediate metrics for analysis (e.g. - channel usage)',
+    'instanceseg/train/trainer.py': 'implements the Trainer, which orchestrates model training/validation',
     'instanceseg/factory': 'generates configured instances of various objects '
                            '(datasets, samplers, models, trainers)',
     'instanceseg/models': 'architectures for instance segmentation',
     'instanceseg/utils': 'lightweight functions used by various classes',
     'tests': 'unit tests and pipeline tests - also good to reference for sample code',
-    'scripts/train_instances_filtered.py': 'MAIN SCRIPT - trains an instance segmentation model',
+    'scripts/train.py': 'MAIN SCRIPT - trains an instance segmentation model',
     'scripts/analysis': 'dataset/log analysis (post-experiment)',
     'scripts/configurations': 'experiment configurations -- organized by dataset.',
 }
@@ -45,8 +45,9 @@ def add_comment(string, comment, comment_start_column=None):
         comment_start_column = len(string) + 2
     if len(string) > comment_start_column:  # cut off string if necessary
         string = string[:comment_start_column]
-
-    string = string + ' ' * (comment_start_column - len(string))  # add indent
+    if comment == '':
+        return string
+    string = string + ' ' + '.' * (comment_start_column - len(string) - 2) + ' '  # add indent
     return string + comment
 
 

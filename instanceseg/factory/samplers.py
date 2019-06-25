@@ -97,7 +97,7 @@ def get_samplers(dataset_type, sampler_cfg, train_dataset, val_dataset):
         train_for_val_sampler = sampler.sampler.SequentialSampler(train_dataset)
     else:
         # Get 'clean' datasets for instance counting
-        if dataset_type is not 'synthetic':
+        if not dataset_type == 'synthetic':
             default_train_dataset, default_val_dataset, transformer_tag = \
                 dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type)
         else:

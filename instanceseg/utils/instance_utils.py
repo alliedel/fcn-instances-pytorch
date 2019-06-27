@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch import nn
+import yaml
 
 
 class InstanceProblemConfig(object):
@@ -57,6 +58,25 @@ class InstanceProblemConfig(object):
         self.instance_to_semantic_conv1x1 = nn.Conv2d(in_channels=len(self.model_semantic_instance_class_list),
                                                       out_channels=self.n_semantic_classes,
                                                       kernel_size=1, bias=False)
+
+    @property
+    def state_dict(self):
+        return dict(
+            n_instances_by_semantic_id=self.n_instances_by_semantic_id,
+            semantic_class_names=self.semantic_class_names,
+            semantic_vals = self.semantic_vals,
+            void_value = self.void_value,
+            include_instance_channel0 = self.include_instance_channel0,
+            map_to_semantic = self.map_to_semantic
+        )
+
+    @classmethod
+    def load(cls, yaml_path):
+        args_state_dict = yaml.safe_load(open(yaml_path, 'r'))
+        return cls.__init__(**args_state_dict)
+
+    def save(self, yaml_path):
+        yaml.safe_dump(self.state_dict, open(yaml_path, 'r'))
 
     @staticmethod
     def _get_channel_labels(semantic_instance_class_list, instance_count_id_list, class_names, map_to_semantic,

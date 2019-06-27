@@ -7,7 +7,7 @@ import torch
 
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.logs
-import instanceseg.utils.scripts
+import instanceseg.utils.script_setup
 from instanceseg.analysis import score_heatmaps
 
 FIGSIZE = (10, 10)
@@ -128,7 +128,7 @@ def compute_relative_per_sem_class_heatmaps(list_of_relative_heatmap_averages, i
 def main():
     args = parse_args()
     logdir = args.logdir
-    instanceseg.utils.scripts.set_random_seeds()
+    instanceseg.utils.script_setup.set_random_seeds()
     display_pyutils.set_my_rc_defaults()
     cuda = torch.cuda.is_available()
     if display_pyutils.check_for_emptied_workspace():

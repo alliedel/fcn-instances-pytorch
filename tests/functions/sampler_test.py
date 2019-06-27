@@ -166,7 +166,7 @@ def test_single_image_sampler(train_dataset, loader_kwargs, image_index=0):
 
 def main():
     # Setup
-    cfg = cityscapes_cfg.get_default_config()
+    cfg = cityscapes_cfg.get_default_train_config()
     print('Getting datasets')
     train_dataset, val_dataset = dataset_generator_registry.get_dataset('cityscapes', cfg)
     gpu = 0

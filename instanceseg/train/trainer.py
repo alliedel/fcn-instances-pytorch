@@ -185,6 +185,14 @@ class Trainer(object):
                                                       self.instance_problem.n_semantic_classes)
         return datasets.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
                                          (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
+    def save_checkpoint_and_update_if_best(self, mean_iu):
+        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
+                                                                self.state.iteration, self.model,
+                                                                self.optim, self.best_mean_iu)
+        if mean_iu > self.best_mean_iu or self.best_mean_iu == 0:
+            self.best_mean_iu = mean_iu
+            self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
+
 
     def validate_split(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
                        should_export_visualizations=True):
@@ -304,14 +312,6 @@ class Trainer(object):
 
         visualizations = (segmentation_visualizations, score_visualizations)
         return val_loss, val_metrics, visualizations
-
-    def save_checkpoint_and_update_if_best(self, mean_iu):
-        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
-                                                                self.state.iteration, self.model,
-                                                                self.optim, self.best_mean_iu)
-        if mean_iu > self.best_mean_iu or self.best_mean_iu == 0:
-            self.best_mean_iu = mean_iu
-            self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
 
     def validate_single_batch(self, img_data, sem_lbl, inst_lbl, data_loader, should_visualize):
         with torch.no_grad():

@@ -3,8 +3,9 @@ import os.path as osp
 import instanceseg.utils.configs
 import instanceseg.utils.logs
 import instanceseg.utils.misc
-import instanceseg.utils.scripts
-from instanceseg.utils.scripts import setup, configure
+import instanceseg.utils.script_setup
+import utils.parse
+from instanceseg.utils.script_setup import setup_train, configure
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -18,7 +19,7 @@ def get_single_img_data(dataloader, idx=0):
 
 
 def main():
-    args, cfg_override_args = instanceseg.utils.scripts.parse_args_without_sys(dataset_name='synthetic')
+    args, cfg_override_args = utils.parse.parse_args_without_sys(dataset_name='synthetic')
     cfg_override_args.loss_type = 'soft_iou'
     cfg_override_args.size_average = False
     cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
@@ -26,8 +27,8 @@ def main():
                                           sampler_name=args.sampler,
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args)
-    trainer = setup(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
-                    semantic_init=args.semantic_init)
+    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
+                          semantic_init=args.semantic_init)
 
     img_data, (sem_lbl, inst_lbl) = get_single_img_data(trainer.train_loader, idx=0)
     full_input, sem_lbl, inst_lbl = trainer.prepare_data_for_forward_pass(img_data, (sem_lbl, inst_lbl),

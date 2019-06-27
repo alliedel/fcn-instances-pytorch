@@ -1,8 +1,8 @@
 from . import generic_cfg
 
 
-def get_default_config():
-    _default_config = generic_cfg.get_default_config()
+def get_default_train_config():
+    _default_config = generic_cfg.get_default_train_config()
     _default_config.update(
         dataset_path='/tmp/',
         max_iteration=10000,
@@ -24,7 +24,21 @@ def get_default_config():
     return _default_config
 
 
-configurations = {
+def get_default_test_config():
+    _default_config = generic_cfg.get_default_test_config()
+    _default_config.update(
+        dataset='synthetic',
+        dataset_path='/tmp/',
+        n_images_test=100,
+        one_dimension=None,  # {'x', 'y'}
+        semantic_subset=None,
+        img_size=None,
+        portrait=None,
+    )
+    return _default_config
+
+
+train_configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     0: dict(),
@@ -58,4 +72,8 @@ configurations = {
         max_iteration=500,
         sampler='overfit_1'
     )
+}
+
+test_configurations = {
+    0: dict(),
 }

@@ -2,8 +2,8 @@ from instanceseg.datasets import cityscapes
 from . import generic_cfg
 
 
-def get_default_config():
-    default_cfg = generic_cfg.get_default_config()
+def get_default_train_config():
+    default_cfg = generic_cfg.get_default_train_config()
     default_cfg.update(
         dict(n_instances_per_class=3,
              set_extras_to_void=True,
@@ -17,7 +17,7 @@ def get_default_config():
     return default_cfg
 
 
-configurations = {
+train_configurations = {
     # same configuration as original work
     # https://github.com/shelhamer/fcn.berkeleyvision.org
     0: dict(),

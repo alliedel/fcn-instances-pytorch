@@ -8,7 +8,7 @@ import torch
 
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.logs
-import instanceseg.utils.scripts
+import instanceseg.utils.script_setup
 from instanceseg.analysis import distribution_assignments
 from collections import OrderedDict
 
@@ -189,7 +189,7 @@ def make_scatterplot3d_set(xs, ys, zs, channel_names, split, x_attribute_name, y
 def main():
     args = parse_args()
     logdir = args.logdir
-    instanceseg.utils.scripts.set_random_seeds()
+    instanceseg.utils.script_setup.set_random_seeds()
     display_pyutils.set_my_rc_defaults()
     gpu = args.gpu
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))

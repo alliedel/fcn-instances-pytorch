@@ -14,7 +14,7 @@ import instanceseg.models.model_utils
 import instanceseg.utils.configs
 import instanceseg.utils.logs
 import instanceseg.utils.misc
-import instanceseg.utils.scripts
+import instanceseg.utils.script_setup
 from instanceseg.utils import instance_utils
 
 default_config = dict(
@@ -68,7 +68,7 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def main():
-    instanceseg.utils.scripts.check_clean_work_tree()
+    instanceseg.utils.script_setup.check_clean_work_tree()
     parser = argparse.ArgumentParser()
     parser.add_argument('-g', '--gpu', type=int, required=True)
     parser.add_argument('-c', '--config', type=int, default=0,

@@ -3,8 +3,9 @@ import sys
 
 import instanceseg.utils.configs
 import instanceseg.utils.misc
-import instanceseg.utils.scripts
-from instanceseg.utils.scripts import setup, configure
+import instanceseg.utils.script_setup
+import utils.parse
+from instanceseg.utils.script_setup import setup_train, configure
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -30,11 +31,11 @@ def local_setup(loss):
     else:
         override_args_list = ['-c', 'test_overfit_1_xent']
     replacement_args_list = \
-        instanceseg.utils.scripts.construct_args_list_to_replace_sys(dataset_name='synthetic', gpu=0, resume=resume)
+        utils.parse.construct_args_list_to_replace_sys(dataset_name='synthetic', gpu=0, resume=resume)
     replacement_args_list += override_args_list
     replacement_args_list += sys.argv[1:]
 
-    args, cfg_override_args = instanceseg.utils.scripts.parse_args(replacement_args_list=replacement_args_list)
+    args, cfg_override_args = utils.parse.parse_args_train(replacement_args_list=replacement_args_list)
 
     return args, cfg_override_args
 
@@ -49,8 +50,8 @@ def main(loss='cross_entropy'):
                                           cfg_override_args=cfg_override_args,
                                           parent_script_directory=osp.basename(osp.dirname(here)))
 
-    trainer = setup(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
-                    semantic_init=args.semantic_init)
+    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
+                          semantic_init=args.semantic_init)
     trainer.train()
     train_loss, train_metrics, _ = trainer.validate_split('train')
 

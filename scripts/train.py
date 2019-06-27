@@ -4,17 +4,18 @@ import os.path as osp
 import numpy as np
 import skimage.io
 
-import instanceseg.utils.scripts as script_utils
+import instanceseg.utils.script_setup as script_utils
+import utils.parse
 from instanceseg.analysis import visualization_utils
-from instanceseg.utils.scripts import setup, configure
+from instanceseg.utils.script_setup import setup_train, configure
 import debugging.helpers as debug_helper
-
+from instanceseg.train import trainer
 
 here = osp.dirname(osp.abspath(__file__))
 
 
 def parse_args(replacement_dict_for_sys_args=None):
-    args, cfg_override_args = script_utils.parse_args(replacement_dict_for_sys_args)
+    args, cfg_override_args = utils.parse.parse_args_train(replacement_dict_for_sys_args)
     return args, cfg_override_args
 
 
@@ -26,8 +27,8 @@ def main(replacement_dict_for_sys_args=None):
                                           sampler_name=args.sampler,
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args)
-    trainer = setup(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
-                    semantic_init=args.semantic_init)
+    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
+                          semantic_init=args.semantic_init)
 
     if cfg['debug_dataloader_only']:
         debug_helper.debug_dataloader(trainer)
@@ -42,7 +43,7 @@ def main(replacement_dict_for_sys_args=None):
         FWAV Accuracy: {3}'''.format(*metrics))
 
 
-def run(trainer):
+def run(trainer: trainer.Trainer):
     trainer.train()
     val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = \
         trainer.validate_split(should_export_visualizations=False)

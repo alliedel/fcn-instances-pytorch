@@ -29,7 +29,7 @@ def get_default_datasets_for_instance_counts(dataset_type):
             precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation)
     elif dataset_type == 'cityscapes':
-        default_cfg = cityscapes_cfg.get_default_config()
+        default_cfg = cityscapes_cfg.get_default_train_config()
         default_cfg[
             'n_instances_per_class'] = None  # don't want to cap instances when running stats
         precomputed_file_transformation, runtime_transformation = get_transformations(default_cfg)

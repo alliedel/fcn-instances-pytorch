@@ -1,5 +1,5 @@
 from instanceseg.datasets import dataset_generator_registry
-import instanceseg.utils.scripts
+import instanceseg.utils.script_setup
 from scripts.configurations import synthetic_cfg
 from scripts.configurations import voc_cfg
 import numpy as np
@@ -37,23 +37,23 @@ def test_lr_of_dataset(dataset_name):
         cfg = voc_cfg.get_default_config()
         # unordered
         cfg['ordering'] = None
-        instanceseg.utils.scripts.set_random_seeds()
+        instanceseg.utils.script_setup.set_random_seeds()
         train_dataset_unordered, _ = dataset_generator_registry.get_dataset('voc', cfg)
 
         # ordered
         cfg['ordering'] = 'LR'
-        instanceseg.utils.scripts.set_random_seeds()
+        instanceseg.utils.script_setup.set_random_seeds()
         train_dataset_ordered, _ = dataset_generator_registry.get_dataset('voc', cfg)
     elif dataset_name == 'synthetic':
-        cfg = synthetic_cfg.get_default_config()
+        cfg = synthetic_cfg.get_default_train_config()
         # unordered
         cfg['ordering'] = None
-        instanceseg.utils.scripts.set_random_seeds()
+        instanceseg.utils.script_setup.set_random_seeds()
         train_dataset_unordered, _ = dataset_generator_registry.get_dataset('synthetic', cfg)
 
         # ordered
         cfg['ordering'] = 'LR'
-        instanceseg.utils.scripts.set_random_seeds()
+        instanceseg.utils.script_setup.set_random_seeds()
         train_dataset_ordered, _ = dataset_generator_registry.get_dataset('synthetic', cfg)
     else:
         raise ValueError

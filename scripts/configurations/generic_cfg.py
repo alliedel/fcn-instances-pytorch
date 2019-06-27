@@ -11,11 +11,11 @@ class PARAM_CLASSIFICATIONS(object):
              'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer'}
     misc = {'interactive_dataloader'}
 
-
 # NOTE(allie): Do not directly access this dictionary unless you want to change it for *every* module that imports
 # this one.  Ran into issues not copying this dictionary when I started changing it, and it changes all the config
 # dictionaries.
-_default_config = dict(
+
+_default_train_config = dict(
 
     # debug
     debug_dataloader_only=False,
@@ -73,13 +73,39 @@ _default_config = dict(
     use_attn_layer=False,
 )
 
+_default_test_config = dict(
+    # saved model
+    logdir=None,
+    model_file=None,
+    train_config=None,
 
-def get_default_config():
-    return _default_config.copy()
+    # debug
+    debug_dataloader_only=False,
+
+    # data
+    dataset=None,
+    dataset_path=None,
+    dataset_instance_cap='match_model',  #
+    semantic_subset=None,
+    ordering=None,  # 'lr'
+    sampler=None,
+    resize=False,
+    resize_size=None,
+    test_batch_size=1,
+)
+
+
+def get_default_test_config():
+    default_test_config = _default_test_config.copy()
+    return default_test_config
+
+
+def get_default_train_config():
+    return _default_train_config.copy()
 
 
 def assert_all_cfg_keys_classified():
-    keys = list(_default_config.keys())
+    keys = list(_default_train_config.keys())
     param_groups = [x for x in list(PARAM_CLASSIFICATIONS.__dict__.keys()) if x[0] != '_']
     unclassified_keys = []
     for k in keys:

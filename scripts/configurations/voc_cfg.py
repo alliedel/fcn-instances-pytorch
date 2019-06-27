@@ -3,7 +3,7 @@ from instanceseg.datasets import voc
 
 
 def get_default_config():
-    default_cfg = generic_cfg.get_default_config()
+    default_cfg = generic_cfg.get_default_train_config()
     default_cfg.update(
         dict(n_instances_per_class=3,
              lr=1.0e-4,

@@ -16,6 +16,7 @@ from instanceseg.analysis import visualization_utils
 from instanceseg.datasets import runtime_transformations
 from instanceseg.utils import instance_utils
 from instanceseg.utils.misc import flatten_dict
+from instanceseg.utils.instance_utils import InstanceProblemConfig
 from tensorboardX import SummaryWriter
 
 display_pyutils.set_my_rc_defaults()
@@ -67,7 +68,7 @@ class TrainerExporter(object):
         'elapsed_time',
     ]
 
-    def __init__(self, out_dir, instance_problem, export_config: ExportConfig = None,
+    def __init__(self, out_dir, instance_problem: InstanceProblemConfig, export_config: ExportConfig = None,
                  tensorboard_writer: SummaryWriter=None, metric_makers=None):
 
         self.export_config = export_config or ExportConfig()
@@ -86,6 +87,9 @@ class TrainerExporter(object):
         if not osp.exists(osp.join(self.out_dir, 'log.csv')):
             with open(osp.join(self.out_dir, 'log.csv'), 'w') as f:
                 f.write(','.join(self.log_headers) + '\n')
+
+        # Save instance problem
+        instance_problem.save(osp.join(self.out_dir, 'instance_problem_config.yaml'))
 
         # Logging parameters
         self.timestamp_start = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))

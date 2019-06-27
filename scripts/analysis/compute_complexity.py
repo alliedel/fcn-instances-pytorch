@@ -7,7 +7,7 @@ import instanceseg.factory.models
 import instanceseg.factory.optimizer
 import instanceseg.factory.trainers
 from instanceseg.datasets import synthetic
-from instanceseg.utils import scripts
+from instanceseg.utils import script_setup
 from scripts.configurations import synthetic_cfg
 from instanceseg.analysis import computational_complexity
 
@@ -15,12 +15,12 @@ from instanceseg.analysis import computational_complexity
 def setup():
     cfg_override_kwargs = {}
 
-    scripts.set_random_seeds()
+    script_setup.set_random_seeds()
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
-    cfg = synthetic_cfg.get_default_config()
+    cfg = synthetic_cfg.get_default_train_config()
     for k, v in cfg_override_kwargs.items():
         cfg[k] = v
     problem_config = instanceseg.factory.models.get_problem_config(

@@ -3,7 +3,7 @@ from tensorboardX import SummaryWriter
 from instanceseg.train.trainer import Trainer
 
 
-def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir, scheduler=None):
+def get_trainer(cfg, cuda, model, dataloaders, problem_config, out_dir, optim, scheduler=None):
     writer = SummaryWriter(log_dir=out_dir)
     trainer = Trainer(cuda=cuda, model=model, optimizer=optim, train_loader=dataloaders['train'],
                       val_loader=dataloaders['val'], out_dir=out_dir, max_iter=cfg['max_iteration'],
@@ -20,7 +20,7 @@ def get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir, s
                       lr_scheduler=scheduler)
     return trainer
 
-def get_evaluator(cfg, cuda, model, optim, dataloaders, problem_config, out_dir):
+def get_evaluator(cfg, cuda, model, dataloaders, problem_config, out_dir, optim):
     writer = SummaryWriter(log_dir=out_dir)
     trainer = Evaluator(cuda=cuda, model=model, optimizer=optim, train_loader=dataloaders['train'],
                       val_loader=dataloaders['val'], out_dir=out_dir, max_iter=cfg['max_iteration'],

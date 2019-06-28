@@ -24,7 +24,7 @@ def get_default_datasets_for_instance_counts(dataset_type):
             'n_instances_per_class'] = None  # don't want to cap instances when running stats
         precomputed_file_transformation, runtime_transformation = \
             get_transformations(default_cfg, voc.ALL_VOC_CLASS_NAMES)
-        train_dataset, val_dataset = get_voc_datasets(
+        train_dataset, val_dataset = get_voc_dataset(
             dataset_path=default_cfg['dataset_path'],
             precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation)
@@ -33,7 +33,7 @@ def get_default_datasets_for_instance_counts(dataset_type):
         default_cfg[
             'n_instances_per_class'] = None  # don't want to cap instances when running stats
         precomputed_file_transformation, runtime_transformation = get_transformations(default_cfg)
-        train_dataset, val_dataset = get_cityscapes_datasets(
+        train_dataset, val_dataset = get_cityscapes_dataset(
             default_cfg['dataset_path'],
             precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation)
@@ -47,23 +47,20 @@ def get_default_datasets_for_instance_counts(dataset_type):
     return train_dataset, val_dataset, transformer_tag
 
 
-def get_dataset(dataset_type, cfg, transform=True):
+def get_dataset(dataset_type, cfg, split, transform=True):
     if dataset_type == 'voc':
         precomputed_file_transformation, runtime_transformation = \
             get_transformations(cfg, voc.ALL_VOC_CLASS_NAMES)
         dataset_path = cfg['dataset_path']
-        train_dataset, val_dataset = get_voc_datasets(
-            dataset_path=dataset_path,
-            precomputed_file_transformation=precomputed_file_transformation,
+        dataset = get_voc_dataset(
+            dataset_path=dataset_path, split=split, precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation, transform=transform)
     elif dataset_type == 'cityscapes':
         dataset_path = cfg['dataset_path']
         precomputed_file_transformation, runtime_transformation = get_transformations(
             cfg, cityscapes.RawCityscapesBase.get_semantic_class_names())
-        train_dataset, val_dataset = get_cityscapes_datasets(dataset_path,
-                                                             precomputed_file_transformation,
-                                                             runtime_transformation,
-                                                             transform=transform)
+        dataset = get_cityscapes_dataset(dataset_path, precomputed_file_transformation, runtime_transformation,
+                                         split=split, transform=transform)
     elif dataset_type == 'synthetic':
         semantic_subset = cfg['semantic_subset']
         precomputed_file_transformation, runtime_transformation = get_transformations(
@@ -75,8 +72,10 @@ def get_dataset(dataset_type, cfg, transform=True):
         n_instances_per_img = cfg['synthetic_generator_n_instances_per_semantic_id']
         img_size = cfg['resize_size']
         portrait = cfg['portrait']
-        train_dataset, val_dataset = get_synthetic_datasets(
-            n_images_train=n_images_train, n_images_val=n_images_val, ordering=ordering,
+        dataset = get_synthetic_dataset(
+            split=split,
+            n_images={'val': n_images_val, 'train': n_images_train}[split],
+            ordering=ordering,
             n_instances_per_img=n_instances_per_img,
             precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation,
@@ -86,7 +85,7 @@ def get_dataset(dataset_type, cfg, transform=True):
             intermediate_write_path=intermediate_write_path, transform=transform)
     else:
         raise NotImplementedError('Generator for dataset type {} not implemented.')
-    return train_dataset, val_dataset
+    return dataset
 
 
 def get_transformations(cfg, original_semantic_class_names=None):
@@ -120,48 +119,43 @@ def get_transformations(cfg, original_semantic_class_names=None):
     return precomputed_file_transformation, runtime_transformation
 
 
-def get_voc_datasets(dataset_path, precomputed_file_transformation, runtime_transformation,
-                     transform=True):
-    train_dataset = voc.TransformedVOC(
-        root=dataset_path, split='train',
-        precomputed_file_transformation=precomputed_file_transformation,
-        runtime_transformation=runtime_transformation)
-    val_dataset = voc.TransformedVOC(
-        root=dataset_path, split='seg11valid',
+def get_voc_dataset(dataset_path, precomputed_file_transformation, runtime_transformation, split,
+                    transform=True):
+    assert split in ['train', 'val']
+    if split == 'val':
+        split = 'seg11valid'
+    dataset = voc.TransformedVOC(
+        root=dataset_path, split=split,
         precomputed_file_transformation=precomputed_file_transformation,
         runtime_transformation=runtime_transformation)
 
     if not transform:
-        for dataset in [train_dataset, val_dataset]:
-            dataset.should_use_precompute_transform = False
-            dataset.should_use_runtime_transform = False
+        dataset.should_use_precompute_transform = False
+        dataset.should_use_runtime_transform = False
 
-    return train_dataset, val_dataset
-
-
-def get_cityscapes_datasets(dataset_path, precomputed_file_transformation, runtime_transformation,
-                            transform=True):
-    train_dataset = cityscapes.TransformedCityscapes(
-        root=dataset_path, split='train',
-        precomputed_file_transformation=precomputed_file_transformation,
-        runtime_transformation=runtime_transformation)
-    val_dataset = cityscapes.TransformedCityscapes(
-        root=dataset_path, split='val',
-        precomputed_file_transformation=precomputed_file_transformation,
-        runtime_transformation=runtime_transformation)
-    if not transform:
-        for dataset in [train_dataset, val_dataset]:
-            dataset.should_use_precompute_transform = False
-            dataset.should_use_runtime_transform = False
-
-    return train_dataset, val_dataset
+    return dataset
 
 
-def get_synthetic_datasets(n_images_train, n_images_val, ordering, n_instances_per_img,
-                           precomputed_file_transformation, runtime_transformation,
-                           intermediate_write_path='/tmp/',
-                           semantic_subset_to_generate=None, portrait=None, img_size=None,
+def get_cityscapes_dataset(dataset_path, precomputed_file_transformation, runtime_transformation, split,
                            transform=True):
+    assert split in ['train', 'val']
+    dataset = cityscapes.TransformedCityscapes(
+        root=dataset_path, split=split,
+        precomputed_file_transformation=precomputed_file_transformation,
+        runtime_transformation=runtime_transformation)
+    if not transform:
+        dataset.should_use_precompute_transform = False
+        dataset.should_use_runtime_transform = False
+
+    return dataset
+
+
+def get_synthetic_dataset(n_images, ordering, n_instances_per_img,
+                          precomputed_file_transformation, runtime_transformation, split,
+                          intermediate_write_path='/tmp/',
+                          semantic_subset_to_generate=None, portrait=None, img_size=None,
+                          transform=True):
+    assert split in ['train', 'val']
     if isinstance(precomputed_file_transformation,
                   precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):
         assert precomputed_file_transformation.ordering == ordering, \
@@ -176,21 +170,12 @@ def get_synthetic_datasets(n_images_train, n_images_val, ordering, n_instances_p
                             semantic_subset_to_generate=semantic_subset_to_generate,
                             n_instances_per_img=n_instances_per_img, img_size=img_size,
                             portrait=portrait)
-    train_dataset = synthetic.TransformedInstanceDataset(
-        raw_dataset=synthetic.BlobExampleGenerator(
-            n_images=n_images_train,
-            **synthetic_kwargs),
-        raw_dataset_returns_images=True,
-        runtime_transformation=runtime_transformation)
-    val_dataset = synthetic.TransformedInstanceDataset(
-        raw_dataset=synthetic.BlobExampleGenerator(n_images=n_images_val,
-                                                   **synthetic_kwargs),
-        raw_dataset_returns_images=True,
-        runtime_transformation=runtime_transformation)
+    dataset = synthetic.TransformedInstanceDataset(
+        raw_dataset=synthetic.BlobExampleGenerator(n_images=n_images, **synthetic_kwargs),
+        raw_dataset_returns_images=True, runtime_transformation=runtime_transformation)
 
     if not transform:
-        for dataset in [train_dataset, val_dataset]:
-            dataset.should_use_precompute_transform = False
-            dataset.should_use_runtime_transform = False
+        dataset.should_use_precompute_transform = False
+        dataset.should_use_runtime_transform = False
 
-    return train_dataset, val_dataset
+    return dataset

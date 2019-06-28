@@ -42,7 +42,7 @@ def test(frozen=True):
 
     optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, None)
     out_dir = '/tmp/{}'.format(osp.basename(__file__))
-    trainer = trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir=out_dir)
+    trainer = trainers.get_trainer(cfg, cuda, model, dataloaders, problem_config, out_dir=out_dir, optim=optim)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     trainer.train()

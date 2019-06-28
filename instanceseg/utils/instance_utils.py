@@ -27,7 +27,7 @@ class InstanceProblemConfig(object):
 
         self.map_to_semantic = map_to_semantic
         self.semantic_class_names = semantic_class_names
-        self.semantic_vals = semantic_vals or range(len(n_instances_by_semantic_id))
+        self.semantic_vals = semantic_vals or list(range(len(n_instances_by_semantic_id)))
         self.void_value = void_value
         self.include_instance_channel0 = include_instance_channel0
         self.n_instances_by_semantic_id = n_instances_by_semantic_id \
@@ -64,19 +64,22 @@ class InstanceProblemConfig(object):
         return dict(
             n_instances_by_semantic_id=self.n_instances_by_semantic_id,
             semantic_class_names=self.semantic_class_names,
-            semantic_vals = self.semantic_vals,
-            void_value = self.void_value,
-            include_instance_channel0 = self.include_instance_channel0,
-            map_to_semantic = self.map_to_semantic
+            semantic_vals=self.semantic_vals,
+            void_value=self.void_value,
+            include_instance_channel0=self.include_instance_channel0,
+            map_to_semantic=self.map_to_semantic
         )
 
     @classmethod
     def load(cls, yaml_path):
         args_state_dict = yaml.safe_load(open(yaml_path, 'r'))
+        args_state_dict['semantic_class_names'] = np.array(args_state_dict['semantic_class_names'])
         return cls.__init__(**args_state_dict)
 
     def save(self, yaml_path):
-        yaml.safe_dump(self.state_dict, open(yaml_path, 'r'))
+        state_dict = self.state_dict.copy()
+        state_dict['semantic_class_names'] = state_dict['semantic_class_names'].tolist()
+        yaml.safe_dump(state_dict, open(yaml_path, 'w'))
 
     @staticmethod
     def _get_channel_labels(semantic_instance_class_list, instance_count_id_list, class_names, map_to_semantic,
@@ -100,7 +103,8 @@ class InstanceProblemConfig(object):
 
     def get_model_channel_labels(self, sem_inst_format='{}_{}'):
         return self._get_channel_labels(self.model_semantic_instance_class_list, self.model_instance_count_id_list,
-                                        self.semantic_class_names, map_to_semantic=False, sem_inst_format=sem_inst_format)
+                                        self.semantic_class_names, map_to_semantic=False,
+                                        sem_inst_format=sem_inst_format)
 
     def set_class_names(self, class_names):
         assert class_names is None or (len(class_names) == self.n_semantic_classes)
@@ -133,7 +137,8 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
             try:
                 y[(sem_lbl == int(sem_val)) * (inst_lbl == int(inst_val))] = sem_inst_idx
             except:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 raise
     return y
 

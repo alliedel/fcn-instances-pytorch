@@ -33,7 +33,8 @@ def main():
 
     optim = instanceseg.factory.optimizer.get_optimizer(cfg, model)
     trainer = \
-        instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir='/tmp/')
+        instanceseg.factory.trainers.get_trainer(cfg, cuda, model, dataloaders, problem_config, out_dir='/tmp/',
+                                                 optim=optim)
     trainer.max_iter = 100
     trainer.train()
     val_loss, evaluation_metrics, (segmentation_visualizations, score_visualizations) = trainer.validate_split(

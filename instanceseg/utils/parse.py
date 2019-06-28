@@ -2,7 +2,7 @@ import argparse
 
 from instanceseg.utils import configs
 from configurations.sampler_cfg_registry import sampler_cfgs
-from datasets import dataset_registry
+from instanceseg.datasets import dataset_registry
 
 
 def parse_args_train(replacement_args_list=None):

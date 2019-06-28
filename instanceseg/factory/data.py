@@ -7,45 +7,43 @@ from instanceseg.factory import samplers as sampler_factory
 DEBUG_ASSERTS = True
 
 
-def get_datasets_with_transformations(dataset_type, cfg, transform=True):
-    train_dataset, val_dataset = dataset_generator_registry.get_dataset(dataset_type, cfg,
-                                                                        transform)
-    return train_dataset, val_dataset
+def get_dataset_with_transformations(dataset_type, cfg, split, transform=True):
+    dataset = dataset_generator_registry.get_dataset(dataset_type, cfg, split, transform)
+    return dataset
 
 
-def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None):
+def get_dataloaders(cfg, dataset_type, cuda, splits=('train', 'val', 'train_for_val'), sampler_cfg=None):
+    non_derivative_splits = (s for s in splits if s != 'train_for_val')
+    build_train_for_val = splits != non_derivative_splits
+
     # 1. dataset
-    train_dataset, val_dataset = get_datasets_with_transformations(dataset_type, cfg,
-                                                                   transform=True)
+    datasets = {
+        split: dataset_generator_registry.get_dataset(dataset_type, cfg, split, transform=True)
+                      for split in non_derivative_splits
+    }
+    if 'train_for_val' in splits:
+        datasets['train_for_val'] = datasets['train']
 
     # 2. samplers
-    if sampler_cfg is not None and isinstance(sampler_cfg['val'], str) and \
+    if sampler_cfg is not None and 'val' in sampler_cfg and isinstance(sampler_cfg['val'], str) and \
             sampler_cfg['val'] == 'copy_train':
-        val_dataset = train_dataset
-    train_sampler, val_sampler, train_for_val_sampler = sampler_factory.get_samplers(
-        dataset_type, sampler_cfg, train_dataset, val_dataset)
+        assert 'train' in splits
+        datasets['val'] = datasets['train']
+    samplers = sampler_factory.get_samplers(
+        dataset_type, sampler_cfg, datasets, splits=splits)
 
     # Create dataloaders from datasets and samplers
     loader_kwargs = {'num_workers': 4, 'pin_memory': True} if cuda else {}
-
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=cfg['train_batch_size'],
-                                               sampler=train_sampler,
-                                               **loader_kwargs)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=cfg['val_batch_size'],
-                                             sampler=val_sampler, **loader_kwargs)
-    train_loader_for_val = torch.utils.data.DataLoader(train_dataset, batch_size=cfg[
-        'val_batch_size'], sampler=train_for_val_sampler, **loader_kwargs)
-
+    batch_sizes = {split: cfg['{}_batch_size'.format(split)] if split != 'train_for_val' else cfg['val_batch_size']
+                   for split in splits}
+    dataloaders = {
+        split: torch.utils.data.DataLoader(datasets[split], batch_size=batch_sizes[split],
+                                           sampler=samplers[split], **loader_kwargs) for split in splits
+    }
     if DEBUG_ASSERTS:
         #        try:
         #            i, [sl, il] = [d for i, d in enumerate(train_loader) if i == 0][0]
         #        except:
         #            raise
         pass
-    return {
-        'train': train_loader,
-        'val': val_loader,
-        'train_for_val': train_loader_for_val,
-    }
-
-
+    return dataloaders

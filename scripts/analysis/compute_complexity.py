@@ -33,7 +33,8 @@ def setup():
 
     optim = instanceseg.factory.optimizer.get_optimizer(cfg, model)
     trainer = \
-        instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders, problem_config, out_dir='/tmp/')
+        instanceseg.factory.trainers.get_trainer(cfg, cuda, model, dataloaders, problem_config, out_dir='/tmp/',
+                                                 optim=optim)
     return trainer
 
 

@@ -5,7 +5,7 @@ import numpy as np
 import skimage.io
 
 import instanceseg.utils.script_setup as script_utils
-import utils.parse
+from instanceseg.utils import parse
 from instanceseg.analysis import visualization_utils
 from instanceseg.utils.script_setup import setup_train, configure
 import debugging.helpers as debug_helper
@@ -15,7 +15,7 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def parse_args(replacement_dict_for_sys_args=None):
-    args, cfg_override_args = utils.parse.parse_args_train(replacement_dict_for_sys_args)
+    args, cfg_override_args = parse.parse_args_train(replacement_dict_for_sys_args)
     return args, cfg_override_args
 
 

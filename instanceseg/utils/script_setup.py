@@ -59,29 +59,16 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
     return exit_code, stdout
 
 
-def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), resume=None, semantic_init=None):
-    checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = setup_common(cfg, dataset_type,
-                                                                                                      gpu, resume,
-                                                                                                      sampler_cfg,
-                                                                                                      semantic_init)
-    # Run a few checks
-    problem_config_semantic_classes = set([problem_config.semantic_class_names[si]
-                                           for si in problem_config.semantic_instance_class_list])
-    dataset_semantic_classes = set(dataloaders['train'].dataset.semantic_class_names)
-    assert problem_config_semantic_classes == dataset_semantic_classes, \
-        'Model covers these semantic classes: {}.\n ' \
-        'Dataset covers these semantic classes: {}.'.format(problem_config_semantic_classes,
-                                                            dataset_semantic_classes)
-    print('Number of output channels in model: {}'.format(model.module.n_output_channels
-                                                          if isinstance(model, torch.nn.DataParallel)
-                                                          else model.n_output_channels))
+def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), resume=None, semantic_init=None, eval=False):
+    checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
+        setup_common(dataset_type, cfg, gpu, resume, sampler_cfg, semantic_init)
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
 
     # 3. optimizer
     # TODO(allie): something is wrong with adam... fix it.
     checkpoint_for_optim = checkpoint if (
-                checkpoint is not None and not cfg['reset_optim']) else None
+            checkpoint is not None and not cfg['reset_optim']) else None
     optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, checkpoint_for_optim)
     scheduler = instanceseg.factory.optimizer.get_scheduler(optim, cfg['lr_scheduler']) \
         if cfg['lr_scheduler'] is not None else None
@@ -95,20 +82,19 @@ def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), resume=None, 
         cfg['activation_layers_to_export'] = tuple([x for x in cfg[
             'activation_layers_to_export'] if x is not 'conv1x1_instance_to_semantic'])
 
-    trainer = instanceseg.factory.trainers.get_trainer(cfg, cuda, model, optim, dataloaders,
-                                                       problem_config,
-                                                       out_dir, scheduler=scheduler)
+    trainer = instanceseg.factory.trainers.get_trainer(cfg, cuda, model, dataloaders, problem_config, out_dir, optim,
+                                                       scheduler=scheduler)
     trainer.epoch = start_epoch
     trainer.iteration = start_iteration
     return trainer
 
 
-def setup_test(cfg, dataset_type, gpu, resume, sampler_cfg):
-    checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
-        setup_common(cfg, dataset_type, gpu, resume, sampler_cfg, semantic_init=False)
-    evaluator =
+# def setup_test(cfg, dataset_type, gpu, resume, sampler_cfg):
+#     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
+#         setup_common(cfg, dataset_type, gpu, resume, sampler_cfg, semantic_init=False)
+#     evaluator =
 
-def setup_common(cfg, dataset_type, gpu, resume, sampler_cfg, semantic_init):
+def setup_common(dataset_type, cfg, gpu, resume, sampler_cfg, semantic_init):
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(['{}'.format(g) for g in gpu])
     print(os.environ['CUDA_VISIBLE_DEVICES'])
     set_random_seeds()
@@ -130,6 +116,19 @@ def setup_common(cfg, dataset_type, gpu, resume, sampler_cfg, semantic_init):
     # 2. model
     model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, resume,
                                                                                semantic_init, cuda)
+
+    # Run a few checks
+    problem_config_semantic_classes = set([problem_config.semantic_class_names[si]
+                                           for si in problem_config.semantic_instance_class_list])
+    dataset_semantic_classes = set(dataloaders['train'].dataset.semantic_class_names)
+    assert problem_config_semantic_classes == dataset_semantic_classes, \
+        'Model covers these semantic classes: {}.\n ' \
+        'Dataset covers these semantic classes: {}.'.format(problem_config_semantic_classes,
+                                                            dataset_semantic_classes)
+    print('Number of output channels in model: {}'.format(model.module.n_output_channels
+                                                          if isinstance(model, torch.nn.DataParallel)
+                                                          else model.n_output_channels))
+
     return checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration
 
 
@@ -147,7 +146,7 @@ def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscr
                                            'args.dataset: {}'.format(cfg['dataset'], dataset_name)
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
-    sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg(sampler_name)
+    sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg_set(sampler_name)
     out_dir = get_log_dir(os.path.join(parent_directory, script_basename), cfg_to_print)
     instanceseg.utils.configs.save_config(out_dir, cfg)
     print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir),

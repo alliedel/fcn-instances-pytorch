@@ -41,7 +41,7 @@ class RegisteredDataset(object):
 
     def get_occlusion_counts_filename(self, split, transformer_tag):
         return os.path.join(self.cache_path, '{}_within_class_occlusion_counts_{}.npy'.format(
-                                                 split, transformer_tag))
+            split, transformer_tag))
 
 
 REGISTRY = {
@@ -51,8 +51,8 @@ REGISTRY = {
         config_option_dict=cityscapes_cfg.train_configurations,
         original_semantic_class_names=cityscapes.RawCityscapesBase.get_semantic_class_names(),
         dataset_path=cityscapes.get_default_cityscapes_root(),
-        dataset_generator=lambda cfg: dataset_generator_registry.get_dataset('cityscapes', cfg,
-                                                                             transform=True),
+        dataset_generator=lambda cfg, split: dataset_generator_registry.get_dataset('cityscapes', cfg, split,
+                                                                                    transform=True),
     ),
     'voc': RegisteredDataset(
         name='voc',
@@ -60,8 +60,8 @@ REGISTRY = {
         config_option_dict=scripts.configurations.voc_cfg.configurations,
         original_semantic_class_names=instanceseg.datasets.voc.ALL_VOC_CLASS_NAMES,
         dataset_path=voc.get_default_voc_root(),
-        dataset_generator=lambda cfg: dataset_generator_registry.get_dataset('voc', cfg,
-                                                                             transform=True)
+        dataset_generator=lambda cfg, split: dataset_generator_registry.get_dataset('voc', cfg, split,
+                                                                                    transform=True)
     ),
     'synthetic': RegisteredDataset(
         name='synthetic',
@@ -69,7 +69,7 @@ REGISTRY = {
         config_option_dict=scripts.configurations.synthetic_cfg.train_configurations,
         original_semantic_class_names=instanceseg.datasets.synthetic.ALL_BLOB_CLASS_NAMES,
         dataset_path='/tmp/',
-        dataset_generator=lambda cfg: dataset_generator_registry.get_dataset('synthetic', cfg,
-                                                                             transform=True)
+        dataset_generator=lambda cfg, split: dataset_generator_registry.get_dataset('synthetic', cfg, split,
+                                                                                    transform=True)
     )
 }

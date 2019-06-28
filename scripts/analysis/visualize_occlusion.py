@@ -82,20 +82,16 @@ def write_stats(stats, semantic_class_names, split, metric_name='unknown_stat',
 
 
 def main(dataset_type='cityscapes'):
-    default_train_dataset, default_val_dataset, transformer_tag = \
-        dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type)
+    default_datasets, transformer_tag = \
+        dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type, ('train', 'val'))
     # occlusion_counts_file = dataset_registry.REGISTRY['cityscapes'].get_occlusion_count_filename(
     #     split='train', transformer_tag=transformer_tag)
-    default_datasets = {
-        'train': default_train_dataset,
-        'val': default_val_dataset
-    }
     occlusion_counts_files = {
         split: dataset_registry.REGISTRY[dataset_type].get_occlusion_counts_filename(
             split, transformer_tag)
         for split in ('train', 'val')
     }
-    semantic_class_names = default_train_dataset.semantic_class_names
+    semantic_class_names = default_datasets['train'].semantic_class_names
     occlusion_counts = {
         split: dataset_statistics.OcclusionsOfSameClass(
             range(len(semantic_class_names)), semantic_class_names=semantic_class_names,

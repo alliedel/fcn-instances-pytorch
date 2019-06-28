@@ -46,7 +46,7 @@ def get_config_options_from_train_config(train_config_path):
 
 def setup(logdir, args, cfg, sampler_cfg, out_dir):
     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
-        setup_common(dataset_type=args.dataset, cfg=cfg, gpu=args.gpu, resume=args.resume, sampler_cfg=sampler_cfg,
+        setup_common(dataset_type=args.dataset, cfg=cfg, gpu=args.gpu, checkpoint_path=args.resume, sampler_cfg=sampler_cfg,
                      semantic_init=args.semantic_init)
     # Load model
     model_checkpoint_pth = os.path.join(logdir, 'checkpoint.pth.tar')

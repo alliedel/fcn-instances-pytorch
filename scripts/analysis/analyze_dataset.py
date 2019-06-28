@@ -26,12 +26,8 @@ here = osp.dirname(osp.abspath(__file__))
 
 
 def get_instance_counts(dataset_type):
-    default_train_dataset, default_val_dataset, transformer_tag = \
-        dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type)
-    default_datasets = {
-        'train': default_train_dataset,
-        'val': default_val_dataset,
-    }
+    default_datasets, transformer_tag = \
+        dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type, splits=('train', 'val'))
     instance_counts = {}
     # Compute statistics
     for split in default_datasets.keys():

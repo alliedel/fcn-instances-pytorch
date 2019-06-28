@@ -12,7 +12,7 @@ def get_dataset_with_transformations(dataset_type, cfg, split, transform=True):
     return dataset
 
 
-def get_dataloaders(cfg, dataset_type, cuda, splits=('train', 'val', 'train_for_val'), sampler_cfg=None):
+def get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=None, splits=('train', 'val', 'train_for_val')):
     non_derivative_splits = (s for s in splits if s != 'train_for_val')
     build_train_for_val = splits != non_derivative_splits
 

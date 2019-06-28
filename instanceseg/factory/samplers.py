@@ -107,28 +107,36 @@ def get_samplers(dataset_type, sampler_cfg, datasets, splits=('train', 'val', 't
     else:
         # Get 'clean' datasets for instance counting
         if not dataset_type == 'synthetic':
-            default_train_dataset, default_val_dataset, transformer_tag = \
-                dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type)
+            default_datasets, transformer_tag = \
+                dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type,
+                                                                                    splits=('train', 'val'))
         else:
-            default_train_dataset, default_val_dataset = datasets['train'], datasets['val']
+            default_datasets = datasets
             transformer_tag = 'no_transformation'
         # train sampler
-        train_sampler = sampler_generator_helper(dataset_type, datasets['train'], default_train_dataset,
-                                                 sampler_cfg, 'train', transformer_tag)
+        split = 'train'
+        if split in splits:
+            samplers[split] = sampler_generator_helper(dataset_type, datasets[split], default_datasets[split],
+                                                       sampler_cfg, 'train', transformer_tag)
 
         # val sampler
-        if isinstance(sampler_cfg['val'], str) and sampler_cfg['val'] == 'copy_train':
-            val_sampler = train_sampler.copy(sequential_override=True)
-        else:
-            val_sampler = sampler_generator_helper(dataset_type, datasets['val'], default_val_dataset,
-                                                   sampler_cfg, 'val', transformer_tag)
+        split = 'val'
+        if split in splits:
+            if isinstance(sampler_cfg[split], str) and sampler_cfg[split] == 'copy_train':
+                assert 'train' in splits, 'train must be in split if val needs to copy sampler from train'
+                samplers[split] = samplers['train'].copy(sequential_override=True)
+            else:
+                samplers[split] = sampler_generator_helper(dataset_type, datasets[split], default_datasets[split],
+                                                           sampler_cfg, sampler_split_type=split,
+                                                           transformer_tag=transformer_tag)
 
         # train_for_val sampler
         if 'train_for_val' in splits:
+            assert 'train' in splits
             sampler_cfg['train_for_val'] = pop_without_del(sampler_cfg, 'train_for_val', None)
             cut_n_images = sampler_cfg['train_for_val'].n_images or len(datasets['train'])
-            train_for_val_sampler = train_sampler.copy(sequential_override=True,
-                                                       cut_n_images=None if cut_n_images is None
-                                                       else min(cut_n_images, len(train_sampler)))
+            samplers['train_for_val'] = samplers['train'].copy(sequential_override=True,
+                                                               cut_n_images=None if cut_n_images is None
+                                                               else min(cut_n_images, len(samplers['train'])))
 
     return samplers

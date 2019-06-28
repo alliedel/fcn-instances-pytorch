@@ -50,7 +50,7 @@ def main(loss='cross_entropy'):
                                           cfg_override_args=cfg_override_args,
                                           parent_script_directory=osp.basename(osp.dirname(here)))
 
-    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
+    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, checkpoint_path=args.resume,
                           semantic_init=args.semantic_init)
     trainer.train()
     train_loss, train_metrics, _ = trainer.validate_split('train')

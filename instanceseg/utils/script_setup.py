@@ -59,9 +59,9 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
     return exit_code, stdout
 
 
-def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), resume=None, semantic_init=None, eval=False):
+def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), checkpoint_path=None, semantic_init=None):
     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
-        setup_common(dataset_type, cfg, gpu, resume, sampler_cfg, semantic_init)
+        setup_common(dataset_type, cfg, gpu, checkpoint_path, sampler_cfg, semantic_init)
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
 
@@ -89,19 +89,27 @@ def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), resume=None, 
     return trainer
 
 
-# def setup_test(cfg, dataset_type, gpu, resume, sampler_cfg):
-#     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
-#         setup_common(cfg, dataset_type, gpu, resume, sampler_cfg, semantic_init=False)
-#     evaluator =
+def setup_test(dataset_type, cfg, out_dir, sampler_cfg, checkpoint_path, gpu=(0,)):
+    checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
+        setup_common(dataset_type, cfg, gpu, checkpoint_path, sampler_cfg, semantic_init=None, splits=('test',))
+    print('Number of test images: {}'.format(len(dataloaders['test'])))
 
-def setup_common(dataset_type, cfg, gpu, resume, sampler_cfg, semantic_init):
+    evaluator = instanceseg.factory.trainers.get_evaluator(cfg, cuda, model, dataloaders, problem_config, out_dir)
+    evaluator.epoch = start_epoch
+    evaluator.iteration = start_iteration
+    return evaluator
+
+
+def setup_common(dataset_type, cfg, gpu, checkpoint_path, sampler_cfg, semantic_init,
+                 splits=('train', 'val', 'train_for_val')):
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(['{}'.format(g) for g in gpu])
     print(os.environ['CUDA_VISIBLE_DEVICES'])
     set_random_seeds()
     cuda = torch.cuda.is_available()
     print('Using {} devices'.format(torch.cuda.device_count()))
     print('Getting dataloaders...')
-    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, dataset_type, cuda, sampler_cfg)
+    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, dataset_type, cuda, sampler_cfg=sampler_cfg,
+                                                           splits=splits)
     print('Done getting dataloaders')
     # reduce dataloaders to semantic subset before running / generating problem config:
     n_instances_per_class = cfg['n_instances_per_class']
@@ -109,12 +117,12 @@ def setup_common(dataset_type, cfg, gpu, resume, sampler_cfg, semantic_init):
         dataloaders['val'].dataset.semantic_class_names,
         n_instances_per_class,
         map_to_semantic=cfg['map_to_semantic'])
-    if resume:
-        checkpoint = torch.load(resume)
+    if checkpoint_path:
+        checkpoint = torch.load(checkpoint_path)
     else:
         checkpoint = None
     # 2. model
-    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, resume,
+    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, checkpoint_path,
                                                                                semantic_init, cuda)
 
     # Run a few checks

@@ -38,7 +38,7 @@ class TrainingState(object):
 
 
 class Trainer(object):
-    def __init__(self, cuda, model: FCN8sInstance, optimizer: Optimizer, train_loader, val_loader,
+    def __init__(self, cuda, model: FCN8sInstance, optimizer: Optimizer or None, train_loader, val_loader,
                  out_dir, max_iter,
                  instance_problem: InstanceProblemConfig,
                  size_average=True, interval_validate=None, loss_type='cross_entropy',

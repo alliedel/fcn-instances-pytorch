@@ -14,7 +14,7 @@ def get_transformer_identifier_tag(precomputed_file_transformation, runtime_tran
     return transformer_tag
 
 
-def get_default_datasets_for_instance_counts(dataset_type):
+def get_default_datasets_for_instance_counts(dataset_type, splits=('train', 'val')):
     """
     Dataset before any of the precomputed_file_transformation, runtime_transformation runs on it
     """
@@ -24,19 +24,23 @@ def get_default_datasets_for_instance_counts(dataset_type):
             'n_instances_per_class'] = None  # don't want to cap instances when running stats
         precomputed_file_transformation, runtime_transformation = \
             get_transformations(default_cfg, voc.ALL_VOC_CLASS_NAMES)
-        train_dataset, val_dataset = get_voc_dataset(
-            dataset_path=default_cfg['dataset_path'],
-            precomputed_file_transformation=precomputed_file_transformation,
-            runtime_transformation=runtime_transformation)
+        default_datasets = {
+            split: get_voc_dataset(
+                dataset_path=default_cfg['dataset_path'],
+                precomputed_file_transformation=precomputed_file_transformation,
+                runtime_transformation=runtime_transformation, split=split) for split in splits
+        }
     elif dataset_type == 'cityscapes':
         default_cfg = cityscapes_cfg.get_default_train_config()
         default_cfg[
             'n_instances_per_class'] = None  # don't want to cap instances when running stats
         precomputed_file_transformation, runtime_transformation = get_transformations(default_cfg)
-        train_dataset, val_dataset = get_cityscapes_dataset(
-            default_cfg['dataset_path'],
-            precomputed_file_transformation=precomputed_file_transformation,
-            runtime_transformation=runtime_transformation)
+        default_datasets = {
+            split: get_cityscapes_dataset(
+                default_cfg['dataset_path'],
+                precomputed_file_transformation=precomputed_file_transformation,
+                runtime_transformation=runtime_transformation, split=split) for split in splits
+        }
     elif dataset_type == 'synthetic':
         # return None, None, None
         raise NotImplementedError('synthetic is different every time -- cannot save instance counts in between')
@@ -44,7 +48,7 @@ def get_default_datasets_for_instance_counts(dataset_type):
         raise ValueError
     transformer_tag = get_transformer_identifier_tag(precomputed_file_transformation,
                                                      runtime_transformation)
-    return train_dataset, val_dataset, transformer_tag
+    return default_datasets, transformer_tag
 
 
 def get_dataset(dataset_type, cfg, split, transform=True):
@@ -74,7 +78,7 @@ def get_dataset(dataset_type, cfg, split, transform=True):
         portrait = cfg['portrait']
         dataset = get_synthetic_dataset(
             split=split,
-            n_images={'val': n_images_val, 'train': n_images_train}[split],
+            n_images=pop_without_del(cfg, 'n_images_{}'.format(split), None),
             ordering=ordering,
             n_instances_per_img=n_instances_per_img,
             precomputed_file_transformation=precomputed_file_transformation,
@@ -155,7 +159,7 @@ def get_synthetic_dataset(n_images, ordering, n_instances_per_img,
                           intermediate_write_path='/tmp/',
                           semantic_subset_to_generate=None, portrait=None, img_size=None,
                           transform=True):
-    assert split in ['train', 'val']
+    assert split in ('train', 'val', 'test')
     if isinstance(precomputed_file_transformation,
                   precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):
         assert precomputed_file_transformation.ordering == ordering, \

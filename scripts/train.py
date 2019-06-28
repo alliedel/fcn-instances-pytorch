@@ -27,7 +27,7 @@ def main(replacement_dict_for_sys_args=None):
                                           sampler_name=args.sampler,
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args)
-    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, resume=args.resume,
+    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, checkpoint_path=args.resume,
                           semantic_init=args.semantic_init)
 
     if cfg['debug_dataloader_only']:

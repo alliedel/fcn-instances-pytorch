@@ -453,6 +453,14 @@ class TrainerExporter(object):
             img_untransformed, lbl_untransformed = img, lbl
         return img_untransformed, lbl_untransformed
 
+    def export_predictions_or_gt(self, labels_as_batch_nparray, output_directory, image_names):
+        batch_sz = labels_as_batch_nparray.shape[0]
+        for img_idx in range(batch_sz):
+            lbl = labels_as_batch_nparray[img_idx, ...]
+            img = visualization_utils.visualize_single_image_segmentation(lbl, n_class=self.instance_problem.n_classes)
+            out_file = os.path.join(output_directory, image_names[img_idx])
+            visualization_utils.write_image(out_file, img)
+
         # if self.exporter.export_config.export_activations:
         #     try:
         #         iteration = self.state.iteration

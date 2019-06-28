@@ -1,19 +1,20 @@
 class PARAM_CLASSIFICATIONS(object):
     debug = {'debug_dataloader_only'}
-    optim = {'optim', 'max_iteration', 'lr', 'momentum', 'weight_decay', 'clip', 'reset_optim'}
+    optim = {'optim', 'max_iteration', 'lr', 'momentum', 'weight_decay', 'reset_optim'}
     export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics'}
     loss = {'matching', 'size_average', 'loss_type', 'lr_scheduler'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
             'dataset_instance_cap', 'resize', 'resize_size', 'dataset_path', 'train_batch_size',
             'val_batch_size'}
-    problem_config = {'n_instances_per_class', 'single_instance'}
+    problem_config = {'n_instances_per_class', 'single_instance', 'map_to_semantic', 'augment_semantic'}
     model = {'backbone', 'initialize_from_semantic', 'bottleneck_channel_capacity', 'score_multiplier', 'freeze_vgg',
-             'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer'}
+             'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer', 'clip'}
     misc = {'interactive_dataloader'}
 
 # NOTE(allie): Do not directly access this dictionary unless you want to change it for *every* module that imports
 # this one.  Ran into issues not copying this dictionary when I started changing it, and it changes all the config
 # dictionaries.
+
 
 _default_train_config = dict(
 
@@ -118,5 +119,3 @@ def assert_all_cfg_keys_classified():
 
 
 assert_all_cfg_keys_classified()
-
-

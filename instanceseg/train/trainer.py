@@ -1,7 +1,9 @@
-import math
 import pprint
 
+import math
 import numpy as np
+import os
+import tempfile
 import torch
 import tqdm
 from torch.autograd import Variable
@@ -38,12 +40,12 @@ class TrainingState(object):
 
 
 class Trainer(object):
-    def __init__(self, cuda, model: FCN8sInstance, optimizer: Optimizer or None, train_loader, val_loader,
+    def __init__(self, cuda, model: FCN8sInstance, optimizer: Optimizer or None, dataloaders,
                  out_dir, max_iter,
                  instance_problem: InstanceProblemConfig,
                  size_average=True, interval_validate=None, loss_type='cross_entropy',
                  matching_loss=True,
-                 tensorboard_writer=None, train_loader_for_val=None, loader_semantic_lbl_only=False,
+                 tensorboard_writer=None, loader_semantic_lbl_only=False,
                  use_semantic_loss=False, augment_input_with_semantic_masks=False,
                  write_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False,
@@ -60,9 +62,7 @@ class Trainer(object):
         self.optim = optimizer
 
         # Dataset objects
-        self.train_loader = train_loader
-        self.val_loader = val_loader
-        self.train_loader_for_val = train_loader_for_val
+        self.dataloaders = dataloaders
 
         # Problem setup objects
         self.instance_problem = instance_problem
@@ -87,17 +87,23 @@ class Trainer(object):
         # Stored values
         self.last_val_loss = None
 
-        self.interval_validate = interval_validate if interval_validate is not None else len(
-            self.train_loader)
+        self.interval_validate = interval_validate or (
+            len(self.dataloaders['train']) if 'train' in self.dataloaders else None)
 
         self.state = TrainingState(max_iteration=max_iter)
         self.best_mean_iu = 0
         # TODO(allie): clean up max combined class... computing accuracy shouldn't need it.
 
-        self.loss_object = self.build_my_loss()
-        self.eval_loss_object_with_matching = self.build_my_loss()  # Uses matching
-        self.loss_fcn = self.loss_object.loss_fcn  # scores, sem_lbl, inst_lbl
-        self.eval_loss_fcn_with_matching = self.eval_loss_object_with_matching.loss_fcn
+        if self.loss_type is not None:
+            self.loss_object = self.build_my_loss()
+            self.eval_loss_object_with_matching = self.build_my_loss()  # Uses matching
+            self.loss_fcn = self.loss_object.loss_fcn  # scores, sem_lbl, inst_lbl
+            self.eval_loss_fcn_with_matching = self.eval_loss_object_with_matching.loss_fcn
+        else:
+            self.loss_object = None
+            self.eval_loss_object_with_matching = None
+            self.loss_fcn = None
+            self.eval_loss_fcn_with_matching = None
         self.lr_scheduler = lr_scheduler
 
         metric_maker_kwargs = {
@@ -107,9 +113,8 @@ class Trainer(object):
             if self.augment_input_with_semantic_masks else None
         }
         metric_makers = {
-            'val': metrics.InstanceMetrics(self.val_loader, **metric_maker_kwargs),
-            'train_for_val': metrics.InstanceMetrics(self.train_loader_for_val,
-                                                     **metric_maker_kwargs)
+            split: metrics.InstanceMetrics(self.dataloaders[split], **metric_maker_kwargs)
+            for split in self.dataloaders.keys()
         }
         export_config = trainer_exporter.ExportConfig(export_activations=export_activations,
                                                       activation_layers_to_export=activation_layers_to_export,
@@ -185,6 +190,7 @@ class Trainer(object):
                                                       self.instance_problem.n_semantic_classes)
         return datasets.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
                                          (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
+
     def save_checkpoint_and_update_if_best(self, mean_iu):
         current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
                                                                 self.state.iteration, self.model,
@@ -193,6 +199,46 @@ class Trainer(object):
             self.best_mean_iu = mean_iu
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
 
+    def test(self, split='test', predictions_outdir=None, groundtruth_outdir=None):
+        """
+        If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
+        If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
+            False.
+        """
+        predictions_outdir = predictions_outdir or os.path.join(tempfile.NamedTemporaryFile().name, 'predictions')
+        groundtruth_outdir = groundtruth_outdir or os.path.join(tempfile.NamedTemporaryFile().name, 'groundtruth')
+        for my_dir in [predictions_outdir, groundtruth_outdir]:
+            if not os.path.exists(my_dir):
+                os.makedirs(my_dir)
+            else:
+                print(Warning('I didnt expect the directory {} to already exist.'.format(my_dir)))
+        data_loader = self.dataloaders['test']
+        with torch.set_grad_enabled(False):
+            t = tqdm.tqdm(
+                enumerate(data_loader), total=len(data_loader), desc='Test iteration (split=%s)=%d' %
+                                                                     (split, self.state.iteration), ncols=150,
+                leave=False)
+            batch_img_idx = 0
+            for batch_idx, (img_data, lbls) in t:
+                full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(
+                    img_data, lbls, requires_grad=False)
+                batch_sz = full_input.size(0)
+                score = self.model(full_input)
+                # We use the loss function just for getting optimal permutation for ease of visualization
+                # pred_permutations, _, _ = self.compute_loss(score, sem_lbl, inst_lbl)
+                sem_lbl_np = sem_lbl.data.cpu().numpy()
+                inst_lbl_np = inst_lbl.data.cpu().numpy()
+                lt_combined = self.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+                label_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
+                # label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
+                img_idxs = list(range(batch_img_idx, batch_img_idx + batch_sz))
+                prediction_names = ['predictions_{:06d}.png'.format(img_idx) for img_idx in img_idxs]
+                self.exporter.export_predictions_or_gt(label_pred, predictions_outdir,
+                                                       prediction_names)
+                groundtruth_names = ['groundtruth_{:06d}.png'.format(img_idx) for img_idx in img_idxs]
+                self.exporter.export_predictions_or_gt(lt_combined, groundtruth_outdir, groundtruth_names)
+                batch_img_idx += batch_sz
+        return predictions_outdir, groundtruth_outdir
 
     def validate_split(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
                        should_export_visualizations=True):
@@ -210,9 +256,9 @@ class Trainer(object):
 
         assert split in ['train', 'val']
         if split == 'train':
-            data_loader = self.train_loader_for_val
+            data_loader = self.dataloaders['train_for_val']
         else:
-            data_loader = self.val_loader
+            data_loader = self.dataloaders['val']
 
         # eval instead of training mode temporarily
         training = self.model.training
@@ -227,7 +273,8 @@ class Trainer(object):
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader), desc='Valid iteration (split=%s)=%d' %
-                (split, self.state.iteration), ncols=150, leave=False)
+                                                                     (split, self.state.iteration), ncols=150,
+                leave=False)
             for batch_idx, (img_data, lbls) in t:
                 memory_allocated = sum(torch.cuda.memory_allocated(device=d) for d in
                                        range(torch.cuda.device_count()))
@@ -343,11 +390,11 @@ class Trainer(object):
 
         if self.generate_new_synthetic_data_each_epoch:
             seed = np.random.randint(100)
-            self.train_loader.dataset.raw_dataset.initialize_locations_per_image(seed)
-            self.train_loader_for_val.dataset.raw_dataset.initialize_locations_per_image(seed)
+            self.dataloaders['train'].dataset.raw_dataset.initialize_locations_per_image(seed)
+            self.dataloaders['train_for_val'].dataset.raw_dataset.initialize_locations_per_image(seed)
 
         t = tqdm.tqdm(  # tqdm: progress bar
-            enumerate(self.train_loader), total=len(self.train_loader),
+            enumerate(self.dataloaders['train']), total=len(self.dataloaders['train']),
             desc='Train epoch=%d' % self.state.epoch, ncols=80, leave=False)
 
         for batch_idx, (img_data, target) in t:
@@ -356,7 +403,7 @@ class Trainer(object):
             t.set_description_str(description)
 
             # Check/update iteration
-            iteration = batch_idx + self.state.epoch * len(self.train_loader)
+            iteration = batch_idx + self.state.epoch * len(self.dataloaders['train'])
             if self.state.iteration != 0 and (iteration - 1) != self.state.iteration:
                 continue  # for resuming
             self.state.iteration = iteration
@@ -440,7 +487,7 @@ class Trainer(object):
             binary_target=binary_gt_for_ch)
 
     def train(self):
-        max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.train_loader)))
+        max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.dataloaders['train'])))
         for epoch in tqdm.trange(self.state.epoch, max_epoch,
                                  desc='Train', ncols=80, leave=False):
             self.state.epoch = epoch
@@ -450,7 +497,7 @@ class Trainer(object):
 
     def validate_all_splits(self):
         val_loss, val_metrics, _ = self.validate_split('val')
-        if self.train_loader_for_val is not None:
+        if self.dataloaders['train_for_val'] is not None:
             train_loss, train_metrics, _ = self.validate_split('train')
         else:
             train_loss, train_metrics = None, None

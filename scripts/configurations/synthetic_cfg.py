@@ -1,6 +1,11 @@
 from . import generic_cfg
 
 
+class SYNTHETIC_PARAM_CLASSIFICATIONS(object):
+    # WARNING(allie): infinite_synthetic should probably be flagged differently for test data.
+    data = {'synthetic_generator_n_instances_per_semantic_id', 'portrait', 'infinite_synthetic'}
+
+
 def get_default_train_config():
     _default_config = generic_cfg.get_default_train_config()
     _default_config.update(
@@ -32,6 +37,7 @@ def get_default_test_config():
         n_images_test=100,
         one_dimension=None,  # {'x', 'y'}
         semantic_subset=None,
+        synthetic_generator_n_instances_per_semantic_id=2,
         img_size=None,
         portrait=None,
     )
@@ -77,3 +83,23 @@ train_configurations = {
 test_configurations = {
     0: dict(),
 }
+
+
+# TODO(allie): Assert all synthetic params are classified
+
+# def assert_all_cfg_keys_classified():
+#     keys = list(_default_train_config.keys())
+#     param_groups = [x for x in set(list(SYNTHETIC_PARAM_CLASSIFICATIONS.__dict__.keys()) +
+#                                    list(generic_cfg.PARAM_CLASSIFICATIONS.__dict__.keys())) if x[0] != '_']
+#     unclassified_keys = []
+#     for k in keys:
+#         if not any([k in getattr(PARAM_CLASSIFICATIONS, param_group)
+#                     for param_group in param_groups]):
+#             unclassified_keys.append(k)
+#     if len(unclassified_keys) > 0:
+#         raise Exception('The following parameters have not yet been classified in PARAM_CLASSIFICATIONS: {}'.format(
+#             unclassified_keys))
+#
+#
+# assert_all_cfg_keys_classified()
+

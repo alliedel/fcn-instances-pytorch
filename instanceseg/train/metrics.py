@@ -17,8 +17,8 @@ class InstanceMetrics(object):
     def __init__(self, data_loader, problem_config, component_loss_function=None,
                  augment_function_img_sem=None, flag_write_channel_utilization=True,
                  flag_write_loss_distributions=True):
-        assert component_loss_function is not None, Warning('I think you want to input the losses function.  If not, '
-                                                            'get rid of this line.')
+        if component_loss_function is not None:
+            print(Warning('I think you want to input the losses function.  If not, get rid of this line.'))
         self.problem_config = problem_config
         self.data_loader = data_loader
         self.component_loss_function = component_loss_function

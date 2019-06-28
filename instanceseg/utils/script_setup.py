@@ -89,9 +89,9 @@ def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), checkpoint_pa
     return trainer
 
 
-def setup_test(dataset_type, cfg, out_dir, sampler_cfg, checkpoint_path, gpu=(0,)):
+def setup_test(dataset_type, cfg, out_dir, sampler_cfg, model_checkpoint_path, gpu=(0,)):
     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
-        setup_common(dataset_type, cfg, gpu, checkpoint_path, sampler_cfg, semantic_init=None, splits=('test',))
+        setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, semantic_init=None, splits=('test',))
     print('Number of test images: {}'.format(len(dataloaders['test'])))
 
     evaluator = instanceseg.factory.trainers.get_evaluator(cfg, cuda, model, dataloaders, problem_config, out_dir)
@@ -100,7 +100,7 @@ def setup_test(dataset_type, cfg, out_dir, sampler_cfg, checkpoint_path, gpu=(0,
     return evaluator
 
 
-def setup_common(dataset_type, cfg, gpu, checkpoint_path, sampler_cfg, semantic_init,
+def setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, semantic_init,
                  splits=('train', 'val', 'train_for_val')):
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(['{}'.format(g) for g in gpu])
     print(os.environ['CUDA_VISIBLE_DEVICES'])
@@ -113,22 +113,26 @@ def setup_common(dataset_type, cfg, gpu, checkpoint_path, sampler_cfg, semantic_
     print('Done getting dataloaders')
     # reduce dataloaders to semantic subset before running / generating problem config:
     n_instances_per_class = cfg['n_instances_per_class']
+    if len(splits) > 1:
+        assert all(
+            set(dataloaders[s].dataset.semantic_class_names) == set(dataloaders[splits[0]].dataset.semantic_class_names)
+            for s in splits[1:])
     problem_config = instanceseg.factory.models.get_problem_config(
-        dataloaders['val'].dataset.semantic_class_names,
+        dataloaders[splits[0]].dataset.semantic_class_names,
         n_instances_per_class,
         map_to_semantic=cfg['map_to_semantic'])
-    if checkpoint_path:
-        checkpoint = torch.load(checkpoint_path)
+    if model_checkpoint_path:
+        checkpoint = torch.load(model_checkpoint_path)
     else:
         checkpoint = None
     # 2. model
-    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, checkpoint_path,
+    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, model_checkpoint_path,
                                                                                semantic_init, cuda)
 
     # Run a few checks
     problem_config_semantic_classes = set([problem_config.semantic_class_names[si]
                                            for si in problem_config.semantic_instance_class_list])
-    dataset_semantic_classes = set(dataloaders['train'].dataset.semantic_class_names)
+    dataset_semantic_classes = set(dataloaders[splits[0]].dataset.semantic_class_names)
     assert problem_config_semantic_classes == dataset_semantic_classes, \
         'Model covers these semantic classes: {}.\n ' \
         'Dataset covers these semantic classes: {}.'.format(problem_config_semantic_classes,

@@ -11,6 +11,7 @@ from instanceseg.factory import samplers as sampler_factory
 from scripts.configurations import sampler_cfg_registry
 from instanceseg.train.trainer_exporter import TrainerExporter
 from instanceseg.analysis.visualization_utils import label2rgb, write_image
+from instanceseg.utils.misc import y_or_n_input
 
 testing_level = 0
 
@@ -36,14 +37,6 @@ def test_instance_sampler(train_dataset, loader_kwargs):
                 assert n_instances_this_cls >= n_inst_range[0]
                 if n_inst_range[1] is not None:
                     assert n_instances_this_cls <= n_inst_range[1]
-
-
-def y_or_n_input(msg_to_user):
-    y_or_n = input(msg_to_user)
-    while y_or_n not in ['y', 'n']:
-        print('Answer y or n.')
-        y_or_n = input(msg_to_user)
-    return y_or_n
 
 
 def write_images_and_confirm(dataloader, rule_as_string_to_user):

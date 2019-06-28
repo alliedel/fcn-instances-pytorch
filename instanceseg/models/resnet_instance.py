@@ -36,7 +36,7 @@ class ResNet50Instance(nn.Module):
 
     def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
-                 at_once=True, n_input_channels=3, clip=None, use_conv8=False, use_attention_layer=False):
+                 at_once=True, n_input_channels=3, use_conv8=False, use_attention_layer=False):
         """
         n_classes: Number of output channels
         map_to_semantic: If True, n_semantic_classes must not be None.

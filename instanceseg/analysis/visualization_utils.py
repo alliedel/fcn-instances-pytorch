@@ -331,6 +331,30 @@ def label2rgb(lbl, img=None, label_names=None, n_labels=None,
     return lbl_viz
 
 
+def visualize_single_image_segmentation(lbl, n_class, permutation=None, void_value=-1):
+    """
+    Returns
+    img_array: ndarray
+        Visualized image.
+    """
+
+    # Generate funky pixels for void class
+    mask_unlabeled = lbl == void_value
+    # lbl_true[mask_unlabeled] = 0
+    viz_unlabeled = (
+            np.random.random((lbl.shape[0], lbl.shape[1], 3)) * 255
+    ).astype(np.uint8)
+
+    if permutation is not None:
+        assert len(permutation.shape) == 1, 'Debug this -- assumed one image here.'
+        lbl_permuted = instance_utils.permute_labels(lbl, permutation[np.newaxis, :])
+    else:
+        lbl_permuted = lbl
+    viz = label2rgb(lbl_permuted, label_names=None, n_labels=n_class)
+    viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+    return viz
+
+
 # noinspection PyTypeChecker
 def visualize_segmentation(**kwargs):
     """Visualize segmentation.

@@ -69,8 +69,6 @@ def get_dataset(dataset_type, cfg, split, transform=True):
         semantic_subset = cfg['semantic_subset']
         precomputed_file_transformation, runtime_transformation = get_transformations(
             cfg, synthetic.ALL_BLOB_CLASS_NAMES)
-        n_images_train = pop_without_del(cfg, 'n_images_train', None)
-        n_images_val = pop_without_del(cfg, 'n_images_val', None)
         ordering = cfg['ordering']
         intermediate_write_path = cfg['dataset_path']
         n_instances_per_img = cfg['synthetic_generator_n_instances_per_semantic_id']
@@ -88,7 +86,7 @@ def get_dataset(dataset_type, cfg, split, transform=True):
             portrait=portrait,
             intermediate_write_path=intermediate_write_path, transform=transform)
     else:
-        raise NotImplementedError('Generator for dataset type {} not implemented.')
+        raise NotImplementedError('Generator for dataset type {} not implemented.'.format(dataset_type))
     return dataset
 
 

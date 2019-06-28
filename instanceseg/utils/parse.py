@@ -1,7 +1,7 @@
 import argparse
 
 from instanceseg.utils import configs
-from configurations.sampler_cfg_registry import sampler_cfgs
+from scripts.configurations.sampler_cfg_registry import sampler_cfgs
 from instanceseg.datasets import dataset_registry
 
 

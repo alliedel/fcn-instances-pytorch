@@ -103,18 +103,6 @@ def get_bounding_box(mask):
     return area, bbox
 
 
-def get_labels_table(dataset_type, dataset):
-    if dataset_type == 'cityscapes':
-        raise NotImplementedError
-    if dataset_type != 'synthetic':
-        raise NotImplementedError
-
-
-# def get_synthetic_labels_table(dataset_for_labels_table):
-#     labels_table = dataset_for_labels_table.labels_table
-#     return labels_table
-#
-#
 def main():
     checkpoint_path = '/usr0/home/adelgior/code/experimental-instanceseg/scripts/logs/synthetic/' \
                       'train_instances_filtered_2019-06-24-163353_VCS-8df0680'

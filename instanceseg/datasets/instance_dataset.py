@@ -25,8 +25,7 @@ class TransformedInstanceDataset(InstanceDatasetBase):
     __metaclass__ = data.Dataset
 
     def __init__(self, raw_dataset: InstanceDatasetBase, raw_dataset_returns_images=False,
-                 precomputed_file_transformation=None,
-                 runtime_transformation=None):
+                 precomputed_file_transformation=None, runtime_transformation=None):
         """
         :param raw_dataset_returns_images: Set to false for standard datasets that load from files; set to true for
         synthetic datasets that directly return images and labels.
@@ -56,16 +55,35 @@ class TransformedInstanceDataset(InstanceDatasetBase):
         return img, lbl
 
     @property
-    def labels_table(self):
-        return self.raw_dataset.labels_table
-
-    @property
     def semantic_class_names(self):
         return self.get_semantic_class_names()
 
     @property
     def n_semantic_classes(self):
         return len(self.semantic_class_names)
+
+    @property
+    def labels_table(self):
+        return self.get_labels_table()
+
+    def get_labels_table(self):
+        # Select labels from labels_table that belong to the subset of semantic classes
+        original_labels_table = self.raw_dataset.labels_table
+        if self.should_use_runtime_transform and self.runtime_transformation is not None:
+            transformation_list = self.runtime_transformation.transformer_sequence if isinstance(
+                self.runtime_transformation, GenericSequenceRuntimeDatasetTransformer) else \
+                [self.runtime_transformation]
+            labels_table = original_labels_table
+            for transformer in transformation_list:
+                if hasattr(transformer, 'transform_labels_table'):
+                    labels_table = transformer.transform_labels_table(labels_table)
+                else:
+                    assert not hasattr(transformer, 'transform_semantic_class_names')
+                    'If you are going to subsample the semantic classes, you need to subsample the labels table too'
+
+            return labels_table
+        else:
+            return original_labels_table
 
     def get_semantic_class_names(self):
         """

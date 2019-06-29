@@ -4,6 +4,7 @@ from glob import glob
 import PIL.Image
 import numpy as np
 
+from instanceseg.datasets import coco_format, palettes
 from . import labels_table_cityscapes
 from .cityscapes_transformations import CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer, \
     ConvertLblstoPModePILImages
@@ -12,11 +13,6 @@ from instanceseg.datasets.precomputed_file_transformations import \
 from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
-
-
-labels_table = {
-
-}
 
 
 def get_default_cityscapes_root():
@@ -62,6 +58,19 @@ class RawCityscapesBase(InstanceDatasetBase):
                                          data_file['inst_lbl'])
         return img, lbl
 
+    @property
+    def labels_table(self):
+        labels_table = coco_format.create_default_labels_table_from_semantic_names(
+            semantic_class_names=self.semantic_class_names)
+        for i in range(len(labels_table)):
+            sem_cls_name = labels_table[i].name
+            original_table_idx = labels_table_cityscapes.class_names.index(sem_cls_name)
+            labels_table[i].id = labels_table_cityscapes.train_ids[original_table_idx]
+            labels_table[i].isthing = labels_table_cityscapes.has_instances[original_table_idx]
+            labels_table[i].color = labels_table_cityscapes.colors[original_table_idx]
+            labels_table[i].supercategory = labels_table_cityscapes.supercategory[original_table_idx]
+        return labels_table
+
     def get_files(self):
         dataset_dir = self.root
         split = self.split
@@ -84,10 +93,10 @@ class RawCityscapesBase(InstanceDatasetBase):
 
     @property
     def semantic_class_names(self):
-        return self.__class__.get_semantic_class_names()
+        return self.get_semantic_class_names()
 
     @classmethod
-    def get_semantic_class_names(cls):
+    def get_default_semantic_class_names(cls):
         """
         If we changed the semantic subset, we have to account for that change in the semantic
         class name list.
@@ -104,6 +113,28 @@ class RawCityscapesBase(InstanceDatasetBase):
                         semantic_class_names)
         else:
             semantic_class_names = cls.original_semantic_class_names
+        assert AssertionError(
+            'There must be a bug somewhere.  The first semantic class name should always be '
+            'background.')
+        return semantic_class_names
+
+    def get_semantic_class_names(self):
+        """
+        If we changed the semantic subset, we have to account for that change in the semantic
+        class name list.
+        """
+        if self.precomputed_file_transformer is not None:
+            transformation_list = self.precomputed_file_transformer.transformer_sequence \
+                if isinstance(self.precomputed_file_transformer,
+                              GenericSequencePrecomputedDatasetFileTransformer) else \
+                [self.precomputed_file_transformer]
+            semantic_class_names = self.original_semantic_class_names
+            for transformer in transformation_list:
+                if hasattr(transformer, 'transform_semantic_class_names'):
+                    semantic_class_names = transformer.transform_semantic_class_names(
+                        semantic_class_names)
+        else:
+            semantic_class_names = self.original_semantic_class_names
         assert AssertionError(
             'There must be a bug somewhere.  The first semantic class name should always be '
             'background.')

@@ -153,6 +153,7 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         self.reduced_class_idxs = reduced_class_idxs
         self.map_other_classes_to_bground = map_other_classes_to_bground
         self.original_semantic_class_names = None
+        self.original_labels_table = None
 
     def transform(self, img, lbl):
         sem_fcn = lambda sem_lbl: datasets.remap_to_reduced_semantic_classes(
@@ -170,6 +171,13 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
     def untransform_semantic_class_names(self):
         return self.original_semantic_class_names
+
+    def transform_labels_table(self, original_labels_table):
+        self.original_labels_table = original_labels_table
+        return [self.original_labels_table[idx] for idx in self.reduced_class_idxs]
+
+    def untransform_labels_table(self):
+        return self.original_labels_table
 
 
 class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):

@@ -80,6 +80,7 @@ has_instances = [class_label['has_instances'] for class_label in CITYSCAPES_LABE
 colors = [class_label['color'] for class_label in CITYSCAPES_LABELS_TABLE]
 ignore_in_eval = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]
 is_void = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]
+supercategory = [class_label['category'] for class_label in CITYSCAPES_LABELS_TABLE]
 
 
 def get_rgb_semantic_palette_array(vals, corresponding_rgb_colors, unassigned_rgb_color=(0, 0, 0)):

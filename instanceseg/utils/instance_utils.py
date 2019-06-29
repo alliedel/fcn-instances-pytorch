@@ -2,6 +2,8 @@ import numpy as np
 import torch
 from torch import nn
 import yaml
+from typing import Iterable
+from instanceseg.datasets.coco_format import CategoryCOCOFormat
 
 
 class InstanceProblemConfig(object):
@@ -15,18 +17,19 @@ class InstanceProblemConfig(object):
     (training) dataset.
     """
 
-    def __init__(self, n_instances_by_semantic_id, has_instances=None, semantic_class_names=None, semantic_vals=None,
-                 void_value=-1, include_instance_channel0=False, map_to_semantic=False, semantic_colors=None,
-                 supercategories=None):
+    def __init__(self, n_instances_by_semantic_id, labels_table: Iterable[CategoryCOCOFormat] = None,
+                 void_value=-1, include_instance_channel0=False, map_to_semantic=False):
         """
         For semantic, include_instance_channel0=True
         n_instances_by_semantic_id = [0, 0, ..]
         """
-        if semantic_vals is not None:
-            assert len(semantic_vals) == len(n_instances_by_semantic_id)
+
+        if labels_table is not None:
+            assert len(labels_table) == len(n_instances_by_semantic_id)
+
         assert n_instances_by_semantic_id is not None, ValueError
+        self.labels_table = labels_table
         self.map_to_semantic = map_to_semantic
-        self.semantic_class_names = semantic_class_names
         self.semantic_vals = semantic_vals or list(range(len(n_instances_by_semantic_id)))
         self.void_value = void_value
         self.include_instance_channel0 = include_instance_channel0
@@ -63,6 +66,26 @@ class InstanceProblemConfig(object):
         self.instance_to_semantic_conv1x1 = nn.Conv2d(in_channels=len(self.model_semantic_instance_class_list),
                                                       out_channels=self.n_semantic_classes,
                                                       kernel_size=1, bias=False)
+
+    @property
+    def semantic_class_names(self):
+        return [l.name for l in self.labels_table]
+
+    @property
+    def semantic_colors(self):
+        return [l.color for l in self.labels_table]
+
+    @property
+    def semantic_vals(self):
+        return [l.id for l in self.labels_table]
+
+    @property
+    def has_instances(self):
+        return [l.isthing for l in self.labels_table]
+
+    @property
+    def supercategories(self):
+        return [l.supercategory for l in self.labels_table]
 
     @property
     def state_dict(self):

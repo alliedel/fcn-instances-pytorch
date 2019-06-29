@@ -38,23 +38,23 @@ def test_lr_of_dataset(dataset_name):
         # unordered
         cfg['ordering'] = None
         instanceseg.utils.script_setup.set_random_seeds()
-        train_dataset_unordered, _ = dataset_generator_registry.get_dataset('voc', cfg)
+        train_dataset_unordered = dataset_generator_registry.get_dataset('voc', cfg, split='train')
 
         # ordered
         cfg['ordering'] = 'LR'
         instanceseg.utils.script_setup.set_random_seeds()
-        train_dataset_ordered, _ = dataset_generator_registry.get_dataset('voc', cfg)
+        train_dataset_ordered = dataset_generator_registry.get_dataset('voc', cfg, split='train')
     elif dataset_name == 'synthetic':
         cfg = synthetic_cfg.get_default_train_config()
         # unordered
         cfg['ordering'] = None
         instanceseg.utils.script_setup.set_random_seeds()
-        train_dataset_unordered, _ = dataset_generator_registry.get_dataset('synthetic', cfg)
+        train_dataset_unordered = dataset_generator_registry.get_dataset('synthetic', cfg, split='train')
 
         # ordered
         cfg['ordering'] = 'LR'
         instanceseg.utils.script_setup.set_random_seeds()
-        train_dataset_ordered, _ = dataset_generator_registry.get_dataset('synthetic', cfg)
+        train_dataset_ordered, _ = dataset_generator_registry.get_dataset('synthetic', cfg, split='train')
     else:
         raise ValueError
 

@@ -14,6 +14,11 @@ from instanceseg.datasets.instance_dataset import InstanceDatasetBase, Transform
 CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
 
 
+labels_table = {
+
+}
+
+
 def get_default_cityscapes_root():
     other_options = [osp.abspath(osp.expanduser(p))
                      for p in ['~/afs_directories/kalman/data/cityscapes/']]

@@ -80,12 +80,14 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
     return model, start_epoch, start_iteration
 
 
-def get_problem_config(class_names, n_instances_per_class: int, map_to_semantic=False):
+def get_problem_config(class_names, n_instances_per_class: int, map_to_semantic=False, has_instances=None):
     # 0. Problem setup (instance segmentation definition)
     class_names = class_names
     n_semantic_classes = len(class_names)
     n_instances_by_semantic_id = [1] + [n_instances_per_class for _ in range(1, n_semantic_classes)]
-    problem_config = instance_utils.InstanceProblemConfig(
-        n_instances_by_semantic_id=n_instances_by_semantic_id, map_to_semantic=map_to_semantic)
+    problem_config = instance_utils.InstanceProblemConfig(semantic_class_names=class_names,
+                                                          has_instances=has_instances,
+                                                          n_instances_by_semantic_id=n_instances_by_semantic_id,
+                                                          map_to_semantic=map_to_semantic)
     problem_config.set_class_names(class_names)
     return problem_config

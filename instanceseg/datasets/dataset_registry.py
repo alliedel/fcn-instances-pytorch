@@ -44,6 +44,19 @@ class RegisteredDataset(object):
             split, transformer_tag))
 
 
+def get_cityscapes_labels_table(semantic_vals, semantic_names):
+
+    categories = []
+    for semantic_val, semantic_class_name in zip(semantic_vals, semantic_names):
+        el = cityscapes.labels_table[semantic_class_name]
+        categories.append({'id': el.id,
+                           'name': el.name,
+                           'color': el.color,
+                           'supercategory': el.category,
+                           'isthing': 1 if el.hasInstances else 0})
+    return categories
+
+
 REGISTRY = {
     'cityscapes': RegisteredDataset(
         name='cityscapes',
@@ -73,3 +86,4 @@ REGISTRY = {
                                                                                     transform=True)
     )
 }
+

@@ -15,8 +15,9 @@ class InstanceProblemConfig(object):
     (training) dataset.
     """
 
-    def __init__(self, n_instances_by_semantic_id, semantic_class_names=None, semantic_vals=None, void_value=-1,
-                 include_instance_channel0=False, map_to_semantic=False):
+    def __init__(self, n_instances_by_semantic_id, has_instances=None, semantic_class_names=None, semantic_vals=None,
+                 void_value=-1, include_instance_channel0=False, map_to_semantic=False, semantic_colors=None,
+                 supercategories=None):
         """
         For semantic, include_instance_channel0=True
         n_instances_by_semantic_id = [0, 0, ..]
@@ -24,7 +25,6 @@ class InstanceProblemConfig(object):
         if semantic_vals is not None:
             assert len(semantic_vals) == len(n_instances_by_semantic_id)
         assert n_instances_by_semantic_id is not None, ValueError
-
         self.map_to_semantic = map_to_semantic
         self.semantic_class_names = semantic_class_names
         self.semantic_vals = semantic_vals or list(range(len(n_instances_by_semantic_id)))
@@ -43,14 +43,19 @@ class InstanceProblemConfig(object):
         self.n_semantic_classes = len(self.semantic_vals)
         self.n_classes = len(self.model_semantic_instance_class_list) \
             if not map_to_semantic else self.n_semantic_classes
-
+        # Assume everything has instances unless told otherwise.
+        self.has_instances = has_instances if has_instances is not None \
+            else [False if 'background' in s else True for s in self.semantic_class_names]
+        self.semantic_colors = semantic_colors
+        self.supercategories = supercategories
         # Compute stuff dependent on whether or not we're converting the problem to semantic rather than instance
         self.sem_ids_by_instance_id = [id_into_sem_vals for
                                        id_into_sem_vals, n_inst in
                                        enumerate(self.n_instances_by_semantic_id) for _ in range(n_inst)]
 
-        self.instance_count_id_list = get_instance_count_id_list(self.semantic_instance_class_list,
-                                                                 include_channel0=self.include_instance_channel0)
+        self.instance_count_id_list = get_instance_count_id_list(
+            self.semantic_instance_class_list, include_channel0=self.include_instance_channel0,
+            non_instance_sem_classes=[v for hasinst, v in zip(self.has_instances, self.semantic_vals) if not hasinst])
         self.model_instance_count_id_list = get_instance_count_id_list(self.model_semantic_instance_class_list,
                                                                        include_channel0=self.include_instance_channel0)
         self.instance_to_semantic_mapping_matrix = get_instance_to_semantic_mapping(
@@ -113,6 +118,40 @@ class InstanceProblemConfig(object):
     def decouple_instance_result(self, instance_scores):
         # TODO(allie): implement.
         raise NotImplementedError
+
+    @property
+    def channel_values(self):
+        return list(range(len(self.semantic_instance_class_list)))
+
+    def decompose_semantic_and_instance_labels(self, gt_combined):
+        void_value = self.void_value
+        channel_values = self.channel_values
+        semantic_instance_class_list = self.semantic_instance_class_list
+        instance_count_id_list = self.instance_count_id_list
+        sem_lbl, inst_lbl = decompose_semantic_and_instance_labels(
+            gt_combined,
+            channel_values=channel_values, semantic_instance_class_list=semantic_instance_class_list,
+            instance_count_id_list=instance_count_id_list, void_value=void_value)
+        return sem_lbl, inst_lbl
+
+
+def decompose_semantic_and_instance_labels(gt_combined, channel_values, semantic_instance_class_list,
+                                           instance_count_id_list, void_value=-1):
+    if torch.is_tensor(gt_combined):
+        sem_lbl = gt_combined.clone()
+        inst_lbl = gt_combined.clone()
+    else:
+        sem_lbl = gt_combined.copy()
+        inst_lbl = gt_combined.copy()
+    sem_lbl[...] = void_value
+    inst_lbl[...] = void_value
+
+    for inst_idx, sem_cls, inst_count_id in zip(channel_values,
+                                                semantic_instance_class_list,
+                                                instance_count_id_list):
+        sem_lbl[gt_combined == inst_idx] = sem_cls
+        inst_lbl[gt_combined == inst_idx] = inst_count_id
+    return sem_lbl, inst_lbl
 
 
 def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list, instance_count_id_list,

@@ -117,10 +117,11 @@ def setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, sem
         assert all(
             set(dataloaders[s].dataset.semantic_class_names) == set(dataloaders[splits[0]].dataset.semantic_class_names)
             for s in splits[1:])
+    # labels_table = dataloaders[splits[0]].dataset.labels_table
     problem_config = instanceseg.factory.models.get_problem_config(
         dataloaders[splits[0]].dataset.semantic_class_names,
         n_instances_per_class,
-        map_to_semantic=cfg['map_to_semantic'])
+        map_to_semantic=cfg['map_to_semantic'], has_instances=None)
     if model_checkpoint_path:
         checkpoint = torch.load(model_checkpoint_path)
     else:

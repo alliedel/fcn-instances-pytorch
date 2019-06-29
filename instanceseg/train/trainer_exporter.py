@@ -18,6 +18,7 @@ from instanceseg.utils import instance_utils
 from instanceseg.utils.misc import flatten_dict
 from instanceseg.utils.instance_utils import InstanceProblemConfig
 from tensorboardX import SummaryWriter
+from instanceseg.ext.panopticapi.utils import rgb2id, id2rgb
 
 display_pyutils.set_my_rc_defaults()
 
@@ -457,9 +458,17 @@ class TrainerExporter(object):
         batch_sz = labels_as_batch_nparray.shape[0]
         for img_idx in range(batch_sz):
             lbl = labels_as_batch_nparray[img_idx, ...]
-            img = visualization_utils.visualize_single_image_segmentation(lbl, n_class=self.instance_problem.n_classes)
+            img = self.convert_lbl_to_image(lbl)
             out_file = os.path.join(output_directory, image_names[img_idx])
             visualization_utils.write_image(out_file, img)
+
+    @staticmethod
+    def load_rgb_predictions_or_gt_to_id(in_file):
+        rgb_img = visualization_utils.read_image(in_file)
+        lbl = rgb2id(rgb_img)
+        # convert void class
+        lbl[255 + 256 * 255 + 256 * 256 * 255] = -1
+        return
 
         # if self.exporter.export_config.export_activations:
         #     try:
@@ -483,3 +492,28 @@ class TrainerExporter(object):
         #         import ipdb;
         #         ipdb.set_trace()
         #         raise
+
+    @staticmethod
+    def convert_lbl_to_image(lbl, permutation=None, void_value=-1):
+        """
+        Returns
+        img_array: ndarray
+            Visualized image.
+        """
+
+        # Generate funky pixels for void class
+        mask_unlabeled = lbl == void_value
+        lbl[mask_unlabeled] = 255
+        # lbl_true[mask_unlabeled] = 0
+        if permutation is not None:
+            assert len(permutation.shape) == 1, 'Debug this -- assumed one image here.'
+            lbl_permuted = instance_utils.permute_labels(lbl, permutation[np.newaxis, :])
+        else:
+            lbl_permuted = lbl
+        viz = id2rgb(lbl_permuted)
+        viz[:, :, 0][mask_unlabeled] = 255
+        viz[:, :, 1][mask_unlabeled] = 255
+        viz[:, :, 2][mask_unlabeled] = 255
+        return viz
+
+

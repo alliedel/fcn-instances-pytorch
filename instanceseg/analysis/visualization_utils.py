@@ -12,6 +12,7 @@ import scipy.misc
 
 import instanceseg.utils.export as export_utils
 from instanceseg.utils import instance_utils
+from instanceseg.utils.datasets import write_np_array_as_img_with_colormap_palette
 
 try:
     import cv2
@@ -22,6 +23,7 @@ import numpy as np
 import scipy.ndimage
 import six
 import skimage.color
+import PIL.Image
 
 DEBUG_ASSERTS = True
 
@@ -331,30 +333,6 @@ def label2rgb(lbl, img=None, label_names=None, n_labels=None,
     return lbl_viz
 
 
-def visualize_single_image_segmentation(lbl, n_class, permutation=None, void_value=-1):
-    """
-    Returns
-    img_array: ndarray
-        Visualized image.
-    """
-
-    # Generate funky pixels for void class
-    mask_unlabeled = lbl == void_value
-    # lbl_true[mask_unlabeled] = 0
-    viz_unlabeled = (
-            np.random.random((lbl.shape[0], lbl.shape[1], 3)) * 255
-    ).astype(np.uint8)
-
-    if permutation is not None:
-        assert len(permutation.shape) == 1, 'Debug this -- assumed one image here.'
-        lbl_permuted = instance_utils.permute_labels(lbl, permutation[np.newaxis, :])
-    else:
-        lbl_permuted = lbl
-    viz = label2rgb(lbl_permuted, label_names=None, n_labels=n_class)
-    viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
-    return viz
-
-
 # noinspection PyTypeChecker
 def visualize_segmentation(**kwargs):
     """Visualize segmentation.
@@ -583,6 +561,10 @@ def write_image(out_file, out_img):
         raise
 
 
+def read_image(in_file):
+    return scipy.misc.imread(in_file)
+
+
 def write_label(out_file, out_lbl):
     out_img = label2rgb(out_lbl)
     try:
@@ -592,8 +574,7 @@ def write_label(out_file, out_lbl):
         raise
 
 
-def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_',
-                          tile=True):
+def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_', tile=True):
     if not osp.exists(out_dir):
         os.makedirs(out_dir)
     if tile:

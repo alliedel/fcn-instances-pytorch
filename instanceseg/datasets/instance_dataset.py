@@ -12,6 +12,11 @@ class InstanceDatasetBase(data.Dataset):
     def semantic_class_names(self):
         raise NotImplementedError
 
+    @property
+    @abc.abstractmethod
+    def labels_table(self):
+        raise NotImplementedError
+
     # __getitem__(self, index) enforced by data.Dataset
     # __len__(self) enforced by data.Dataset
 
@@ -49,6 +54,10 @@ class TransformedInstanceDataset(InstanceDatasetBase):
                                  precomputed_file_transformation=precomputed_file_transformation,
                                  runtime_transformation=runtime_transformation)
         return img, lbl
+
+    @property
+    def labels_table(self):
+        return self.raw_dataset.labels_table
 
     @property
     def semantic_class_names(self):

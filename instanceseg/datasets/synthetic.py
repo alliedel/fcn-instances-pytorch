@@ -2,10 +2,12 @@ import numpy as np
 
 from instanceseg.utils import datasets
 from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
+from instanceseg.datasets import coco_format
 
-PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
+BACKGROUND_WHITE = (255, 255, 255)
 BLUE_RGB = (0, 0, 224)
 GREEN_RGB = (0, 225, 0)
+PEPTO_BISMOL_PINK_RGB = (246, 143, 224)
 
 ALL_BLOB_CLASS_NAMES = np.array(['background', 'square', 'circle'])
 
@@ -13,7 +15,7 @@ ALL_BLOB_CLASS_NAMES = np.array(['background', 'square', 'circle'])
 class Defaults(object):
     img_size = (281, 500)
     blob_size = (40, 40)
-    clrs = [PEPTO_BISMOL_PINK_RGB, BLUE_RGB, GREEN_RGB]
+    clrs = (BACKGROUND_WHITE, BLUE_RGB, GREEN_RGB, PEPTO_BISMOL_PINK_RGB)
     blob_types = ['square', 'circle']
     n_instances_per_img = 2
     return_torch_type = False
@@ -84,6 +86,20 @@ class BlobExampleGenerator(InstanceDatasetBase):
             self.initialize_locations_per_image()
         else:
             self.n_images = n_images
+
+    def get_semantic_color(self, semantic_idx):
+        return self.clrs[semantic_idx]
+
+    @property
+    def labels_table(self):
+        categories = []
+        for sem_idx, cls_name in enumerate(self.semantic_class_names):
+            categories.append(coco_format.CategoryCOCOFormat(id=sem_idx,
+                                                             name=cls_name,
+                                                             color=self.get_semantic_color(sem_idx),
+                                                             supercategory=cls_name,
+                                                             isthing=cls_name != 'background'))
+        return coco_format.create_labels_table(categories)
 
     def initialize_locations_per_image(self, random_seed=None):
         # initialize to nan to be sure we clear them (for debugging purposes)

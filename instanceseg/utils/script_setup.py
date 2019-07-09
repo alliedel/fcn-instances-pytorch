@@ -118,16 +118,18 @@ def setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, sem
             set(dataloaders[s].dataset.semantic_class_names) == set(dataloaders[splits[0]].dataset.semantic_class_names)
             for s in splits[1:])
     # labels_table = dataloaders[splits[0]].dataset.labels_table
-    problem_config = instanceseg.factory.models.get_problem_config(
-        dataloaders[splits[0]].dataset.semantic_class_names,
-        n_instances_per_class,
-        map_to_semantic=cfg['map_to_semantic'], has_instances=None)
+    # NOTE(allie): Should double-check labels_table
+    labels_table = dataloaders[splits[0]].dataset.labels_table
+    n_instances_by_semantic_id = [1 if not l.isthing else n_instances_per_class for l in labels_table]
+    problem_config = instanceseg.factory.models.get_problem_config_from_labels_table(
+        labels_table, n_instances_by_semantic_id, map_to_semantic=cfg['map_to_semantic'])
     if model_checkpoint_path:
         checkpoint = torch.load(model_checkpoint_path)
     else:
         checkpoint = None
     # 2. model
-    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config, model_checkpoint_path,
+    model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config,
+                                                                               model_checkpoint_path,
                                                                                semantic_init, cuda)
 
     # Run a few checks

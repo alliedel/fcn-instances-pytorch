@@ -24,7 +24,7 @@ def panoptic_converter(out_folder, out_json_file, labels_file_list, labels_table
         print("Creating folder {} for panoptic segmentation PNGs".format(out_folder))
         os.mkdir(out_folder)
 
-    categories_dict = {cat['id']: cat for cat in labels_table}
+    categories_dict = {cat.id: cat for cat in labels_table}
 
     images = []
     annotations = []
@@ -36,7 +36,7 @@ def panoptic_converter(out_folder, out_json_file, labels_file_list, labels_table
         original_format = np.array(Image.open(label_f))
 
         file_name = label_f.split('/')[-1]
-        image_id = file_name.rsplit('_', 2)[0]
+        image_id = file_name.rsplit('_', 2)[1]
         image_filename = '{}_image.png'.format(image_id)
         # image entry, id for image is its filename without extension
         images.append({"id": image_id,
@@ -82,7 +82,7 @@ def panoptic_converter(out_folder, out_json_file, labels_file_list, labels_table
     d = {
         'images': images,
         'annotations': annotations,
-        'categories': labels_table,
+        'categories': [l.__dict__ for l in labels_table],
     }
 
     save_json(d, out_json_file)

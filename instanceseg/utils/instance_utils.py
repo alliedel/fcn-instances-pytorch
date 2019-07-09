@@ -2,8 +2,10 @@ import numpy as np
 import torch
 from torch import nn
 import yaml
-from typing import Iterable
-from instanceseg.datasets.coco_format import CategoryCOCOFormat
+from typing import List
+
+from instanceseg.datasets.coco_format import CategoryCOCOFormat, generate_default_rgb_color_list
+from instanceseg.datasets import coco_format
 
 
 class InstanceProblemConfig(object):
@@ -17,7 +19,7 @@ class InstanceProblemConfig(object):
     (training) dataset.
     """
 
-    def __init__(self, n_instances_by_semantic_id, labels_table: Iterable[CategoryCOCOFormat] = None,
+    def __init__(self, n_instances_by_semantic_id, labels_table: List[CategoryCOCOFormat] = None,
                  void_value=-1, include_instance_channel0=False, map_to_semantic=False):
         """
         For semantic, include_instance_channel0=True
@@ -30,7 +32,6 @@ class InstanceProblemConfig(object):
         assert n_instances_by_semantic_id is not None, ValueError
         self.labels_table = labels_table
         self.map_to_semantic = map_to_semantic
-        self.semantic_vals = semantic_vals or list(range(len(n_instances_by_semantic_id)))
         self.void_value = void_value
         self.include_instance_channel0 = include_instance_channel0
         self.n_instances_by_semantic_id = n_instances_by_semantic_id \
@@ -38,38 +39,13 @@ class InstanceProblemConfig(object):
         self.model_n_instances_by_semantic_id = n_instances_by_semantic_id \
             if not map_to_semantic else [1 for _ in n_instances_by_semantic_id]
 
-        # Some derivative stuff
-        self.model_semantic_instance_class_list = get_semantic_instance_class_list(n_instances_by_semantic_id)
-        self.semantic_instance_class_list = get_semantic_instance_class_list(self.n_instances_by_semantic_id)
-
-        # Some more derivative stuff
-        self.n_semantic_classes = len(self.semantic_vals)
-        self.n_classes = len(self.model_semantic_instance_class_list) \
-            if not map_to_semantic else self.n_semantic_classes
-        # Assume everything has instances unless told otherwise.
-        self.has_instances = has_instances if has_instances is not None \
-            else [False if 'background' in s else True for s in self.semantic_class_names]
-        self.semantic_colors = semantic_colors
-        self.supercategories = supercategories
-        # Compute stuff dependent on whether or not we're converting the problem to semantic rather than instance
-        self.sem_ids_by_instance_id = [id_into_sem_vals for
-                                       id_into_sem_vals, n_inst in
-                                       enumerate(self.n_instances_by_semantic_id) for _ in range(n_inst)]
-
-        self.instance_count_id_list = get_instance_count_id_list(
-            self.semantic_instance_class_list, include_channel0=self.include_instance_channel0,
-            non_instance_sem_classes=[v for hasinst, v in zip(self.has_instances, self.semantic_vals) if not hasinst])
-        self.model_instance_count_id_list = get_instance_count_id_list(self.model_semantic_instance_class_list,
-                                                                       include_channel0=self.include_instance_channel0)
-        self.instance_to_semantic_mapping_matrix = get_instance_to_semantic_mapping(
-            self.model_n_instances_by_semantic_id)
-        self.instance_to_semantic_conv1x1 = nn.Conv2d(in_channels=len(self.model_semantic_instance_class_list),
-                                                      out_channels=self.n_semantic_classes,
-                                                      kernel_size=1, bias=False)
-
     @property
     def semantic_class_names(self):
         return [l.name for l in self.labels_table]
+
+    @property
+    def n_semantic_classes(self):
+        return len(self.semantic_class_names)
 
     @property
     def semantic_colors(self):
@@ -88,25 +64,61 @@ class InstanceProblemConfig(object):
         return [l.supercategory for l in self.labels_table]
 
     @property
+    def n_classes(self):
+        return len(self.model_semantic_instance_class_list) if not self.map_to_semantic else self.n_semantic_classes
+
+    @property
+    def model_semantic_instance_class_list(self):
+        return get_semantic_instance_class_list(self.n_instances_by_semantic_id)
+
+    @property
+    def semantic_instance_class_list(self):
+        return get_semantic_instance_class_list(self.n_instances_by_semantic_id)
+
+    @property
     def state_dict(self):
         return dict(
-            n_instances_by_semantic_id=self.n_instances_by_semantic_id,
-            semantic_class_names=self.semantic_class_names,
-            semantic_vals=self.semantic_vals,
+            labels_table=self.labels_table,
+            map_to_semantic=self.map_to_semantic,
             void_value=self.void_value,
             include_instance_channel0=self.include_instance_channel0,
-            map_to_semantic=self.map_to_semantic
+            n_instances_by_semantic_id=self.n_instances_by_semantic_id,
+            model_n_instances_by_semantic_id=self.model_n_instances_by_semantic_id
         )
+
+    @property
+    def instance_count_id_list(self):
+        return get_instance_count_id_list(
+            self.semantic_instance_class_list, include_channel0=self.include_instance_channel0,
+            non_instance_sem_classes=[v for hasinst, v in zip(self.has_instances, self.semantic_vals) if not hasinst])
+
+    @property
+    def model_instance_count_id_list(self):
+        return get_instance_count_id_list(self.model_semantic_instance_class_list,
+                                          include_channel0=self.include_instance_channel0)
+    @property
+    def instance_to_semantic_mapping_matrix(self):
+        return get_instance_to_semantic_mapping(self.model_n_instances_by_semantic_id)
+
+    @property
+    def instance_to_semantic_conv1x1(self):
+        return nn.Conv2d(in_channels=len(self.model_semantic_instance_class_list), out_channels=self.n_semantic_classes,
+                         kernel_size=1, bias=False)
+
+    @property
+    def sem_ids_by_instance_id(self):
+        return [id_into_sem_vals for id_into_sem_vals, n_inst in
+                enumerate(self.n_instances_by_semantic_id) for _ in range(n_inst)]
 
     @classmethod
     def load(cls, yaml_path):
         args_state_dict = yaml.safe_load(open(yaml_path, 'r'))
-        args_state_dict['semantic_class_names'] = np.array(args_state_dict['semantic_class_names'])
+        args_state_dict['labels_table'] = [CategoryCOCOFormat(**l) for l in args_state_dict['labels_table']]
         return cls.__init__(**args_state_dict)
 
     def save(self, yaml_path):
         state_dict = self.state_dict.copy()
-        state_dict['semantic_class_names'] = state_dict['semantic_class_names'].tolist()
+        state_dict['labels_table'] = [l.__dict__ for l in state_dict['labels_table']]
         yaml.safe_dump(state_dict, open(yaml_path, 'w'))
 
     @staticmethod
@@ -133,10 +145,6 @@ class InstanceProblemConfig(object):
         return self._get_channel_labels(self.model_semantic_instance_class_list, self.model_instance_count_id_list,
                                         self.semantic_class_names, map_to_semantic=False,
                                         sem_inst_format=sem_inst_format)
-
-    def set_class_names(self, class_names):
-        assert class_names is None or (len(class_names) == self.n_semantic_classes)
-        self.semantic_class_names = class_names
 
     def decouple_instance_result(self, instance_scores):
         # TODO(allie): implement.
@@ -295,3 +303,20 @@ def permute_labels(label_preds, permutations):
         for new_channel, old_channel in enumerate(permutation):
             label_preds_permuted[label_preds == old_channel] = new_channel
     return label_preds_permuted
+
+
+def create_default_labels_table_from_instance_problem_config(semantic_class_names, semantic_class_vals, colors=None,
+                                                             supercategories=None, isthing=None):
+    if supercategories is None:
+        supercategories = semantic_class_names
+    if isthing is None:
+        isthing = [1 if name != 'background' else 0 for name in semantic_class_names]
+    labels_table = [
+        CategoryCOCOFormat(
+            **{'id': semantic_class_vals[i],
+               'name': name,
+               'color': colors[i],
+               'supercategory': supercategories[i],
+               'isthing': isthing[i]})
+        for i, name in enumerate(semantic_class_names)]
+    return labels_table

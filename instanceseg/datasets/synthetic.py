@@ -99,7 +99,7 @@ class BlobExampleGenerator(InstanceDatasetBase):
                                                              color=self.get_semantic_color(sem_idx),
                                                              supercategory=cls_name,
                                                              isthing=cls_name != 'background'))
-        return coco_format.create_labels_table(categories)
+        return coco_format.create_labels_table_from_list_of_labels(categories)
 
     def initialize_locations_per_image(self, random_seed=None):
         # initialize to nan to be sure we clear them (for debugging purposes)

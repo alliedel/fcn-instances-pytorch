@@ -187,8 +187,10 @@ def main():
     n_instances_per_class = cfg['n_instances_per_class'] or \
                             (1 if cfg['single_instance'] else synthetic_generator_n_instances_per_semantic_id)
     n_instances_by_semantic_id = [1] + [n_instances_per_class for sem_cls in range(1, n_semantic_classes)]
-    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id)
-    problem_config.set_class_names(class_names)
+    labels_table = instance_utils.create_default_labels_table_from_instance_problem_config(
+        semantic_class_names=class_names, semantic_class_vals=list(range(len(class_names))))
+    problem_config = instance_utils.InstanceProblemConfig(n_instances_by_semantic_id=n_instances_by_semantic_id,
+                                                          labels_table=labels_table)
 
     writer = SummaryWriter(log_dir=out)
 

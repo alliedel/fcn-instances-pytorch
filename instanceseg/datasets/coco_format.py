@@ -1,24 +1,5 @@
 from instanceseg.datasets import palettes
-from instanceseg.utils.instance_utils import InstanceProblemConfig
-
-
-def create_default_labels_table_from_instance_problem_config(instance_problem_config: InstanceProblemConfig):
-    semantic_class_names = instance_problem_config
-    semantic_class_vals = instance_problem_config.semantic_vals
-    colors = instance_problem_config.semantic_colors
-    if colors is None:
-        colors = generate_default_rgb_color_list(semantic_class_names)
-    supercategories = instance_problem_config.supercategories
-    if supercategories is None:
-        supercategories = semantic_class_names
-    labels_table = [
-        CategoryCOCOFormat(
-            **{'id': semantic_class_vals[i],
-               'name': name,
-               'color': colors[i],
-               'supercategory': supercategories[i],
-               'isthing': 1 if name != 'background' else 0}) for i, name in enumerate(semantic_class_names)]
-    return labels_table
+from instanceseg.utils.misc import AttrDict
 
 
 def generate_default_rgb_color_list(n_semantic_classes):
@@ -26,13 +7,12 @@ def generate_default_rgb_color_list(n_semantic_classes):
     return colors_list
 
 
-class CategoryCOCOFormat(object):
+class CategoryCOCOFormat(AttrDict):
     def __init__(self, id, name, color, supercategory=None, isthing=True):
-        supercategory = supercategory or name
         self.id = id
-        self.name = name
+        self.name = str(name)
         self.color = color
-        self.supercategory = supercategory
+        self.supercategory = str(supercategory or name)
         self.isthing = isthing
 
 

@@ -120,8 +120,6 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, **kwargs)
     train_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, **kwargs)
 
-    problem_config.set_class_names(val_dataset.class_names)
-
     # 2. model
 
     model = instanceseg.models.FCN8sInstance(

@@ -232,10 +232,10 @@ class Trainer(object):
                 label_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
                 # label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
                 img_idxs = list(range(batch_img_idx, batch_img_idx + batch_sz))
-                prediction_names = ['predictions_{:06d}.png'.format(img_idx) for img_idx in img_idxs]
+                prediction_names = ['predictions_{:06d}_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
                 self.exporter.export_predictions_or_gt(label_pred, predictions_outdir,
                                                        prediction_names)
-                groundtruth_names = ['groundtruth_{:06d}.png'.format(img_idx) for img_idx in img_idxs]
+                groundtruth_names = ['groundtruth_{:06d}_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
                 self.exporter.export_predictions_or_gt(lt_combined, groundtruth_outdir, groundtruth_names)
                 batch_img_idx += batch_sz
         return predictions_outdir, groundtruth_outdir

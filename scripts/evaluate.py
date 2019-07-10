@@ -76,7 +76,6 @@ def main(replacement_dict_for_sys_args=None):
             raise Exception('Remove directory {} before proceeding.'.format(out_dir))
     evaluator = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
                                         model_checkpoint_path=model_checkpoint_path, gpu=args.gpu)
-    labels_table = evaluator.dataloaders['test'].dataset.labels_table
 
     if cfg['debug_dataloader_only']:
         debug_helper.debug_dataloader(evaluator)

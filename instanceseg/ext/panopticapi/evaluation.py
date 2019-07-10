@@ -220,7 +220,6 @@ def pq_compute(gt_json_file, pred_json_file, gt_folder=None, pred_folder=None):
         if image_id not in pred_annotations:
             raise Exception('no prediction for the image with id: {}'.format(image_id))
         matched_annotations_list.append((gt_ann, pred_annotations[image_id]))
-
     pq_stat = pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, categories)
 
     metrics = [("All", None), ("Things", True), ("Stuff", False)]

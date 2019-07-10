@@ -458,7 +458,7 @@ class TrainerExporter(object):
         batch_sz = labels_as_batch_nparray.shape[0]
         for img_idx in range(batch_sz):
             lbl = labels_as_batch_nparray[img_idx, ...]
-            img = self.convert_lbl_to_image(lbl)
+            img = self.convert_lbl_to_image_with_id2rgb(lbl)
             out_file = os.path.join(output_directory, image_names[img_idx])
             visualization_utils.write_image(out_file, img)
 
@@ -494,7 +494,7 @@ class TrainerExporter(object):
         #         raise
 
     @staticmethod
-    def convert_lbl_to_image(lbl, permutation=None, void_value=-1):
+    def convert_lbl_to_image_with_id2rgb(lbl, permutation=None, void_value=-1):
         """
         Returns
         img_array: ndarray

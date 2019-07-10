@@ -28,6 +28,7 @@ def create_labels_table_from_list_of_labels(list_of_labels):
 def create_default_labels_table_from_semantic_names(semantic_class_names, semantic_class_vals=None):
     semantic_class_vals = semantic_class_vals if semantic_class_vals is not None else list(range(semantic_class_names))
     colors = generate_default_rgb_color_list(semantic_class_names)
+
     labels_table = [CategoryCOCOFormat(**{'id': semantic_class_vals[i],
                                           'name': name,
                                           'color': colors[i],

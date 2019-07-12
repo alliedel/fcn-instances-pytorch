@@ -10,6 +10,10 @@ from instanceseg.utils.misc import y_or_n_input
 from instanceseg.utils.script_setup import configure
 from scripts.configurations.generic_cfg import PARAM_CLASSIFICATIONS
 from scripts.configurations.synthetic_cfg import SYNTHETIC_PARAM_CLASSIFICATIONS
+import time
+import json
+from instanceseg.ext.panopticapi import evaluation
+from instanceseg.ext.panopticapi.utils import IdGenerator, save_json, rgb2id, id2rgb
 
 here = osp.dirname(osp.abspath(__file__))
 

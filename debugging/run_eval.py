@@ -6,11 +6,12 @@ from PIL import Image
 
 import shutil
 from instanceseg.ext.panopticapi import evaluation
-from instanceseg.ext.panopticapi.utils import IdGenerator, save_json, rgb2id
+from instanceseg.ext.panopticapi.utils import IdGenerator, save_json, rgb2id, id2rgb
 # from cityscapesscripts.helpers.labels import labels, id2label
 from instanceseg.utils import instance_utils
 from instanceseg.utils import parse
 from scripts import evaluate
+import tqdm
 
 if 'panopticapi' not in os.environ['PYTHONPATH']:
     os.environ['PYTHONPATH'] += ':' + os.path.abspath(os.path.expanduser('./instanceseg/ext'))
@@ -29,10 +30,8 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
     images = []
     annotations = []
     n_files = len(labels_file_list)
-    for working_idx, label_f in enumerate(labels_file_list):
-        if working_idx % 10 == 0:
-            print(working_idx, n_files)
-
+    for working_idx, label_f in tqdm.tqdm(enumerate(labels_file_list),
+                                          desc='Converting to COCO panoptic format', total=n_files):
         rgb_format = np.array(Image.open(label_f), dtype=np.uint8)
 
         assert len(rgb_format.shape) == 3, 'Image should be in rgb format'
@@ -65,8 +64,9 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
             mask = (rgb_format == color_val).all(axis=2)
             area, bbox = get_bounding_box(mask)
 
-            segment_id, pan_format_color = id_generator.get_id_and_color(semantic_id)
-            pan_format[mask, :] = pan_format_color
+            segment_id = semantic_id * 1000 + instance_count_id
+            pan_color = id2rgb(segment_id)
+            pan_format[mask, :] = pan_color
             pan_ids[mask] = segment_id
 
             segm_info.append({"id": int(segment_id),
@@ -74,16 +74,18 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
                               "area": area,
                               "bbox": bbox,
                               "iscrowd": is_crowd})
-        Image.fromarray(pan_format).save(os.path.join(out_folder, file_name))
+        out_file_name = file_name.replace('.png', '_cocopano.png')
+        Image.fromarray(pan_format).save(os.path.join(out_folder, out_file_name))
         # Reverse the process and ensure we get the right id
-        reloaded_pan_img = np.array(Image.open(os.path.join(out_folder, file_name)), dtype=np.uint32)
+        reloaded_pan_img = np.array(Image.open(os.path.join(out_folder, out_file_name)), dtype=np.uint32)
         reloaded_pan_id = rgb2id(reloaded_pan_img)
         assert np.all(reloaded_pan_id == pan_ids)
+        # print('Max pan id: {}'.format(reloaded_pan_id.max()))
         if len(segm_info) == 0:
             raise Exception('No segments in this image')
 
         annotations.append({'image_id': image_id,
-                            'file_name': file_name,
+                            'file_name': out_file_name,
                             "segments_info": segm_info})
 
         shutil.copy(label_f, os.path.join(out_folder, file_name))
@@ -126,6 +128,7 @@ def check_annotation(out_dirs, gt_annotation, pred_annotation, categories, VOID=
     # predicted segments area calculation + prediction sanity checks
     pred_labels_set = set(el['id'] for el in pred_annotation['segments_info'])
     labels, labels_cnt = np.unique(pan_pred, return_counts=True)
+
     for label, label_cnt in zip(labels, labels_cnt):
         if label not in pred_segms:
             if label == VOID:
@@ -146,12 +149,15 @@ def check_annotation(out_dirs, gt_annotation, pred_annotation, categories, VOID=
 
 
 def main():
-    checkpoint_path = '/usr0/home/adelgior/code/experimental-instanceseg/scripts/logs/synthetic/' \
-                      'train_instances_filtered_2019-06-24-163353_VCS-8df0680'
-    dataset_name = 'synthetic'
+    # checkpoint_path = '/usr0/home/adelgior/code/experimental-instanceseg/scripts/logs/synthetic/' \
+    #                   'train_instances_filtered_2019-06-24-163353_VCS-8df0680'
+    checkpoint_path = '../old_instanceseg/scripts/logs/cityscapes/' \
+                      'train_instances_filtered_2019-05-15-150044_VCS-f33d89f_' \
+                      'SAMPLER-car_2_5_BACKBONE-resnet50_ITR-1000000_NPER-5_SSET-car'
+    dataset_name = os.path.split(os.path.split(checkpoint_path)[0])[1]
     config = dict(dataset_name=dataset_name,
                   resume=checkpoint_path,
-                  gpu=1,
+                  gpu=2,
                   config_idx=0,
                   sampler_name=None)
 
@@ -186,14 +192,40 @@ def main():
     with open(out_jsons['pred'], 'r') as f:
         pred_json = json.load(f)
         pred_annotations = pred_json['annotations']
-        print('hey')
     categories = {el['id']: el for el in gt_json['categories']}
     check_annotation(out_dirs, gt_annotations[0], pred_annotations[0], categories)
 
     print('evaluating from {}, {}'.format(out_jsons['gt'], out_jsons['pred']))
     print('evaluating from {}, {}'.format(out_dirs['gt'], out_dirs['pred']))
-    evaluation.pq_compute(out_jsons['gt'], out_jsons['pred'], gt_folder=out_dirs['gt'], pred_folder=out_dirs['pred'])
+    class_avgs_per_image = evaluation.pq_compute_per_image(out_jsons['gt'], out_jsons['pred'],
+                                                           gt_folder=out_dirs['gt'], pred_folder=out_dirs['pred'])
+    isthing = problem_config.has_instances
+    collated_stats_per_image_per_cat = collate_pq_into_pq_compute_per_imageNxS(class_avgs_per_image, categories)
+    # for semantic_id in results['per_class'].keys():
+    #     results['per_class'][semantic_id]['name'] = problem_config.semantic_class_names[int(semantic_id)]
+    # print(results['per_class'])
+    pass
+    return collated_stats_per_image_per_cat
+
+
+def collate_pq_into_pq_compute_per_imageNxS(class_avgs_per_image, categories):
+    labels = list(class_avgs_per_image[0].keys())
+    metric_names = class_avgs_per_image[0][labels[0]].keys()
+    assert set(labels) == set(categories)
+    n_categories = len(labels)
+    n_images = len(class_avgs_per_image)
+    empty_stats_per_image = np.zeros((n_images, n_categories))
+    collated_stats_per_image_per_cat = {
+        metric: empty_stats_per_image.copy() for metric in metric_names
+    }
+    for i in range(n_images):
+        for j, (category, category_metrics) in enumerate(class_avgs_per_image[i].items()):
+            for key, array in collated_stats_per_image_per_cat.items():
+                collated_stats_per_image_per_cat[key][i, j] = category_metrics[key]
+    return collated_stats_per_image_per_cat
 
 
 if __name__ == '__main__':
-    main()
+    collated_stats_per_image_per_cat = main()
+
+    pass

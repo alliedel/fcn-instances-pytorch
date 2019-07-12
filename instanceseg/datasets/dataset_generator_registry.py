@@ -62,7 +62,7 @@ def get_dataset(dataset_type, cfg, split, transform=True):
     elif dataset_type == 'cityscapes':
         dataset_path = cfg['dataset_path']
         precomputed_file_transformation, runtime_transformation = get_transformations(
-            cfg, cityscapes.RawCityscapesBase.get_semantic_class_names())
+            cfg, cityscapes.RawCityscapesBase(dataset_path, split=split).semantic_class_names)
         dataset = get_cityscapes_dataset(dataset_path, precomputed_file_transformation, runtime_transformation,
                                          split=split, transform=transform)
     elif dataset_type == 'synthetic':
@@ -96,7 +96,7 @@ def get_transformations(cfg, original_semantic_class_names=None):
     if semantic_subset is not None:
         assert original_semantic_class_names is not None
         class_names, reduced_class_idxs = datasets.get_semantic_names_and_idxs(
-            semantic_subset=semantic_subset, full_set=original_semantic_class_names)
+                semantic_subset=semantic_subset, full_set=original_semantic_class_names)
     else:
         reduced_class_idxs = None
 

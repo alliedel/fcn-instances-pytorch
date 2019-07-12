@@ -59,9 +59,10 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
     return exit_code, stdout
 
 
-def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), checkpoint_path=None, semantic_init=None):
+def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), checkpoint_path=None, semantic_init=None,
+                splits=('train', 'val', 'train_for_val')):
     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
-        setup_common(dataset_type, cfg, gpu, checkpoint_path, sampler_cfg, semantic_init)
+        setup_common(dataset_type, cfg, gpu, checkpoint_path, sampler_cfg, semantic_init, splits=splits)
     print('Number of training, validation, train_for_val images: {}, {}, {}'.format(
         len(dataloaders['train']), len(dataloaders['val']), len(dataloaders['train_for_val'] or 0)))
 
@@ -89,9 +90,9 @@ def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), checkpoint_pa
     return trainer
 
 
-def setup_test(dataset_type, cfg, out_dir, sampler_cfg, model_checkpoint_path, gpu=(0,)):
+def setup_test(dataset_type, cfg, out_dir, sampler_cfg, model_checkpoint_path, gpu=(0,), splits=('test',)):
     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
-        setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, semantic_init=None, splits=('test',))
+        setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, semantic_init=None, splits=splits)
     print('Number of test images: {}'.format(len(dataloaders['test'])))
 
     evaluator = instanceseg.factory.trainers.get_evaluator(cfg, cuda, model, dataloaders, problem_config, out_dir)

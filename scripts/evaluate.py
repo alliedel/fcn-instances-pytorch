@@ -43,7 +43,11 @@ def get_config_options_from_train_config(train_config_path):
     test_config_options = {
         k: v for k, v in train_config.items() if k in keys_to_transfer_from_train_to_test()
     }
-    test_config_options['test_batch_size'] = test_config_options.pop('val_batch_size')
+    if 'val_batch_size' in test_config_options.keys():
+        test_config_options['test_batch_size'] = train_config.pop('val_batch_size')
+    else:
+        print('WARNING: validation batch size not specified (probably from an old log).  Using batch size 1.')
+        test_config_options['test_batch_size'] = 1
     return test_config_options
 
 
@@ -61,6 +65,12 @@ def main(replacement_dict_for_sys_args=None):
                                           sampler_name=args.sampler,
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args)
+    # if args.dataset == 'cityscapes':
+    #     split = 'val'  # Don't have test set downloaded yet
+    # else:
+    #     split = 'test'
+    split = 'test'
+
     if 'test' not in sampler_cfg:
         print('No sampler configuration for test; using validation configuration instead.')
         sampler_cfg['test'] = sampler_cfg['val']
@@ -79,14 +89,15 @@ def main(replacement_dict_for_sys_args=None):
         else:
             raise Exception('Remove directory {} before proceeding.'.format(out_dir))
     evaluator = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
-                                        model_checkpoint_path=model_checkpoint_path, gpu=args.gpu)
+                                        model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=(split,))
 
     if cfg['debug_dataloader_only']:
         debug_helper.debug_dataloader(evaluator)
         return
     predictions_outdir, groundtruth_outdir = (os.path.join(out_dir, s) for s in ('predictions', 'groundtruth'))
     print(predictions_outdir, groundtruth_outdir)
-    evaluator.test(split='test', predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir)
+
+    evaluator.test(split=split, predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir)
     print('Predictions exported to {}'.format(predictions_outdir))
     print('Ground truth exported to {}'.format(groundtruth_outdir))
     return predictions_outdir, groundtruth_outdir, evaluator

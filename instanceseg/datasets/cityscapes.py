@@ -18,13 +18,14 @@ CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
 def get_default_cityscapes_root():
     other_options = [osp.abspath(osp.expanduser(p))
                      for p in ['~/afs_directories/kalman/data/cityscapes/']]
-    cityscapes_root = osp.abspath(osp.expanduser('data/cityscapes/'))
+    cityscapes_root = osp.realpath(osp.abspath(osp.expanduser('data/cityscapes/')))
+    print('CITYSCAPES ROOT: {}'.format(cityscapes_root))
     if not osp.isdir(cityscapes_root):
         for option in other_options:
             if osp.isdir(option):
                 cityscapes_root = option
                 break
-    return cityscapes_root
+    return cityscapes_root  # gets rid of symlinks
 
 
 CITYSCAPES_ROOT = get_default_cityscapes_root()
@@ -45,7 +46,7 @@ class RawCityscapesBase(InstanceDatasetBase):
             gtFine/
                 <split>/
         """
-        self.root = root
+        self.root = osp.expanduser(osp.realpath(root))
         self.split = split
         self.files = self.get_files()
 
@@ -148,7 +149,9 @@ class RawCityscapesBase(InstanceDatasetBase):
 def get_raw_cityscapes_files(dataset_dir, split):
     files = []
     images_base = osp.join(dataset_dir, 'leftImg8bit', split)
-    images = sorted(glob(osp.join(images_base, '*', '*.png')))
+    glob_regex = osp.join(images_base, '*', '*.png')
+    images = sorted(glob(glob_regex))
+    assert len(images) > 0, "No images found with {}".format(glob_regex)
     for index, img_file in enumerate(images):
         img_file = img_file.rstrip()
         sem_lbl_file = img_file.replace('leftImg8bit/', 'gtFine/').replace(
@@ -163,7 +166,7 @@ def get_raw_cityscapes_files(dataset_dir, split):
             'sem_lbl': sem_lbl_file,
             'inst_lbl': raw_inst_lbl_file,
         })
-    assert len(files) > 0, "No images found in directory {}".format(images_base)
+    assert len(files) > 0
     return files
 
 

@@ -73,7 +73,12 @@ class InstanceProblemConfig(object):
 
     @property
     def semantic_instance_class_list(self):
+        # Returns idxs
         return get_semantic_instance_class_list(self.n_instances_by_semantic_id)
+
+    @property
+    def semantic_instance_val_list(self):
+        return [self.semantic_vals[i] for i in self.semantic_instance_class_list]
 
     @property
     def state_dict(self):

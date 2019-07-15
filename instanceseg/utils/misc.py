@@ -195,9 +195,9 @@ def pairwise_or(list1, list2):
     return [a or b for a, b in zip(list1, list2)]
 
 
-def y_or_n_input(msg_to_user):
-    y_or_n = input(msg_to_user)
-    while y_or_n not in ['y', 'n']:
-        print('Answer y or n.')
+def y_or_n_input(msg_to_user, allowed_chars=('y', 'n')):
+    y_or_n = input(msg_to_user + ' ')
+    while y_or_n not in allowed_chars:
+        print('Answer y or n. ')
         y_or_n = input(msg_to_user)
     return y_or_n

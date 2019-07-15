@@ -80,6 +80,7 @@ def main(replacement_dict_for_sys_args=None):
     assert os.path.exists(model_checkpoint_path)
     cfg = get_config_options_from_train_config(train_config_path=train_config_path)
     out_dir = checkpoint_path.rstrip('/') + '_test'
+    use_existing_results = False
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     else:
@@ -87,17 +88,27 @@ def main(replacement_dict_for_sys_args=None):
         if y_or_n == 'y':
             shutil.rmtree(out_dir)
         else:
-            raise Exception('Remove directory {} before proceeding.'.format(out_dir))
+            y_or_n = y_or_n_input('Want to use the existing results from the directory?')
+            if y_or_n == 'y':
+                use_existing_results = True
+            else:
+                raise Exception('Remove directory {} before proceeding.'.format(out_dir))
     evaluator = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
                                         model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=(split,))
 
     if cfg['debug_dataloader_only']:
+        import tqdm
+        for idx, d in tqdm.tqdm(enumerate(evaluator.dataloaders['test']), total=len(evaluator.dataloaders['test']),
+                                desc='testing dataset loading', leave=True):
+            img = d[0]
+
         debug_helper.debug_dataloader(evaluator)
-        return
+        # return
     predictions_outdir, groundtruth_outdir = (os.path.join(out_dir, s) for s in ('predictions', 'groundtruth'))
     print(predictions_outdir, groundtruth_outdir)
+    if not use_existing_results:
+        evaluator.test(split=split, predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir)
 
-    evaluator.test(split=split, predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir)
     print('Predictions exported to {}'.format(predictions_outdir))
     print('Ground truth exported to {}'.format(groundtruth_outdir))
     return predictions_outdir, groundtruth_outdir, evaluator

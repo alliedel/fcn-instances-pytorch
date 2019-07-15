@@ -2,16 +2,17 @@ import glob
 
 import numpy as np
 import os
+import tqdm
 from PIL import Image
+import argparse
 
-import shutil
 from instanceseg.ext.panopticapi import evaluation
 from instanceseg.ext.panopticapi.utils import IdGenerator, save_json, rgb2id, id2rgb
 # from cityscapesscripts.helpers.labels import labels, id2label
 from instanceseg.utils import instance_utils
 from instanceseg.utils import parse
+from instanceseg.utils.misc import y_or_n_input
 from scripts import evaluate
-import tqdm
 
 if 'panopticapi' not in os.environ['PYTHONPATH']:
     os.environ['PYTHONPATH'] += ':' + os.path.abspath(os.path.expanduser('./instanceseg/ext'))
@@ -30,6 +31,29 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
     images = []
     annotations = []
     n_files = len(labels_file_list)
+    cocopano_ext = '_cocopano.png'
+
+    all_files_already_exist = os.path.exists(out_json_file)
+    file_exists = []
+    for working_idx, label_f in tqdm.tqdm(enumerate(labels_file_list),
+                                          desc='Finding files', total=n_files):
+        file_name = label_f.split('/')[-1]
+        out_file_name = file_name.replace('.png', cocopano_ext)
+        file_exists.append(os.path.exists(os.path.join(out_folder, out_file_name)))
+    all_files_already_exist = all_files_already_exist and all(file_exists)
+    some_files_already_exist = any(file_exists)
+
+    if all_files_already_exist:
+        y_or_n = y_or_n_input('All files already exist.  Overwrite?')
+        if y_or_n == 'n':
+            return
+    elif some_files_already_exist:
+        y_or_n = y_or_n_input('{}/{} files already exist.  Overwrite them?'.format(sum(file_exists), len(file_exists)))
+        if y_or_n == 'y':
+            overwrite_existing_files = True
+        else:
+            overwrite_existing_files = False
+
     for working_idx, label_f in tqdm.tqdm(enumerate(labels_file_list),
                                           desc='Converting to COCO panoptic format', total=n_files):
         rgb_format = np.array(Image.open(label_f), dtype=np.uint8)
@@ -37,6 +61,10 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         assert len(rgb_format.shape) == 3, 'Image should be in rgb format'
 
         file_name = label_f.split('/')[-1]
+        out_file_name = file_name.replace('.png', cocopano_ext)
+        if os.path.exists(out_file_name):
+            if not overwrite_existing_files:
+                continue
         image_id = file_name.rsplit('_', 2)[1]
         image_filename = '{}_image.png'.format(image_id)
         # image entry, id for image is its filename without extension
@@ -54,7 +82,8 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         pan_ids = np.zeros((rgb_format.shape[0], rgb_format.shape[1]))
         for color_val in present_channel_colors:
             channel_idx = rgb2id(color_val)
-            semantic_id = problem_config.semantic_instance_class_list[channel_idx]
+            # semantic_id = problem_config.semantic_vals[problem_config.semantic_instance_class_list[channel_idx]]
+            semantic_id = problem_config.semantic_instance_val_list[channel_idx]
             instance_count_id = problem_config.instance_count_id_list[channel_idx]
             is_crowd = instance_count_id < 1
             if semantic_id not in categories_dict:
@@ -74,7 +103,6 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
                               "area": area,
                               "bbox": bbox,
                               "iscrowd": is_crowd})
-        out_file_name = file_name.replace('.png', '_cocopano.png')
         Image.fromarray(pan_format).save(os.path.join(out_folder, out_file_name))
         # Reverse the process and ensure we get the right id
         reloaded_pan_img = np.array(Image.open(os.path.join(out_folder, out_file_name)), dtype=np.uint32)
@@ -88,7 +116,7 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
                             'file_name': out_file_name,
                             "segments_info": segm_info})
 
-        shutil.copy(label_f, os.path.join(out_folder, file_name))
+        # shutil.copy(label_f, os.path.join(out_folder, file_name))
 
         assert len(segm_info) == len(present_channel_colors)
 
@@ -148,15 +176,12 @@ def check_annotation(out_dirs, gt_annotation, pred_annotation, categories, VOID=
             'PNG.'.format(gt_annotation['image_id'], list(pred_labels_set)))
 
 
-def main():
+def main(logdir):
     # checkpoint_path = '/usr0/home/adelgior/code/experimental-instanceseg/scripts/logs/synthetic/' \
     #                   'train_instances_filtered_2019-06-24-163353_VCS-8df0680'
-    checkpoint_path = '../old_instanceseg/scripts/logs/cityscapes/' \
-                      'train_instances_filtered_2019-05-15-150044_VCS-f33d89f_' \
-                      'SAMPLER-car_2_5_BACKBONE-resnet50_ITR-1000000_NPER-5_SSET-car'
-    dataset_name = os.path.split(os.path.split(checkpoint_path)[0])[1]
+    dataset_name = os.path.split(os.path.split(logdir)[0])[1]
     config = dict(dataset_name=dataset_name,
-                  resume=checkpoint_path,
+                  resume=logdir,
                   gpu=2,
                   config_idx=0,
                   sampler_name=None)
@@ -164,10 +189,11 @@ def main():
     commandline_arguments_list = parse.construct_args_list_to_replace_sys(**config)
 
     predictions_outdir, groundtruth_outdir, evaluator = evaluate.main(commandline_arguments_list)
+    # Make sure we can load all the images
 
     problem_config = evaluator.instance_problem
 
-    experiment_identifier = os.path.basename(checkpoint_path)
+    experiment_identifier = os.path.basename(logdir)
     out_dirs = {}
     out_jsons = {}
     out_dirs_root = os.path.join('cache', '{}'.format(dataset_name), experiment_identifier)
@@ -204,8 +230,13 @@ def main():
     # for semantic_id in results['per_class'].keys():
     #     results['per_class'][semantic_id]['name'] = problem_config.semantic_class_names[int(semantic_id)]
     # print(results['per_class'])
-    pass
-    return collated_stats_per_image_per_cat
+
+    outfile_collated = os.path.join(out_dirs_root, 'collated_stats_per_img_per_cat.npz')
+    np.savez(outfile_collated,
+             collated_stats_per_image_per_cat=collated_stats_per_image_per_cat,
+             categories=categories, problem_config=problem_config)
+    print('Stats saved to {}'.format(outfile_collated))
+    return collated_stats_per_image_per_cat, categories
 
 
 def collate_pq_into_pq_compute_per_imageNxS(class_avgs_per_image, categories):
@@ -225,7 +256,16 @@ def collate_pq_into_pq_compute_per_imageNxS(class_avgs_per_image, categories):
     return collated_stats_per_image_per_cat
 
 
-if __name__ == '__main__':
-    collated_stats_per_image_per_cat = main()
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--logdir',
+                        default='../old_instanceseg/scripts/logs/cityscapes/train_instances_filtered_2019-05-14'
+                                '-133452_VCS-1e74989_SAMPLER-car_2_4_BACKBONE-resnet50_'
+                                'ITR-1000000_NPER-4_SSET-car_person')
+    return parser.parse_args()
 
+
+if __name__ == '__main__':
+    args = parse_args()
+    collated_stats_per_image_per_cat, categories = main(args.logdir)
     pass

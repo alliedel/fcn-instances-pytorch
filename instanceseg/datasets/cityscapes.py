@@ -19,7 +19,6 @@ def get_default_cityscapes_root():
     other_options = [osp.abspath(osp.expanduser(p))
                      for p in ['~/afs_directories/kalman/data/cityscapes/']]
     cityscapes_root = osp.realpath(osp.abspath(osp.expanduser('data/cityscapes/')))
-    print('CITYSCAPES ROOT: {}'.format(cityscapes_root))
     if not osp.isdir(cityscapes_root):
         for option in other_options:
             if osp.isdir(option):
@@ -64,12 +63,17 @@ class RawCityscapesBase(InstanceDatasetBase):
         labels_table = coco_format.create_default_labels_table_from_semantic_names(
             semantic_class_names=self.semantic_class_names)
         for i in range(len(labels_table)):
-            sem_cls_name = labels_table[i].name
-            original_table_idx = labels_table_cityscapes.class_names.index(sem_cls_name)
-            labels_table[i].id = labels_table_cityscapes.train_ids[original_table_idx]
-            labels_table[i].isthing = labels_table_cityscapes.has_instances[original_table_idx]
-            labels_table[i].color = labels_table_cityscapes.colors[original_table_idx]
-            labels_table[i].supercategory = labels_table_cityscapes.supercategory[original_table_idx]
+            sem_cls_name = self.semantic_class_names[i]
+            is_bground = sem_cls_name == 'background'  # not in original cityscapes
+
+            original_table_idx = labels_table_cityscapes.class_names.index(sem_cls_name) if not is_bground else None
+            labels_table[i].id = labels_table_cityscapes.train_ids[original_table_idx] if not is_bground else 0
+            labels_table[i].isthing = labels_table_cityscapes.has_instances[original_table_idx] \
+                if not is_bground else False
+            labels_table[i].color = labels_table_cityscapes.colors[original_table_idx] if not is_bground else [255,
+                                                                                                               255, 255]
+            labels_table[i].supercategory = labels_table_cityscapes.supercategory[original_table_idx] if not \
+                is_bground else sem_cls_name
         return labels_table
 
     def get_files(self):
@@ -171,12 +175,19 @@ def get_raw_cityscapes_files(dataset_dir, split):
 
 
 def load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file):
-    img = PIL.Image.open(img_file)
-    img = np.array(img, dtype=np.uint8)
+    img_loaded = PIL.Image.open(img_file)
+
+    try:
+        img = np.array(img_loaded, dtype=np.uint8)
+    except:
+        print(img_file)
+        img = np.array(img_loaded, dtype=np.uint8)
+
     # load semantic label
     sem_lbl = np.array(PIL.Image.open(sem_lbl_file), dtype=np.int32)
     # load instance label
     inst_lbl = np.array(PIL.Image.open(inst_lbl_file), dtype=np.int32)
+    img_loaded.close()
     return img, (sem_lbl, inst_lbl)
 
 

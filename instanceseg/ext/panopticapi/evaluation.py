@@ -87,10 +87,11 @@ def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, cate
         if idx % 100 == 0:
             print('Core: {}, {} from {} images processed'.format(proc_id, idx, len(annotation_set)))
         idx += 1
-
-        pan_gt = np.array(Image.open(os.path.join(gt_folder, gt_ann['file_name'])), dtype=np.uint32)
+        with Image.open(os.path.join(gt_folder, gt_ann['file_name'])) as img:
+            pan_gt = np.array(img, dtype=np.uint32)
         pan_gt = rgb2id(pan_gt)
-        pan_pred = np.array(Image.open(os.path.join(pred_folder, pred_ann['file_name'])), dtype=np.uint32)
+        with Image.open(os.path.join(pred_folder, pred_ann['file_name'])) as img:
+            pan_pred = np.array(img, dtype=np.uint32)
         pan_pred = rgb2id(pan_pred)
 
         gt_segms = {el['id']: el for el in gt_ann['segments_info']}
@@ -105,13 +106,16 @@ def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, cate
             if label not in pred_segms:
                 if label == VOID:
                     continue
-                raise KeyError('In the image with ID {} segment with ID {} is presented in PNG and not presented in JSON.'.format(gt_ann['image_id'], label))
+                raise KeyError('In the image with ID {} segment with ID {} is presented in PNG and not presented in'
+                               ' JSON.'.format(gt_ann['image_id'], label))
             pred_segms[label]['area'] = label_cnt
             pred_labels_set.remove(label)
             if pred_segms[label]['category_id'] not in categories:
-                raise KeyError('In the image with ID {} segment with ID {} has unknown category_id {}.'.format(gt_ann['image_id'], label, pred_segms[label]['category_id']))
+                raise KeyError('In the image with ID {} segment with ID {} has unknown category_id {}.'.format(
+                    gt_ann['image_id'], label, pred_segms[label]['category_id']))
         if len(pred_labels_set) != 0:
-            raise KeyError('In the image with ID {} the following segment IDs {} are presented in JSON and not presented in PNG.'.format(gt_ann['image_id'], list(pred_labels_set)))
+            raise KeyError('In the image with ID {} the following segment IDs {} are presented in JSON and not '
+                           'presented in PNG.'.format(gt_ann['image_id'], list(pred_labels_set)))
 
         # confusion matrix calculation
         pan_gt_pred = pan_gt.astype(np.uint64) * OFFSET + pan_pred.astype(np.uint64)
@@ -175,8 +179,10 @@ def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, cate
 
 def pq_compute_multi_core_per_image(matched_annotations_list, gt_folder, pred_folder, categories):
     # cpu_num = multiprocessing.cpu_count()
-    cpu_num = len(matched_annotations_list)
-    annotations_split = np.array_split(matched_annotations_list, cpu_num)
+    cpu_num = min(len(matched_annotations_list), multiprocessing.cpu_count()-1)
+    # cpu_num = len(matched_annotations_list)
+
+    annotations_split = np.array_split(matched_annotations_list, len(matched_annotations_list))
     print("Number of cores: {}, images per core: {}".format(cpu_num, len(annotations_split[0])))
     workers = multiprocessing.Pool(processes=cpu_num)
     processes = []
@@ -186,7 +192,7 @@ def pq_compute_multi_core_per_image(matched_annotations_list, gt_folder, pred_fo
         processes.append(p)
 
     pq_stats_per_image = combine_processes_to_stats_per_img(processes)
-
+    assert len(pq_stats_per_image) == len(matched_annotations_list)
     # pq_stat = PQStat()
     # for p in processes:
     #     pq_stat += p.get()
@@ -352,7 +358,7 @@ if __name__ == "__main__":
     parser.add_argument('--pred_json_file', type=str,
                         help="JSON file with predictions data")
     parser.add_argument('--gt_folder', type=str, default=None,
-                        help="Folder with ground turth COCO format segmentations. \
+                        help="Folder with ground truth COCO format segmentations. \
                               Default: X if the corresponding json file is X.json")
     parser.add_argument('--pred_folder', type=str, default=None,
                         help="Folder with prediction COCO format segmentations. \

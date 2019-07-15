@@ -140,7 +140,7 @@ def get_voc_dataset(dataset_path, precomputed_file_transformation, runtime_trans
 
 def get_cityscapes_dataset(dataset_path, precomputed_file_transformation, runtime_transformation, split,
                            transform=True):
-    assert split in ['train', 'val']
+    # assert split in ['train', 'val']
     dataset = cityscapes.TransformedCityscapes(
         root=dataset_path, split=split,
         precomputed_file_transformation=precomputed_file_transformation,

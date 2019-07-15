@@ -104,7 +104,7 @@ def setup_test(dataset_type, cfg, out_dir, sampler_cfg, model_checkpoint_path, g
 def setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, semantic_init,
                  splits=('train', 'val', 'train_for_val')):
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(['{}'.format(g) for g in gpu])
-    print(os.environ['CUDA_VISIBLE_DEVICES'])
+    print('CUDA_VISIBLE_DEVICES: ', os.environ['CUDA_VISIBLE_DEVICES'])
     set_random_seeds()
     cuda = torch.cuda.is_available()
     print('Using {} devices'.format(torch.cuda.device_count()))

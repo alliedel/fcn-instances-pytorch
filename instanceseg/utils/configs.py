@@ -129,11 +129,7 @@ def save_config(log_dir, cfg):
         yaml.safe_dump(cfg, f, default_flow_style=False)
 
 
-def get_cfgs(dataset_name, config_idx, cfg_override_args=None):
-    cfg_default = dataset_registry.REGISTRY[dataset_name].default_config
-    cfg_options = dataset_registry.REGISTRY[dataset_name].config_options
-    cfg = create_config_from_default(cfg_options[config_idx], cfg_default)
-    non_default_options = prune_defaults_from_dict(cfg_default, cfg)
+def override_cfg(cfg, cfg_override_args):
     if cfg_override_args is not None:
         try:
             cfg_override_as_dict = cfg_override_args.__dict__
@@ -146,7 +142,14 @@ def get_cfgs(dataset_name, config_idx, cfg_override_args=None):
                     'Overriding value for {}: {} --> {}'.format(key, old_val, override_val),
                     misc.TermColors.WARNING))
             cfg[key] = override_val
-            non_default_options[key] = override_val
+
+
+def get_cfgs(dataset_name, config_idx, cfg_override_args=None):
+    cfg_default = dataset_registry.REGISTRY[dataset_name].default_config
+    cfg_options = dataset_registry.REGISTRY[dataset_name].config_options
+    cfg = create_config_from_default(cfg_options[config_idx], cfg_default)
+    override_cfg(cfg, cfg_override_args)
+    non_default_options = prune_defaults_from_dict(cfg_default, cfg)
 
     if cfg['semantic_subset'] is not None and 'background' not in cfg['semantic_subset']:
         print(UserWarning('background was not in the list of semantic classes.  I added it.  '

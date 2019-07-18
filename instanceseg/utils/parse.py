@@ -1,8 +1,44 @@
 import argparse
+import os.path
 
 from instanceseg.utils import configs
 from scripts.configurations.sampler_cfg_registry import sampler_cfgs
 from instanceseg.datasets import dataset_registry
+
+
+def parse_args_test(replacement_args_list=None):
+    parser = get_parser_test()
+    args, argv = parser.parse_known_args(replacement_args_list) \
+        if replacement_args_list is not None else parser.parse_known_args()
+
+    # Config override parser
+    assert args.dataset is not None, ValueError('dataset argument must not be None.  '
+                                                'Run with --help for more details.')
+    dataset_name_from_logdir = os.path.split(os.path.split(args.logdir)[0])[1]
+    assert args.dataset == dataset_name_from_logdir, 'Dataset given: {}.  I expected this dataset from logdir: ' \
+                                                     '{}'.format(args.dataset,
+                                                                 os.path.split(os.path.split(args.logdir)[0])[1])
+
+    cfg_default = dataset_registry.REGISTRY[args.dataset].default_config
+    cfg_override_parser = configs.get_cfg_override_parser(cfg_default)
+
+    bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
+    assert len(bad_args) == 0, cfg_override_parser.error('bad_args: {}'.format(bad_args))
+    if args.sampler is not None:
+        argv += ['--sampler', args.sampler]
+    # Parse with list of options
+    override_cfg_args, leftovers = cfg_override_parser.parse_known_args(argv)
+    assert len(leftovers) == 0, ValueError('args not recognized: {}'.format(leftovers))
+    # apparently this is failing, so I'm going to have to screen this on my own:
+
+    # Remove options from namespace that weren't defined
+    unused_keys = [k for k in list(override_cfg_args.__dict__.keys()) if
+                   '--' + k not in argv and '-' + k not in argv]
+    for k in unused_keys:
+        delattr(override_cfg_args, k)
+
+    postprocess_test_args(override_cfg_args)
+    return args, override_cfg_args
 
 
 def parse_args_train(replacement_args_list=None):
@@ -35,6 +71,11 @@ def parse_args_train(replacement_args_list=None):
     postprocess_train_args(override_cfg_args)
 
     return args, override_cfg_args
+
+
+def postprocess_test_args(override_cfg_args):
+
+    pass
 
 
 def postprocess_train_args(override_cfg_args):
@@ -117,17 +158,14 @@ def get_parser_test():
     for dataset_name, subparser in dataset_parsers.items():
         cfg_choices = list(dataset_registry.REGISTRY[dataset_name].config_options.keys())
         subparser.add_argument('-c', '--config', type=str_or_int, default=0, choices=cfg_choices)
-        subparser.add_argument('-g', '--gpu', type=int, nargs='+', required=True)
-        subparser.add_argument('--resume', help='Checkpoint path')
-        subparser.add_argument('--semantic-init',
-                               help='Checkpoint path of semantic model (e.g. - '
-                                    '\'~/data/models/pytorch/semantic_synthetic.pth\'',
-                               default=None)
+        subparser.add_argument('-g', '--gpu', help='ex. - \'2 3\'', type=int, nargs='+', required=True)
+        subparser.add_argument('--logdir', help='Checkpoint path for model', required=True)
         subparser.add_argument('--single-image-index', type=int,
-                               help='Image index to use for train/validation set',
+                               help='Image index to use for unit testing',
                                default=None)
         subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default=None,
                                help='Sampler for dataset')
+        subparser.add_argument('--test_split', type=str, default='test')
     return parser
 
 

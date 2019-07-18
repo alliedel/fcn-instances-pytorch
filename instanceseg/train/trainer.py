@@ -205,6 +205,7 @@ class Trainer(object):
         If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
             False.
         """
+        self.exporter.instance_problem.save(self.exporter.instance_problem_path)
         predictions_outdir = predictions_outdir or os.path.join(tempfile.NamedTemporaryFile().name, 'predictions')
         groundtruth_outdir = groundtruth_outdir or os.path.join(tempfile.NamedTemporaryFile().name, 'groundtruth')
         for my_dir in [predictions_outdir, groundtruth_outdir]:
@@ -260,7 +261,7 @@ class Trainer(object):
         else:
             data_loader = self.dataloaders['val']
 
-        # eval instead of training mode temporarily
+        # panoeval instead of training mode temporarily
         training = self.model.training
         self.model.eval()
 

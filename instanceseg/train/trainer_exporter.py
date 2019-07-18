@@ -90,7 +90,7 @@ class TrainerExporter(object):
                 f.write(','.join(self.log_headers) + '\n')
 
         # Save instance problem
-        instance_problem.save(osp.join(self.out_dir, 'instance_problem_config.yaml'))
+        self.instance_problem.save(self.instance_problem_path)
 
         # Logging parameters
         self.timestamp_start = datetime.datetime.now(pytz.timezone(MY_TIMEZONE))
@@ -105,6 +105,10 @@ class TrainerExporter(object):
         # Writing activations
 
         self.run_loss_updates = True
+
+    @property
+    def instance_problem_path(self):
+        return osp.join(self.out_dir, 'instance_problem_config.yaml')
 
     def write_eval_metrics(self, eval_metrics, loss, split, epoch, iteration):
         with open(osp.join(self.out_dir, 'log.csv'), 'a') as f:

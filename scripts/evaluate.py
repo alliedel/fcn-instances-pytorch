@@ -1,118 +1,63 @@
+import argparse
+
+import numpy as np
 import os
 import os.path as osp
-import shutil
-import yaml
 
-import debugging.helpers as debug_helper
-import instanceseg.utils.script_setup as script_utils
-from instanceseg.utils import parse
-from instanceseg.utils.misc import y_or_n_input
-from instanceseg.utils.script_setup import configure
-from scripts.configurations.generic_cfg import PARAM_CLASSIFICATIONS
-from scripts.configurations.synthetic_cfg import SYNTHETIC_PARAM_CLASSIFICATIONS
-import time
-import json
-from instanceseg.ext.panopticapi import evaluation
-from instanceseg.ext.panopticapi.utils import IdGenerator, save_json, rgb2id, id2rgb
+from instanceseg.panoeval import compute
+from instanceseg.panoeval.utils import collate_pq_into_pq_compute_per_imageNxS
+from instanceseg.utils import instance_utils
 
 here = osp.dirname(osp.abspath(__file__))
 
 
-def keys_to_transfer_from_train_to_test():
-    keys_to_transfer = []
-    for k in PARAM_CLASSIFICATIONS.data:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.debug:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.problem_config:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.model:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.export:
-        keys_to_transfer.append(k)
-    for k in SYNTHETIC_PARAM_CLASSIFICATIONS.data:
-        keys_to_transfer.append(k)
+def main(gt_json_file, pred_json_file, gt_folder, pred_folder, problem_config):
+    # checkpoint_path = '/usr0/home/adelgior/code/experimental-instanceseg/scripts/logs/synthetic/' \
+    #                   'train_instances_filtered_2019-06-24-163353_VCS-8df0680'
+    print('evaluating from {}, {}'.format(gt_json_file, pred_json_file))
+    print('evaluating from {}, {}'.format(gt_folder, pred_folder))
+    out_dirs_root = os.path.basename(pred_json_file)
+    class_avgs_per_image = compute.pq_compute_per_image(gt_json_file=gt_json_file, pred_json_file=pred_json_file,
+                                                        gt_folder=gt_folder, pred_folder=pred_folder)
+    # isthing = problem_config.has_instances
+    categories = problem_config.semantic_class_names
+    collated_stats_per_image_per_cat = collate_pq_into_pq_compute_per_imageNxS(class_avgs_per_image, categories)
+    # for semantic_id in results['per_class'].keys():
+    #     results['per_class'][semantic_id]['name'] = problem_config.semantic_class_names[int(semantic_id)]
+    # print(results['per_class'])
 
-    keys_to_transfer.remove('train_batch_size')
+    outfile_collated = os.path.join(out_dirs_root, 'collated_stats_per_img_per_cat.npz')
+    # Saving more than I need in case I need it for reproducibility later
+    np.savez(outfile_collated,
+             collated_stats_per_image_per_cat=collated_stats_per_image_per_cat,
+             categories=categories, problem_config=problem_config, gt_json_file=gt_json_file,
+             pred_json_file=pred_json_file, gt_folder=gt_folder, pred_folder=pred_folder)
+    print('Stats (and categories/problem config) saved to {}'.format(outfile_collated))
 
-    return keys_to_transfer
-
-
-def get_config_options_from_train_config(train_config_path):
-    train_config = yaml.safe_load(open(train_config_path, 'r'))
-    test_config_options = {
-        k: v for k, v in train_config.items() if k in keys_to_transfer_from_train_to_test()
-    }
-    if 'val_batch_size' in test_config_options.keys():
-        test_config_options['test_batch_size'] = train_config.pop('val_batch_size')
-    else:
-        print('WARNING: validation batch size not specified (probably from an old log).  Using batch size 1.')
-        test_config_options['test_batch_size'] = 1
-    return test_config_options
+    return collated_stats_per_image_per_cat, categories
 
 
-def parse_args(replacement_dict_for_sys_args=None):
-    args, cfg_override_args = parse.parse_args_train(replacement_dict_for_sys_args)
-    return args, cfg_override_args
-
-
-def main(replacement_dict_for_sys_args=None):
-    script_utils.check_clean_work_tree()
-    args, cfg_override_args = parse_args(replacement_dict_for_sys_args)
-    checkpoint_path = args.resume
-    cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
-                                          config_idx=args.config,
-                                          sampler_name=args.sampler,
-                                          script_py_file=__file__,
-                                          cfg_override_args=cfg_override_args)
-    # if args.dataset == 'cityscapes':
-    #     split = 'val'  # Don't have test set downloaded yet
-    # else:
-    #     split = 'test'
-    split = 'test'
-
-    if 'test' not in sampler_cfg:
-        print('No sampler configuration for test; using validation configuration instead.')
-        sampler_cfg['test'] = sampler_cfg['val']
-    train_config_path = os.path.join(checkpoint_path, 'config.yaml')
-    model_checkpoint_path = os.path.join(checkpoint_path, 'model_best.pth.tar')
-    assert os.path.exists(train_config_path)
-    assert os.path.exists(model_checkpoint_path)
-    cfg = get_config_options_from_train_config(train_config_path=train_config_path)
-    out_dir = checkpoint_path.rstrip('/') + '_test'
-    use_existing_results = False
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-    else:
-        y_or_n = y_or_n_input('Remove test directory {}? '.format(out_dir))
-        if y_or_n == 'y':
-            shutil.rmtree(out_dir)
-        else:
-            y_or_n = y_or_n_input('Want to use the existing results from the directory?')
-            if y_or_n == 'y':
-                use_existing_results = True
-            else:
-                raise Exception('Remove directory {} before proceeding.'.format(out_dir))
-    evaluator = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
-                                        model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=(split,))
-
-    if cfg['debug_dataloader_only']:
-        import tqdm
-        for idx, d in tqdm.tqdm(enumerate(evaluator.dataloaders['test']), total=len(evaluator.dataloaders['test']),
-                                desc='testing dataset loading', leave=True):
-            img = d[0]
-
-        debug_helper.debug_dataloader(evaluator)
-        # return
-    predictions_outdir, groundtruth_outdir = (os.path.join(out_dir, s) for s in ('predictions', 'groundtruth'))
-    print(predictions_outdir, groundtruth_outdir)
-    if not use_existing_results:
-        evaluator.test(split=split, predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir)
-
-    print('Predictions exported to {}'.format(predictions_outdir))
-    print('Ground truth exported to {}'.format(groundtruth_outdir))
-    return predictions_outdir, groundtruth_outdir, evaluator
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--problem_config_file', type=str,
+                        help="JSON file with ground truth data", required=True)
+    parser.add_argument('--gt_json_file', type=str, default=None,
+                        help="JSON file with ground truth data")
+    parser.add_argument('--pred_json_file', type=str, default=None,
+                        help="JSON file with predictions data")
+    parser.add_argument('--gt_folder', type=str, default=None,
+                        help="Folder with ground truth COCO format segmentations. \
+                              Default: X if the corresponding json file is X.json")
+    parser.add_argument('--pred_folder', type=str, default=None,
+                        help="Folder with prediction COCO format segmentations. \
+                              Default: X if the corresponding json file is X.json")
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    problem_config = instance_utils.InstanceProblemConfig.load(args.problem_config_file)
+    collated_stats_per_image_per_cat, categories = main(gt_json_file=args.gt_json_file,
+                                                        pred_json_file=args.pred_json_file,
+                                                        gt_folder=args.gt_folder, pred_folder=args.pred_folder,
+                                                        problem_config=problem_config)

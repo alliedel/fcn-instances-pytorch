@@ -48,7 +48,7 @@ def parse_args():
 def get_outdirs_cache_root(train_logdir, test_pred_outdir):
     dataset_name_from_logdir = os.path.split(os.path.split(train_logdir)[0])[1]
     train_exp_id = os.path.basename(train_logdir)
-    test_exp_id = os.path.basename(test_pred_outdir)
+    test_exp_id = os.path.basename(os.path.dirname(test_pred_outdir))  # Assuming .../<expid>/'predictions'
     out_dirs_root = os.path.join('cache', '{}'.format(dataset_name_from_logdir), train_exp_id, test_exp_id)
     return out_dirs_root
 

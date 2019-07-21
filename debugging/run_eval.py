@@ -15,7 +15,9 @@ if __name__ == '__main__':
 
     logdir = '../old_instanceseg/scripts/logs/cityscapes/train_instances_filtered_2019-05-14' \
              '-133452_VCS-1e74989_SAMPLER-car_2_4_BACKBONE-resnet50_ITR-1000000_NPER-4_SSET-car_person'
-    replacement_dict_for_sys_args = ['cityscapes', '--logdir', logdir, '--test_batch_size', '2', '-g', '2']
+    test_split = 'val'
+    replacement_dict_for_sys_args = ['cityscapes', '--logdir', logdir, '--{}_batch_size'.format(test_split), '2', '-g',
+                                     '2', '--test_split', test_split]
     # Test
     predictions_outdir, groundtruth_outdir, tester, logdir = test.main(replacement_dict_for_sys_args)
 

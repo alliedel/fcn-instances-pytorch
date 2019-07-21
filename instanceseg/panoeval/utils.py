@@ -10,7 +10,7 @@ from instanceseg.utils.misc import y_or_n_input
 
 def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
                                     problem_config: instance_utils.InstanceProblemConfig,
-                                    VOID=rgb2id((255, 255, 255))):
+                                    VOID_RGB=(255, 255, 255)):
     """
     Takes predictions output from tester (special Trainer type) and outputs coco panoptic format
     Inputs should represent the different channels, where rgb2id creates the channel id (R + G*255 + B*255*255)
@@ -71,13 +71,13 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
 
         idx = 0
         present_channel_colors = np.unique(rgb_format.reshape(-1, rgb_format.shape[2]), axis=0)
+        present_channel_colors = [c for c in present_channel_colors if rgb2id(c) != rgb2id(VOID_RGB)]
+
         pan_format = np.zeros((rgb_format.shape[0], rgb_format.shape[1], 3), dtype=np.uint8)
         segm_info = []
         pan_ids = np.zeros((rgb_format.shape[0], rgb_format.shape[1]))
         for color_val in present_channel_colors:
             channel_idx = rgb2id(color_val)
-            if channel_idx == VOID:
-                pass
             # semantic_id = problem_config.semantic_vals[problem_config.semantic_instance_class_list[channel_idx]]
             semantic_id = problem_config.semantic_instance_val_list[channel_idx]
             instance_count_id = problem_config.instance_count_id_list[channel_idx]

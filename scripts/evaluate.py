@@ -16,11 +16,11 @@ def main(gt_json_file, pred_json_file, gt_folder, pred_folder, problem_config):
     #                   'train_instances_filtered_2019-06-24-163353_VCS-8df0680'
     print('evaluating from {}, {}'.format(gt_json_file, pred_json_file))
     print('evaluating from {}, {}'.format(gt_folder, pred_folder))
-    out_dirs_root = os.path.basename(pred_json_file)
+    out_dirs_root = os.path.dirname(pred_json_file)
     class_avgs_per_image = compute.pq_compute_per_image(gt_json_file=gt_json_file, pred_json_file=pred_json_file,
                                                         gt_folder=gt_folder, pred_folder=pred_folder)
     # isthing = problem_config.has_instances
-    categories = problem_config.semantic_class_names
+    categories = problem_config.semantic_vals
     collated_stats_per_image_per_cat = collate_pq_into_pq_compute_per_imageNxS(class_avgs_per_image, categories)
     # for semantic_id in results['per_class'].keys():
     #     results['per_class'][semantic_id]['name'] = problem_config.semantic_class_names[int(semantic_id)]

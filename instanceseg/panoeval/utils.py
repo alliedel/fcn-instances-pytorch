@@ -9,7 +9,12 @@ from instanceseg.utils.misc import y_or_n_input
 
 
 def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
-                                    problem_config: instance_utils.InstanceProblemConfig):
+                                    problem_config: instance_utils.InstanceProblemConfig,
+                                    VOID=rgb2id((255, 255, 255))):
+    """
+    Takes predictions output from tester (special Trainer type) and outputs coco panoptic format
+    Inputs should represent the different channels, where rgb2id creates the channel id (R + G*255 + B*255*255)
+    """
     # Replace split with file_list
     labels_table = problem_config.labels_table
     if not os.path.isdir(out_folder):
@@ -71,6 +76,8 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         pan_ids = np.zeros((rgb_format.shape[0], rgb_format.shape[1]))
         for color_val in present_channel_colors:
             channel_idx = rgb2id(color_val)
+            if channel_idx == VOID:
+                pass
             # semantic_id = problem_config.semantic_vals[problem_config.semantic_instance_class_list[channel_idx]]
             semantic_id = problem_config.semantic_instance_val_list[channel_idx]
             instance_count_id = problem_config.instance_count_id_list[channel_idx]
@@ -133,7 +140,7 @@ def get_bounding_box(mask):
     return area, bbox
 
 
-def check_annotation(out_dirs, gt_annotation, pred_annotation, categories, VOID=0):
+def check_annotation(out_dirs, gt_annotation, pred_annotation, categories, VOID=(0, rgb2id((255, 255, 255)))):
     pan_gt = np.array(Image.open(os.path.join(out_dirs['gt'], gt_annotation['file_name'])), dtype=np.uint32)
     pan_gt = rgb2id(pan_gt)
     pan_pred = np.array(Image.open(os.path.join(out_dirs['pred'], pred_annotation['file_name'])), dtype=np.uint32)

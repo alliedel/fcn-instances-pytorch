@@ -45,7 +45,8 @@ def get_valid_indices_given_dataset(dataset_configured_for_stats,
                                                 instance_counts=instance_counts,
                                                 semantic_class_pixel_counts=semantic_pixel_counts,
                                                 occlusion_counts=occlusion_counts)
-    return index_filter.valid_indices
+    valid_indices = index_filter.valid_indices
+    return valid_indices
 
 
 def get_configured_sampler(dataset, dataset_configured_for_stats, sequential,
@@ -107,6 +108,7 @@ def get_samplers(dataset_type, sampler_cfg, datasets, splits=('train', 'val', 't
     else:
         # Get 'clean' datasets for instance counting
         if not dataset_type == 'synthetic':
+            splits = [s for s in splits if s != 'train_for_val']
             default_datasets, transformer_tag = \
                 dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type, splits=splits)
         else:

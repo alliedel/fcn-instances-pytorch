@@ -3,8 +3,8 @@ import shutil
 import yaml
 
 import debugging.helpers as debug_helper
-from configurations.generic_cfg import PARAM_CLASSIFICATIONS
-from configurations.synthetic_cfg import SYNTHETIC_PARAM_CLASSIFICATIONS
+from scripts.configurations.generic_cfg import PARAM_CLASSIFICATIONS
+from scripts.configurations.synthetic_cfg import SYNTHETIC_PARAM_CLASSIFICATIONS
 from instanceseg.utils import parse, script_setup as script_utils
 from instanceseg.utils.misc import y_or_n_input
 from instanceseg.utils.script_setup import configure
@@ -81,8 +81,9 @@ def main(replacement_dict_for_sys_args=None):
             sampler_cfg[split] = sampler_cfg['val']
         else:
             raise ValueError('Split {} is not in the sampler config'.format(split))
-
-    out_dir = checkpoint_path.rstrip('/') + '_test'
+    with open(os.path.join(out_dir, 'train_logdir.txt'), 'w') as f:
+        f.write(checkpoint_path)
+    # out_dir = checkpoint_path.rstrip('/') + '_test'
     use_existing_results = False
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)

@@ -17,6 +17,8 @@ import torch
 import torch.nn as nn
 from upsnet.config.config import config
 from upsnet.models.fpn import FPN
+import upsnet.models.fpn
+print(upsnet.models.fpn.__file__)
 from upsnet.models.resnet import get_params, resnet_rcnn, ResNetBackbone
 import warnings
 from torch.nn.parameter import Parameter

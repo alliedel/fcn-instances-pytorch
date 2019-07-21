@@ -126,9 +126,9 @@ class ValidIndexFilter(object):
             return valid_indices
         else:
             if sum(valid_indices) < n_images:
-                raise Exception('Too few images to sample {}.  Choose a smaller value for n_images '
+                raise Exception('Too few images ({}) to sample {}.  Choose a smaller value for n_images '
                                 'in the sampler config, or change your filtering requirements for '
-                                'the sampler.'.format(n_images))
+                                'the sampler.'.format(sum(valid_indices), n_images))
             # Subsample n_images
             n_images_chosen = 0
             for idx in np.random.permutation(len(valid_indices)):

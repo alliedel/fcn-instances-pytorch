@@ -87,8 +87,7 @@ class InstanceProblemConfig(object):
             map_to_semantic=self.map_to_semantic,
             void_value=self.void_value,
             include_instance_channel0=self.include_instance_channel0,
-            n_instances_by_semantic_id=self.n_instances_by_semantic_id,
-            model_n_instances_by_semantic_id=self.model_n_instances_by_semantic_id
+            n_instances_by_semantic_id=self.n_instances_by_semantic_id
         )
 
     @property
@@ -119,7 +118,7 @@ class InstanceProblemConfig(object):
     def load(cls, yaml_path):
         args_state_dict = yaml.safe_load(open(yaml_path, 'r'))
         args_state_dict['labels_table'] = [CategoryCOCOFormat(**l) for l in args_state_dict['labels_table']]
-        return cls.__init__(**args_state_dict)
+        return cls(**args_state_dict)
 
     def save(self, yaml_path):
         state_dict = self.state_dict.copy()

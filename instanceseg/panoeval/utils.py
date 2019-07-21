@@ -168,7 +168,7 @@ def check_annotation(out_dirs, gt_annotation, pred_annotation, categories, VOID=
 def collate_pq_into_pq_compute_per_imageNxS(class_avgs_per_image, categories):
     labels = list(class_avgs_per_image[0].keys())
     metric_names = class_avgs_per_image[0][labels[0]].keys()
-    assert set(labels) == set(categories)
+    assert set(labels) == set(categories), 'labels: {}\n categories: {}'.format(labels, categories)
     n_categories = len(labels)
     n_images = len(class_avgs_per_image)
     empty_stats_per_image = np.zeros((n_images, n_categories))

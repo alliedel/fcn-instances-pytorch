@@ -6,6 +6,7 @@ if os.path.basename(os.path.abspath('.')) == 'debugging' or os.path.basename(os.
 
 from scripts import test, evaluate, convert_test_results_to_coco
 
+
 if 'panopticapi' not in os.environ['PYTHONPATH']:
     os.environ['PYTHONPATH'] += ':' + os.path.abspath(os.path.expanduser('./instanceseg/ext'))
     os.environ['PYTHONPATH'] += ':' + os.path.abspath(os.path.expanduser('./instanceseg/ext/panopticapi'))
@@ -15,7 +16,8 @@ if __name__ == '__main__':
 
     logdir = '../old_instanceseg/scripts/logs/cityscapes/train_instances_filtered_2019-05-14' \
              '-133452_VCS-1e74989_SAMPLER-car_2_4_BACKBONE-resnet50_ITR-1000000_NPER-4_SSET-car_person'
-    replacement_dict_for_sys_args = ['cityscapes', '--logdir', logdir, '--test_batch_size', '2', '-g', '1']
+    replacement_dict_for_sys_args = ['cityscapes', '--logdir', logdir, '--test_batch_size', '2', '-g', '1',
+                                     '--sampler', 'car_2_4_1image']
     # Test
     predictions_outdir, groundtruth_outdir, tester, logdir = test.main(replacement_dict_for_sys_args)
 

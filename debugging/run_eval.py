@@ -15,12 +15,12 @@ if __name__ == '__main__':
 
     logdir = '../old_instanceseg/scripts/logs/cityscapes/train_instances_filtered_2019-05-14' \
              '-133452_VCS-1e74989_SAMPLER-car_2_4_BACKBONE-resnet50_ITR-1000000_NPER-4_SSET-car_person'
-    replacement_dict_for_sys_args = ['cityscapes', '--logdir', logdir, '--test_batch_size', '2', '-g', '1']
+    replacement_dict_for_sys_args = ['cityscapes', '--logdir', logdir, '--test_batch_size', '2', '-g', '2']
     # Test
     predictions_outdir, groundtruth_outdir, tester, logdir = test.main(replacement_dict_for_sys_args)
 
     # Convert
-    out_dirs_root = convert_test_results_to_coco.get_outdirs_root_from_logdir(logdir)
+    out_dirs_root = convert_test_results_to_coco.get_outdirs_cache_root(logdir, predictions_outdir)
     problem_config = tester.exporter.instance_problem.load(tester.exporter.instance_problem_path)
     out_jsons, out_dirs = convert_test_results_to_coco.main(predictions_outdir, groundtruth_outdir, problem_config,
                                                             out_dirs_root)

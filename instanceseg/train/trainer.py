@@ -96,7 +96,7 @@ class Trainer(object):
 
         if self.loss_type is not None:
             self.loss_object = self.build_my_loss()
-            self.eval_loss_object_with_matching = self.build_my_loss()  # Uses matching
+            self.eval_loss_object_with_matching = self.build_my_loss(matching_override=True)  # Uses matching
             self.loss_fcn = self.loss_object.loss_fcn  # scores, sem_lbl, inst_lbl
             self.eval_loss_fcn_with_matching = self.eval_loss_object_with_matching.loss_fcn
         else:
@@ -213,7 +213,7 @@ class Trainer(object):
                 os.makedirs(my_dir)
             else:
                 print(Warning('I didnt expect the directory {} to already exist.'.format(my_dir)))
-        data_loader = self.dataloaders['test']
+        data_loader = self.dataloaders[split]
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader), desc='Test iteration (split=%s)=%d' %

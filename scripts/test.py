@@ -33,31 +33,27 @@ def keys_to_transfer_from_train_to_test():
     return keys_to_transfer
 
 
-def get_config_options_from_train_config(train_config_path):
+def get_config_options_from_train_config(train_config_path, test_split):
     train_config = yaml.safe_load(open(train_config_path, 'r'))
     test_config_options = {
         k: v for k, v in train_config.items() if k in keys_to_transfer_from_train_to_test()
     }
-    if 'test_batch_size' in test_config_options.keys() and test_config_options['test_batch_size'] is not None:
+    if '{}_batch_size'.format(test_split) in test_config_options.keys() \
+            and test_config_options['{}_batch_size'.format(test_split)] is not None:
         pass
     else:
         if 'val_batch_size' in test_config_options.keys():
-            test_config_options['test_batch_size'] = train_config.pop('val_batch_size')
+            test_config_options['{}_batch_size'.format(test_split)] = train_config['val_batch_size']
         else:
             print('WARNING: validation batch size not specified (probably from an old log).  Using batch size 1.')
-            test_config_options['test_batch_size'] = 1
+            test_config_options['{}_batch_size'.format(test_split)] = 1
     return test_config_options
-
-
-def parse_args(replacement_dict_for_sys_args=None):
-    args, cfg_override_args = parse.parse_args_test(replacement_dict_for_sys_args)
-    return args, cfg_override_args
 
 
 def main(replacement_dict_for_sys_args=None):
     script_utils.check_clean_work_tree()
 
-    args, cfg_override_args = parse_args(replacement_dict_for_sys_args)
+    args, cfg_override_args = parse.parse_args_test(replacement_dict_for_sys_args)
     checkpoint_path = args.logdir
 
     train_config_path = os.path.join(checkpoint_path, 'config.yaml')
@@ -66,7 +62,7 @@ def main(replacement_dict_for_sys_args=None):
     assert os.path.exists(model_checkpoint_path), 'Model checkpoint path does not exist: {}'.format(
         model_checkpoint_path)
     assert os.path.exists(train_config_path), 'Config file does not exist: {}'.format(train_config_path)
-    cfg = get_config_options_from_train_config(train_config_path=train_config_path)
+    cfg = get_config_options_from_train_config(train_config_path=train_config_path, test_split=args.test_split)
     override_cfg(cfg, cfg_override_args)
 
     _, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
@@ -111,7 +107,8 @@ def main(replacement_dict_for_sys_args=None):
     predictions_outdir, groundtruth_outdir = (os.path.join(out_dir, s) for s in ('predictions', 'groundtruth'))
     print(predictions_outdir, groundtruth_outdir)
     if not use_existing_results:
-        tester.test(split=split, predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir)
+        predictions_outdir, groundtruth_outdir = tester.test(split=split, predictions_outdir=predictions_outdir,
+                                                           groundtruth_outdir=groundtruth_outdir)
 
     print('Input logdir: {}'.format(args.logdir))
     print('Problem config file: {}'.format(tester.exporter.instance_problem_path))

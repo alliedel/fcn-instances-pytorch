@@ -45,14 +45,15 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_outdirs_root_from_logdir(logdir):
-    experiment_identifier = os.path.basename(logdir)
-    dataset_name_from_logdir = os.path.split(os.path.split(logdir)[0])[1]
-    out_dirs_root = os.path.join('cache', '{}'.format(dataset_name_from_logdir), experiment_identifier)
+def get_outdirs_cache_root(train_logdir, test_pred_outdir):
+    dataset_name_from_logdir = os.path.split(os.path.split(train_logdir)[0])[1]
+    train_exp_id = os.path.basename(train_logdir)
+    test_exp_id = os.path.basename(test_pred_outdir)
+    out_dirs_root = os.path.join('cache', '{}'.format(dataset_name_from_logdir), train_exp_id, test_exp_id)
     return out_dirs_root
 
 
 if __name__ == '__main__':
     args = parse_args()
-    out_dirs_root = get_outdirs_root_from_logdir(args.logdir)
+    out_dirs_root = get_outdirs_cache_root(args.logdir, args.pred_dir)
     main(args.pred_dir, args.gt_dir, args.problem_config, out_dirs_root)

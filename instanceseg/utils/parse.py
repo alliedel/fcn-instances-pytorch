@@ -165,7 +165,7 @@ def get_parser_test():
                                default=None)
         subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default=None,
                                help='Sampler for dataset')
-        subparser.add_argument('--test_split', type=str, default='test')
+        subparser.add_argument('--test_split', type=str, default='val')
     return parser
 
 

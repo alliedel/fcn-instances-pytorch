@@ -108,9 +108,9 @@ def get_samplers(dataset_type, sampler_cfg, datasets, splits=('train', 'val', 't
     else:
         # Get 'clean' datasets for instance counting
         if not dataset_type == 'synthetic':
-            splits = [s for s in splits if s != 'train_for_val']
+            dataset_splits = [s for s in splits if s != 'train_for_val']
             default_datasets, transformer_tag = \
-                dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type, splits=splits)
+                dataset_generator_registry.get_default_datasets_for_instance_counts(dataset_type, splits=dataset_splits)
         else:
             default_datasets = datasets
             transformer_tag = 'no_transformation'

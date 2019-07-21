@@ -93,7 +93,7 @@ def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), checkpoint_pa
 def setup_test(dataset_type, cfg, out_dir, sampler_cfg, model_checkpoint_path, gpu=(0,), splits=('test',)):
     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
         setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, semantic_init=None, splits=splits)
-    print('Number of test minibatches: {}'.format(len(dataloaders['test'])))
+    print('Number of test minibatches: {}'.format(len(dataloaders[s]) for s in splits))
 
     evaluator = instanceseg.factory.trainers.get_evaluator(cfg, cuda, model, dataloaders, problem_config, out_dir)
     evaluator.epoch = start_epoch

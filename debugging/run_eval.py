@@ -17,7 +17,7 @@ if __name__ == '__main__':
              '-133452_VCS-1e74989_SAMPLER-car_2_4_BACKBONE-resnet50_ITR-1000000_NPER-4_SSET-car_person'
     test_split = 'val'
     replacement_dict_for_sys_args = ['cityscapes', '--logdir', logdir, '--{}_batch_size'.format(test_split), '2', '-g',
-                                     '2', '--test_split', test_split]
+                                     '3', '--test_split', test_split]
     # Test
     predictions_outdir, groundtruth_outdir, tester, logdir = test.main(replacement_dict_for_sys_args)
 

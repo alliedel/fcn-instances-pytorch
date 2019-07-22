@@ -81,18 +81,21 @@ def main(replacement_dict_for_sys_args=None):
         f.write(checkpoint_path)
     # out_dir = checkpoint_path.rstrip('/') + '_test'
     use_existing_results = False
+    predictions_outdir, groundtruth_outdir = (os.path.join(out_dir, s) for s in ('predictions', 'groundtruth'))
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     else:
-        y_or_n = y_or_n_input('Remove test directory {}? '.format(out_dir))
-        if y_or_n == 'y':
-            shutil.rmtree(out_dir)
-        else:
-            y_or_n = y_or_n_input('Want to use the existing results from the directory?')
+        if os.path.exists(predictions_outdir) or os.path.exists(groundtruth_outdir):
+            y_or_n = y_or_n_input('I found predictions or gt folder in test directory {}.  Remove for fresh test? '
+                                  ''.format(out_dir))
             if y_or_n == 'y':
-                use_existing_results = True
+                shutil.rmtree(out_dir)
             else:
-                raise Exception('Remove directory {} before proceeding.'.format(out_dir))
+                y_or_n = y_or_n_input('Want to use the existing results from the directory?')
+                if y_or_n == 'y':
+                    use_existing_results = True
+                else:
+                    raise Exception('Remove directory {} before proceeding.'.format(out_dir))
     tester = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
                                      model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=(split,))
 
@@ -104,11 +107,10 @@ def main(replacement_dict_for_sys_args=None):
 
         debug_helper.debug_dataloader(tester)
         # return
-    predictions_outdir, groundtruth_outdir = (os.path.join(out_dir, s) for s in ('predictions', 'groundtruth'))
-    print(predictions_outdir, groundtruth_outdir)
+
     if not use_existing_results:
         predictions_outdir, groundtruth_outdir = tester.test(split=split, predictions_outdir=predictions_outdir,
-                                                           groundtruth_outdir=groundtruth_outdir)
+                                                             groundtruth_outdir=groundtruth_outdir)
 
     print('Input logdir: {}'.format(args.logdir))
     print('Problem config file: {}'.format(tester.exporter.instance_problem_path))

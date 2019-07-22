@@ -1,45 +1,102 @@
-import os
+import argparse
+
 import numpy as np
 import matplotlib.pyplot as plt
+
+from instanceseg.utils import display as display_pyutils
 
 
 def bar_graph(x, height, width=1.0):
     plt.bar(x, height, width=width)
 
 
-collated_stats_npz_file = 'cache/synthetic/train_instances_filtered_2019-06-24-163353_VCS-8df0680/' \
-                          'collated_stats_per_img_per_cat.npz'
-# collated_stats_npz_file = 'cache/cityscapes/train_instances_filtered_2019-05-14-133452_VCS-1e74989_SAMPLER-' \
-#                           'car_2_4_BACKBONE-resnet50_ITR-1000000_NPER-4_SSET-car_person/' \
-#                           'collated_stats_per_img_per_cat.npz'
+def extract_variable(loaded_dict, key_name):
+    value = loaded_dict[key_name]
+    try:
+        value_shape = value.shape
+    except AttributeError:
+        return value
+    if value_shape == ():
+        return value.item()
+    else:
+        return value
 
-loaded_dict = np.load(collated_stats_npz_file)
 
-stats_arrays = loaded_dict['collated_stats_per_image_per_cat'].item()
-categories = loaded_dict['categories'].item()
-problem_config = loaded_dict['problem_config'].item()
-del loaded_dict
+def plot_averages_with_error_bars(stats_arrays, problem_config, category_idxs_to_display=None):
+    category_idxs_to_display = category_idxs_to_display if category_idxs_to_display is not None \
+        else range(stats_arrays[stats_arrays.keys()[0]].shape[1])
+    average_per_cat = {}
+    std_per_cat = {}
 
-average_per_cat = {}
-std_per_cat = {}
+    for stat_type, stat_array in stats_arrays.items():
+        print(stat_type, np.average(stat_array, axis=0))
+        average_per_cat[stat_type] = np.average(stat_array, axis=0)
+        std_per_cat[stat_type] = np.std(stat_array, axis=0)
 
-for stat_type, stat_array in stats_arrays.items():
-    average_per_cat[stat_type] = np.average(stat_array, axis=0)
-    std_per_cat[stat_type] = np.std(stat_array, axis=0)
+    category_names_to_display = [problem_config.semantic_class_names[idx] for idx in category_idxs_to_display]
+    for stat_type in average_per_cat.keys():
+        plt.figure(1)
+        plt.clf()
+        fig, ax = plt.subplots()
+        ax.bar(category_idxs_to_display, average_per_cat[stat_type][category_idxs_to_display],
+               yerr=std_per_cat[stat_type][category_idxs_to_display], align='center',
+               alpha=0.5, ecolor='black', capsize=10)
+        ax.set_ylabel(stat_type)
+        ax.set_xticks(category_idxs_to_display)
+        ax.set_xticklabels(list(category_names_to_display))
+        ax.set_title(stat_type)
+        ax.yaxis.grid(True)
+        display_pyutils.save_fig_to_workspace('avg_' + stat_type + '.png')
 
-category_idxs_to_display = range(1, problem_config.n_semantic_classes)
 
-for stat_type in average_per_cat.keys():
-    plt.figure(1); plt.clf()
-    fig, ax = plt.subplots()
-    ax.bar(category_idxs_to_display, average_per_cat[stat_type][category_idxs_to_display],
-           yerr=std_per_cat[stat_type][category_idxs_to_display], align='center',
-           alpha=0.5, ecolor='black', capsize=10)
-    ax.set_ylabel(stat_type)
-    ax.set_xticks(category_idxs_to_display)
-    ax.set_xticklabels(list(categories[i]['name'] for i in category_idxs_to_display))
-    ax.set_title(stat_type)
-    ax.yaxis.grid(True)
+def plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_display=None):
+    category_idxs_to_display = category_idxs_to_display if category_idxs_to_display is not None \
+        else range(stats_arrays[stats_arrays.keys()[0]].shape[1])
+    category_names_to_display = [problem_config.semantic_class_names[idx] for idx in category_idxs_to_display]
+    sqs = [stats_arrays['sq'][:, i] for i in category_idxs_to_display]
+    rqs = [stats_arrays['rq'][:, i] for i in category_idxs_to_display]
 
-    # bar_graph(x=category_idxs_to_display, height=average_per_cat[stat_type][category_idxs_to_display])
-    plt.savefig(stat_type + '.png')
+    plt.figure(1)
+    plt.clf()
+    scatter_list_of_xs_and_ys(sqs, rqs, labels=category_names_to_display, xlabel='SQ', ylabel='RQ')
+    display_pyutils.save_fig_to_workspace('sq_vs_rq' + '.png')
+
+
+def scatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None):
+    if labels is None:
+        labels = ['{}'.format(i) for i in range(len(xs))]
+    markers = display_pyutils.MARKERS
+    colors = display_pyutils.GOOD_COLOR_CYCLE
+    size = 30
+    for i, (sq, rq) in enumerate(zip(xs, ys)):
+        plt.scatter(sq, rq, alpha=0.5, marker=markers[i], s=size, c=colors[i], edgecolors=colors[i], label=labels[i])
+    plt.legend()
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+
+
+def main(collated_stats_npz_file):
+    loaded_dict = np.load(collated_stats_npz_file)
+    stats_arrays = extract_variable(loaded_dict, 'collated_stats_per_image_per_cat')
+    categories = extract_variable(loaded_dict, 'categories')
+    problem_config = extract_variable(loaded_dict, 'problem_config')
+    assert set(categories) == set(problem_config.semantic_vals)
+    del loaded_dict
+
+    category_idxs_to_display = range(1, problem_config.n_semantic_classes)
+    plot_averages_with_error_bars(stats_arrays, problem_config, category_idxs_to_display=category_idxs_to_display)
+    plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_display=category_idxs_to_display)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('collated_stats_npz', type=str, help='Output file from eval; typically '
+                                                             'collated_stats_per_img_per_cat.npz in '
+                                                             'the test output directory')
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = parse_args()
+
+    main(collated_stats_npz_file=args.collated_stats_npz)

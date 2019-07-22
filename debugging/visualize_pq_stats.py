@@ -1,7 +1,8 @@
 import argparse
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import os
 
 from instanceseg.utils import display as display_pyutils
 
@@ -22,7 +23,8 @@ def extract_variable(loaded_dict, key_name):
         return value
 
 
-def plot_averages_with_error_bars(stats_arrays, problem_config, category_idxs_to_display=None):
+def plot_averages_with_error_bars(stats_arrays, problem_config, category_idxs_to_display=None, save_to_workspace=True,
+                                  output_dir='/tmp/'):
     category_idxs_to_display = category_idxs_to_display if category_idxs_to_display is not None \
         else range(stats_arrays[stats_arrays.keys()[0]].shape[1])
     average_per_cat = {}
@@ -46,10 +48,14 @@ def plot_averages_with_error_bars(stats_arrays, problem_config, category_idxs_to
         ax.set_xticklabels(list(category_names_to_display))
         ax.set_title(stat_type)
         ax.yaxis.grid(True)
-        display_pyutils.save_fig_to_workspace('avg_' + stat_type + '.png')
+        figname = 'avg_' + stat_type + '.png'
+        if save_to_workspace:
+            display_pyutils.save_fig_to_workspace(figname)
+        plt.savefig(os.path.join(output_dir, figname))
 
 
-def plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_display=None):
+def plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_display=None, save_to_workspace=True,
+                           output_dir='/tmp/'):
     category_idxs_to_display = category_idxs_to_display if category_idxs_to_display is not None \
         else range(stats_arrays[stats_arrays.keys()[0]].shape[1])
     category_names_to_display = [problem_config.semantic_class_names[idx] for idx in category_idxs_to_display]
@@ -59,7 +65,10 @@ def plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_displa
     plt.figure(1)
     plt.clf()
     scatter_list_of_xs_and_ys(sqs, rqs, labels=category_names_to_display, xlabel='SQ', ylabel='RQ')
-    display_pyutils.save_fig_to_workspace('sq_vs_rq' + '.png')
+    figname = 'sq_vs_rq' + '.png'
+    if save_to_workspace:
+        display_pyutils.save_fig_to_workspace(figname)
+    plt.savefig(os.path.join(output_dir, figname))
 
 
 def scatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None):
@@ -80,12 +89,17 @@ def main(collated_stats_npz_file):
     stats_arrays = extract_variable(loaded_dict, 'collated_stats_per_image_per_cat')
     categories = extract_variable(loaded_dict, 'categories')
     problem_config = extract_variable(loaded_dict, 'problem_config')
+    fig_output_dir = os.path.join(os.path.dirname(collated_stats_npz_file), 'figs')
+    if not os.path.exists(fig_output_dir):
+        os.makedirs(fig_output_dir)
     assert set(categories) == set(problem_config.semantic_vals)
     del loaded_dict
 
     category_idxs_to_display = range(1, problem_config.n_semantic_classes)
-    plot_averages_with_error_bars(stats_arrays, problem_config, category_idxs_to_display=category_idxs_to_display)
-    plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_display=category_idxs_to_display)
+    plot_averages_with_error_bars(stats_arrays, problem_config, category_idxs_to_display=category_idxs_to_display,
+                                  output_dir=fig_output_dir)
+    plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_display=category_idxs_to_display,
+                           output_dir=fig_output_dir)
 
 
 def parse_args():

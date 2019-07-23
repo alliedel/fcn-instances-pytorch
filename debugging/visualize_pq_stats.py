@@ -71,6 +71,24 @@ def plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_displa
     plt.savefig(os.path.join(output_dir, figname))
 
 
+def plot_hists_pq_rq_sq(stats_arrays, problem_config, category_idxs_to_display=None, save_to_workspace=True,
+                        output_dir='/tmp/'):
+    category_idxs_to_display = category_idxs_to_display if category_idxs_to_display is not None \
+        else range(stats_arrays[stats_arrays.keys()[0]].shape[1])
+    category_names_to_display = [problem_config.semantic_class_names[idx] for idx in category_idxs_to_display]
+
+    for stat_type, stat_array in stats_arrays.items():
+        for catidx, catname in zip(category_idxs_to_display, category_names_to_display):
+            plt.figure(1)
+            plt.clf()
+            display_pyutils.histogram(stat_array[:, catidx], label=catname)
+            figname = '{}_{}_hist'.format(stat_type, catname) + '.png'
+            plt.title(figname.replace('.png','').replace('_', ' '))
+            if save_to_workspace:
+                display_pyutils.save_fig_to_workspace(figname)
+            plt.savefig(os.path.join(output_dir, figname))
+
+
 def scatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None):
     if labels is None:
         labels = ['{}'.format(i) for i in range(len(xs))]
@@ -100,6 +118,8 @@ def main(collated_stats_npz_file):
                                   output_dir=fig_output_dir)
     plot_scatterplot_sq_rq(stats_arrays, problem_config, category_idxs_to_display=category_idxs_to_display,
                            output_dir=fig_output_dir)
+    plot_hists_pq_rq_sq(stats_arrays, problem_config, category_idxs_to_display=category_idxs_to_display,
+                        output_dir=fig_output_dir)
 
 
 def parse_args():

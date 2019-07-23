@@ -47,6 +47,7 @@ def get_config_options_from_train_config(train_config_path, test_split):
         else:
             print('WARNING: validation batch size not specified (probably from an old log).  Using batch size 1.')
             test_config_options['{}_batch_size'.format(test_split)] = 1
+    test_config_options['test_split'] = test_split
     return test_config_options
 
 
@@ -69,7 +70,8 @@ def main(replacement_dict_for_sys_args=None):
                                         config_idx=args.config,
                                         sampler_name=args.sampler,
                                         script_py_file=__file__,
-                                        cfg_override_args=cfg_override_args)
+                                        cfg_override_args=cfg_override_args,
+                                        additional_logdir_tag='__test_split-{}'.format(args.test_split))
     split = args.test_split
     if split not in sampler_cfg:
         if split == 'test':

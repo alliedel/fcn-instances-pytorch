@@ -149,7 +149,7 @@ def setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, sem
 
 
 def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscript.py',
-              cfg_override_args=None, parent_script_directory='scripts'):
+              cfg_override_args=None, parent_script_directory='scripts', additional_logdir_tag=''):
     script_basename = osp.basename(script_py_file).replace('.py', '')
     parent_directory = os.path.join(PROJECT_ROOT, parent_script_directory, 'logs', dataset_name)
     cfg, cfg_to_print = get_cfgs(dataset_name=dataset_name, config_idx=config_idx,
@@ -163,7 +163,8 @@ def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscr
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
     sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg_set(sampler_name)
-    out_dir = get_log_dir(os.path.join(parent_directory, script_basename), cfg_to_print)
+    out_dir = get_log_dir(os.path.join(parent_directory, script_basename), cfg_to_print,
+                          additional_tag=additional_logdir_tag)
     instanceseg.utils.configs.save_config(out_dir, cfg)
     print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir),
                                             instanceseg.utils.misc.TermColors.OKGREEN))

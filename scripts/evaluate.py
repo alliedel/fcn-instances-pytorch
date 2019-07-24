@@ -34,7 +34,7 @@ def main(gt_json_file, pred_json_file, gt_folder, pred_folder, problem_config):
              pred_json_file=pred_json_file, gt_folder=gt_folder, pred_folder=pred_folder)
     print('Stats (and categories/problem config) saved to {}'.format(outfile_collated))
 
-    return collated_stats_per_image_per_cat, categories
+    return outfile_collated
 
 
 def parse_args():
@@ -57,7 +57,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     problem_config = instance_utils.InstanceProblemConfig.load(args.problem_config_file)
-    collated_stats_per_image_per_cat, categories = main(gt_json_file=args.gt_json_file,
-                                                        pred_json_file=args.pred_json_file,
-                                                        gt_folder=args.gt_folder, pred_folder=args.pred_folder,
-                                                        problem_config=problem_config)
+    collated_stats_per_image_per_cat_file = main(gt_json_file=args.gt_json_file,
+                                                 pred_json_file=args.pred_json_file,
+                                                 gt_folder=args.gt_folder, pred_folder=args.pred_folder,
+                                                 problem_config=problem_config)

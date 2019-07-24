@@ -163,7 +163,7 @@ def get_parser_test():
         subparser.add_argument('--single-image-index', type=int,
                                help='Image index to use for unit testing',
                                default=None)
-        subparser.add_argument('--sampler', type=str, choices=sampler_cfgs.keys(), default=None,
+        subparser.add_argument('--sampler', choices=sampler_cfgs.keys(), default=None,
                                help='Sampler for dataset')
         subparser.add_argument('--test_split', type=str, default='val')
     return parser

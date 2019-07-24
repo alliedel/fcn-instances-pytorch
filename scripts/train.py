@@ -47,7 +47,7 @@ def run(trainer: trainer.Trainer):
     trainer.train()
     val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = \
         trainer.validate_split(should_export_visualizations=False)
-    viz = visualization_utils.get_tile_image(segmentation_visualizations)   
+    viz = visualization_utils.get_tile_image(segmentation_visualizations)
     skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     eval_metrics = np.array(eval_metrics)
     eval_metrics *= 100

@@ -8,6 +8,9 @@ from instanceseg.utils import instance_utils
 from instanceseg.utils.misc import y_or_n_input
 
 
+# TODO(allie): Make converter into multiprocessing pool so we can convert the files much more quickly.
+
+
 def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
                                     problem_config: instance_utils.InstanceProblemConfig,
                                     VOID_RGB=(255, 255, 255)):

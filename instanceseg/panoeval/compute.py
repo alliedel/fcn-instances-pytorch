@@ -8,7 +8,7 @@ import os
 from instanceseg.ext.panopticapi.evaluation import pq_compute_single_core, pq_compute_multi_core
 
 
-def pq_compute_multi_core_per_image(matched_annotations_list, gt_folder, pred_folder, categories):
+def pq_compute_multi_core_per_image(matched_annotations_list, gt_folder, pred_folder, categories, iou_threshold=0.5):
     # cpu_num = multiprocessing.cpu_count()
     cpu_num = min(len(matched_annotations_list), multiprocessing.cpu_count()-1)
     # cpu_num = len(matched_annotations_list)
@@ -19,7 +19,7 @@ def pq_compute_multi_core_per_image(matched_annotations_list, gt_folder, pred_fo
     processes = []
     for proc_id, annotation_set in enumerate(annotations_split):
         p = workers.apply_async(pq_compute_single_core,
-                                (proc_id, annotation_set, gt_folder, pred_folder, categories))
+                                (proc_id, annotation_set, gt_folder, pred_folder, categories, iou_threshold))
         processes.append(p)
 
     pq_stats_per_image = combine_processes_to_stats_per_img(processes)
@@ -38,7 +38,7 @@ def combine_processes_to_stats_per_img(processes):
     return pq_stats
 
 
-def pq_compute_per_image(gt_json_file, pred_json_file, gt_folder=None, pred_folder=None):
+def pq_compute_per_image(gt_json_file, pred_json_file, gt_folder=None, pred_folder=None, iou_threshold=0.5):
 
     start_time = time.time()
     with open(gt_json_file, 'r') as f:
@@ -72,7 +72,8 @@ def pq_compute_per_image(gt_json_file, pred_json_file, gt_folder=None, pred_fold
         if image_id not in pred_annotations:
             raise Exception('no prediction for the image with id: {}'.format(image_id))
         matched_annotations_list.append((gt_ann, pred_annotations[image_id]))
-    pq_stats_per_image = pq_compute_multi_core_per_image(matched_annotations_list, gt_folder, pred_folder, categories)
+    pq_stats_per_image = pq_compute_multi_core_per_image(matched_annotations_list, gt_folder, pred_folder, categories,
+                                                         iou_threshold)
     class_avgs_per_image = []
     for i in range(len(pq_stats_per_image)):
         total_avg, class_avg = pq_stats_per_image[i].pq_average(categories, isthing=None)

@@ -26,6 +26,9 @@ OFFSET = 256 * 256 * 256
 VOID = 0
 
 
+IOU_THRESHOLD = 0.2
+
+
 class PQStatCat():
         def __init__(self):
             self.iou = 0.0
@@ -81,7 +84,7 @@ class PQStat():
 
 
 @get_traceback
-def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, categories):
+def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, categories, iou_threshold=0.5):
     pq_stat = PQStat()
 
     idx = 0
@@ -145,7 +148,7 @@ def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, cate
             union = pred_segms[pred_label]['area'] + gt_segms[gt_label]['area'] - intersection - \
                     gt_pred_map.get((VOID, pred_label), 0)
             iou = intersection / union
-            if iou > 0.5:
+            if iou > iou_threshold:
                 pq_stat[gt_segms[gt_label]['category_id']].tp += 1
                 pq_stat[gt_segms[gt_label]['category_id']].iou += iou
                 gt_matched.add(gt_label)
@@ -172,14 +175,14 @@ def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, cate
             if pred_info['category_id'] in crowd_labels_dict:
                 intersection += gt_pred_map.get((crowd_labels_dict[pred_info['category_id']], pred_label), 0)
             # predicted segment is ignored if more than half of the segment correspond to VOID and CROWD regions
-            if intersection / pred_info['area'] > 0.5:
+            if intersection / pred_info['area'] > iou_threshold:
                 continue
             pq_stat[pred_info['category_id']].fp += 1
     print('Core: {}, all {} images processed'.format(proc_id, len(annotation_set)))
     return pq_stat
 
 
-def pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, categories):
+def pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, categories, iou_threshold=0.5):
     cpu_num = multiprocessing.cpu_count()
     annotations_split = np.array_split(matched_annotations_list, cpu_num)
     print("Number of cores: {}, images per core: {}".format(cpu_num, len(annotations_split[0])))
@@ -187,7 +190,7 @@ def pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, cate
     processes = []
     for proc_id, annotation_set in enumerate(annotations_split):
         p = workers.apply_async(pq_compute_single_core,
-                                (proc_id, annotation_set, gt_folder, pred_folder, categories))
+                                (proc_id, annotation_set, gt_folder, pred_folder, categories, iou_threshold))
         processes.append(p)
     pq_stat = PQStat()
     for p in processes:
@@ -195,7 +198,7 @@ def pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, cate
     return pq_stat
 
 
-def pq_compute(gt_json_file, pred_json_file, gt_folder=None, pred_folder=None):
+def pq_compute(gt_json_file, pred_json_file, gt_folder=None, pred_folder=None, iou_threshold=0.5):
 
     start_time = time.time()
     with open(gt_json_file, 'r') as f:
@@ -229,7 +232,8 @@ def pq_compute(gt_json_file, pred_json_file, gt_folder=None, pred_folder=None):
         if image_id not in pred_annotations:
             raise Exception('no prediction for the image with id: {}'.format(image_id))
         matched_annotations_list.append((gt_ann, pred_annotations[image_id]))
-    pq_stat = pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, categories)
+    pq_stat = pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, categories,
+                                    iou_threshold=iou_threshold)
 
     metrics = [("All", None), ("Things", True), ("Stuff", False)]
     results = {}

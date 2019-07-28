@@ -30,11 +30,14 @@ def parse_args():
     parser.add_argument('--sampler', default=None)
     parser.add_argument('--batch_size', default=1, type=int, help='Batch size for the dataloader of the designated '
                                                                   'test split')
+    parser.add_argument('--iou_threshold', default=0.5, type=float, help='Threshold to count TP in evaluation')
     return parser.parse_args()
 
 
-def main(logdir, test_split, sampler=None, gpu=(DEFAULT_GPU,), batch_size=1, dataset_name=None):
+def main(logdir, test_split, sampler=None, gpu=(DEFAULT_GPU,), batch_size=1, dataset_name=None, iou_threshold=0.5):
+    logdir = logdir.rstrip('/')
     dataset_name = dataset_name or os.path.basename(os.path.dirname(logdir))
+    print(dataset_name)
     replacement_dict_for_sys_args = [dataset_name, '--logdir', logdir, '--{}_batch_size'.format(test_split),
                                      str(batch_size), '-g', ' '.join(str(g) for g in gpu), '--test_split', test_split,
                                      '--sampler', sampler]
@@ -50,7 +53,7 @@ def main(logdir, test_split, sampler=None, gpu=(DEFAULT_GPU,), batch_size=1, dat
 
     # Evaluate
     collated_stats_per_image_file = evaluate.main(out_jsons['gt'], out_jsons['pred'], out_dirs['gt'],
-                                                  out_dirs['pred'], problem_config)
+                                                  out_dirs['pred'], problem_config, iou_threshold=iou_threshold)
 
     visualize_pq_stats.main(collated_stats_per_image_file)
 

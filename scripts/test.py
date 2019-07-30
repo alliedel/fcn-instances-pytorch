@@ -84,6 +84,7 @@ def main(replacement_dict_for_sys_args=None):
     # out_dir = checkpoint_path.rstrip('/') + '_test'
     use_existing_results = False
     predictions_outdir, groundtruth_outdir = (os.path.join(out_dir, s) for s in ('predictions', 'groundtruth'))
+    images_outdir = groundtruth_outdir.replace('groundtruth', 'orig_images')
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     else:
@@ -111,8 +112,10 @@ def main(replacement_dict_for_sys_args=None):
         # return
 
     if not use_existing_results:
-        predictions_outdir, groundtruth_outdir = tester.test(split=split, predictions_outdir=predictions_outdir,
-                                                             groundtruth_outdir=groundtruth_outdir)
+        predictions_outdir, groundtruth_outdir, images_outdir = tester.test(split=split,
+                                                                            predictions_outdir=predictions_outdir,
+                                                                            groundtruth_outdir=groundtruth_outdir,
+                                                                            images_outdir=images_outdir)
 
     print('Input logdir: {}'.format(args.logdir))
     print('Problem config file: {}'.format(tester.exporter.instance_problem_path))

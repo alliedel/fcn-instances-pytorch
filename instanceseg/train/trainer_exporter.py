@@ -466,6 +466,16 @@ class TrainerExporter(object):
             out_file = os.path.join(output_directory, image_names[img_idx])
             visualization_utils.write_image(out_file, img)
 
+    def export_rgb_images(self, images_as_batch_nparray, output_directory, image_names):
+        batch_sz = images_as_batch_nparray.shape[0]
+        for img_idx in range(batch_sz):
+            img = images_as_batch_nparray[img_idx, ...]
+            out_file = os.path.join(output_directory, image_names[img_idx])
+            visualization_utils.write_image(out_file, img)
+
+    def write_rgb_image(self, out_file, img):
+        visualization_utils.write_image(out_file, img)
+
     @staticmethod
     def load_rgb_predictions_or_gt_to_id(in_file):
         rgb_img = visualization_utils.read_image(in_file)

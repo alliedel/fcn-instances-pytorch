@@ -5,7 +5,7 @@ import numpy as np;
 np.random.seed(42)
 
 
-def hover(event):
+def my_hover(event, img_arr, line, fig, xybox, ab, im, x, y):
     # if the mouse is over the scatter points
     if line.contains(event)[0]:
         # find out the index within the array from the event
@@ -22,36 +22,33 @@ def hover(event):
         # place it at the position of the hovered scatter point
         ab.xy = (x[ind], y[ind])
         # set the image corresponding to that point
-        im.set_data(arr[ind, :, :])
+        im.set_data(img_arr[ind])
     else:
         # if the mouse is not over a scatter point
         ab.set_visible(False)
     fig.canvas.draw_idle()
 
 
-def generate_data():
+def get_data():
     # Generate data x, y for scatter and an array of images.
     x = np.arange(20)
     y = np.random.rand(len(x))
     arr = np.empty((len(x), 10, 10))
-    for i in range(len(x)):
-        f = np.random.rand(5, 5)
-        arr[i, 0:5, 0:5] = f
-        arr[i, 5:, 0:5] = np.flipud(f)
-        arr[i, 5:, 5:] = np.fliplr(np.flipud(f))
-        arr[i, 0:5:, 5:] = np.fliplr(f)
-    return x, y, arr
 
 
-if __name__ == '__main__':
-    x, y, arr = generate_data()
+    return x, y, im_arr
+
+
+def make_interactive_plot(x, y, im_arr, xlabel='', ylabel='', zoom=1):
     # create figure and plot scatter
     fig = plt.figure()
     ax = fig.add_subplot(111)
     line, = ax.plot(x, y, ls="", marker="o")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
 
     # create the annotations box
-    im = OffsetImage(arr[0, :, :], zoom=5)
+    im = OffsetImage(im_arr[0], zoom=zoom)
     xybox = (50., 50.)
     ab = AnnotationBbox(im, (0, 0), xybox=xybox, xycoords='data',
                         boxcoords="offset points", pad=0.3, arrowprops=dict(arrowstyle="->"))
@@ -60,5 +57,12 @@ if __name__ == '__main__':
     ab.set_visible(False)
 
     # add callback for mouse moves
-    fig.canvas.mpl_connect('motion_notify_event', hover)
+    fig.canvas.mpl_connect('motion_notify_event',
+                           lambda event: my_hover(event, im_arr, line, fig, xybox, ab, im, x, y))
     plt.show()
+
+
+if __name__ == '__main__':
+    x_, y_, im_arr_ = generate_data()
+    # create figure and plot scatter
+    make_interactive_plot(x_, y_, im_arr_)

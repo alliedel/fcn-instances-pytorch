@@ -6,11 +6,11 @@ import json
 import os
 from PIL import Image
 import tqdm
-import six.moves
 
 
 from instanceseg.analysis.visualization_utils import label_colormap, get_tile_image
 from instanceseg.ext.panopticapi.utils import rgb2id
+from instanceseg.utils.misc import y_or_n_input
 
 np.random.seed(42)
 
@@ -125,6 +125,14 @@ def get_data(collated_stats_dict, data_types=('sq', 'rq'),
 
     assert len(collated_stats_dict['categories']) == len(problem_config.semantic_class_names)
     assert set(collated_stats_dict['categories']) == set(problem_config.semantic_vals)
+    data_d = get_stat_data(collated_stats, data_types, problem_config)
+
+    img_d = get_image_data(collated_stats_dict, img_types, labels_table)
+
+    return data_d, img_d
+
+
+def get_stat_data(collated_stats, data_types, problem_config):
     data_d = {}
     for data_type in data_types:
         if data_type in ('sq', 'rq', 'pq'):
@@ -136,7 +144,10 @@ def get_data(collated_stats_dict, data_types=('sq', 'rq'),
         else:
             raise ValueError('I dont know how to retrieve {}'.format(data_type))
         data_d[data_type] = data
+    return data_d
 
+
+def get_image_data(collated_stats_dict, img_types, labels_table):
     img_d = {}
     for img_type in img_types:
         if img_type in ('gt_inst_idx', 'pred_inst_idx'):
@@ -157,8 +168,7 @@ def get_data(collated_stats_dict, data_types=('sq', 'rq'),
                                           collated_stats_dict['gt_json_file'].item(), to_id=False)
         else:
             raise ValueError
-
-    return data_d, img_d
+    return img_d
 
 
 def make_interactive_plot(x, y, im_arr):
@@ -203,6 +213,15 @@ def show_images_in_order_of(images, x, outdir='/tmp/sortedperf/', basename='imag
     return idxs_sorted_by_x
 
 
+def get_image_file_list(json_file):
+    with open(json_file, 'r') as f:
+        json_list = json.load(f)
+    file_names = []
+    for i in json_list['images']:
+        file_names.append(i['file_name'])
+    return file_names
+
+
 if __name__ == '__main__':
     args = parse_args()
     collated_stats_dict = np.load(args.collated_stats_npz)
@@ -210,24 +229,53 @@ if __name__ == '__main__':
     y_type = ('rq', 'car')
     data_types = (x_type, y_type)
     img_types = ('gt_inst_idx', 'pred_inst_idx', 'input_image')
-    print('Loading data')
-    datas, im_arrs = get_data(collated_stats_dict, data_types=data_types, img_types=img_types)
-    im_arrs['input_image'] = [np.concatenate([im, im], axis=0) for im in im_arrs['input_image']]
+    use_labels_table = True
+
+    collated_stats = collated_stats_dict['collated_stats_per_image_per_cat'].item()
+    # Make sure we can directly index the semantic class names to get the correct column for the categories
+    problem_config = collated_stats_dict['problem_config'].item()
+    labels_table = problem_config.labels_table if use_labels_table else None
+
+    assert len(collated_stats_dict['categories']) == len(problem_config.semantic_class_names)
+    assert set(collated_stats_dict['categories']) == set(problem_config.semantic_vals)
+
+    print('Loading stats data')
+    data_d = get_stat_data(collated_stats, data_types, problem_config)
+
+    print('Loading image data')
+    img_d = get_image_data(collated_stats_dict, img_types, labels_table)
+    img_d['input_image'] = [np.concatenate([im, im], axis=0) for im in img_d['input_image']]
     print('Tiling images')
     imgs_side_by_side = [get_tile_image(list(imgs), (1, len(imgs)), margin_color=(0, 0, 0), margin_size=2)
-                         for imgs in zip(*[im_arrs[img_type] for img_type in img_types])]
+                         for imgs in zip(*[img_d[img_type] for img_type in img_types])]
 
-    x_ = datas[x_type]
-    y_ = datas[y_type]
-    im_arr_ = im_arrs[img_types[0]]
+    x_ = data_d[x_type]
+    y_ = data_d[y_type]
+    im_arr_ = img_d[img_types[0]]
     # make_interactive_plot(x_, y_, im_arr_)
 
-    for data_type in data_types:
-        data_type_as_str = '_'.join(d for d in data_type) if type(data_type) is tuple else data_type
-        print('Saving images in order of {}'.format(data_type))
-        outdir = os.path.join(os.path.dirname(args.collated_stats_npz),
-                              'sortedperf', '{}'.format(data_type_as_str))
-        idxs_sorted_by_x = show_images_in_order_of(imgs_side_by_side, datas[data_type],
-                                                   outdir=outdir, basename='{}_'.format(data_type_as_str))
-        np.save(os.path.join(os.path.dirname(outdir), 'sorted_idxs_{}.npz'.format(data_type)), idxs_sorted_by_x)
-        print('Images saved to {}'.format(outdir))
+    data_type_as_str = 'image_name_id'
+    print('Saving images in order of {}'.format(data_type_as_str))
+    image_name_ids = get_image_file_list(collated_stats_dict['gt_json_file'].item())
+    outdir = os.path.join(os.path.dirname(args.collated_stats_npz),
+                          'sortedperf', '{}'.format('image_id'))
+    basename = '{}_'
+    image_names = [os.path.join(outdir, basename + '{}_{}'.format(i, x_val) + '.png') for i, x_val in enumerate(
+        image_name_ids)]
+    if os.path.exists(outdir) and all([os.path.exists(i) for i in image_names]) \
+            and y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N', default='n') == 'n':
+        print('Using existing images from {}'.format(outdir))
+    else:
+        ids = show_images_in_order_of(imgs_side_by_side, image_name_ids,
+                                      outdir=outdir, basename='{}_'.format(data_type_as_str))
+    print('Images saved to {}'.format(outdir))
+
+    # for data_type in data_types:
+    #     data_type_as_str = '_'.join(d for d in data_type) if type(data_type) is tuple else data_type
+    #     print('Saving images in order of {}'.format(data_type))
+    #     outdir = os.path.join(os.path.dirname(args.collated_stats_npz),
+    #                           'sortedperf', '{}'.format(data_type_as_str))
+    #     idxs_sorted_by_x = show_images_in_order_of(imgs_side_by_side, datas[data_type],
+    #                                                outdir=outdir, basename='{}_'.format(data_type_as_str))
+    #     np.save(os.path.join(os.path.dirname(outdir), 'sorted_idxs_{}.npz'.format(data_type)), idxs_sorted_by_x)
+    #     print('Images saved to {}'.format(outdir))

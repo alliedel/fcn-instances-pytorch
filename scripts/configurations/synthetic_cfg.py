@@ -77,7 +77,10 @@ train_configurations = {
         lr=1.0e-5,
         max_iteration=500,
         sampler='overfit_1'
-    )
+    ),
+    'semantic': dict(
+        map_to_semantic=True
+        )
 }
 
 test_configurations = {

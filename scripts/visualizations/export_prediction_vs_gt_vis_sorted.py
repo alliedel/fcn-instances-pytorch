@@ -7,10 +7,9 @@ import os
 from PIL import Image
 import tqdm
 
-
 from instanceseg.analysis.visualization_utils import label_colormap, get_tile_image
 from instanceseg.ext.panopticapi.utils import rgb2id
-from instanceseg.utils.misc import y_or_n_input
+from instanceseg.utils.misc import y_or_n_input, symlink
 
 np.random.seed(42)
 
@@ -205,11 +204,45 @@ def show_images_in_order_of(images, x, outdir='/tmp/sortedperf/', basename='imag
     assert x_sorted == sorted(x, reverse=decreasing)
 
     images_sorted = [images[i] for i in idxs_sorted_by_x]
-
+    filepaths = []
     for i, (x_val, img) in tqdm.tqdm(enumerate(zip(x_sorted, images_sorted)),
                                      desc='Saving images to <>/{}'.format(os.path.basename(outdir)),
                                      total=len(x_sorted)):
-        Image.fromarray(img).save(os.path.join(outdir, basename + '{}_{}'.format(i, x_val) + '.png'))
+        outfile = os.path.join(outdir, basename + '{}_{}'.format(i, x_val) + '.png')
+        Image.fromarray(img).save(outfile)
+        filepaths.append(outfile)
+    return idxs_sorted_by_x, filepaths
+
+
+def link_files_in_order_of(file_list, x, outdir='/tmp/sortedperf/', basename='image_', decreasing=False):
+    """
+    x[i] should correspond to the value associated with file_list[i]
+    """
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+    idxs_sorted_by_x = np.argsort(x)
+    if decreasing:
+        idxs_sorted_by_x = idxs_sorted_by_x[::-1]
+
+    x_sorted = [x[i] for i in idxs_sorted_by_x]
+    assert x_sorted == sorted(x, reverse=decreasing)
+
+    files_sorted = [file_list[i] for i in idxs_sorted_by_x]
+
+    for i, (x_val, filename) in tqdm.tqdm(enumerate(zip(x_sorted, files_sorted)),
+                                          desc='Linking files to <>/{}'.format(os.path.basename(outdir)),
+                                          total=len(x_sorted)):
+        file_ext = os.path.splitext(filename)[1]
+        outfile = os.path.join(outdir, basename + '{}_{}'.format(i, x_val) + file_ext)
+        assert os.path.exists(filename), '{} does not exist'.format(filename)
+        if os.path.islink(outfile):
+            os.unlink(outfile)
+        if os.path.islink(outfile):
+            import ipdb; ipdb.set_trace()
+        commonprefix = os.path.commonprefix([filename, outfile])
+
+        symlink(os.path.relpath(filename, os.path.dirname(outfile)), outfile)
+
     return idxs_sorted_by_x
 
 
@@ -242,40 +275,36 @@ if __name__ == '__main__':
     print('Loading stats data')
     data_d = get_stat_data(collated_stats, data_types, problem_config)
 
-    print('Loading image data')
-    img_d = get_image_data(collated_stats_dict, img_types, labels_table)
-    img_d['input_image'] = [np.concatenate([im, im], axis=0) for im in img_d['input_image']]
-    print('Tiling images')
-    imgs_side_by_side = [get_tile_image(list(imgs), (1, len(imgs)), margin_color=(0, 0, 0), margin_size=2)
-                         for imgs in zip(*[img_d[img_type] for img_type in img_types])]
-
-    x_ = data_d[x_type]
-    y_ = data_d[y_type]
-    im_arr_ = img_d[img_types[0]]
-    # make_interactive_plot(x_, y_, im_arr_)
-
     data_type_as_str = 'image_name_id'
     print('Saving images in order of {}'.format(data_type_as_str))
-    image_name_ids = get_image_file_list(collated_stats_dict['gt_json_file'].item())
+    image_name_ids = [im_name.rstrip('.png')
+                      for im_name in get_image_file_list(collated_stats_dict['gt_json_file'].item())]
     outdir = os.path.join(os.path.dirname(args.collated_stats_npz),
                           'sortedperf', '{}'.format('image_id'))
-    basename = '{}_'
-    image_names = [os.path.join(outdir, basename + '{}_{}'.format(i, x_val) + '.png') for i, x_val in enumerate(
-        image_name_ids)]
+    basename = '{}_'.format(data_type_as_str)
+    image_names = [os.path.join(outdir, basename.format() + '{}_{}'.format(i, x_val) + '.png') for i, x_val in
+                   enumerate(image_name_ids)]
     if os.path.exists(outdir) and all([os.path.exists(i) for i in image_names]) \
             and y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N', default='n') == 'n':
         print('Using existing images from {}'.format(outdir))
     else:
-        ids = show_images_in_order_of(imgs_side_by_side, image_name_ids,
-                                      outdir=outdir, basename='{}_'.format(data_type_as_str))
-    print('Images saved to {}'.format(outdir))
+        print('Loading image data')
+        img_d = get_image_data(collated_stats_dict, img_types, labels_table)
+        img_d['input_image'] = [np.concatenate([im, im], axis=0) for im in img_d['input_image']]
+        print('Tiling images')
+        imgs_side_by_side = [get_tile_image(list(imgs), (1, len(imgs)), margin_color=(0, 0, 0), margin_size=2)
+                             for imgs in zip(*[img_d[img_type] for img_type in img_types])]
 
-    # for data_type in data_types:
-    #     data_type_as_str = '_'.join(d for d in data_type) if type(data_type) is tuple else data_type
-    #     print('Saving images in order of {}'.format(data_type))
-    #     outdir = os.path.join(os.path.dirname(args.collated_stats_npz),
-    #                           'sortedperf', '{}'.format(data_type_as_str))
-    #     idxs_sorted_by_x = show_images_in_order_of(imgs_side_by_side, datas[data_type],
-    #                                                outdir=outdir, basename='{}_'.format(data_type_as_str))
-    #     np.save(os.path.join(os.path.dirname(outdir), 'sorted_idxs_{}.npz'.format(data_type)), idxs_sorted_by_x)
-    #     print('Images saved to {}'.format(outdir))
+        ids, image_names = show_images_in_order_of(imgs_side_by_side, image_name_ids,
+                                                   outdir=outdir, basename='{}_'.format(data_type_as_str))
+        print('Images saved to {}'.format(outdir))
+
+    for data_type in data_types:
+        data_type_as_str = '_'.join(d for d in data_type) if type(data_type) is tuple else data_type
+        print('Saving images in order of {}'.format(data_type))
+        outdir = os.path.join(os.path.dirname(args.collated_stats_npz),
+                              'sortedperf', '{}'.format(data_type_as_str))
+        idxs_sorted_by_x = link_files_in_order_of(image_names, data_d[data_type],
+                                                  outdir=outdir, basename='{}_'.format(data_type_as_str))
+        np.save(os.path.join(os.path.dirname(outdir), 'sorted_idxs_{}.npz'.format(data_type_as_str)), idxs_sorted_by_x)
+        print('Images saved to {}'.format(outdir))

@@ -196,12 +196,56 @@ def pairwise_or(list1, list2):
 
 
 def y_or_n_input(msg_to_user, allowed_chars=('y', 'n'), default=None):
+    empty_response_char = ''
     y_or_n = input(msg_to_user + ' ')
     if default is not None:
-        allowed_chars = allowed_chars if '' in allowed_chars else list(allowed_chars).append('')
+        allowed_chars = allowed_chars if '' in allowed_chars else list(allowed_chars) + [empty_response_char]
     while y_or_n not in allowed_chars:
         print('Answer with one of {}. '.format(allowed_chars))
         y_or_n = input(msg_to_user)
-    if y_or_n == '' and default is not None:
+    if y_or_n is empty_response_char and default is not None:
         return default
     return y_or_n
+
+
+import os, tempfile
+
+
+def symlink(target, link_name, overwrite=False):
+    '''
+    Source: https://stackoverflow.com/questions/8299386/modifying-a-symlink-in-python/55742015#55742015
+    Create a symbolic link named link_name pointing to target.
+    If link_name exists then FileExistsError is raised, unless overwrite=True.
+    When trying to overwrite a directory, IsADirectoryError is raised.
+    '''
+
+    if not overwrite:
+        os.symlink(target, link_name)
+        return
+
+    # os.replace() may fail if files are on different filesystems
+    link_dir = os.path.dirname(link_name)
+
+    # Create link to target with temporary filename
+    while True:
+        temp_link_name = tempfile.mktemp(dir=link_dir)
+
+        # os.* functions mimic as closely as possible system functions
+        # The POSIX symlink() returns EEXIST if link_name already exists
+        # https://pubs.opengroup.org/onlinepubs/9699919799/functions/symlink.html
+        try:
+            os.symlink(target, temp_link_name)
+            break
+        except FileExistsError:
+            pass
+
+    # Replace link_name with temp_link_name
+    try:
+        # Pre-empt os.replace on a directory with a nicer message
+        if os.path.isdir(link_name):
+            raise IsADirectoryError(f"Cannot symlink over existing directory: '{link_name}'")
+        os.replace(temp_link_name, link_name)
+    except:
+        if os.path.islink(temp_link_name):
+            os.remove(temp_link_name)
+        raise

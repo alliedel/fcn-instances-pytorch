@@ -179,6 +179,14 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
     def untransform_labels_table(self):
         return self.original_labels_table
 
+    def get_attribute_items(self):
+        ignored_attributes = ['original_labels_table']
+        attributes = inspect.getmembers(self, lambda a: not(inspect.isroutine(a)))
+        attributes = [a for a in attributes if not(a[0].startswith('__') and a[0].endswith('__')) and not callable(a)
+                      and a not in ignored_attributes]
+        return attributes
+
+
 
 class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
     """

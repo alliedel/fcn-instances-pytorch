@@ -195,9 +195,13 @@ def pairwise_or(list1, list2):
     return [a or b for a, b in zip(list1, list2)]
 
 
-def y_or_n_input(msg_to_user, allowed_chars=('y', 'n')):
+def y_or_n_input(msg_to_user, allowed_chars=('y', 'n'), default=None):
     y_or_n = input(msg_to_user + ' ')
+    if default is not None:
+        allowed_chars = allowed_chars if '' in allowed_chars else list(allowed_chars).append('')
     while y_or_n not in allowed_chars:
-        print('Answer y or n. ')
+        print('Answer with one of {}. '.format(allowed_chars))
         y_or_n = input(msg_to_user)
+    if y_or_n == '' and default is not None:
+        return default
     return y_or_n

@@ -14,7 +14,7 @@ def parse_args_test(replacement_args_list=None):
     # Config override parser
     assert args.dataset is not None, ValueError('dataset argument must not be None.  '
                                                 'Run with --help for more details.')
-    dataset_name_from_logdir = os.path.split(os.path.split(args.logdir)[0])[1]
+    dataset_name_from_logdir = os.path.split(os.path.split(args.logdir.rstrip('/'))[0])[1]
     assert args.dataset == dataset_name_from_logdir, 'Dataset given: {}.  I expected this dataset from logdir: ' \
                                                      '{}'.format(args.dataset,
                                                                  os.path.split(os.path.split(args.logdir)[0])[1])

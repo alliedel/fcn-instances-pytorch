@@ -112,7 +112,7 @@ def debug_dataloader(trainer: Trainer, split='train', out_dir=None):
     write_dataloader_properties(data_loader, outfile)
     print('Writing images to {}'.format(out_dir))
     image_idx = 0
-    data_loader = trainer.dataloaders['train']
+    data_loader = trainer.dataloaders[split]
 
     out_dir, out_dir_raw = transform_and_export_input_images(trainer, data_loader, split)
     print('Wrote images as loaded into {}, originals in {}'.format(out_dir, out_dir_raw))

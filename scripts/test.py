@@ -1,3 +1,4 @@
+import atexit
 import os
 import shutil
 import yaml
@@ -51,6 +52,12 @@ def get_config_options_from_train_config(train_config_path, test_split):
     return test_config_options
 
 
+def query_remove_logdir(logdir):
+    from instanceseg.utils import misc
+    if misc.y_or_n_input('Remove {}?'.format(logdir), default='n') == 'y':
+        shutil.rmtree(logdir)
+
+
 def main(replacement_dict_for_sys_args=None):
     script_utils.check_clean_work_tree()
 
@@ -72,6 +79,8 @@ def main(replacement_dict_for_sys_args=None):
                                         script_py_file=__file__,
                                         cfg_override_args=cfg_override_args,
                                         additional_logdir_tag='__test_split-{}'.format(args.test_split))
+    atexit.register(query_remove_logdir, out_dir)
+
     split = args.test_split
     if split not in sampler_cfg:
         if split == 'test':
@@ -104,12 +113,14 @@ def main(replacement_dict_for_sys_args=None):
 
     if cfg['debug_dataloader_only']:
         import tqdm
-        for idx, d in tqdm.tqdm(enumerate(tester.dataloaders['test']), total=len(tester.dataloaders['test']),
+        for idx, d in tqdm.tqdm(enumerate(tester.dataloaders[args.test_split]), total=len(tester.dataloaders[
+                                                                                             args.test_split]),
                                 desc='testing dataset loading', leave=True):
             img = d[0]
 
-        debug_helper.debug_dataloader(tester)
-        # return
+        debug_helper.debug_dataloader(tester, split=args.test_split)
+        atexit.unregister(query_remove_logdir)
+        return
 
     if not use_existing_results:
         predictions_outdir, groundtruth_outdir, images_outdir = tester.test(split=split,
@@ -121,6 +132,7 @@ def main(replacement_dict_for_sys_args=None):
     print('Problem config file: {}'.format(tester.exporter.instance_problem_path))
     print('Predictions exported to {}'.format(predictions_outdir))
     print('Ground truth exported to {}'.format(groundtruth_outdir))
+    atexit.unregister(query_remove_logdir)
     return predictions_outdir, groundtruth_outdir, tester, args.logdir
 
 

@@ -172,7 +172,7 @@ def get_image_data(collated_stats_dict, img_types, labels_table):
     return img_d
 
 
-def make_interactive_plot(x, y, im_arr):
+def make_interactive_plot(x, y, im_arr, x_type=None, y_type=None):
     # create figure and plot scatter
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -257,43 +257,18 @@ def get_image_file_list(json_file):
     return file_names
 
 
-if __name__ == '__main__':
-    args = parse_args()
-    collated_stats_dict = np.load(args.collated_stats_npz)
-    use_labels_table = True
-
-    collated_stats = collated_stats_dict['collated_stats_per_image_per_cat'].item()
-    # Make sure we can directly index the semantic class names to get the correct column for the categories
-    problem_config = collated_stats_dict['problem_config'].item()
-    labels_table = problem_config.labels_table if use_labels_table else None
-
-    instance_classes = [l.name for l in labels_table if l.isthing]
-    data_types = []
-    for cls_name in instance_classes:
-        x_type = ('sq', cls_name)
-        y_type = ('rq', cls_name)
-        data_types.append(x_type)
-        data_types.append(y_type)
-    img_types = ('gt_inst_idx', 'pred_inst_idx', 'input_image')
-
-    assert len(collated_stats_dict['categories']) == len(problem_config.semantic_class_names)
-    assert set(collated_stats_dict['categories']) == set(problem_config.semantic_vals)
-
-    print('Loading stats data')
-    data_d = get_stat_data(collated_stats, data_types, problem_config)
-
+def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir):
     data_type_as_str = 'image_name_id'
     print('Saving images in order of {}'.format(data_type_as_str))
+    image_id_outdir = os.path.join(sorted_perf_outdir, '{}'.format('image_id'))
     image_name_ids = [im_name.rstrip('.png')
                       for im_name in get_image_file_list(collated_stats_dict['gt_json_file'].item())]
-    outdir = os.path.join(os.path.dirname(args.collated_stats_npz),
-                          'sortedperf', '{}'.format('image_id'))
     basename = '{}_'.format(data_type_as_str)
-    image_names = [os.path.join(outdir, basename.format() + '{}_{}'.format(i, x_val) + '.png') for i, x_val in
+    image_names = [os.path.join(image_id_outdir, basename.format() + '{}_{}'.format(i, x_val) + '.png') for i, x_val in
                    enumerate(image_name_ids)]
-    if os.path.exists(outdir) and all([os.path.exists(i) for i in image_names]) \
+    if os.path.exists(image_id_outdir) and all([os.path.exists(i) for i in image_names]) \
             and y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N', default='n') == 'n':
-        print('Using existing images from {}'.format(outdir))
+        print('Using existing images from {}'.format(image_id_outdir))
     else:
         print('Loading image data')
         img_d = get_image_data(collated_stats_dict, img_types, labels_table)
@@ -303,15 +278,42 @@ if __name__ == '__main__':
                              for imgs in zip(*[img_d[img_type] for img_type in img_types])]
 
         ids, image_names = show_images_in_order_of(imgs_side_by_side, image_name_ids,
-                                                   outdir=outdir, basename='{}_'.format(data_type_as_str))
-        print('Images saved to {}'.format(outdir))
+                                                   outdir=image_id_outdir, basename='{}_'.format(data_type_as_str))
+        print('Images saved to {}'.format(image_id_outdir))
+    return image_names
+
+
+def main(collated_stats_npz):
+    collated_stats_dict = np.load()
+    use_labels_table = True
+    collated_stats = collated_stats_dict['collated_stats_per_image_per_cat'].item()
+    # Make sure we can directly index the semantic class names to get the correct column for the categories
+    problem_config = collated_stats_dict['problem_config'].item()
+    labels_table = problem_config.labels_table if use_labels_table else None
+    instance_classes = [l.name for l in labels_table if l.isthing]
+    data_types = [('sq', cls_name) for cls_name in instance_classes] + \
+                 [('rq', cls_name) for cls_name in instance_classes]
+    img_types = ('gt_inst_idx', 'pred_inst_idx', 'input_image')
+    assert len(collated_stats_dict['categories']) == len(problem_config.semantic_class_names)
+    assert set(collated_stats_dict['categories']) == set(problem_config.semantic_vals)
+    print('Loading stats data')
+    sorted_perf_outdir = os.path.join(os.path.dirname(collated_stats_npz), 'sortedperf')
+
+    data_d = get_stat_data(collated_stats, data_types, problem_config)
+
+    image_names = get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir)
 
     for data_type in data_types:
         data_type_as_str = '_'.join(d for d in data_type) if type(data_type) is tuple else data_type
         print('Saving images in order of {}'.format(data_type))
-        outdir = os.path.join(os.path.dirname(args.collated_stats_npz),
-                              'sortedperf', '{}'.format(data_type_as_str))
+        outdir = os.path.join(sorted_perf_outdir, '{}'.format(data_type_as_str))
         idxs_sorted_by_x = link_files_in_order_of(image_names, data_d[data_type],
                                                   outdir=outdir, basename='{}_'.format(data_type_as_str))
         np.save(os.path.join(os.path.dirname(outdir), 'sorted_idxs_{}.npz'.format(data_type_as_str)), idxs_sorted_by_x)
         print('Images saved to {}'.format(outdir))
+    return sorted_perf_outdir
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    outdir = main(collated_stats_npz=args.collated_stats_npz)

@@ -71,6 +71,7 @@ def main(replacement_dict_for_sys_args=None):
         model_checkpoint_path)
     assert os.path.exists(train_config_path), 'Config file does not exist: {}'.format(train_config_path)
     cfg = get_config_options_from_train_config(train_config_path=train_config_path, test_split=args.test_split)
+    cfg['train_batch_size'] = cfg['{}_batch_size'.format(args.test_split)]
     override_cfg(cfg, cfg_override_args)
 
     _, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
@@ -109,7 +110,7 @@ def main(replacement_dict_for_sys_args=None):
                 else:
                     raise Exception('Remove directory {} before proceeding.'.format(out_dir))
     tester = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
-                                     model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=(split,))
+                                     model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=('train', split))
 
     if cfg['debug_dataloader_only']:
         import tqdm
@@ -120,7 +121,8 @@ def main(replacement_dict_for_sys_args=None):
 
         debug_helper.debug_dataloader(tester, split=args.test_split)
         atexit.unregister(query_remove_logdir)
-        return
+        import sys
+        sys.exit(0)
 
     if not use_existing_results:
         predictions_outdir, groundtruth_outdir, images_outdir = tester.test(split=split,

@@ -6,7 +6,7 @@ if os.path.basename(os.path.abspath('.')) == 'debugging' or os.path.basename(os.
     os.chdir('../')
 
 from scripts import test, evaluate, convert_test_results_to_coco
-from scripts.visualizations import visualize_pq_stats
+from scripts.visualizations import visualize_pq_stats, export_prediction_vs_gt_vis_sorted
 
 if 'panopticapi' not in os.environ['PYTHONPATH']:
     os.environ['PYTHONPATH'] += ':' + os.path.abspath(os.path.expanduser('./instanceseg/ext'))
@@ -31,10 +31,12 @@ def parse_args():
     parser.add_argument('--batch_size', default=1, type=int, help='Batch size for the dataloader of the designated '
                                                                   'test split')
     parser.add_argument('--iou_threshold', default=0.5, type=float, help='Threshold to count TP in evaluation')
+    parser.add_argument('--export_sorted_perf_images', default=True, help='Export tiled images ordered by performance')
     return parser.parse_args()
 
 
-def main(logdir, test_split, sampler=None, gpu=(DEFAULT_GPU,), batch_size=1, dataset_name=None, iou_threshold=0.5):
+def main(logdir, test_split, sampler=None, gpu=(DEFAULT_GPU,), batch_size=1, dataset_name=None, iou_threshold=0.5,
+         export_sorted_perf_images=True):
     logdir = logdir.rstrip('/')
     dataset_name = dataset_name or os.path.basename(os.path.dirname(logdir))
     print(dataset_name)
@@ -56,6 +58,9 @@ def main(logdir, test_split, sampler=None, gpu=(DEFAULT_GPU,), batch_size=1, dat
                                                   out_dirs['pred'], problem_config, iou_threshold=iou_threshold)
 
     visualize_pq_stats.main(collated_stats_per_image_file)
+
+    if export_sorted_perf_images:
+        export_prediction_vs_gt_vis_sorted.main(collated_stats_npz=collated_stats_per_image_file)
 
     return collated_stats_per_image_file
 

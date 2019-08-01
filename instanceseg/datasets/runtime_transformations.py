@@ -137,7 +137,9 @@ class SingleInstanceMapperRuntimeDatasetTransformer(RuntimeDatasetTransformerBas
         if DEBUG_ASSERT:
             for bv in self.background_values:
                 # Make sure the initial background value instance labels were either 0 or -1
-                assert ((new_inst_lbl != 0)[sem_lbl == bv]).sum() == ((new_inst_lbl == -1)[sem_lbl == bv]).sum()
+                assert ((new_inst_lbl != 0)[sem_lbl == bv]).sum() == ((new_inst_lbl == -1)[sem_lbl == bv]).sum(), \
+                    'Background instance labels werent 0 or -1 for background value {} from {}'.format(
+                        bv, self.background_values)
         # Set objects to instance value 1
         new_inst_lbl[new_inst_lbl > 1] = 1
         return img, (lbl[0], new_inst_lbl)

@@ -16,22 +16,14 @@ import os
 def transform_and_export_input_images(trainer: Trainer, dataloader, split='train', out_dir=None, out_dir_raw=None,
                                       write_raw_images=True, write_transformed_images=True):
     if write_raw_images:
-        # try:
-        #     pt = dataloader.dataset.precomputed_file_transformation.transformer_sequence
-        #     dataloader.dataset.precomputed_file_transformation.transformer_sequence = \
-        #         [tr for tr in pt if type(tr) in ()]
-        # except AttributeError:
-        #     assert dataloader.dataset.precomputed_file_transformation is None
-        #     pt = None
-        # try:
-        #     rt = dataloader.dataset.precomputed_file_transformation.transformer_sequence
-        #     dataloader.dataset.runtime_transformation.transformer_sequence = \
-        #         [tr for tr in pt if type(tr) in (runtime_transformations.ResizeRuntimeDatasetTransformer,
-        #                                          runtime_transformations.BasicRuntimeDatasetTransformer)]
-        # except AttributeError:
-        #     assert dataloader.dataset.precomputed_file_transformation is None
-        #     rt = None
-        # (precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation)
+        try:
+            filetypes = dataloader.dataset.raw_dataset.files[0].keys()
+        except AttributeError:
+            print('Warning: cant write raw images because I cant access original files through '
+                  'dataset.raw_dataset.files')
+        write_raw_images = False
+
+    if write_raw_images:
 
         out_dir_raw = out_dir_raw or osp.join(trainer.exporter.out_dir, 'debug_viz_raw')
         if not os.path.exists(out_dir_raw):
@@ -42,7 +34,7 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
                 suboutdir = os.path.join(out_dir_raw, filetype)
                 if not os.path.exists(suboutdir):
                     os.makedirs(suboutdir)
-        except KeyError:
+        except AttributeError:
             raise Exception('Dataset isnt in a format where I can retrieve the raw image files easily to copy them '
                             'over.  Expected to be able to access dataloader.dataset.raw_dataset[0].files.keys')
 
@@ -121,5 +113,6 @@ def debug_dataloader(trainer: Trainer, split='train', out_dir=None):
     print('Writing images to {}'.format(out_dir))
     image_idx = 0
     data_loader = trainer.dataloaders['train']
+
     out_dir, out_dir_raw = transform_and_export_input_images(trainer, data_loader, split)
     print('Wrote images as loaded into {}, originals in {}'.format(out_dir, out_dir_raw))

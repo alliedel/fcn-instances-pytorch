@@ -88,6 +88,24 @@ def plot_hists_pq_rq_sq(stats_arrays, problem_config, category_idxs_to_display=N
                 display_pyutils.save_fig_to_workspace(figname)
             plt.savefig(os.path.join(output_dir, figname))
 
+    plt.figure(1); plt.clf()
+    subplot_idx = 1
+    for stat_type, stat_array in stats_arrays.items():
+        for catidx, catname in zip(category_idxs_to_display, category_names_to_display):
+            plt.subplot(len(stats_arrays.keys()), len(category_idxs_to_display), subplot_idx)
+            display_pyutils.histogram(stat_array[:, catidx], label=catname)
+            plottype = '{}_{}'.format(stat_type, catname)
+            subplotname = '{}_hist'.format(plottype)
+            plt.title(subplotname.replace('_', ' '))
+            plt.ylabel('# images')
+            plt.xlabel(plottype)
+            subplot_idx += 1
+    plt.tight_layout()
+    figname = 'all_hist.png'
+    if save_to_workspace:
+        display_pyutils.save_fig_to_workspace(figname)
+    plt.savefig(os.path.join(output_dir, figname))
+
 
 def scatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None):
     if labels is None:

@@ -137,7 +137,9 @@ def get_stat_data(collated_stats, data_types, problem_config):
         if data_type in ('sq', 'rq', 'pq'):
             data = collated_stats[data_type]
         elif data_type is not str and data_type[0] in ('sq', 'rq', 'pq'):
-            assert data_type[1] in problem_config.semantic_class_names
+            assert data_type[1] in problem_config.semantic_class_names, 'You\'re asking for data_types {} but {} ' \
+                                                                        'class doesnt exist in the problem ' \
+                                                                        'config'.format(data_types, data_type[1])
             column_idx = problem_config.semantic_class_names.index(data_type[1])
             data = collated_stats[data_type[0]][:, column_idx]
         else:
@@ -258,16 +260,21 @@ def get_image_file_list(json_file):
 if __name__ == '__main__':
     args = parse_args()
     collated_stats_dict = np.load(args.collated_stats_npz)
-    x_type = ('sq', 'car')
-    y_type = ('rq', 'car')
-    data_types = (x_type, y_type)
-    img_types = ('gt_inst_idx', 'pred_inst_idx', 'input_image')
     use_labels_table = True
 
     collated_stats = collated_stats_dict['collated_stats_per_image_per_cat'].item()
     # Make sure we can directly index the semantic class names to get the correct column for the categories
     problem_config = collated_stats_dict['problem_config'].item()
     labels_table = problem_config.labels_table if use_labels_table else None
+
+    instance_classes = [l.name for l in labels_table if l.isthing]
+    data_types = []
+    for cls_name in instance_classes:
+        x_type = ('sq', cls_name)
+        y_type = ('rq', cls_name)
+        data_types.append(x_type)
+        data_types.append(y_type)
+    img_types = ('gt_inst_idx', 'pred_inst_idx', 'input_image')
 
     assert len(collated_stats_dict['categories']) == len(problem_config.semantic_class_names)
     assert set(collated_stats_dict['categories']) == set(problem_config.semantic_vals)

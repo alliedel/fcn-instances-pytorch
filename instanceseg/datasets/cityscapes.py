@@ -180,7 +180,6 @@ def load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file):
     try:
         img = np.array(img_loaded, dtype=np.uint8)
     except:
-        print(img_file)
         img = np.array(img_loaded, dtype=np.uint8)
 
     # load semantic label

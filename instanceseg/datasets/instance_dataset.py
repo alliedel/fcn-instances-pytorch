@@ -110,6 +110,7 @@ class TransformedInstanceDataset(InstanceDatasetBase):
     def get_item_from_files(self, index, precomputed_file_transformation=None):
         data_file = self.raw_dataset.files[
             index]  # files populated when raw_dataset was instantiated
+        print(data_file['img'])
         img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file[
             'inst_lbl']
 

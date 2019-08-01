@@ -2,13 +2,72 @@ import os.path as osp
 import tqdm
 
 from instanceseg.analysis import visualization_utils
+from instanceseg.datasets.cityscapes_transformations import convert_to_p_mode_file
+from instanceseg.datasets.dataset_generator_registry import get_default_datasets_for_instance_counts
+from instanceseg.datasets.instance_dataset import TransformedInstanceDataset
 from instanceseg.train import trainer_exporter
 from instanceseg.train.trainer import Trainer
 from instanceseg.utils.misc import value_as_string
-from instanceseg.datasets import runtime_transformations, precomputed_file_transformations
+from instanceseg.datasets import runtime_transformations, precomputed_file_transformations, labels_table_cityscapes
+import shutil
+import os
+
 
 def transform_and_export_input_images(trainer: Trainer, dataloader, split='train', out_dir=None, out_dir_raw=None,
                                       write_raw_images=True, write_transformed_images=True):
+    if write_raw_images:
+        # try:
+        #     pt = dataloader.dataset.precomputed_file_transformation.transformer_sequence
+        #     dataloader.dataset.precomputed_file_transformation.transformer_sequence = \
+        #         [tr for tr in pt if type(tr) in ()]
+        # except AttributeError:
+        #     assert dataloader.dataset.precomputed_file_transformation is None
+        #     pt = None
+        # try:
+        #     rt = dataloader.dataset.precomputed_file_transformation.transformer_sequence
+        #     dataloader.dataset.runtime_transformation.transformer_sequence = \
+        #         [tr for tr in pt if type(tr) in (runtime_transformations.ResizeRuntimeDatasetTransformer,
+        #                                          runtime_transformations.BasicRuntimeDatasetTransformer)]
+        # except AttributeError:
+        #     assert dataloader.dataset.precomputed_file_transformation is None
+        #     rt = None
+        # (precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation)
+
+        out_dir_raw = out_dir_raw or osp.join(trainer.exporter.out_dir, 'debug_viz_raw')
+        if not os.path.exists(out_dir_raw):
+            os.makedirs(out_dir_raw)
+        try:
+            filetypes = dataloader.dataset.raw_dataset.files[0].keys()
+            for filetype in filetypes:
+                suboutdir = os.path.join(out_dir_raw, filetype)
+                if not os.path.exists(suboutdir):
+                    os.makedirs(suboutdir)
+        except KeyError:
+            raise Exception('Dataset isnt in a format where I can retrieve the raw image files easily to copy them '
+                            'over.  Expected to be able to access dataloader.dataset.raw_dataset[0].files.keys')
+
+        t = tqdm.tqdm(enumerate(dataloader.sampler.indices), total=len(dataloader), ncols=150, leave=False)
+        for image_idx, idx_into_dataset in t:
+            filename_d = dataloader.dataset.raw_dataset.files[idx_into_dataset]
+            for filetype, filename in filename_d.items():
+                out_name ='{}_'.format(image_idx) + os.path.basename(filename)
+                if filetype is not 'inst_lbl':
+                    shutil.copyfile(filename,
+                                    os.path.join(out_dir_raw, filetype, out_name))
+                else:
+                    instance_palette = labels_table_cityscapes.get_instance_palette_image()
+                    new_inst_lbl_file = os.path.join(out_dir_raw, filetype, 'modified_modep_' + out_name)
+                    if not osp.isfile(new_inst_lbl_file):
+                        assert osp.isfile(filename), '{} does not exist'.format(filename)
+                        convert_to_p_mode_file(filename, new_inst_lbl_file, palette=instance_palette,
+                                               assert_inside_palette_range=True)
+
+            image_idx += 1
+        # if pt is not None:
+        #     dataloader.dataset.precomputed_file_transformation.transformer_sequence = pt
+        # if rt is not None:
+        #     dataloader.dataset.runtime_transformation.transformer_sequence = rt
+
     if write_transformed_images:
         t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=150, leave=False)
         image_idx = 0
@@ -36,54 +95,6 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
                                                           basename='loader_' + split + '_', tile=True)
                 image_idx += 1
 
-    if write_raw_images:
-        try:
-            pt = dataloader.dataset.precomputed_file_transformation.transformer_sequence
-            dataloader.dataset.precomputed_file_transformation.transformer_sequence = \
-                [tr for tr in pt if type(tr) in ()]
-        except AttributeError:
-            assert dataloader.dataset.precomputed_file_transformation is None
-            pt = None
-        try:
-            rt = dataloader.dataset.precomputed_file_transformation.transformer_sequence
-            dataloader.dataset.runtime_transformation.transformer_sequence = \
-                [tr for tr in pt if type(tr) in (runtime_transformations.ResizeRuntimeDatasetTransformer,
-                                                 runtime_transformations.BasicRuntimeDatasetTransformer)]
-        except AttributeError:
-            assert dataloader.dataset.precomputed_file_transformation is None
-            rt = None
-        # (precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation)
-
-        t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=150, leave=False)
-        out_dir_raw = out_dir_raw or osp.join(trainer.exporter.out_dir, 'debug_viz_raw')
-        image_idx = 0
-        for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
-            for datapoint_idx in range(img_data_b.size(0)):
-                img_data = img_data_b[datapoint_idx, ...]
-                sem_lbl, inst_lbl = sem_lbl_b[datapoint_idx, ...], inst_lbl_b[datapoint_idx, ...]
-                # Transform back to numpy format (rather than tensor that's formatted for model)
-                data_to_img_transformer = lambda i, l: trainer.exporter.untransform_data(
-                    trainer.dataloaders[split], i, l)
-                img_untransformed, lbl_untransformed = data_to_img_transformer(
-                    img_data, (sem_lbl, inst_lbl)) \
-                    if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
-                sem_lbl_np, inst_lbl_np = lbl_untransformed
-                lt_combined = trainer.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
-
-                segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
-                    lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
-                    overlay=False)
-                out_dir = out_dir or osp.join(trainer.exporter.out_dir, 'debug_viz')
-
-                visualization_utils.export_visualizations(segmentation_viz, out_dir_raw,
-                                                          trainer.exporter.tensorboard_writer,
-                                                          image_idx,
-                                                          basename='loader_' + split + '_', tile=True)
-                image_idx += 1
-        if pt is not None:
-            dataloader.dataset.precomputed_file_transformation.transformer_sequence = pt
-        if rt is not None:
-            dataloader.dataset.runtime_transformation.transformer_sequence = rt
     return out_dir, out_dir_raw
 
 
@@ -112,4 +123,3 @@ def debug_dataloader(trainer: Trainer, split='train', out_dir=None):
     data_loader = trainer.dataloaders['train']
     out_dir, out_dir_raw = transform_and_export_input_images(trainer, data_loader, split)
     print('Wrote images as loaded into {}, originals in {}'.format(out_dir, out_dir_raw))
-

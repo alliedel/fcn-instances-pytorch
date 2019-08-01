@@ -208,7 +208,7 @@ def get_semantic_names_and_idxs(semantic_subset, full_set):
             print(Warning('Background is not included in the list of classes...'))
         if len(idxs_into_all_voc) != len(semantic_subset):
             unrecognized_class_names = [cls for cls in semantic_subset if cls not in names]
-            raise Exception('unrecognized class name(s): {}'.format(unrecognized_class_names))
+            raise Exception('unrecognized class name(s): {}\n Options: {}'.format(unrecognized_class_names, names))
     return names, idxs_into_all_voc
 
 

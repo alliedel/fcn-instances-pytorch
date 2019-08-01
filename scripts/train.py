@@ -1,8 +1,10 @@
+import atexit
 import os
 import os.path as osp
 
 import numpy as np
 import skimage.io
+import shutil
 
 import instanceseg.utils.script_setup as script_utils
 from instanceseg.utils import parse
@@ -12,6 +14,12 @@ import debugging.helpers as debug_helper
 from instanceseg.train import trainer
 
 here = osp.dirname(osp.abspath(__file__))
+
+
+def query_remove_logdir(logdir):
+    from instanceseg.utils import misc
+    if misc.y_or_n_input('Remove {}?'.format(logdir), default='n') == 'y':
+        shutil.rmtree(logdir)
 
 
 def parse_args(replacement_dict_for_sys_args=None):
@@ -27,11 +35,13 @@ def main(replacement_dict_for_sys_args=None):
                                           sampler_name=args.sampler,
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args)
+    atexit.register(query_remove_logdir, out_dir)
     trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, checkpoint_path=args.resume,
                           semantic_init=args.semantic_init)
 
     if cfg['debug_dataloader_only']:
         debug_helper.debug_dataloader(trainer)
+        atexit.unregister(query_remove_logdir)
         return
 
     print('Evaluating final model')
@@ -41,6 +51,7 @@ def main(replacement_dict_for_sys_args=None):
         Accuracy Class: {1}
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
+    atexit.unregister(query_remove_logdir)
 
 
 def run(trainer: trainer.Trainer):

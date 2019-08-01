@@ -132,6 +132,17 @@ train_configurations = {
         semantic_subset=['car'],
         backbone='resnet50'
     ),
+    'car_2_4_plus_semantics': dict(
+        max_iteration=1000000,
+        sampler='car_2_4',
+        interval_validate=4000,
+        n_instances_per_class=4,
+        dataset_instance_cap='match_model',
+        ordering=None,
+        semantic_subset=['car', 'sky', 'vegetation', 'sidewalk', 'building'],
+        backbone='resnet50',
+        
+        ),
     # 'debug_all': dict(
     #     max_iteration=10000,
     #     interval_validate=100,

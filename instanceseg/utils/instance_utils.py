@@ -99,7 +99,9 @@ class InstanceProblemConfig(object):
     @property
     def model_instance_count_id_list(self):
         return get_instance_count_id_list(self.model_semantic_instance_class_list,
-                                          include_channel0=self.include_instance_channel0)
+                                          include_channel0=self.include_instance_channel0,
+                                          non_instance_sem_classes=
+                                          [i for i, hasinst in enumerate(self.has_instances) if not hasinst])
     @property
     def instance_to_semantic_mapping_matrix(self):
         return get_instance_to_semantic_mapping(self.model_n_instances_by_semantic_id)

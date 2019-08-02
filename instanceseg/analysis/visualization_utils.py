@@ -574,7 +574,8 @@ def write_label(out_file, out_lbl):
         raise
 
 
-def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_', tile=True):
+def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_', tile=True,
+                          ext='.png'):
     if not osp.exists(out_dir):
         os.makedirs(out_dir)
     if tile:
@@ -586,7 +587,7 @@ def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration
         out_subdir = osp.join(out_dir, tag)
         if not osp.exists(out_subdir):
             os.makedirs(out_subdir)
-        out_file = osp.join(out_subdir, 'iter-%012d.jpg' % iteration)
+        out_file = osp.join(out_subdir, 'iter-%012d' % iteration + ext)
         write_image(out_file, out_img)
     else:
         tag = '{}images'.format(basename)
@@ -600,5 +601,5 @@ def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration
             out_subsubdir = osp.join(out_subdir, str(img_idx))
             if not osp.exists(out_subsubdir):
                 os.makedirs(out_subsubdir)
-            out_file = osp.join(out_subsubdir, 'iter-%012d.jpg' % iteration)
+            out_file = osp.join(out_subsubdir, 'iter-%012d' % iteration + ext)
             scipy.misc.imsave(out_file, out_img)

@@ -4,6 +4,7 @@ from instanceseg.utils import datasets
 from instanceseg.utils.misc import pop_without_del
 from instanceseg.utils.misc import value_as_string
 from scripts.configurations import voc_cfg, cityscapes_cfg
+import numpy as np
 
 
 def get_transformer_identifier_tag(precomputed_file_transformation, runtime_transformation):
@@ -112,11 +113,13 @@ def get_transformations(cfg, original_semantic_class_names=None):
     precomputed_file_transformation = \
         precomputed_file_transformations.precomputed_file_transformer_factory(
             ordering=cfg['ordering'])
+
     runtime_transformation = runtime_transformations.runtime_transformer_factory(
         resize=cfg['resize'], resize_size=cfg['resize_size'], mean_bgr=None,
         reduced_class_idxs=reduced_class_idxs,
         map_other_classes_to_bground=True, map_to_single_instance_problem=cfg['single_instance'],
-        n_inst_cap_per_class=n_inst_cap_per_class)
+        n_inst_cap_per_class=n_inst_cap_per_class,
+        instance_id_for_excluded_instances=cfg['instance_id_for_excluded_instances'])
 
     return precomputed_file_transformation, runtime_transformation
 
@@ -156,8 +159,10 @@ def get_synthetic_dataset(n_images, ordering, n_instances_per_img,
                           precomputed_file_transformation, runtime_transformation, split,
                           intermediate_write_path='/tmp/',
                           semantic_subset_to_generate=None, portrait=None, img_size=None,
-                          transform=True):
+                          transform=True, random_seed=None):
     assert split in ('train', 'val', 'test')
+    if split == 'test' or split == 'val' and random_seed is None:
+        random_seed = np.random.randint(100)
     if isinstance(precomputed_file_transformation,
                   precomputed_file_transformations.InstanceOrderingPrecomputedDatasetFileTransformation):
         assert precomputed_file_transformation.ordering == ordering, \
@@ -171,7 +176,7 @@ def get_synthetic_dataset(n_images, ordering, n_instances_per_img,
     synthetic_kwargs = dict(ordering=ordering, intermediate_write_path=intermediate_write_path,
                             semantic_subset_to_generate=semantic_subset_to_generate,
                             n_instances_per_img=n_instances_per_img, img_size=img_size,
-                            portrait=portrait)
+                            portrait=portrait, random_seed=random_seed)
     dataset = synthetic.TransformedInstanceDataset(
         raw_dataset=synthetic.BlobExampleGenerator(n_images=n_images, **synthetic_kwargs),
         raw_dataset_returns_images=True, runtime_transformation=runtime_transformation)

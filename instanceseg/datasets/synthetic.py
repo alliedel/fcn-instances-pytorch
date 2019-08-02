@@ -39,7 +39,9 @@ class BlobExampleGenerator(InstanceDatasetBase):
                  ordering=None,
                  _im_a_copy=False,
                  intermediate_write_path='/tmp/',
-                 portrait=Defaults.portrait):
+                 portrait=Defaults.portrait,
+                 random_seed=None
+                 ):
         """
         one_dimension: {'x', 'y', None}
         portrait: rotates the image size (flips order)
@@ -83,7 +85,7 @@ class BlobExampleGenerator(InstanceDatasetBase):
             self.random_rows = np.nan * np.ones((self.n_images, len(self.semantic_classes), self.n_max_per_class))
             self.random_cols = np.nan * np.ones((self.n_images, len(self.semantic_classes), self.n_max_per_class))
             self.n_images = n_images
-            self.initialize_locations_per_image()
+            self.initialize_locations_per_image(random_seed=random_seed)
         else:
             self.n_images = n_images
 

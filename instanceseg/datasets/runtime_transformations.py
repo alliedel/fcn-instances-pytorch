@@ -32,7 +32,9 @@ class RuntimeDatasetTransformerBase(object):
 # noinspection PyTypeChecker
 def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, reduced_class_idxs=None,
                                 map_other_classes_to_bground=True, map_to_single_instance_problem=False,
-                                n_inst_cap_per_class=None):
+                                n_inst_cap_per_class=None, instance_id_for_excluded_instances=None,
+                                thing_values_without_id_0=(), thing_values_with_id_0=(), stuff_values=(0,),
+                                void_val=-1):
     # Basic transformation (numpy array to torch tensor; resizing and centering)
     transformer_sequence = []
 
@@ -52,13 +54,17 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
 
     if n_inst_cap_per_class is not None:
         transformer_sequence.append(InstanceNumberCapRuntimeDatasetTransformer(
-            n_inst_cap_per_class=n_inst_cap_per_class))
+            n_inst_cap_per_class=n_inst_cap_per_class,
+            instance_id_for_excluded_instances=instance_id_for_excluded_instances))
         
     if map_to_single_instance_problem:
-        transformer_sequence.append(SingleInstanceMapperRuntimeDatasetTransformer())
+        transformer_sequence.append(SingleInstanceMapperRuntimeDatasetTransformer(stuff_values=stuff_values))
 
     # Some post-processing (should maybe be later(?))
-    transformer_sequence.append(SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer())
+    transformer_sequence.append(SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer(
+        thing_values_without_id_0=thing_values_without_id_0, thing_values_with_id_0=thing_values_with_id_0,
+        stuff_values=stuff_values, void_val=void_val, error_on_stuff_constraint=True, error_on_thing_constraint=True,
+        error_on_void_constraint=True))
 
     # Stitching them together in a sequence
     if len(transformer_sequence) == 0:
@@ -70,20 +76,61 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
 
 
 class SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
+    def __init__(self, thing_values_without_id_0=(), thing_values_with_id_0=(), stuff_values=(0,), void_val=-1,
+                 sem_val_of_void_inst=-1, error_on_void_constraint=True, error_on_stuff_constraint=True,
+                 error_on_thing_constraint=True):
+        """
+        :param stuff_values:
+        :param void_val:
+        :param sem_val_of_void_inst: if None, will error if inst_lbl = -1 where sem_lbl does not = -1.  Else,
+        sem_lbl[inst_lbl == -1] = sem_val_of_void_inst
+        :param assert_void_constraint: if True, errors if rule is broken.  If False, instead fixes it.
+        """
+        self.thing_values_with_id_0 = thing_values_with_id_0
+        self.thing_values_without_id_0 = thing_values_without_id_0
+        self.stuff_values = stuff_values
+        self.void_val = void_val
+        self.sem_val_of_void_inst = void_val
+        self.error_on_void_constraint = error_on_void_constraint
+        self.error_on_stuff_constraint = error_on_stuff_constraint
+        self.error_on_thing_constraint = error_on_thing_constraint
+
     def transform(self, img, lbl):
         new_inst_lbl = self.impose_semantic_constraints_on_instance_label(lbl[0], lbl[1])
-        return img, (lbl[0], new_inst_lbl)
+        new_sem_lbl = self.impose_instance_constraints_on_semantic_label(lbl[0], new_inst_lbl)
+        return img, (new_sem_lbl, new_inst_lbl)
 
     def untransform(self, img, lbl):
         print(Warning('It\'s not possible to recover the initial instance labels.  Returning the existing ones.'))
         return img, lbl
 
-    @staticmethod
-    def impose_semantic_constraints_on_instance_label(sem_lbl, inst_lbl):
-        inst_lbl[inst_lbl == 0] = -1  # right now, we do this because we're not using instance id 0 for object classes.
-        inst_lbl[sem_lbl == 0] = 0  # needed after we map other semantic classes to background.
-        sem_lbl[inst_lbl == -1] = -1  # void semantic should always match void instance.
+    def impose_semantic_constraints_on_instance_label(self, sem_lbl, inst_lbl):
+        # right now, we do this because we're not using instance id 0 for
+        # object classes.
+
+        if self.error_on_thing_constraint:
+            for tv in self.thing_values_without_id_0:  # Things must have instance id != 0
+                assert (inst_lbl[sem_lbl == tv] == 0).sum() == 0
+        else:
+            for tv in self.thing_values_without_id_0:  # Things must have instance id != 0
+                inst_lbl[(sem_lbl == tv) & (inst_lbl == 0)] = self.void_val
+
+        for sv in self.stuff_values:
+            if self.error_on_stuff_constraint:  # Stuff must have instance id 0
+                assert (inst_lbl[sem_lbl == sv] != 0).sum() == 0
+            else:
+                # needed after we map other semantic classes to background.
+                inst_lbl[sem_lbl == sv] = 0
         return inst_lbl
+
+    def impose_instance_constraints_on_semantic_label(self, sem_lbl, inst_lbl):
+        if self.error_on_void_constraint and (sem_lbl[inst_lbl == self.void_val] != self.void_val).sum() > 0:
+            raise Exception('Instance label was -1 where semantic label was not (e.g. - {})'.format(
+                sem_lbl[inst_lbl == -1].max()))
+        else:
+            sem_lbl[inst_lbl == self.void_val] = self.sem_val_of_void_inst  # void semantic should always match
+            # void instance.
+        return sem_lbl
 
 
 class ResizeRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
@@ -110,7 +157,7 @@ class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         :param n_inst_cap_per_class:
         :param instance_id_for_excluded_instances: usually you either want it to be 0 or -1.
         -1 will ensure it's not counted toward the losses; 0 will put it into the 'extras' channel (or the 'semantic'
-        channel if we've mapped everything to the semantic problem instead)
+        channel if we've mapped everything to the semantic problem instead), None will raise an error if we have one.
         """
         assert n_inst_cap_per_class >= 0
         self.n_inst_cap_per_class = n_inst_cap_per_class
@@ -118,7 +165,13 @@ class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
     def transform(self, img, lbl):
         new_inst_lbl = lbl[1]
-        new_inst_lbl[new_inst_lbl > self.n_inst_cap_per_class] = self.instance_id_for_excluded_instances
+        if self.instance_id_for_excluded_instances is None:
+            assert (new_inst_lbl > self.n_inst_cap_per_class).sum() == 0, \
+                'lbl had an instance with label {}, which is greater than our cap at {}.' \
+                'If you would like to ignore these classes, set instance_id_for_excluded_instances to -1 ' \
+                'instead of None'.format(new_inst_lbl.max(), self.n_inst_cap_per_class)
+        else:
+            new_inst_lbl[new_inst_lbl > self.n_inst_cap_per_class] = self.instance_id_for_excluded_instances
         return img, (lbl[0], new_inst_lbl)
 
     def untransform(self, img, lbl):
@@ -128,18 +181,17 @@ class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
 
 class SingleInstanceMapperRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
-    def __init__(self, background_values=(0,)):
-        self.background_values = background_values
+    def __init__(self, stuff_values=(0,)):
+        self.stuff_values = stuff_values
 
     def transform(self, img, lbl):
         new_inst_lbl = lbl[1]
         sem_lbl = lbl[0]
         if DEBUG_ASSERT:
-            for bv in self.background_values:
+            for bv in self.stuff_values:
                 # Make sure the initial background value instance labels were either 0 or -1
                 assert ((new_inst_lbl != 0)[sem_lbl == bv]).sum() == ((new_inst_lbl == -1)[sem_lbl == bv]).sum(), \
-                    'Background instance labels werent 0 or -1 for background value {} from {}'.format(
-                        bv, self.background_values)
+                    'Stuff instance ids werent 0 or -1 for stuff value {} from {}'.format(bv, self.stuff_values)
         # Set objects to instance value 1
         new_inst_lbl[new_inst_lbl > 1] = 1
         return img, (lbl[0], new_inst_lbl)
@@ -187,7 +239,6 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         attributes = [a for a in attributes if not(a[0].startswith('__') and a[0].endswith('__')) and not callable(a)
                       and a not in ignored_attributes]
         return attributes
-
 
 
 class BasicRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):

@@ -75,6 +75,7 @@ def get_dataset(dataset_type, cfg, split, transform=True):
         n_instances_per_img = cfg['synthetic_generator_n_instances_per_semantic_id']
         img_size = cfg['resize_size']
         portrait = cfg['portrait']
+        blob_size = cfg['blob_size']
         dataset = get_synthetic_dataset(
             split=split,
             n_images=pop_without_del(cfg, 'n_images_{}'.format(split), None),
@@ -85,7 +86,8 @@ def get_dataset(dataset_type, cfg, split, transform=True):
             semantic_subset_to_generate=semantic_subset,
             img_size=img_size,
             portrait=portrait,
-            intermediate_write_path=intermediate_write_path, transform=transform)
+            intermediate_write_path=intermediate_write_path, transform=transform,
+        blob_size=blob_size)
     else:
         raise NotImplementedError('Generator for dataset type {} not implemented.'.format(dataset_type))
     return dataset
@@ -159,7 +161,7 @@ def get_synthetic_dataset(n_images, ordering, n_instances_per_img,
                           precomputed_file_transformation, runtime_transformation, split,
                           intermediate_write_path='/tmp/',
                           semantic_subset_to_generate=None, portrait=None, img_size=None,
-                          transform=True, random_seed=None):
+                          transform=True, random_seed=None, blob_size=None):
     assert split in ('train', 'val', 'test')
     if split == 'test' or split == 'val' and random_seed is None:
         random_seed = np.random.randint(100)
@@ -176,7 +178,7 @@ def get_synthetic_dataset(n_images, ordering, n_instances_per_img,
     synthetic_kwargs = dict(ordering=ordering, intermediate_write_path=intermediate_write_path,
                             semantic_subset_to_generate=semantic_subset_to_generate,
                             n_instances_per_img=n_instances_per_img, img_size=img_size,
-                            portrait=portrait, random_seed=random_seed)
+                            portrait=portrait, random_seed=random_seed, blob_size=blob_size)
     dataset = synthetic.TransformedInstanceDataset(
         raw_dataset=synthetic.BlobExampleGenerator(n_images=n_images, **synthetic_kwargs),
         raw_dataset_returns_images=True, runtime_transformation=runtime_transformation)

@@ -25,6 +25,7 @@ def get_default_train_config():
         semantic_subset=None,
         img_size=None,
         portrait=False,
+        blob_size=None
     )
     return _default_config
 

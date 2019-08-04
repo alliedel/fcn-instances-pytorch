@@ -95,6 +95,10 @@ def postprocess_train_args(override_cfg_args):
                                       lambda old_val: convert_comma_separated_string_to_list(
                                           old_val, int),
                                       error_if_attr_doesnt_exist=False)
+    replace_attr_with_function_of_val(override_cfg_args, 'blob_size',
+                                      lambda old_val: convert_comma_separated_string_to_list(
+                                          old_val, int),
+                                      error_if_attr_doesnt_exist=False)
 
 
 def construct_args_list_to_replace_sys(dataset_name, gpu=None, config_idx=None, sampler_name=None,

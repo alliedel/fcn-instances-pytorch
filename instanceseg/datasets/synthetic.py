@@ -48,6 +48,8 @@ class BlobExampleGenerator(InstanceDatasetBase):
         """
         if mean_bgr is None:
             mean_bgr = Defaults.mean_bgr
+        if blob_size is None:
+            blob_size = Defaults.blob_size
         n_images = n_images or Defaults.n_images
         if semantic_subset_to_generate is not None:
             assert all([cls_name in ALL_BLOB_CLASS_NAMES for cls_name in semantic_subset_to_generate]), ValueError(

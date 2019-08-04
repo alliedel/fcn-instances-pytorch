@@ -400,8 +400,16 @@ class Trainer(object):
     def model_save_iters(self):
         val_iters = [i for i in range(0, self.state.max_iteration) if self.state.iteration % self.interval_validate
                      == 0]
+        if self.n_model_checkpoints is None:
+            n_model_checkpoints = len(val_iters)
+        elif self.n_model_checkpoints > len(val_iters):
+            n_model_checkpoints = len(val_iters)
+        else:
+            n_model_checkpoints = self.n_model_checkpoints
         model_save_locs = [val_iters[i] for i in np.round(np.linspace(0, len(val_iters) - 1,
-                                                                      self.n_model_checkpoints)).astype(int)]
+                                                                      n_model_checkpoints)).astype(int)]
+        if self.n_model_checkpoints is None:
+            assert len(val_iters) == len(model_save_locs)
         return model_save_locs
 
     def train_epoch(self):

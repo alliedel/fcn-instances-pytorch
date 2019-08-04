@@ -191,10 +191,11 @@ class Trainer(object):
         return datasets.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
                                          (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
 
-    def save_checkpoint_and_update_if_best(self, mean_iu):
+    def save_checkpoint_and_update_if_best(self, mean_iu, save_by_iteration=True):
         current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
                                                                 self.state.iteration, self.model,
-                                                                self.optim, self.best_mean_iu)
+                                                                self.optim, self.best_mean_iu, mean_iu,
+                                                                save_by_iteration=save_by_iteration)
         if mean_iu > self.best_mean_iu or self.best_mean_iu == 0:
             self.best_mean_iu = mean_iu
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)

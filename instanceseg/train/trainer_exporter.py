@@ -263,8 +263,12 @@ class TrainerExporter(object):
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              '{}'.format(type(metric), name))
 
-    def save_checkpoint(self, epoch, iteration, model, optimizer, best_mean_iu, out_dir=None,
-                        out_name='checkpoint.pth.tar'):
+    def save_checkpoint(self, epoch, iteration, model, optimizer, best_mean_iu, mean_iu, out_dir=None,
+                        save_by_iteration=True):
+        if save_by_iteration:
+            out_name = 'checkpoint-{:09d}.pth.tar'.format(iteration)
+        else:
+            out_name = 'checkpoint.pth.tar'
         out_dir = out_dir or self.out_dir
         checkpoint_file = osp.join(out_dir, out_name)
         torch.save({
@@ -274,6 +278,7 @@ class TrainerExporter(object):
             'optim_state_dict': optimizer.state_dict(),
             'model_state_dict': model.state_dict(),
             'best_mean_iu': best_mean_iu,
+            'mean_iu': mean_iu
         }, checkpoint_file)
         return checkpoint_file
 

@@ -117,6 +117,7 @@ def create_printable_config_copy(config_dict, config_key_replacements='default',
         if type(old_val) is list:
             cfg_print[key] = [v if v not in config_val_replacements.keys()
                               else config_val_replacements[v] for v in old_val]
+            cfg_print[key] = ','.join('{}'.format(v) for v in cfg_print[key])
         elif old_val in config_val_replacements.keys():
             cfg_print[key] = config_val_replacements[old_val]
 

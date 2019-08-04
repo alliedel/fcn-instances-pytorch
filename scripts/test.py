@@ -54,6 +54,7 @@ def get_config_options_from_train_config(train_config_path, test_split):
 
 def query_remove_logdir(logdir):
     from instanceseg.utils import misc
+    import shutil
     if misc.y_or_n_input('Remove {}?'.format(logdir), default='n') == 'y':
         shutil.rmtree(logdir)
 

@@ -284,7 +284,7 @@ def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorte
 
 
 def main(collated_stats_npz):
-    collated_stats_dict = np.load()
+    collated_stats_dict = np.load(collated_stats_npz)
     use_labels_table = True
     collated_stats = collated_stats_dict['collated_stats_per_image_per_cat'].item()
     # Make sure we can directly index the semantic class names to get the correct column for the categories

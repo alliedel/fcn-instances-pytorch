@@ -41,6 +41,7 @@ def get_default_test_config():
         synthetic_generator_n_instances_per_semantic_id=2,
         img_size=None,
         portrait=None,
+        blob_size=None
     )
     return _default_config
 

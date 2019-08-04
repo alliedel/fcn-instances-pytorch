@@ -99,15 +99,11 @@ def get_cfg_override_parser(cfg_default):
     return cfg_override_parser
 
 
-def create_config_copy(config_dict, config_key_replacements='default',
-                       reverse_replacements=False, config_val_replacements='default'):
+def create_printable_config_copy(config_dict, config_key_replacements='default', config_val_replacements='default'):
     if config_val_replacements is 'default':
         config_val_replacements = CONFIG_VAL_REPLACEMENTS_FOR_FILENAME
     if config_key_replacements is 'default':
         config_key_replacements = CONFIG_KEY_REPLACEMENTS_FOR_FILENAME
-    if reverse_replacements:
-        config_key_replacements = {v: k for k, v in config_key_replacements.items()}
-        config_val_replacements = {v: k for k, v in config_val_replacements.items()}
     cfg_print = config_dict.copy()
     for key, replacement_key in config_key_replacements.items():
         if key == 'semantic_subset' or key == config_key_replacements['semantic_subset']:
@@ -118,7 +114,10 @@ def create_config_copy(config_dict, config_key_replacements='default',
             cfg_print[replacement_key] = cfg_print.pop(key)
 
     for key, old_val in cfg_print.items():
-        if old_val in config_val_replacements.keys():
+        if type(old_val) is list:
+            cfg_print[key] = [v if v not in config_val_replacements.keys()
+                              else config_val_replacements[v] for v in old_val]
+        elif old_val in config_val_replacements.keys():
             cfg_print[key] = config_val_replacements[old_val]
 
     return cfg_print
@@ -159,7 +158,7 @@ def get_cfgs(dataset_name, config_idx, cfg_override_args=None):
     print(misc.color_text('non-default cfg values: {}'.format(non_default_options),
                           misc.TermColors.OKBLUE))
     cfg_to_print = non_default_options
-    cfg_to_print = create_config_copy(cfg_to_print)
+    cfg_to_print = create_printable_config_copy(cfg_to_print)
     cfg_to_print = make_ordered_cfg(cfg_to_print)
 
     return cfg, cfg_to_print

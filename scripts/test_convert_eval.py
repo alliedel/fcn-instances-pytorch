@@ -19,9 +19,8 @@ if 'panopticapi' not in os.environ['PYTHONPATH']:
 DEFAULT_GPU = 3
 
 
-def parse_args():
+def get_test_parser_without_logdir():
     parser = argparse.ArgumentParser()
-    parser.add_argument('logdir', help='directory with model path')
     parser.add_argument('--test_split', default='val', help='train, val, test, or any other split the dataloader can '
                                                             'load for this dataset')
     parser.add_argument('--dataset_name', default=None, help='dataset; default=dataset you trained on')
@@ -32,6 +31,17 @@ def parse_args():
                                                                   'test split')
     parser.add_argument('--iou_threshold', default=0.5, type=float, help='Threshold to count TP in evaluation')
     parser.add_argument('--export_sorted_perf_images', default=True, help='Export tiled images ordered by performance')
+    return parser
+
+
+def get_test_parser():
+    parser = get_test_parser_without_logdir()
+    parser.add_argument('logdir', help='directory with model path')
+    return parser
+
+
+def parse_args():
+    parser = get_test_parser()
     return parser.parse_args()
 
 

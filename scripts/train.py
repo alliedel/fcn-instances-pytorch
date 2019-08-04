@@ -18,8 +18,11 @@ here = osp.dirname(osp.abspath(__file__))
 
 def query_remove_logdir(logdir):
     from instanceseg.utils import misc
+    import os
+    import shutil
     if misc.y_or_n_input('Remove {}?'.format(logdir), default='n') == 'y':
-        shutil.rmtree(logdir)
+        if os.path.exists(logdir):
+            shutil.rmtree(logdir)
 
 
 def parse_args(replacement_dict_for_sys_args=None):
@@ -52,6 +55,7 @@ def main(replacement_dict_for_sys_args=None):
         Mean IU: {2}
         FWAV Accuracy: {3}'''.format(*metrics))
     atexit.unregister(query_remove_logdir)
+    return out_dir
 
 
 def run(trainer: trainer.Trainer):

@@ -46,6 +46,10 @@ class BlobExampleGenerator(InstanceDatasetBase):
         one_dimension: {'x', 'y', None}
         portrait: rotates the image size (flips order)
         """
+        if type(img_size) is list:
+            img_size = tuple(i for i in img_size)
+        if type(blob_size) is list:
+            blob_size = tuple(i for i in blob_size)
         if mean_bgr is None:
             mean_bgr = Defaults.mean_bgr
         if blob_size is None:

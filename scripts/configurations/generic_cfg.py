@@ -5,7 +5,7 @@ class PARAM_CLASSIFICATIONS(object):
     loss = {'matching', 'size_average', 'loss_type', 'lr_scheduler'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
             'dataset_instance_cap', 'resize', 'resize_size', 'dataset_path', 'train_batch_size',
-            'val_batch_size', 'test_batch_size', 'instance_id_for_excluded_instances'}
+            'val_batch_size', 'test_batch_size', 'instance_id_for_excluded_instances', 'blob_size'}
     problem_config = {'n_instances_per_class', 'single_instance', 'map_to_semantic', 'augment_semantic'}
     model = {'backbone', 'initialize_from_semantic', 'bottleneck_channel_capacity', 'score_multiplier', 'freeze_vgg',
              'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer', 'clip'}

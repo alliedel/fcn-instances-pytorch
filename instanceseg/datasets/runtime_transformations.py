@@ -61,10 +61,10 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
         transformer_sequence.append(SingleInstanceMapperRuntimeDatasetTransformer(stuff_values=stuff_values))
 
     # Some post-processing (should maybe be later(?))
-    transformer_sequence.append(SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer(
-        thing_values_without_id_0=thing_values_without_id_0, thing_values_with_id_0=thing_values_with_id_0,
-        stuff_values=stuff_values, void_val=void_val, error_on_stuff_constraint=True, error_on_thing_constraint=True,
-        error_on_void_constraint=True))
+    # transformer_sequence.append(SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer(
+    #     thing_values_without_id_0=thing_values_without_id_0, thing_values_with_id_0=thing_values_with_id_0,
+    #     stuff_values=stuff_values, void_val=void_val, error_on_stuff_constraint=True, error_on_thing_constraint=True,
+    #     error_on_void_constraint=True))
 
     # Stitching them together in a sequence
     if len(transformer_sequence) == 0:

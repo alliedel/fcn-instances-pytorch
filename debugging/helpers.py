@@ -1,16 +1,65 @@
+import os
 import os.path as osp
+import shutil
 import tqdm
+import numpy as np
+import torch
 
 from instanceseg.analysis import visualization_utils
+from instanceseg.datasets import labels_table_cityscapes
 from instanceseg.datasets.cityscapes_transformations import convert_to_p_mode_file
-from instanceseg.datasets.dataset_generator_registry import get_default_datasets_for_instance_counts
-from instanceseg.datasets.instance_dataset import TransformedInstanceDataset
 from instanceseg.train import trainer_exporter
 from instanceseg.train.trainer import Trainer
 from instanceseg.utils.misc import value_as_string
-from instanceseg.datasets import runtime_transformations, precomputed_file_transformations, labels_table_cityscapes
-import shutil
-import os
+from instanceseg.utils import instance_utils
+
+
+class DataloaderDataIntegrityChecker(object):
+    def __init__(self, instance_problem: instance_utils.InstanceProblemConfig):
+        self.instance_problem = instance_problem
+        self.void_val = -1
+
+    @property
+    def thing_values(self):
+        return self.instance_problem.thing_class_vals
+
+    @property
+    def stuff_values(self):
+        return self.instance_problem.stuff_class_vals
+
+    def check_batch_label_integrity(self, sem_lbl_batch, inst_lbl_batch):
+        self.thing_constraint(sem_lbl_batch, inst_lbl_batch)
+        self.stuff_constraint(sem_lbl_batch, inst_lbl_batch)
+        self.matching_void_constraint(sem_lbl_batch, inst_lbl_batch)
+        self.sem_value_constraint(sem_lbl_batch)
+
+    def thing_constraint(self, sem_lbl, inst_lbl):
+        for tv in self.thing_values:  # Things must have instance id != 0
+            semantic_idx = self.instance_problem.semantic_vals.index(tv)
+            assert (inst_lbl[sem_lbl == tv] == 0).sum() == 0, \
+                'Things should not have instance label 0 (error for class {}, {}'.format(
+                    tv, self.instance_problem.semantic_class_names[semantic_idx])
+            assert inst_lbl[sem_lbl == tv].max() <= self.instance_problem.n_instances_by_semantic_id[semantic_idx]
+
+    def stuff_constraint(self, sem_lbl, inst_lbl):
+        for sv in self.stuff_values:
+            assert (inst_lbl[sem_lbl == sv] != 0).sum() == 0, 'Stuff should only have instance label 0, ' \
+                                                              'not {}'.format(inst_lbl[sem_lbl == sv].max())
+
+    def sem_value_constraint(self, sem_lbl):
+        if torch.is_tensor(sem_lbl):
+            semvals = torch.unique(sem_lbl)
+        else:
+            semvals = np.unique(sem_lbl)
+        for semval in semvals:
+            assert semval in self.instance_problem.semantic_vals, \
+                'Semantic label contains value {} which is not in the following list: {}'.format(
+                    semval, zip(self.instance_problem.semantic_vals, self.instance_problem.semantic_class_names))
+
+    def matching_void_constraint(self, sem_lbl, inst_lbl):
+        if (sem_lbl[inst_lbl == self.void_val] != self.void_val).sum() > 0:
+            raise Exception('Instance label was -1 where semantic label was not (e.g. - {})'.format(
+                sem_lbl[inst_lbl == -1].max()))
 
 
 def transform_and_export_input_images(trainer: Trainer, dataloader, split='train', out_dir=None, out_dir_raw=None,
@@ -64,7 +113,9 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
         t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=150, leave=False)
         image_idx = 0
         out_dir = out_dir or osp.join(trainer.exporter.out_dir, 'debug_viz')
+        integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
         for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
+            integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
             for datapoint_idx in range(img_data_b.size(0)):
                 img_data = img_data_b[datapoint_idx, ...]
                 sem_lbl, inst_lbl = sem_lbl_b[datapoint_idx, ...], inst_lbl_b[datapoint_idx, ...]

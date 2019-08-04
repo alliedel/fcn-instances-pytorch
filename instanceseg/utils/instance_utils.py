@@ -40,6 +40,22 @@ class InstanceProblemConfig(object):
             if not map_to_semantic else [1 for _ in n_instances_by_semantic_id]
 
     @property
+    def thing_class_names(self):
+        return [l.name for l in self.labels_table if l.isthing]
+
+    @property
+    def stuff_class_names(self):
+        return [l.name for l in self.labels_table if not l.isthing]
+
+    @property
+    def thing_class_vals(self):
+        return [l.id for l in self.labels_table if l.isthing]
+
+    @property
+    def stuff_class_vals(self):
+        return [l.id for l in self.labels_table if not l.isthing]
+
+    @property
     def semantic_class_names(self):
         return [l.name for l in self.labels_table]
 

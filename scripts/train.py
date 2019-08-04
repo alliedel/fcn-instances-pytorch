@@ -12,6 +12,7 @@ from instanceseg.analysis import visualization_utils
 from instanceseg.utils.script_setup import setup_train, configure
 import debugging.helpers as debug_helper
 from instanceseg.train import trainer
+from instanceseg.utils.misc import y_or_n_input
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -59,9 +60,14 @@ def main(replacement_dict_for_sys_args=None):
 
 
 def run(trainer: trainer.Trainer):
-    trainer.train()
+    try:
+        trainer.train()
+    except KeyboardInterrupt:
+        if y_or_n_input('I\'ve stopped training.  Finish script?', default='y') == 'n':
+            raise
     val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = \
         trainer.validate_split(should_export_visualizations=False)
+
     viz = visualization_utils.get_tile_image(segmentation_visualizations)
     skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
     eval_metrics = np.array(eval_metrics)

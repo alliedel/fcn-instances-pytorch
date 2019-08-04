@@ -16,7 +16,7 @@ def get_trainer(cfg, cuda, model, dataloaders, problem_config, out_dir, optim, s
                       write_instance_metrics=cfg['write_instance_metrics'],
                       generate_new_synthetic_data_each_epoch=(
                               cfg['dataset'] == 'synthetic' and cfg['infinite_synthetic']),
-                      lr_scheduler=scheduler)
+                      lr_scheduler=scheduler, n_model_checkpoints=cfg['n_model_checkpoints'])
     return trainer
 
 

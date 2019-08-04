@@ -45,7 +45,7 @@ _default_train_config = dict(
                                  'conv3.pool', 'conv4.pool', 'conv5.pool', 'drop6', 'fc7', 'drop7', 'upscore8'),
                                 # 'conv1x1_instance_to_semantic'
     write_instance_metrics=False,
-    n_model_checkpoints=20,
+    n_model_checkpoints=None, # None: every validation iteration. 20: spread them out evenly to get 20 val itrs
 
     # data
     dataset=None,

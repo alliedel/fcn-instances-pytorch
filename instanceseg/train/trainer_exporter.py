@@ -265,11 +265,8 @@ class TrainerExporter(object):
 
     def save_checkpoint(self, epoch, iteration, model, optimizer, best_mean_iu, mean_iu, out_dir=None,
                         save_by_iteration=True):
-        if save_by_iteration:
-            out_name = 'checkpoint-{:09d}.pth.tar'.format(iteration)
-        else:
-            out_name = 'checkpoint.pth.tar'
-        out_dir = out_dir or self.out_dir
+        out_name = 'checkpoint.pth.tar'
+        out_dir = out_dir or os.path.join(self.out_dir)
         checkpoint_file = osp.join(out_dir, out_name)
         torch.save({
             'epoch': epoch,
@@ -280,6 +277,13 @@ class TrainerExporter(object):
             'best_mean_iu': best_mean_iu,
             'mean_iu': mean_iu
         }, checkpoint_file)
+
+        if save_by_iteration:
+            itr_out_name = 'checkpoint-{:09d}.pth.tar'.format(iteration)
+            itr_out_dir = osp.join(out_dir, 'model_checkpoints')
+            if not osp.isdir(itr_out_dir):
+                os.makedirs(itr_out_dir)
+            shutil.copyfile(checkpoint_file, osp.join(itr_out_dir, itr_out_name))
         return checkpoint_file
 
     def copy_checkpoint_as_best(self, current_checkpoint_file, out_dir=None, out_name='model_best.pth.tar'):

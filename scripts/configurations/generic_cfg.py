@@ -1,7 +1,8 @@
 class PARAM_CLASSIFICATIONS(object):
     debug = {'debug_dataloader_only'}
     optim = {'optim', 'max_iteration', 'lr', 'momentum', 'weight_decay', 'reset_optim'}
-    export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics'}
+    export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics',
+              'n_model_checkpoints'}
     loss = {'matching', 'size_average', 'loss_type', 'lr_scheduler'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
             'dataset_instance_cap', 'resize', 'resize_size', 'dataset_path', 'train_batch_size',
@@ -44,6 +45,7 @@ _default_train_config = dict(
                                  'conv3.pool', 'conv4.pool', 'conv5.pool', 'drop6', 'fc7', 'drop7', 'upscore8'),
                                 # 'conv1x1_instance_to_semantic'
     write_instance_metrics=False,
+    n_model_checkpoints=20,
 
     # data
     dataset=None,

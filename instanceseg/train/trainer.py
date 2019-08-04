@@ -50,7 +50,8 @@ class Trainer(object):
                  write_instance_metrics=True,
                  generate_new_synthetic_data_each_epoch=False,
                  export_activations=False, activation_layers_to_export=(),
-                 lr_scheduler: ReduceLROnPlateau = None):
+                 lr_scheduler: ReduceLROnPlateau = None,
+                 n_model_checkpoints=None):
 
         # System parameters
         self.cuda = cuda
@@ -116,6 +117,8 @@ class Trainer(object):
             split: metrics.InstanceMetrics(self.dataloaders[split], **metric_maker_kwargs)
             for split in self.dataloaders.keys()
         }
+
+        self.n_model_checkpoints = n_model_checkpoints
         export_config = trainer_exporter.ExportConfig(export_activations=export_activations,
                                                       activation_layers_to_export=activation_layers_to_export,
                                                       write_instance_metrics=write_instance_metrics)
@@ -263,7 +266,7 @@ class Trainer(object):
             if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         should_compute_basic_metrics = write_basic_metrics or write_instance_metrics or save_checkpoint
-
+        save_checkpoint_by_itr_name = self.state.iteration in self.model_save_iters
         assert split in ['train', 'val']
         if split == 'train':
             data_loader = self.dataloaders['train_for_val']
@@ -361,7 +364,8 @@ class Trainer(object):
                                                        self.state.epoch, self.state.iteration,
                                                        self.model)
         if save_checkpoint:
-            self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2])
+            self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2],
+                                                    save_by_iteration=save_checkpoint_by_itr_name)
 
         # Restore training settings set prior to function call
         if training:
@@ -391,6 +395,14 @@ class Trainer(object):
             # print('APD: Finished iteration')
         return true_labels, pred_labels, score, pred_permutations, val_loss, \
                segmentation_visualizations, score_visualizations
+
+    @property
+    def model_save_iters(self):
+        val_iters = [i for i in range(0, self.state.max_iteration) if self.state.iteration % self.interval_validate
+                     == 0]
+        model_save_locs = [val_iters[i] for i in np.round(np.linspace(0, len(val_iters) - 1,
+                                                                      self.n_model_checkpoints)).astype(int)]
+        return model_save_locs
 
     def train_epoch(self):
         self.model.train()
@@ -516,8 +528,7 @@ class Trainer(object):
                                                                  self.state.iteration)
         if self.exporter.tensorboard_writer is not None:
             self.exporter.tensorboard_writer.add_scalar(
-                'B_intermediate_metrics/val_minus_train_loss', val_loss -
-                                                               train_loss,
+                'B_intermediate_metrics/val_minus_train_loss', val_loss - train_loss,
                 self.state.iteration)
         return train_metrics, train_loss, val_metrics, val_loss
 

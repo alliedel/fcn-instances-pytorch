@@ -3,7 +3,7 @@ from scripts import train, test_convert_eval
 
 def parse_test_args():
     test_parser = test_convert_eval.get_test_parser_without_logdir()
-    return test_parser.parse_known_args()
+    return test_parser.parse_known_args()[0]
 
 
 def main():

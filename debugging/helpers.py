@@ -68,6 +68,35 @@ class DataloaderDataIntegrityChecker(object):
 
 def transform_and_export_input_images(trainer: Trainer, dataloader, split='train', out_dir=None, out_dir_raw=None,
                                       write_raw_images=True, write_transformed_images=True):
+    if write_transformed_images:
+        t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=150, leave=False)
+        image_idx = 0
+        out_dir = out_dir or osp.join(trainer.exporter.out_dir, 'debug_viz')
+        integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
+        for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
+            integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
+            for datapoint_idx in range(img_data_b.size(0)):
+                img_data = img_data_b[datapoint_idx, ...]
+                sem_lbl, inst_lbl = sem_lbl_b[datapoint_idx, ...], inst_lbl_b[datapoint_idx, ...]
+                # Transform back to numpy format (rather than tensor that's formatted for model)
+                data_to_img_transformer = lambda i, l: trainer.exporter.untransform_data(
+                    trainer.dataloaders[split], i, l)
+                img_untransformed, lbl_untransformed = data_to_img_transformer(
+                    img_data, (sem_lbl, inst_lbl)) \
+                    if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
+                sem_lbl_np, inst_lbl_np = lbl_untransformed
+                lt_combined = trainer.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+
+                segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
+                    lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
+                    overlay=False)
+
+                visualization_utils.export_visualizations(segmentation_viz, out_dir,
+                                                          trainer.exporter.tensorboard_writer,
+                                                          image_idx,
+                                                          basename='loader_' + split + '_', tile=True)
+                image_idx += 1
+
     if write_raw_images:
         try:
             filetypes = dataloader.dataset.raw_dataset.files[0].keys()
@@ -112,34 +141,6 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
         # if rt is not None:
         #     dataloader.dataset.runtime_transformation.transformer_sequence = rt
 
-    if write_transformed_images:
-        t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=150, leave=False)
-        image_idx = 0
-        out_dir = out_dir or osp.join(trainer.exporter.out_dir, 'debug_viz')
-        integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
-        for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
-            integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
-            for datapoint_idx in range(img_data_b.size(0)):
-                img_data = img_data_b[datapoint_idx, ...]
-                sem_lbl, inst_lbl = sem_lbl_b[datapoint_idx, ...], inst_lbl_b[datapoint_idx, ...]
-                # Transform back to numpy format (rather than tensor that's formatted for model)
-                data_to_img_transformer = lambda i, l: trainer.exporter.untransform_data(
-                    trainer.dataloaders[split], i, l)
-                img_untransformed, lbl_untransformed = data_to_img_transformer(
-                    img_data, (sem_lbl, inst_lbl)) \
-                    if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
-                sem_lbl_np, inst_lbl_np = lbl_untransformed
-                lt_combined = trainer.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
-
-                segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
-                    lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
-                    overlay=False)
-
-                visualization_utils.export_visualizations(segmentation_viz, out_dir,
-                                                          trainer.exporter.tensorboard_writer,
-                                                          image_idx,
-                                                          basename='loader_' + split + '_', tile=True)
-                image_idx += 1
 
     return out_dir, out_dir_raw
 

@@ -21,7 +21,7 @@ class Defaults(object):
     return_torch_type = False
     location_generation_type = 'random'  # 'moving'
     velocity_r_c = [[0, 1], [0, -1]]
-    n_images = 100
+    n_images = 1000
     mean_bgr = np.array([10.0, 10.0, 10.0])
     transform = True
     portrait = False

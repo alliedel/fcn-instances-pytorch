@@ -215,7 +215,7 @@ class SemanticSubsetRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
 
     def transform(self, img, lbl):
         sem_fcn = lambda sem_lbl: datasets.remap_to_reduced_semantic_classes(
-            sem_lbl, reduced_class_idxs=self.reduced_class_idxs,
+            sem_lbl, lbl[1], reduced_class_idxs=self.reduced_class_idxs,
             map_other_classes_to_bground=self.map_other_classes_to_bground)
         lbl = (sem_fcn(lbl[0]), lbl[1])
         return img, lbl

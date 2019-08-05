@@ -135,7 +135,6 @@ class SBDClassSeg(voc.VOCClassSegBase):
         return img, lbl
 
     def remap_to_reduced_semantic_classes(self, sem_lbl):
-        return datasets.remap_to_reduced_semantic_classes(
-            sem_lbl, reduced_class_idxs=self.idxs_into_all_voc,
-            map_other_classes_to_bground=self.map_other_classes_to_bground)
+        return datasets.remap_to_reduced_semantic_classes(sem_lbl, reduced_class_idxs=self.idxs_into_all_voc,
+                                                          map_other_classes_to_bground=self.map_other_classes_to_bground)
 

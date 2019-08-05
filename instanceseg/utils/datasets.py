@@ -163,14 +163,15 @@ def remap(lbl, new_idxs):
             raise Exception('mapping was not thorough.  No value specified for {}'.format(untouched_values[0]))
 
 
-def remap_to_reduced_semantic_classes(lbl, reduced_class_idxs, map_other_classes_to_bground=True):
+def remap_to_reduced_semantic_classes(sem_lbl, inst_lbl, reduced_class_idxs, map_other_classes_to_bground=True,
+                                      inst_lbl_for_new_bg=0):
     """
     reduced_class_idxs = idxs_into_all_voc
     """
     # Make sure all lbl classes can be mapped appropriately.
     if not map_other_classes_to_bground:
-        original_classes_in_this_img = [i for i in range(lbl.min(), lbl.max() + 1)
-                                        if torch.sum(lbl == i) > 0]
+        original_classes_in_this_img = [i for i in range(sem_lbl.min(), sem_lbl.max() + 1)
+                                        if torch.sum(sem_lbl == i) > 0]
         bool_unique_class_in_reduced_classes = [lbl_cls in reduced_class_idxs
                                                 for lbl_cls in original_classes_in_this_img
                                                 if lbl_cls != -1]
@@ -181,15 +182,17 @@ def remap_to_reduced_semantic_classes(lbl, reduced_class_idxs, map_other_classes
             raise Exception('Image has class labels outside the subset.\n Subset: {}\n'
                             'Classes in the image:{}'.format(reduced_class_idxs,
                                                              original_classes_in_this_img))
-    if torch.is_tensor(lbl):
-        old_lbl = lbl.clone()
+    if torch.is_tensor(sem_lbl):
+        old_sem_lbl = sem_lbl.clone()
     else:
-        old_lbl = lbl.copy()
-    lbl[...] = 0
-    lbl[old_lbl == -1] = -1
+        old_sem_lbl = sem_lbl.copy()
+    assert inst_lbl[old_sem_lbl == 0].sum() == 0
+    sem_lbl[...] = 0  # background class
+    sem_lbl[old_sem_lbl == -1] = -1
     for new_idx, old_class_idx in enumerate(reduced_class_idxs):
-        lbl[old_lbl == old_class_idx] = new_idx
-    return lbl
+        sem_lbl[old_sem_lbl == old_class_idx] = new_idx
+    inst_lbl[sem_lbl == 0] = 0  # background class
+    return sem_lbl
 
 
 def get_semantic_names_and_idxs(semantic_subset, full_set):

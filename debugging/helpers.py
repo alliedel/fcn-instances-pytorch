@@ -74,10 +74,9 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
         except AttributeError:
             print('Warning: cant write raw images because I cant access original files through '
                   'dataset.raw_dataset.files')
-        write_raw_images = False
+            write_raw_images = False
 
     if write_raw_images:
-
         out_dir_raw = out_dir_raw or osp.join(trainer.exporter.out_dir, 'debug_viz_raw')
         if not os.path.exists(out_dir_raw):
             os.makedirs(out_dir_raw)

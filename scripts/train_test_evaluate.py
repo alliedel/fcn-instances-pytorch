@@ -9,7 +9,7 @@ def parse_test_args():
 def main():
     test_args = parse_test_args()
     train_logdir = train.main()
-    test_convert_eval.main(train_logdir, **test_args.__dict__)
+    test_convert_eval.main(train_logdir, **test_args.__dict__, check_clean_tree=False)
 
 
 if __name__ == '__main__':

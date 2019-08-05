@@ -59,8 +59,9 @@ def query_remove_logdir(logdir):
         shutil.rmtree(logdir)
 
 
-def main(replacement_dict_for_sys_args=None):
-    script_utils.check_clean_work_tree()
+def main(replacement_dict_for_sys_args=None, check_clean_tree=True):
+    if check_clean_tree:
+        script_utils.check_clean_work_tree()
 
     args, cfg_override_args = parse.parse_args_test(replacement_dict_for_sys_args)
     checkpoint_path = args.logdir

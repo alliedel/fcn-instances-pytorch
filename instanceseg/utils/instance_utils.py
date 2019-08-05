@@ -72,6 +72,10 @@ class InstanceProblemConfig(object):
         return [l.id for l in self.labels_table]
 
     @property
+    def semantic_transformed_label_ids(self):
+        return list(range(len(self.labels_table)))
+
+    @property
     def has_instances(self):
         return [l.isthing for l in self.labels_table]
 

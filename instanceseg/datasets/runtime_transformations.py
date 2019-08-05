@@ -166,10 +166,14 @@ class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
     def transform(self, img, lbl):
         new_inst_lbl = lbl[1]
         if self.instance_id_for_excluded_instances is None:
+            max_inst_lbl = new_inst_lbl.max()
+            semantic_classes_with_max_inst_lbl = lbl[0][new_inst_lbl == max_inst_lbl]
             assert (new_inst_lbl > self.n_inst_cap_per_class).sum() == 0, \
-                'lbl had an instance with label {}, which is greater than our cap at {}.' \
+                'semantic lbl {} had an instance with label {}, which is greater than our cap at {}.' \
                 'If you would like to ignore these classes, set instance_id_for_excluded_instances to -1 ' \
-                'instead of None'.format(new_inst_lbl.max(), self.n_inst_cap_per_class)
+                'instead of None.  Note this can happen if you\'re sampling images by number of instances in ' \
+                'one object class, but also predicting on another class.'.format(
+                    semantic_classes_with_max_inst_lbl[0], max_inst_lbl, self.n_inst_cap_per_class)
         else:
             new_inst_lbl[new_inst_lbl > self.n_inst_cap_per_class] = self.instance_id_for_excluded_instances
         return img, (lbl[0], new_inst_lbl)

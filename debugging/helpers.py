@@ -36,10 +36,12 @@ class DataloaderDataIntegrityChecker(object):
     def thing_constraint(self, sem_lbl, inst_lbl):
         for tv in self.thing_values:  # Things must have instance id != 0
             semantic_idx = self.instance_problem.semantic_vals.index(tv)
-            assert (inst_lbl[sem_lbl == tv] == 0).sum() == 0, \
-                'Things should not have instance label 0 (error for class {}, {}'.format(
-                    tv, self.instance_problem.semantic_class_names[semantic_idx])
-            assert inst_lbl[sem_lbl == tv].max() <= self.instance_problem.n_instances_by_semantic_id[semantic_idx]
+            sem_locs = sem_lbl == tv
+            if sem_locs.sum() > 0:
+                assert (inst_lbl[sem_locs] == 0).sum() == 0, \
+                    'Things should not have instance label 0 (error for class {}, {}'.format(
+                        tv, self.instance_problem.semantic_class_names[semantic_idx])
+                assert inst_lbl[sem_locs].max() <= self.instance_problem.n_instances_by_semantic_id[semantic_idx]
 
     def stuff_constraint(self, sem_lbl, inst_lbl):
         for sv in self.stuff_values:
@@ -52,9 +54,11 @@ class DataloaderDataIntegrityChecker(object):
         else:
             semvals = np.unique(sem_lbl)
         for semval in semvals:
-            assert semval in self.instance_problem.semantic_vals, \
+            assert semval in self.instance_problem.semantic_transformed_label_ids, \
                 'Semantic label contains value {} which is not in the following list: {}'.format(
-                    semval, zip(self.instance_problem.semantic_vals, self.instance_problem.semantic_class_names))
+                    semval, '\n'.join(['{}: {}'.format(v, n)
+                                       for v, n in zip(self.instance_problem.semantic_transformed_label_ids,
+                                                       self.instance_problem.semantic_class_names)]))
 
     def matching_void_constraint(self, sem_lbl, inst_lbl):
         if (sem_lbl[inst_lbl == self.void_val] != self.void_val).sum() > 0:

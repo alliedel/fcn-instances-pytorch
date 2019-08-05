@@ -1,6 +1,7 @@
 import os
 import argparse
 import numpy as np
+from instanceseg.utils import script_setup as script_utils
 
 if os.path.basename(os.path.abspath('.')) == 'debugging' or os.path.basename(os.path.abspath('.')) == 'scripts':
     os.chdir('../')
@@ -46,16 +47,19 @@ def parse_args():
 
 
 def main(logdir, test_split, sampler=None, gpu=(DEFAULT_GPU,), batch_size=1, dataset_name=None, iou_threshold=0.5,
-         export_sorted_perf_images=True):
+         export_sorted_perf_images=True, check_clean_tree=True):
+    if check_clean_tree:
+        script_utils.check_clean_work_tree()
+
     logdir = logdir.rstrip('/')
     dataset_name = dataset_name or os.path.basename(os.path.dirname(logdir))
-    print(dataset_name)
     replacement_dict_for_sys_args = [dataset_name, '--logdir', logdir, '--{}_batch_size'.format(test_split),
                                      str(batch_size), '-g', ' '.join(str(g) for g in gpu), '--test_split', test_split,
                                      '--sampler', sampler]
     # Test
     np.random.seed(100)
-    predictions_outdir, groundtruth_outdir, tester, logdir = test.main(replacement_dict_for_sys_args)
+    predictions_outdir, groundtruth_outdir, tester, logdir = test.main(replacement_dict_for_sys_args,
+                                                                       check_clean_tree=False)
 
     # Convert
     out_dirs_root = convert_test_results_to_coco.get_outdirs_cache_root(logdir, predictions_outdir)

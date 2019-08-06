@@ -19,6 +19,11 @@ try:
 except ImportError:
     cv2 = None
 
+try:
+    from skimage.transform import resize
+except ImportError:
+    resize = None
+
 import numpy as np
 import scipy.ndimage
 import six
@@ -196,6 +201,52 @@ def _tile_images(imgs, tile_shape, concatenated_image):
     return concatenated_image
 
 
+def _tile_same_height_images_into_row(imgs, concatenated_image, align='row'):
+    """Concatenate images whose sizes are same.
+
+    @param imgs: image list which should be concatenated
+    @param tile_shape: shape for which images should be concatenated
+    @param concatenated_image: returned image.
+        if it is None, new image will be created.
+    """
+    assert align in ('row', 'col')
+    shared_dim = 0 if 'row' else 1  # dimension that has to line up
+    shared_dim_val = imgs[0].shape[shared_dim]
+    assert all([i.shape[shared_dim] == shared_dim_val for i in imgs])
+
+    if concatenated_image is None:
+        all_h = sum([i.shape[0] for i in imgs])
+        all_w = sum([i.shape[1] for i in imgs])
+        shp = (all_h, all_w, 3) if len(imgs[0].shape) == 3 else (all_h, all_w)
+        concatenated_image = np.zeros(shp, dtype=np.uint8)
+
+    for idx, img in enumerate(imgs):
+        if shared_dim == 0:
+            w = img.shape[1]
+            concatenated_image[0:w, idx * w:(idx + 1) * w] = img
+        else:
+            h = img.shape[0]
+            concatenated_image[idx * h:(idx + 1) * h, :] = img
+    return concatenated_image
+
+
+def get_tile_image_1d(imgs, align='row', result_img=None, margin_color=None, margin_size=2):
+    if margin_color is None:
+        margin_size = 0
+    # resize and concatenate images
+    for i, img in enumerate(imgs):
+        if len(img.shape) == 3:
+            w, h, _ = img.shape
+            img = centerize(img, (h + margin_size * 2, w + margin_size * 2, 3),
+                            margin_color)
+        else:
+            w, h = img.shape
+            img = centerize(img, (h + margin_size * 2, w + margin_size * 2),
+                            margin_color)
+        imgs[i] = img
+    return _tile_same_height_images_into_row(imgs, result_img, align=align)
+
+
 def get_tile_image(imgs, tile_shape=None, result_img=None, margin_color=None, margin_size=2):
     """Concatenate images whose sizes are different.
 
@@ -240,8 +291,9 @@ def get_max_height_and_width(imgs):
 
 
 def resize_img_to_sz(img, height, width):
-    from skimage.transform import resize
     h, w = img.shape[:2]
+    if height == h and width == w:
+        return img
     dtype = img.dtype
     h_scale, w_scale = height / h, width / w
     scale = min([h_scale, w_scale])

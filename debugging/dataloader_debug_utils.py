@@ -7,7 +7,7 @@ import torch
 import PIL.Image
 
 from instanceseg.analysis import visualization_utils
-from instanceseg.datasets import labels_table_cityscapes
+from instanceseg.datasets import labels_table_cityscapes, instance_dataset
 from instanceseg.datasets.cityscapes_transformations import convert_to_p_mode_file
 from instanceseg.train import trainer_exporter
 from instanceseg.train.trainer import Trainer
@@ -67,8 +67,9 @@ class DataloaderDataIntegrityChecker(object):
                 sem_lbl[inst_lbl == -1].max()))
 
 
-def transform_and_export_input_images(trainer: Trainer, dataloader, split='train', out_dir_parent=None,
-                                      write_raw_images=True, write_transformed_images=True):
+def transform_and_export_input_images(trainer: Trainer, dataloader,
+                                      split='train', out_dir_parent=None, write_raw_images=True,
+                                      write_transformed_images=True):
     out_dir_parent = out_dir_parent or trainer.exporter.out_dir
     if write_transformed_images:
         t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=120, leave=False)
@@ -81,6 +82,11 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
                 os.makedirs(out_dir_)
         integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
         decomposed_image_paths_transformed = []
+        labels_table = dataloader.dataset.labels_table
+        cmap_dict_by_sem_val = {l.id: l.color for l in labels_table}
+        sem_names_dict = {v: n for v, n in zip(trainer.instance_problem.semantic_vals,
+                                               trainer.instance_problem.semantic_class_names)}
+
         for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
             integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
             for datapoint_idx in range(img_data_b.size(0)):
@@ -106,7 +112,9 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
 
                 image_idx += 1
 
-                out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=img_untransformed)
+                out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=img_untransformed,
+                                                               sem_names_dict=sem_names_dict,
+                                                               cmap_dict_by_sem_val=cmap_dict_by_sem_val)
                 decomposed_image_path = os.path.join(out_dir_decomposed, 'decomposed_%012d.png' % image_idx)
                 visualization_utils.write_image(decomposed_image_path, out_img)
                 decomposed_image_paths_transformed.append(decomposed_image_path)
@@ -134,9 +142,13 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
         except AttributeError:
             raise Exception('Dataset isnt in a format where I can retrieve the raw image files easily to copy them '
                             'over.  Expected to be able to access dataloader.dataset.raw_dataset[0].files.keys')
+        instance_palette = labels_table_cityscapes.get_instance_palette_image()
 
         decomposed_image_paths_raw = []
         t = tqdm.tqdm(enumerate(dataloader.sampler.indices), total=len(dataloader), ncols=120, leave=False)
+        labels_table = dataloader.dataset.labels_table
+        cmap_dict_by_sem_val = {l.id: l.color for l in labels_table}
+        sem_names_dict = {l.id: l.name for l in labels_table}
         for image_idx, idx_into_dataset in t:
             filename_d = dataloader.dataset.raw_dataset.files[idx_into_dataset]
             for filetype, filename in filename_d.items():
@@ -144,7 +156,6 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
                 if filetype is not 'inst_lbl':
                     shutil.copyfile(filename, os.path.join(out_dir_raw_rgb, filetype, out_name))
                 else:
-                    instance_palette = labels_table_cityscapes.get_instance_palette_image()
                     new_inst_lbl_file = os.path.join(out_dir_raw_rgb, filetype, 'modified_modep_' + out_name)
                     if not osp.isfile(new_inst_lbl_file):
                         assert osp.isfile(filename), '{} does not exist'.format(filename)
@@ -155,7 +166,9 @@ def transform_and_export_input_images(trainer: Trainer, dataloader, split='train
             input_image = PIL.Image.open(filename_d['img'], 'r')
             assert len(sem_lbl.shape) == 2
             assert len(inst_lbl.shape) == 2
-            out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image)
+            out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image,
+                                                           cmap_dict_by_sem_val=cmap_dict_by_sem_val,
+                                                           sem_names_dict=sem_names_dict)
             decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d.png' % image_idx)
             visualization_utils.write_image(decomposed_image_path, out_img)
             decomposed_image_paths_raw.append(decomposed_image_path)
@@ -248,27 +261,28 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
             true_label_masks.append(rgb_mask)
             colormaps.append(colormap)
 
-        true_label_mask_row = visualization_utils.get_tile_image(true_label_masks, (1, len(true_label_masks)),
-                                                                 margin_color=margin_color,
-                                                                 margin_size=margin_size_small)
-        colormap_row = visualization_utils.get_tile_image(colormaps, (1, len(colormaps)),
-                                                          margin_color=margin_color,
-                                                          margin_size=margin_size_small)
-        row_with_colormaps = visualization_utils.get_tile_image([true_label_mask_row, colormap_row], (2, 1),
-                                                                margin_color=margin_color,
-                                                                margin_size=margin_size_small)
+        true_label_mask_row = visualization_utils.get_tile_image_1d(true_label_masks, align='row',
+                                                                    margin_color=margin_color,
+                                                                    margin_size=margin_size_small)
+        colormap_row = visualization_utils.get_tile_image_1d(colormaps, align='row',
+                                                             margin_color=margin_color,
+                                                             margin_size=margin_size_small)
+        row_with_colormaps = visualization_utils.get_tile_image_1d([true_label_mask_row, colormap_row], align='col',
+                                                                   margin_color=margin_color,
+                                                                   margin_size=margin_size_small)
         sem_cls_rows.append(row_with_colormaps)
 
-    tiled_masks = visualization_utils.get_tile_image(sem_cls_rows, (n_sem_classes, 1), margin_color=margin_color,
-                                                     margin_size=margin_size_large)
+    tiled_masks = visualization_utils.get_tile_image_1d(sem_cls_rows, align='col', margin_color=margin_color,
+                                                        margin_size=margin_size_large)
 
     return tiled_masks
 
 
-def create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=None, downsample_multiplier=1.0):
+def create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=None, sem_names_dict=None,
+                                         cmap_dict_by_sem_val=None, downsample_multiplier=1.0):
     instance_mask_dict, inst_vals_dict = decompose_into_mask_image_per_instance(sem_lbl, inst_lbl)
-    out_img = visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=None,
-                                         sem_names_dict=None, input_image=input_image,
+    out_img = visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=cmap_dict_by_sem_val,
+                                         sem_names_dict=sem_names_dict, input_image=input_image,
                                          downsample_multiplier=downsample_multiplier)
     return out_img
 

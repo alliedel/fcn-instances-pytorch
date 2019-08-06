@@ -10,7 +10,7 @@ import instanceseg.utils.script_setup as script_utils
 from instanceseg.utils import parse
 from instanceseg.analysis import visualization_utils
 from instanceseg.utils.script_setup import setup_train, configure
-import debugging.helpers as debug_helper
+import debugging.dataloader_debug_utils as debug_helper
 from instanceseg.train import trainer
 from instanceseg.utils.misc import y_or_n_input
 

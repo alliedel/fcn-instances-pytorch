@@ -1,0 +1,301 @@
+import os
+import os.path as osp
+import shutil
+import tqdm
+import numpy as np
+import torch
+import PIL.Image
+
+from instanceseg.analysis import visualization_utils
+from instanceseg.datasets import labels_table_cityscapes
+from instanceseg.datasets.cityscapes_transformations import convert_to_p_mode_file
+from instanceseg.train import trainer_exporter
+from instanceseg.train.trainer import Trainer
+from instanceseg.utils.misc import value_as_string
+from instanceseg.utils import instance_utils
+
+
+class DataloaderDataIntegrityChecker(object):
+    def __init__(self, instance_problem: instance_utils.InstanceProblemConfig):
+        self.instance_problem = instance_problem
+        self.void_val = -1
+
+    @property
+    def thing_values(self):
+        return self.instance_problem.thing_class_vals
+
+    @property
+    def stuff_values(self):
+        return self.instance_problem.stuff_class_vals
+
+    def check_batch_label_integrity(self, sem_lbl_batch, inst_lbl_batch):
+        self.thing_constraint(sem_lbl_batch, inst_lbl_batch)
+        self.stuff_constraint(sem_lbl_batch, inst_lbl_batch)
+        self.matching_void_constraint(sem_lbl_batch, inst_lbl_batch)
+        self.sem_value_constraint(sem_lbl_batch)
+
+    def thing_constraint(self, sem_lbl, inst_lbl):
+        for tv in self.thing_values:  # Things must have instance id != 0
+            semantic_idx = self.instance_problem.semantic_vals.index(tv)
+            sem_locs = sem_lbl == tv
+            if sem_locs.sum() > 0:
+                assert (inst_lbl[sem_locs] == 0).sum() == 0, \
+                    'Things should not have instance label 0 (error for class {}, {}'.format(
+                        tv, self.instance_problem.semantic_class_names[semantic_idx])
+                assert inst_lbl[sem_locs].max() <= self.instance_problem.n_instances_by_semantic_id[semantic_idx]
+
+    def stuff_constraint(self, sem_lbl, inst_lbl):
+        for sv in self.stuff_values:
+            assert (inst_lbl[sem_lbl == sv] != 0).sum() == 0, 'Stuff should only have instance label 0, ' \
+                                                              'not {}'.format(inst_lbl[sem_lbl == sv].max())
+
+    def sem_value_constraint(self, sem_lbl):
+        if torch.is_tensor(sem_lbl):
+            semvals = torch.unique(sem_lbl)
+        else:
+            semvals = np.unique(sem_lbl)
+        for semval in semvals:
+            assert semval in self.instance_problem.semantic_transformed_label_ids, \
+                'Semantic label contains value {} which is not in the following list: {}'.format(
+                    semval, '\n'.join(['{}: {}'.format(v, n)
+                                       for v, n in zip(self.instance_problem.semantic_transformed_label_ids,
+                                                       self.instance_problem.semantic_class_names)]))
+
+    def matching_void_constraint(self, sem_lbl, inst_lbl):
+        if (sem_lbl[inst_lbl == self.void_val] != self.void_val).sum() > 0:
+            raise Exception('Instance label was -1 where semantic label was not (e.g. - {})'.format(
+                sem_lbl[inst_lbl == -1].max()))
+
+
+def transform_and_export_input_images(trainer: Trainer, dataloader, split='train', out_dir_parent=None,
+                                      write_raw_images=True, write_transformed_images=True):
+    out_dir_parent = out_dir_parent or trainer.exporter.out_dir
+    if write_transformed_images:
+        t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=120, leave=False)
+        image_idx = 0
+
+        out_dir_rgb = osp.join(out_dir_parent, 'debug_viz')
+        out_dir_decomposed = osp.join(out_dir_parent, 'debug_viz_decomposed')
+        for out_dir_ in [out_dir_rgb, out_dir_decomposed]:
+            if not os.path.exists(out_dir_):
+                os.makedirs(out_dir_)
+        integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
+        decomposed_image_paths_transformed = []
+        for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
+            integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
+            for datapoint_idx in range(img_data_b.size(0)):
+                img_data = img_data_b[datapoint_idx, ...]
+                sem_lbl, inst_lbl = sem_lbl_b[datapoint_idx, ...], inst_lbl_b[datapoint_idx, ...]
+                # Transform back to numpy format (rather than tensor that's formatted for model)
+                data_to_img_transformer = lambda i, l: trainer.exporter.untransform_data(
+                    trainer.dataloaders[split], i, l)
+                img_untransformed, lbl_untransformed = data_to_img_transformer(
+                    img_data, (sem_lbl, inst_lbl)) \
+                    if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
+                sem_lbl_np, inst_lbl_np = lbl_untransformed
+                lt_combined = trainer.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+
+                segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
+                    lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
+                    overlay=False)
+
+                visualization_utils.export_visualizations(segmentation_viz, out_dir_rgb,
+                                                          trainer.exporter.tensorboard_writer,
+                                                          image_idx,
+                                                          basename='loader_' + split + '_', tile=True)
+
+                image_idx += 1
+
+                out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=img_untransformed)
+                decomposed_image_path = os.path.join(out_dir_decomposed, 'decomposed_%012d.png' % image_idx)
+                visualization_utils.write_image(decomposed_image_path, out_img)
+                decomposed_image_paths_transformed.append(decomposed_image_path)
+
+    if write_raw_images:
+        try:
+            filetypes = dataloader.dataset.raw_dataset.files[0].keys()
+        except AttributeError:
+            print('Warning: cant write raw images because I cant access original files through '
+                  'dataset.raw_dataset.files')
+            write_raw_images = False
+
+    if write_raw_images:
+        out_dir_raw_rgb = osp.join(out_dir_parent, 'debug_viz_raw_rgb')
+        out_dir_raw_decomposed = osp.join(out_dir_parent, 'debug_viz_raw_decomposed')
+        for out_dir_raw_ in [out_dir_raw_rgb, out_dir_raw_decomposed]:
+            if not os.path.exists(out_dir_raw_):
+                os.makedirs(out_dir_raw_)
+        try:
+            filetypes = dataloader.dataset.raw_dataset.files[0].keys()
+            for filetype in filetypes:
+                suboutdir = os.path.join(out_dir_raw_rgb, filetype)
+                if not os.path.exists(suboutdir):
+                    os.makedirs(suboutdir)
+        except AttributeError:
+            raise Exception('Dataset isnt in a format where I can retrieve the raw image files easily to copy them '
+                            'over.  Expected to be able to access dataloader.dataset.raw_dataset[0].files.keys')
+
+        decomposed_image_paths_raw = []
+        t = tqdm.tqdm(enumerate(dataloader.sampler.indices), total=len(dataloader), ncols=120, leave=False)
+        for image_idx, idx_into_dataset in t:
+            filename_d = dataloader.dataset.raw_dataset.files[idx_into_dataset]
+            for filetype, filename in filename_d.items():
+                out_name = '{}_'.format(image_idx) + os.path.basename(filename)
+                if filetype is not 'inst_lbl':
+                    shutil.copyfile(filename, os.path.join(out_dir_raw_rgb, filetype, out_name))
+                else:
+                    instance_palette = labels_table_cityscapes.get_instance_palette_image()
+                    new_inst_lbl_file = os.path.join(out_dir_raw_rgb, filetype, 'modified_modep_' + out_name)
+                    if not osp.isfile(new_inst_lbl_file):
+                        assert osp.isfile(filename), '{} does not exist'.format(filename)
+                        convert_to_p_mode_file(filename, new_inst_lbl_file, palette=instance_palette,
+                                               assert_inside_palette_range=True)
+            sem_lbl = np.array(PIL.Image.open(filename_d['sem_lbl'], 'r'))
+            inst_lbl = np.array(PIL.Image.open(filename_d['inst_lbl'], 'r'))
+            input_image = PIL.Image.open(filename_d['img'], 'r')
+            assert len(sem_lbl.shape) == 2
+            assert len(inst_lbl.shape) == 2
+            out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image)
+            decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d.png' % image_idx)
+            visualization_utils.write_image(decomposed_image_path, out_img)
+            decomposed_image_paths_raw.append(decomposed_image_path)
+
+            image_idx += 1
+
+    # TODO(allie): Make side-by-side comparison
+
+    return out_dir_parent
+
+
+def unique(tensor_or_np_arr):
+    if torch.is_tensor(tensor_or_np_arr):
+        unique_vals = torch.unique(tensor_or_np_arr)
+        unique_vals = [i.item() for i in unique_vals]
+    else:
+        unique_vals = np.unique(tensor_or_np_arr)
+
+    return unique_vals
+
+
+def decompose_into_mask_image_per_instance(sem_lbl, inst_lbl, to_np=True):
+    sem_vals = unique(sem_lbl)
+    inst_vals_by_sem_val = {}
+    instance_masks = {sem_val: [] for sem_val in sem_vals}
+    for sem_val in sem_vals:
+        sem_cls_locs = sem_lbl == sem_val
+        inst_vals_by_sem_val[sem_val] = unique(inst_lbl[sem_cls_locs])
+        for inst_val in inst_vals_by_sem_val[sem_val]:
+            mask = sem_cls_locs & (inst_lbl == inst_val)
+            instance_masks[sem_val].append(mask.numpy() if to_np and torch.is_tensor(mask) else mask)
+    return instance_masks, inst_vals_by_sem_val
+
+
+def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=None,
+                               sem_names_dict=None, input_image=None,
+                               margin_size_small=3, margin_size_large=6, void_vals=(-1, 255),
+                               margin_color=(255, 255, 255), downsample_multiplier=1.0):
+    """
+    dicts' keys are the semantic values of each of the instances
+    """
+    assert set(instance_mask_dict.keys()) == set(inst_vals_dict.keys())
+    assert all([len(lst1) == len(lst2) for lst1, lst2 in zip(instance_mask_dict.values(), inst_vals_dict.values())])
+
+    use_funky_void_pixels = True
+
+    sem_vals = list(instance_mask_dict)  # .keys()
+
+    n_sem_classes = len(sem_vals)
+
+    if sem_names_dict is None:
+        sem_names_dict = {sem_val: '{},'.format(sem_val if sem_val not in void_vals else '{} (void),'.format(sem_val))
+                          for sem_val in sem_vals}
+
+    if cmap_dict_by_sem_val is None:
+        cmap_dict_by_sem_val = visualization_utils.label_colormap(n_sem_classes) * 255
+    elif any([c.max() for c in cmap_dict_by_sem_val.values()]) <= 1:
+        print('Warning: colormap should be in the range [0, 255], not [0,1]')
+
+    sem_cls_rows = []
+    for sem_val in sem_vals:
+
+        if input_image is not None:
+            input_image_resized = visualization_utils.resize_img_by_multiplier(input_image, downsample_multiplier)
+            true_label_masks = [input_image_resized]
+            colormaps = [input_image_resized]
+        else:
+            true_label_masks, colormaps = [], []
+        for inst_val, inst_mask in zip(inst_vals_dict[sem_val], instance_mask_dict[sem_val]):
+            mask_label = '{} {}'.format(sem_names_dict[sem_val], inst_val)
+            assert len(inst_mask.shape) == 2
+            rgb_mask = np.repeat(inst_mask[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
+            if use_funky_void_pixels and sem_val in void_vals:
+                void_inst_mask = inst_mask
+                viz_void = (
+                        np.random.random((void_inst_mask.shape[0], void_inst_mask.shape[1], 3)) * 255
+                ).astype(np.uint8)
+                rgb_mask[void_inst_mask] = viz_void[void_inst_mask]
+                colormap = viz_void.copy()
+            else:
+                color = cmap_dict_by_sem_val[sem_val]
+                colormap = np.ones_like(rgb_mask) * color
+
+            if downsample_multiplier != 1:
+                colormap = visualization_utils.resize_img_by_multiplier(colormap, downsample_multiplier)
+                rgb_mask = visualization_utils.resize_img_by_multiplier(colormap, downsample_multiplier)
+
+            visualization_utils.write_word_in_img_center(colormap, mask_label, font_scale=2.0 * downsample_multiplier)
+
+            true_label_masks.append(rgb_mask)
+            colormaps.append(colormap)
+
+        true_label_mask_row = visualization_utils.get_tile_image(true_label_masks, (1, len(true_label_masks)),
+                                                                 margin_color=margin_color,
+                                                                 margin_size=margin_size_small)
+        colormap_row = visualization_utils.get_tile_image(colormaps, (1, len(colormaps)),
+                                                          margin_color=margin_color,
+                                                          margin_size=margin_size_small)
+        row_with_colormaps = visualization_utils.get_tile_image([true_label_mask_row, colormap_row], (2, 1),
+                                                                margin_color=margin_color,
+                                                                margin_size=margin_size_small)
+        sem_cls_rows.append(row_with_colormaps)
+
+    tiled_masks = visualization_utils.get_tile_image(sem_cls_rows, (n_sem_classes, 1), margin_color=margin_color,
+                                                     margin_size=margin_size_large)
+
+    return tiled_masks
+
+
+def create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=None, downsample_multiplier=1.0):
+    instance_mask_dict, inst_vals_dict = decompose_into_mask_image_per_instance(sem_lbl, inst_lbl)
+    out_img = visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=None,
+                                         sem_names_dict=None, input_image=input_image,
+                                         downsample_multiplier=downsample_multiplier)
+    return out_img
+
+
+def write_dataloader_properties(dataloader, outfile):
+    precomputed_file_transformation = dataloader.dataset.precomputed_file_transformation
+    runtime_transformation = dataloader.dataset.runtime_transformation
+    transformer_tag = ''
+    for tr in [precomputed_file_transformation, runtime_transformation]:
+        attributes = tr.get_attribute_items() if tr is not None else {}.items()
+        transformer_tag += '__'.join(['{}-{}'.format(k, value_as_string(v)) for k, v in attributes])
+    with open(outfile, 'w') as fid:
+        fid.write(transformer_tag)
+
+    return
+
+
+def debug_dataloader(trainer: Trainer, split='train', out_dir=None):
+    # TODO(allie, someday): Put cap on num images
+
+    data_loader = trainer.dataloaders[split]
+    out_dir = trainer.exporter.out_dir or out_dir
+    outfile = osp.join(out_dir, 'dataloader_info_' + split + '.txt')
+    write_dataloader_properties(data_loader, outfile)
+    print('Writing images to {}'.format(out_dir))
+    image_idx = 0
+    data_loader = trainer.dataloaders[split]
+
+    out_dir_parent = transform_and_export_input_images(trainer, data_loader, split)
+    print('Wrote images into {}'.format(out_dir_parent))

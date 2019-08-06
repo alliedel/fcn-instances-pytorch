@@ -3,7 +3,7 @@ import os
 import shutil
 import yaml
 
-import debugging.helpers as debug_helper
+import debugging.dataloader_debug_utils as debug_helper
 from scripts.configurations.generic_cfg import PARAM_CLASSIFICATIONS
 from scripts.configurations.synthetic_cfg import SYNTHETIC_PARAM_CLASSIFICATIONS
 from instanceseg.utils import parse, script_setup as script_utils

@@ -15,6 +15,9 @@ from instanceseg.utils.misc import value_as_string
 from instanceseg.utils import instance_utils
 
 
+MAX_IMAGE_DIM = 5000
+
+
 class DataloaderDataIntegrityChecker(object):
     def __init__(self, instance_problem: instance_utils.InstanceProblemConfig):
         self.instance_problem = instance_problem
@@ -67,9 +70,27 @@ class DataloaderDataIntegrityChecker(object):
                 sem_lbl[inst_lbl == -1].max()))
 
 
+def get_multiplier(orig_shape, max_image_dim):
+    return float(max_image_dim) / float(max(orig_shape[:2]))
+
+
+def keep_size_small(out_img, max_image_dim=MAX_IMAGE_DIM):
+    if out_img.shape[0] <= max_image_dim and out_img.shape[1] <= max_image_dim:
+        out_img_resized = out_img
+    else:
+        multiplier = get_multiplier(out_img.shape[:2], max_image_dim)
+        out_img_resized = visualization_utils.resize_img_by_multiplier(out_img, multiplier=multiplier)
+    return out_img_resized
+
+
+def save_and_possibly_resize(out_file, out_img, max_image_dim=MAX_IMAGE_DIM):
+    out_img_resized = keep_size_small(out_img, max_image_dim)
+    visualization_utils.write_image(out_file, out_img_resized)
+
+
 def transform_and_export_input_images(trainer: Trainer, dataloader,
                                       split='train', out_dir_parent=None, write_raw_images=True,
-                                      write_transformed_images=True, n_debug_images=None):
+                                      write_transformed_images=True, n_debug_images=None, max_image_dim=MAX_IMAGE_DIM):
     out_dir_parent = out_dir_parent or trainer.exporter.out_dir
     if write_transformed_images:
         t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader) if n_debug_images is None else n_debug_images,
@@ -89,7 +110,7 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                                   for name in trainer.instance_problem.semantic_class_names]
         cmap_dict_by_sem_val = {v: labels_table[table_idx].color
                                 for v, table_idx in zip(sem_vals, idxs_into_labels_table)}
-        sem_names_dict = {v: n
+        sem_names_dict = {v: '({})'.format(v) + n
                           for v, n in zip(sem_vals, trainer.instance_problem.semantic_class_names)}
 
         for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
@@ -120,15 +141,16 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                 print('Creating decomposed label')
                 out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image_resized,
                                                                sem_names_dict=sem_names_dict,
-                                                               cmap_dict_by_sem_val=cmap_dict_by_sem_val)
+                                                               cmap_dict_by_sem_val=cmap_dict_by_sem_val,
+                                                               max_image_dim=max_image_dim)
                 print('Done creating decomposed label')
                 decomposed_image_path = os.path.join(out_dir_decomposed, 'decomposed_%012d.png' % image_idx)
-                visualization_utils.write_image(decomposed_image_path, out_img)
+                save_and_possibly_resize(decomposed_image_path, out_img)
                 decomposed_image_paths_transformed.append(decomposed_image_path)
                 image_idx += 1
-                if n_debug_images is not None and image_idx > n_debug_images:
+                if n_debug_images is not None and image_idx >= n_debug_images:
                     break
-            if n_debug_images is not None and image_idx > n_debug_images:
+            if n_debug_images is not None and image_idx >= n_debug_images:
                 break
 
     if write_raw_images:
@@ -161,7 +183,7 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                       total=len(dataloader) if n_debug_images is None else n_debug_images, ncols=120, leave=False)
         labels_table = dataloader.dataset.raw_dataset.labels_table
         cmap_dict_by_sem_val = {l.id: l.color for l in labels_table}
-        sem_names_dict = {l.id: l.name for l in labels_table}
+        sem_names_dict = {l.id: '({}){}'.format(l.id, l.name) for l in labels_table}
         for image_idx, idx_into_dataset in t:
             filename_d = dataloader.dataset.raw_dataset.files[idx_into_dataset]
             for filetype, filename in filename_d.items():
@@ -182,12 +204,12 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
             print('Creating decomposed label')
             out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image,
                                                            cmap_dict_by_sem_val=cmap_dict_by_sem_val,
-                                                           sem_names_dict=sem_names_dict)
+                                                           sem_names_dict=sem_names_dict, max_image_dim=MAX_IMAGE_DIM)
             print('Done creating decomposed label')
             decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d.png' % image_idx)
-            visualization_utils.write_image(decomposed_image_path, out_img)
+            save_and_possibly_resize(decomposed_image_path, out_img)
             decomposed_image_paths_raw.append(decomposed_image_path)
-            if n_debug_images is not None and image_idx > n_debug_images:
+            if n_debug_images is not None and image_idx >= n_debug_images:
                 break
 
     # TODO(allie): Make side-by-side comparison
@@ -221,7 +243,7 @@ def decompose_into_mask_image_per_instance(sem_lbl, inst_lbl, to_np=True):
 def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=None,
                                sem_names_dict=None, input_image=None,
                                margin_size_small=3, margin_size_large=6, void_vals=(-1, 255),
-                               margin_color=(255, 255, 255), downsample_multiplier=1.0):
+                               margin_color=(255, 255, 255), downsample_multiplier=1.0, max_image_dim=MAX_IMAGE_DIM):
     """
     dicts' keys are the semantic values of each of the instances
     """
@@ -286,13 +308,17 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
 
             if downsample_multiplier != 1:
                 colormap = visualization_utils.resize_img_by_multiplier(colormap, downsample_multiplier)
-                rgb_mask = visualization_utils.resize_img_by_multiplier(colormap, downsample_multiplier)
+                rgb_mask = visualization_utils.resize_img_by_multiplier(rgb_mask, downsample_multiplier)
 
-            colormap_old = colormap.copy()
-            visualization_utils.write_word_in_img_center(colormap, mask_label, font_scale=2.0 * downsample_multiplier)
+            # font_scale = 2.0 * downsample_multiplier
+            visualization_utils.write_word_in_img_center(colormap, mask_label, font_scale=max(0.5,
+                                                                                              2.0 *
+                                                                                              downsample_multiplier))
 
             true_label_masks.append(rgb_mask)
             colormaps.append(colormap)
+        assert all(c.shape == colormaps[0].shape for c in colormaps)
+        assert all(i.shape == true_label_masks[0].shape for i in true_label_masks)
 
         true_label_mask_row = visualization_utils.get_tile_image_1d(true_label_masks, concat_direction='horizontal',
                                                                     margin_color=margin_color,
@@ -316,11 +342,17 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
 
 
 def create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=None, sem_names_dict=None,
-                                         cmap_dict_by_sem_val=None, downsample_multiplier=1.0):
+                                         cmap_dict_by_sem_val=None, max_image_dim=MAX_IMAGE_DIM):
     assert (sem_lbl.shape[0], sem_lbl.shape[1]) == (inst_lbl.shape[0], inst_lbl.shape[1])
     if input_image is not None:
         assert (sem_lbl.shape[0], sem_lbl.shape[1]) == (input_image.shape[0], input_image.shape[1])
     instance_mask_dict, inst_vals_dict = decompose_into_mask_image_per_instance(sem_lbl, inst_lbl)
+    n_images_wide = max([len(ivs) for sv, ivs in inst_vals_dict.items()]) + (1 if input_image is not None else 0)
+    n_images_tall = 2 * len(instance_mask_dict)  # 2 * for titles
+    out_img_width = sem_lbl.shape[1] * n_images_wide
+    out_img_height = sem_lbl.shape[0] * n_images_tall
+    downsample_multiplier = max(1, get_multiplier((out_img_height, out_img_width), max_image_dim=max_image_dim))
+
     out_img = visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=cmap_dict_by_sem_val,
                                          sem_names_dict=sem_names_dict, input_image=input_image,
                                          downsample_multiplier=downsample_multiplier)
@@ -336,11 +368,10 @@ def write_dataloader_properties(dataloader, outfile):
         transformer_tag += '__'.join(['{}-{}'.format(k, value_as_string(v)) for k, v in attributes])
     with open(outfile, 'w') as fid:
         fid.write(transformer_tag)
-
     return
 
 
-def debug_dataloader(trainer: Trainer, split='train', out_dir=None, n_debug_images=None):
+def debug_dataloader(trainer: Trainer, split='train', out_dir=None, n_debug_images=None, max_image_dim=MAX_IMAGE_DIM):
     # TODO(allie, someday): Put cap on num images
 
     data_loader = trainer.dataloaders[split]
@@ -348,8 +379,8 @@ def debug_dataloader(trainer: Trainer, split='train', out_dir=None, n_debug_imag
     outfile = osp.join(out_dir, 'dataloader_info_' + split + '.txt')
     write_dataloader_properties(data_loader, outfile)
     print('Writing images to {}'.format(out_dir))
-    image_idx = 0
     data_loader = trainer.dataloaders[split]
 
-    out_dir_parent = transform_and_export_input_images(trainer, data_loader, split, n_debug_images=n_debug_images)
+    out_dir_parent = transform_and_export_input_images(trainer, data_loader, split, n_debug_images=n_debug_images,
+                                                       max_image_dim=MAX_IMAGE_DIM)
     print('Wrote images into {}'.format(out_dir_parent))

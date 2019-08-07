@@ -19,10 +19,10 @@ try:
 except ImportError:
     cv2 = None
 
-try:
-    from skimage.transform import resize
-except ImportError:
-    resize = None
+# try:
+#     from skimage.transform import resize
+# except ImportError:
+#     resize = None
 
 import numpy as np
 import scipy.ndimage
@@ -231,7 +231,8 @@ def _tile_same_height_images_into_row(imgs, concatenated_image, concat_direction
     assert concat_direction in ('h', 'v', 'horizontal', 'vertical')
     shared_dim = 0 if concat_direction in ('horizontal', 'h') else 1
     shared_dim_val = imgs[0].shape[shared_dim]
-    assert all([i.shape[shared_dim] == shared_dim_val for i in imgs])
+    assert all([i.shape[shared_dim] == shared_dim_val for i in imgs]), \
+        'Image shapes, attempting to concat {}ly: {}'.format(concat_direction, [i.shape for i in imgs])
 
     if concatenated_image is None:
         all_h = shared_dim_val if shared_dim is 0 else sum([i.shape[0] for i in imgs])
@@ -309,6 +310,10 @@ def get_max_height_and_width(imgs):
     return max_height, max_width
 
 
+def resize_np_img(img, sz):
+    return np.array(PIL.Image.fromarray(img).resize((sz[1], sz[0])))
+
+
 def resize_img_to_sz(img, height, width):
     h, w = img.shape[:2]
     if height == h and width == w:
@@ -317,7 +322,7 @@ def resize_img_to_sz(img, height, width):
     h_scale, w_scale = height / h, width / w
     scale = min([h_scale, w_scale])
     h, w = int(scale * h), int(scale * w)
-    img = resize(img, (h, w), preserve_range=True).astype(dtype)
+    img = resize_np_img(img, (h, w)).astype(dtype)
     return img
 
 
@@ -328,10 +333,9 @@ def get_new_size(img, multiplier):
 
 
 def resize_img_by_multiplier(img, multiplier):
-    from skimage.transform import resize
     dtype = img.dtype
     h, w = get_new_size(img, multiplier)
-    img = resize(img, (h, w), preserve_range=True).astype(dtype)
+    img = resize_np_img(img, (h, w)).astype(dtype)
     return img
 
 

@@ -123,9 +123,9 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                 visualization_utils.write_image(decomposed_image_path, out_img)
                 decomposed_image_paths_transformed.append(decomposed_image_path)
                 image_idx += 1
-                if image_idx > n_debug_images:
+                if n_debug_images is not None and image_idx > n_debug_images:
                     break
-            if image_idx > n_debug_images:
+            if n_debug_images is not None and image_idx > n_debug_images:
                 break
 
     if write_raw_images:
@@ -181,7 +181,7 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
             decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d.png' % image_idx)
             visualization_utils.write_image(decomposed_image_path, out_img)
             decomposed_image_paths_raw.append(decomposed_image_path)
-            if image_idx > n_debug_images:
+            if n_debug_images is not None and image_idx > n_debug_images:
                 break
 
     # TODO(allie): Make side-by-side comparison

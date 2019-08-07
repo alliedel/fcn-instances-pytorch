@@ -72,7 +72,8 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                                       write_transformed_images=True, n_debug_images=None):
     out_dir_parent = out_dir_parent or trainer.exporter.out_dir
     if write_transformed_images:
-        t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=120, leave=False)
+        t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader) if n_debug_images is None else n_debug_images,
+                      ncols=120, leave=False)
         image_idx = 0
 
         out_dir_rgb = osp.join(out_dir_parent, 'debug_viz')
@@ -116,9 +117,11 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
 
                 input_image_resized = visualization_utils.resize_img_to_sz(img_untransformed, sem_lbl.shape[0],
                                                                            sem_lbl.shape[1])
+                print('Creating decomposed label')
                 out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image_resized,
                                                                sem_names_dict=sem_names_dict,
                                                                cmap_dict_by_sem_val=cmap_dict_by_sem_val)
+                print('Done creating decomposed label')
                 decomposed_image_path = os.path.join(out_dir_decomposed, 'decomposed_%012d.png' % image_idx)
                 visualization_utils.write_image(decomposed_image_path, out_img)
                 decomposed_image_paths_transformed.append(decomposed_image_path)
@@ -154,8 +157,9 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
         instance_palette = labels_table_cityscapes.get_instance_palette_image()
 
         decomposed_image_paths_raw = []
-        t = tqdm.tqdm(enumerate(dataloader.sampler.indices), total=len(dataloader), ncols=120, leave=False)
-        labels_table = dataloader.dataset.labels_table
+        t = tqdm.tqdm(enumerate(dataloader.sampler.indices),
+                      total=len(dataloader) if n_debug_images is None else n_debug_images, ncols=120, leave=False)
+        labels_table = dataloader.dataset.raw_dataset.labels_table
         cmap_dict_by_sem_val = {l.id: l.color for l in labels_table}
         sem_names_dict = {l.id: l.name for l in labels_table}
         for image_idx, idx_into_dataset in t:
@@ -175,9 +179,11 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
             input_image = np.array(PIL.Image.open(filename_d['img'], 'r'))
             assert len(sem_lbl.shape) == 2
             assert len(inst_lbl.shape) == 2
+            print('Creating decomposed label')
             out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image,
                                                            cmap_dict_by_sem_val=cmap_dict_by_sem_val,
                                                            sem_names_dict=sem_names_dict)
+            print('Done creating decomposed label')
             decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d.png' % image_idx)
             visualization_utils.write_image(decomposed_image_path, out_img)
             decomposed_image_paths_raw.append(decomposed_image_path)
@@ -227,11 +233,15 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
     sem_vals = list(instance_mask_dict)  # .keys()
 
     if sem_names_dict is not None:
-        assert all([s in sem_names_dict.keys() for s in sem_vals]), \
-            'semantic values present: {}; values given a label: {}'.format(sem_vals, list(sem_names_dict))
+        missing_vals = [s for s in sem_vals if s not in sem_names_dict and s not in void_vals]
+        assert missing_vals == [], \
+            'semantic values present: {}; values given a label: {}; assignments missing: {}'.format(
+                sem_vals, list(sem_names_dict), missing_vals)
     if cmap_dict_by_sem_val is not None:
-        assert all([s in cmap_dict_by_sem_val.keys() for s in sem_vals]), \
-            'semantic values present: {}; values given a label: {}'.format(sem_vals, list(cmap_dict_by_sem_val))
+        missing_vals = [s for s in sem_vals if s not in cmap_dict_by_sem_val and s not in void_vals]
+        assert missing_vals == [], \
+            'semantic values present: {}; values given a label: {}'.format(
+                sem_vals, list(cmap_dict_by_sem_val), missing_vals)
 
     n_sem_classes = len(sem_vals)
 
@@ -254,7 +264,13 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
         else:
             true_label_masks, colormaps = [], []
         for inst_val, inst_mask in zip(inst_vals_dict[sem_val], instance_mask_dict[sem_val]):
-            mask_label = '{} {}'.format(sem_names_dict[sem_val], inst_val)
+            if sem_val in sem_names_dict:
+                sem_name = sem_names_dict[sem_val]
+            else:
+                assert sem_val in void_vals
+                sem_name = 'void,'
+
+            mask_label = '{} {}'.format(sem_name, inst_val)
             assert len(inst_mask.shape) == 2
             rgb_mask = np.repeat(inst_mask[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
             if use_funky_void_pixels and sem_val in void_vals:

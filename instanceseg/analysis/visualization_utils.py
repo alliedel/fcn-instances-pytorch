@@ -149,6 +149,24 @@ def label_accuracy_score(label_trues, label_preds, n_class):
 # -----------------------------------------------------------------------------
 # Visualization
 # -----------------------------------------------------------------------------
+def pad_image_to_right_and_bottom(src, dst_height=None, dst_width=None):
+    if dst_width is None and dst_height is None:
+        raise ValueError('Height or width required when padding')
+    dst_height = dst_height if dst_height is not None else src.shape[0]
+    dst_width = dst_width if dst_width is not None else src.shape[1]
+    if len(src.shape) == 3:
+        dst_shape = (dst_height, dst_width, src.shape[2])
+    else:
+        assert len(src.shape) == 2
+        dst_shape = (dst_height, dst_width)
+
+    # if src.shape == dst_shape:
+    #     return src
+    padded = np.zeros(dst_shape, dtype=src.dtype)
+    padded[:src.shape[0], :src.shape[1], ...] = src
+    return padded
+
+
 def centerize(src, dst_shape, margin_color=None):
     """Centerize image for specified image size
 
@@ -201,50 +219,51 @@ def _tile_images(imgs, tile_shape, concatenated_image):
     return concatenated_image
 
 
-def _tile_same_height_images_into_row(imgs, concatenated_image, align='row'):
+def _tile_same_height_images_into_row(imgs, concatenated_image, concat_direction='horizontal'):
     """Concatenate images whose sizes are same.
-
+    concat_dim: 1 if you want to concatenate along the image x-axis (img1-img2)
+                0 if you want to stack vertically
     @param imgs: image list which should be concatenated
     @param tile_shape: shape for which images should be concatenated
     @param concatenated_image: returned image.
         if it is None, new image will be created.
     """
-    assert align in ('row', 'col')
-    shared_dim = 0 if 'row' else 1  # dimension that has to line up
+    assert concat_direction in ('h', 'v', 'horizontal', 'vertical')
+    shared_dim = 0 if concat_direction in ('horizontal', 'h') else 1
     shared_dim_val = imgs[0].shape[shared_dim]
     assert all([i.shape[shared_dim] == shared_dim_val for i in imgs])
 
     if concatenated_image is None:
-        all_h = sum([i.shape[0] for i in imgs])
-        all_w = sum([i.shape[1] for i in imgs])
+        all_h = shared_dim_val if shared_dim is 0 else sum([i.shape[0] for i in imgs])
+        all_w = shared_dim_val if shared_dim is 1 else sum([i.shape[1] for i in imgs])
         shp = (all_h, all_w, 3) if len(imgs[0].shape) == 3 else (all_h, all_w)
         concatenated_image = np.zeros(shp, dtype=np.uint8)
 
     for idx, img in enumerate(imgs):
         if shared_dim == 0:
             w = img.shape[1]
-            concatenated_image[0:w, idx * w:(idx + 1) * w] = img
+            concatenated_image[:, idx * w:(idx + 1) * w] = img
         else:
             h = img.shape[0]
             concatenated_image[idx * h:(idx + 1) * h, :] = img
     return concatenated_image
 
 
-def get_tile_image_1d(imgs, align='row', result_img=None, margin_color=None, margin_size=2):
+def get_tile_image_1d(imgs, concat_direction='horizonal', result_img=None, margin_color=None, margin_size=2):
     if margin_color is None:
         margin_size = 0
     # resize and concatenate images
     for i, img in enumerate(imgs):
         if len(img.shape) == 3:
-            w, h, _ = img.shape
+            h, w, _ = img.shape
             img = centerize(img, (h + margin_size * 2, w + margin_size * 2, 3),
                             margin_color)
         else:
-            w, h = img.shape
+            h, w = img.shape
             img = centerize(img, (h + margin_size * 2, w + margin_size * 2),
                             margin_color)
         imgs[i] = img
-    return _tile_same_height_images_into_row(imgs, result_img, align=align)
+    return _tile_same_height_images_into_row(imgs, result_img, concat_direction=concat_direction)
 
 
 def get_tile_image(imgs, tile_shape=None, result_img=None, margin_color=None, margin_size=2):

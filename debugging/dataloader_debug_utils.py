@@ -69,7 +69,7 @@ class DataloaderDataIntegrityChecker(object):
 
 def transform_and_export_input_images(trainer: Trainer, dataloader,
                                       split='train', out_dir_parent=None, write_raw_images=True,
-                                      write_transformed_images=True):
+                                      write_transformed_images=True, n_debug_images=None):
     out_dir_parent = out_dir_parent or trainer.exporter.out_dir
     if write_transformed_images:
         t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader), ncols=120, leave=False)
@@ -83,9 +83,13 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
         integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
         decomposed_image_paths_transformed = []
         labels_table = dataloader.dataset.labels_table
-        cmap_dict_by_sem_val = {l.id: l.color for l in labels_table}
-        sem_names_dict = {v: n for v, n in zip(trainer.instance_problem.semantic_vals,
-                                               trainer.instance_problem.semantic_class_names)}
+        sem_vals = trainer.instance_problem.semantic_transformed_label_ids
+        idxs_into_labels_table = [[l.name for l in labels_table].index(name)
+                                  for name in trainer.instance_problem.semantic_class_names]
+        cmap_dict_by_sem_val = {v: labels_table[table_idx].color
+                                for v, table_idx in zip(sem_vals, idxs_into_labels_table)}
+        sem_names_dict = {v: n
+                          for v, n in zip(sem_vals, trainer.instance_problem.semantic_class_names)}
 
         for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
             integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
@@ -110,14 +114,19 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                                                           image_idx,
                                                           basename='loader_' + split + '_', tile=True)
 
-                image_idx += 1
-
-                out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=img_untransformed,
+                input_image_resized = visualization_utils.resize_img_to_sz(img_untransformed, sem_lbl.shape[0],
+                                                                           sem_lbl.shape[1])
+                out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image_resized,
                                                                sem_names_dict=sem_names_dict,
                                                                cmap_dict_by_sem_val=cmap_dict_by_sem_val)
                 decomposed_image_path = os.path.join(out_dir_decomposed, 'decomposed_%012d.png' % image_idx)
                 visualization_utils.write_image(decomposed_image_path, out_img)
                 decomposed_image_paths_transformed.append(decomposed_image_path)
+                image_idx += 1
+                if image_idx > n_debug_images:
+                    break
+            if image_idx > n_debug_images:
+                break
 
     if write_raw_images:
         try:
@@ -163,7 +172,7 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                                                assert_inside_palette_range=True)
             sem_lbl = np.array(PIL.Image.open(filename_d['sem_lbl'], 'r'))
             inst_lbl = np.array(PIL.Image.open(filename_d['inst_lbl'], 'r'))
-            input_image = PIL.Image.open(filename_d['img'], 'r')
+            input_image = np.array(PIL.Image.open(filename_d['img'], 'r'))
             assert len(sem_lbl.shape) == 2
             assert len(inst_lbl.shape) == 2
             out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image,
@@ -172,8 +181,8 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
             decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d.png' % image_idx)
             visualization_utils.write_image(decomposed_image_path, out_img)
             decomposed_image_paths_raw.append(decomposed_image_path)
-
-            image_idx += 1
+            if image_idx > n_debug_images:
+                break
 
     # TODO(allie): Make side-by-side comparison
 
@@ -217,6 +226,13 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
 
     sem_vals = list(instance_mask_dict)  # .keys()
 
+    if sem_names_dict is not None:
+        assert all([s in sem_names_dict.keys() for s in sem_vals]), \
+            'semantic values present: {}; values given a label: {}'.format(sem_vals, list(sem_names_dict))
+    if cmap_dict_by_sem_val is not None:
+        assert all([s in cmap_dict_by_sem_val.keys() for s in sem_vals]), \
+            'semantic values present: {}; values given a label: {}'.format(sem_vals, list(cmap_dict_by_sem_val))
+
     n_sem_classes = len(sem_vals)
 
     if sem_names_dict is None:
@@ -225,7 +241,7 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
 
     if cmap_dict_by_sem_val is None:
         cmap_dict_by_sem_val = visualization_utils.label_colormap(n_sem_classes) * 255
-    elif any([c.max() for c in cmap_dict_by_sem_val.values()]) <= 1:
+    elif any([max(c) <= 1 for c in cmap_dict_by_sem_val.values()]):
         print('Warning: colormap should be in the range [0, 255], not [0,1]')
 
     sem_cls_rows = []
@@ -249,37 +265,45 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
                 rgb_mask[void_inst_mask] = viz_void[void_inst_mask]
                 colormap = viz_void.copy()
             else:
-                color = cmap_dict_by_sem_val[sem_val]
+                color = np.array(cmap_dict_by_sem_val[sem_val], dtype='uint8')
                 colormap = np.ones_like(rgb_mask) * color
 
             if downsample_multiplier != 1:
                 colormap = visualization_utils.resize_img_by_multiplier(colormap, downsample_multiplier)
                 rgb_mask = visualization_utils.resize_img_by_multiplier(colormap, downsample_multiplier)
 
+            colormap_old = colormap.copy()
             visualization_utils.write_word_in_img_center(colormap, mask_label, font_scale=2.0 * downsample_multiplier)
 
             true_label_masks.append(rgb_mask)
             colormaps.append(colormap)
 
-        true_label_mask_row = visualization_utils.get_tile_image_1d(true_label_masks, align='row',
+        true_label_mask_row = visualization_utils.get_tile_image_1d(true_label_masks, concat_direction='horizontal',
                                                                     margin_color=margin_color,
                                                                     margin_size=margin_size_small)
-        colormap_row = visualization_utils.get_tile_image_1d(colormaps, align='row',
+        colormap_row = visualization_utils.get_tile_image_1d(colormaps, concat_direction='horizontal',
                                                              margin_color=margin_color,
                                                              margin_size=margin_size_small)
-        row_with_colormaps = visualization_utils.get_tile_image_1d([true_label_mask_row, colormap_row], align='col',
+        row_with_colormaps = visualization_utils.get_tile_image_1d([colormap_row, true_label_mask_row],
+                                                                   concat_direction='vertical',
                                                                    margin_color=margin_color,
                                                                    margin_size=margin_size_small)
         sem_cls_rows.append(row_with_colormaps)
 
-    tiled_masks = visualization_utils.get_tile_image_1d(sem_cls_rows, align='col', margin_color=margin_color,
+    max_width = max([scr.shape[1] for scr in sem_cls_rows])
+    sem_cls_rows = [visualization_utils.pad_image_to_right_and_bottom(sem_cls_row, dst_width=max_width)
+                    for sem_cls_row in sem_cls_rows]
+    tiled_masks = visualization_utils.get_tile_image_1d(sem_cls_rows, concat_direction='vertical',
+                                                        margin_color=margin_color,
                                                         margin_size=margin_size_large)
-
     return tiled_masks
 
 
 def create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=None, sem_names_dict=None,
                                          cmap_dict_by_sem_val=None, downsample_multiplier=1.0):
+    assert (sem_lbl.shape[0], sem_lbl.shape[1]) == (inst_lbl.shape[0], inst_lbl.shape[1])
+    if input_image is not None:
+        assert (sem_lbl.shape[0], sem_lbl.shape[1]) == (input_image.shape[0], input_image.shape[1])
     instance_mask_dict, inst_vals_dict = decompose_into_mask_image_per_instance(sem_lbl, inst_lbl)
     out_img = visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=cmap_dict_by_sem_val,
                                          sem_names_dict=sem_names_dict, input_image=input_image,
@@ -300,7 +324,7 @@ def write_dataloader_properties(dataloader, outfile):
     return
 
 
-def debug_dataloader(trainer: Trainer, split='train', out_dir=None):
+def debug_dataloader(trainer: Trainer, split='train', out_dir=None, n_debug_images=None):
     # TODO(allie, someday): Put cap on num images
 
     data_loader = trainer.dataloaders[split]
@@ -311,5 +335,5 @@ def debug_dataloader(trainer: Trainer, split='train', out_dir=None):
     image_idx = 0
     data_loader = trainer.dataloaders[split]
 
-    out_dir_parent = transform_and_export_input_images(trainer, data_loader, split)
+    out_dir_parent = transform_and_export_input_images(trainer, data_loader, split, n_debug_images=n_debug_images)
     print('Wrote images into {}'.format(out_dir_parent))

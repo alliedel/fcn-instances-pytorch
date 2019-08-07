@@ -1,12 +1,13 @@
 class PARAM_CLASSIFICATIONS(object):
-    debug = {'debug_dataloader_only'}
+    debug = {'debug_dataloader_only', 'n_debug_images'}
     optim = {'optim', 'max_iteration', 'lr', 'momentum', 'weight_decay', 'reset_optim'}
     export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics',
               'n_model_checkpoints'}
     loss = {'matching', 'size_average', 'loss_type', 'lr_scheduler'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
             'dataset_instance_cap', 'resize', 'resize_size', 'dataset_path', 'train_batch_size',
-            'val_batch_size', 'test_batch_size', 'instance_id_for_excluded_instances', 'blob_size'}
+            'val_batch_size', 'test_batch_size', 'instance_id_for_excluded_instances', 'blob_size',
+            'debug_dataloader_only', 'n_debug_images'}
     problem_config = {'n_instances_per_class', 'single_instance', 'map_to_semantic', 'augment_semantic'}
     model = {'backbone', 'initialize_from_semantic', 'bottleneck_channel_capacity', 'score_multiplier', 'freeze_vgg',
              'map_to_semantic', 'augment_semantic', 'use_conv8', 'use_attn_layer', 'clip'}
@@ -19,9 +20,6 @@ class PARAM_CLASSIFICATIONS(object):
 
 
 _default_train_config = dict(
-
-    # debug
-    debug_dataloader_only=False,
 
     # losses
     matching=True,
@@ -46,6 +44,10 @@ _default_train_config = dict(
                                 # 'conv1x1_instance_to_semantic'
     write_instance_metrics=False,
     n_model_checkpoints=None, # None: every validation iteration. 20: spread them out evenly to get 20 val itrs
+
+    # debug
+    debug_dataloader_only=False,
+    n_debug_images=None,
 
     # data
     dataset=None,
@@ -87,6 +89,7 @@ _default_test_config = dict(
 
     # debug
     debug_dataloader_only=False,
+    n_debug_images=None,
 
     # data
     dataset=None,

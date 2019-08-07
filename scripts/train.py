@@ -44,7 +44,7 @@ def main(replacement_dict_for_sys_args=None):
                           semantic_init=args.semantic_init)
 
     if cfg['debug_dataloader_only']:
-        debug_helper.debug_dataloader(trainer, split='train')
+        debug_helper.debug_dataloader(trainer, split='train', n_debug_images=cfg['n_debug_images'])
         atexit.unregister(query_remove_logdir)
         return
 

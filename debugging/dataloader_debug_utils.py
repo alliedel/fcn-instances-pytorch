@@ -153,7 +153,8 @@ def raw_image_exporter(dataloader, n_debug_images, out_dir_parent):
         print('Creating decomposed label')
         out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image,
                                                        cmap_dict_by_sem_val=cmap_dict_by_sem_val,
-                                                       sem_names_dict=sem_names_dict, max_image_dim=MAX_IMAGE_DIM)
+                                                       sem_names_dict=sem_names_dict, max_image_dim=MAX_IMAGE_DIM,
+                                                       sort_by_sem_val=True)
         print('Done creating decomposed label')
         imname = os.path.basename(filename_d['img']).rstrip('.png')
         decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d' % image_idx + imname + '.png')
@@ -249,7 +250,7 @@ def decompose_into_mask_image_per_instance(sem_lbl, inst_lbl, to_np=True):
 def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=None,
                                sem_names_dict=None, input_image=None,
                                margin_size_small=3, margin_size_large=6, void_vals=(-1, 255),
-                               margin_color=(255, 255, 255), downsample_multiplier=1.0, max_image_dim=MAX_IMAGE_DIM):
+                               margin_color=(255, 255, 255), downsample_multiplier=1.0, sort_by_sem_val=True):
     """
     dicts' keys are the semantic values of each of the instances
     """
@@ -259,6 +260,8 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
     use_funky_void_pixels = True
 
     sem_vals = list(instance_mask_dict)  # .keys()
+    if sort_by_sem_val:
+        sem_vals = sorted(sem_vals)
 
     if sem_names_dict is not None:
         missing_vals = [s for s in sem_vals if s not in sem_names_dict and s not in void_vals]
@@ -338,6 +341,7 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
                                                                    margin_color=margin_color,
                                                                    margin_size=margin_size_small)
         sem_cls_rows.append(row_with_colormaps)
+        print(mask_label)
 
     max_width = max([scr.shape[1] for scr in sem_cls_rows])
     sem_cls_rows = [visualization_utils.pad_image_to_right_and_bottom(sem_cls_row, dst_width=max_width)
@@ -349,7 +353,7 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
 
 
 def create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=None, sem_names_dict=None,
-                                         cmap_dict_by_sem_val=None, max_image_dim=MAX_IMAGE_DIM):
+                                         cmap_dict_by_sem_val=None, max_image_dim=MAX_IMAGE_DIM, sort_by_sem_val=True):
     assert (sem_lbl.shape[0], sem_lbl.shape[1]) == (inst_lbl.shape[0], inst_lbl.shape[1])
     if input_image is not None:
         assert (sem_lbl.shape[0], sem_lbl.shape[1]) == (input_image.shape[0], input_image.shape[1])
@@ -362,7 +366,7 @@ def create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=None, se
 
     out_img = visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_sem_val=cmap_dict_by_sem_val,
                                          sem_names_dict=sem_names_dict, input_image=input_image,
-                                         downsample_multiplier=downsample_multiplier)
+                                         downsample_multiplier=downsample_multiplier, sort_by_sem_val=True)
     return out_img
 
 

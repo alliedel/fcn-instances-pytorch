@@ -63,7 +63,7 @@ def get_dataset(dataset_type, cfg, split, transform=True):
     elif dataset_type == 'cityscapes':
         dataset_path = cfg['dataset_path']
         precomputed_file_transformation, runtime_transformation = get_transformations(
-            cfg, cityscapes.RawCityscapesBase(dataset_path, split=split).semantic_class_names)
+            cfg, cityscapes.CityscapesWithOurBasicTrainIds(dataset_path, split=split).semantic_class_names)
         dataset = get_cityscapes_dataset(dataset_path, precomputed_file_transformation, runtime_transformation,
                                          split=split, transform=transform)
     elif dataset_type == 'synthetic':

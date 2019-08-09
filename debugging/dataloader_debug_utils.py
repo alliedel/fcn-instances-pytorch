@@ -93,128 +93,134 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                                       write_transformed_images=True, n_debug_images=None, max_image_dim=MAX_IMAGE_DIM):
     out_dir_parent = out_dir_parent or trainer.exporter.out_dir
     if write_transformed_images:
-        t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader) if n_debug_images is None else n_debug_images,
-                      ncols=120, leave=False)
-        image_idx = 0
-
-        out_dir_rgb = osp.join(out_dir_parent, 'debug_viz')
-        out_dir_decomposed = osp.join(out_dir_parent, 'debug_viz_decomposed')
-        for out_dir_ in [out_dir_rgb, out_dir_decomposed]:
-            if not os.path.exists(out_dir_):
-                os.makedirs(out_dir_)
-        integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
-        decomposed_image_paths_transformed = []
-        labels_table = dataloader.dataset.labels_table
-        sem_vals = trainer.instance_problem.semantic_transformed_label_ids
-        idxs_into_labels_table = [[l.name for l in labels_table].index(name)
-                                  for name in trainer.instance_problem.semantic_class_names]
-        cmap_dict_by_sem_val = {v: labels_table[table_idx].color
-                                for v, table_idx in zip(sem_vals, idxs_into_labels_table)}
-        sem_names_dict = {v: '({})'.format(v) + n
-                          for v, n in zip(sem_vals, trainer.instance_problem.semantic_class_names)}
-
-        for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
-            integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
-            for datapoint_idx in range(img_data_b.size(0)):
-                img_data = img_data_b[datapoint_idx, ...]
-                sem_lbl, inst_lbl = sem_lbl_b[datapoint_idx, ...], inst_lbl_b[datapoint_idx, ...]
-                # Transform back to numpy format (rather than tensor that's formatted for model)
-                data_to_img_transformer = lambda i, l: trainer.exporter.untransform_data(
-                    trainer.dataloaders[split], i, l)
-                img_untransformed, lbl_untransformed = data_to_img_transformer(
-                    img_data, (sem_lbl, inst_lbl)) \
-                    if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
-                sem_lbl_np, inst_lbl_np = lbl_untransformed
-                lt_combined = trainer.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
-
-                segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
-                    lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
-                    overlay=False)
-
-                visualization_utils.export_visualizations(segmentation_viz, out_dir_rgb,
-                                                          trainer.exporter.tensorboard_writer,
-                                                          image_idx,
-                                                          basename='loader_' + split + '_', tile=True)
-
-                input_image_resized = visualization_utils.resize_img_to_sz(img_untransformed, sem_lbl.shape[0],
-                                                                           sem_lbl.shape[1])
-                print('Creating decomposed label')
-                out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image_resized,
-                                                               sem_names_dict=sem_names_dict,
-                                                               cmap_dict_by_sem_val=cmap_dict_by_sem_val,
-                                                               max_image_dim=max_image_dim)
-                print('Done creating decomposed label')
-                decomposed_image_path = os.path.join(out_dir_decomposed, 'decomposed_%012d.png' % image_idx)
-                save_and_possibly_resize(decomposed_image_path, out_img)
-                decomposed_image_paths_transformed.append(decomposed_image_path)
-                image_idx += 1
-                if n_debug_images is not None and image_idx >= n_debug_images:
-                    break
-            if n_debug_images is not None and image_idx >= n_debug_images:
-                break
+        tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_parent, split, trainer)
 
     if write_raw_images:
         try:
-            filetypes = dataloader.dataset.raw_dataset.files[0].keys()
+            dataloader.dataset.raw_dataset.files[0].keys()
         except AttributeError:
             print('Warning: cant write raw images because I cant access original files through '
                   'dataset.raw_dataset.files')
             write_raw_images = False
 
     if write_raw_images:
-        out_dir_raw_rgb = osp.join(out_dir_parent, 'debug_viz_raw_rgb')
-        out_dir_raw_decomposed = osp.join(out_dir_parent, 'debug_viz_raw_decomposed')
-        for out_dir_raw_ in [out_dir_raw_rgb, out_dir_raw_decomposed]:
-            if not os.path.exists(out_dir_raw_):
-                os.makedirs(out_dir_raw_)
-        try:
-            filetypes = dataloader.dataset.raw_dataset.files[0].keys()
-            for filetype in filetypes:
-                suboutdir = os.path.join(out_dir_raw_rgb, filetype)
-                if not os.path.exists(suboutdir):
-                    os.makedirs(suboutdir)
-        except AttributeError:
-            raise Exception('Dataset isnt in a format where I can retrieve the raw image files easily to copy them '
-                            'over.  Expected to be able to access dataloader.dataset.raw_dataset[0].files.keys')
-        instance_palette = labels_table_cityscapes.get_instance_palette_image()
-
-        decomposed_image_paths_raw = []
-        t = tqdm.tqdm(enumerate(dataloader.sampler.indices),
-                      total=len(dataloader) if n_debug_images is None else n_debug_images, ncols=120, leave=False)
-        labels_table = dataloader.dataset.raw_dataset.labels_table
-        cmap_dict_by_sem_val = {l.id: l.color for l in labels_table}
-        sem_names_dict = {l.id: '({}){}'.format(l.id, l.name) for l in labels_table}
-        for image_idx, idx_into_dataset in t:
-            filename_d = dataloader.dataset.raw_dataset.files[idx_into_dataset]
-            for filetype, filename in filename_d.items():
-                out_name = '{}_'.format(image_idx) + os.path.basename(filename)
-                if filetype is not 'inst_lbl':
-                    shutil.copyfile(filename, os.path.join(out_dir_raw_rgb, filetype, out_name))
-                else:
-                    new_inst_lbl_file = os.path.join(out_dir_raw_rgb, filetype, 'modified_modep_' + out_name)
-                    if not osp.isfile(new_inst_lbl_file):
-                        assert osp.isfile(filename), '{} does not exist'.format(filename)
-                        convert_to_p_mode_file(filename, new_inst_lbl_file, palette=instance_palette,
-                                               assert_inside_palette_range=True)
-            sem_lbl = np.array(PIL.Image.open(filename_d['sem_lbl'], 'r'))
-            inst_lbl = np.array(PIL.Image.open(filename_d['inst_lbl'], 'r'))
-            input_image = np.array(PIL.Image.open(filename_d['img'], 'r'))
-            assert len(sem_lbl.shape) == 2
-            assert len(inst_lbl.shape) == 2
-            print('Creating decomposed label')
-            out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image,
-                                                           cmap_dict_by_sem_val=cmap_dict_by_sem_val,
-                                                           sem_names_dict=sem_names_dict, max_image_dim=MAX_IMAGE_DIM)
-            print('Done creating decomposed label')
-            decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d.png' % image_idx)
-            save_and_possibly_resize(decomposed_image_path, out_img)
-            decomposed_image_paths_raw.append(decomposed_image_path)
-            if n_debug_images is not None and image_idx >= n_debug_images:
-                break
+        raw_image_exporter(dataloader, n_debug_images, out_dir_parent)
 
     # TODO(allie): Make side-by-side comparison
 
     return out_dir_parent
+
+
+def raw_image_exporter(dataloader, n_debug_images, out_dir_parent):
+    out_dir_raw_rgb = osp.join(out_dir_parent, 'debug_viz_raw_rgb')
+    out_dir_raw_decomposed = osp.join(out_dir_parent, 'debug_viz_raw_decomposed')
+    for out_dir_raw_ in [out_dir_raw_rgb, out_dir_raw_decomposed]:
+        if not os.path.exists(out_dir_raw_):
+            os.makedirs(out_dir_raw_)
+    try:
+        filetypes = dataloader.dataset.raw_dataset.files[0].keys()
+        for filetype in filetypes:
+            suboutdir = os.path.join(out_dir_raw_rgb, filetype)
+            if not os.path.exists(suboutdir):
+                os.makedirs(suboutdir)
+    except AttributeError:
+        raise Exception('Dataset isnt in a format where I can retrieve the raw image files easily to copy them '
+                        'over.  Expected to be able to access dataloader.dataset.raw_dataset[0].files.keys')
+    instance_palette = labels_table_cityscapes.get_instance_palette_image()
+    decomposed_image_paths_raw = []
+    t = tqdm.tqdm(enumerate(dataloader.sampler.indices),
+                  total=len(dataloader) if n_debug_images is None else n_debug_images, ncols=120, leave=False)
+    labels_table = dataloader.dataset.raw_dataset.labels_table
+    cmap_dict_by_sem_val = {l.id: l.color for l in labels_table}
+    sem_names_dict = {l.id: '({}){}'.format(l.id, l.name) for l in labels_table}
+    for image_idx, idx_into_dataset in t:
+        filename_d = dataloader.dataset.raw_dataset.files[idx_into_dataset]
+        for filetype, filename in filename_d.items():
+            out_name = '{}_'.format(image_idx) + os.path.basename(filename)
+            if filetype is not 'inst_lbl':
+                shutil.copyfile(filename, os.path.join(out_dir_raw_rgb, filetype, out_name))
+            else:
+                new_inst_lbl_file = os.path.join(out_dir_raw_rgb, filetype, 'modified_modep_' + out_name)
+                if not osp.isfile(new_inst_lbl_file):
+                    assert osp.isfile(filename), '{} does not exist'.format(filename)
+                    convert_to_p_mode_file(filename, new_inst_lbl_file, palette=instance_palette,
+                                           assert_inside_palette_range=True)
+        sem_lbl = np.array(PIL.Image.open(filename_d['sem_lbl'], 'r'))
+        inst_lbl = np.array(PIL.Image.open(filename_d['inst_lbl'], 'r'))
+        input_image = np.array(PIL.Image.open(filename_d['img'], 'r'))
+        assert len(sem_lbl.shape) == 2
+        assert len(inst_lbl.shape) == 2
+        print('Creating decomposed label')
+        out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image,
+                                                       cmap_dict_by_sem_val=cmap_dict_by_sem_val,
+                                                       sem_names_dict=sem_names_dict, max_image_dim=MAX_IMAGE_DIM)
+        print('Done creating decomposed label')
+        imname = os.path.basename(filename_d['img']).rstrip('.png')
+        decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d' % image_idx + imname + '.png')
+        save_and_possibly_resize(decomposed_image_path, out_img)
+        decomposed_image_paths_raw.append(decomposed_image_path)
+        if n_debug_images is not None and (image_idx + 1) >= n_debug_images:
+            break
+
+
+def tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_parent, split, trainer):
+    t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader) if n_debug_images is None else n_debug_images,
+                  ncols=120, leave=False)
+    image_idx = 0
+    out_dir_rgb = osp.join(out_dir_parent, 'debug_viz')
+    out_dir_decomposed = osp.join(out_dir_parent, 'debug_viz_decomposed')
+    for out_dir_ in [out_dir_rgb, out_dir_decomposed]:
+        if not os.path.exists(out_dir_):
+            os.makedirs(out_dir_)
+    integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
+    decomposed_image_paths_transformed = []
+    labels_table = dataloader.dataset.labels_table
+    sem_vals = trainer.instance_problem.semantic_transformed_label_ids
+    idxs_into_labels_table = [[l.name for l in labels_table].index(name)
+                              for name in trainer.instance_problem.semantic_class_names]
+    cmap_dict_by_sem_val = {v: labels_table[table_idx].color
+                            for v, table_idx in zip(sem_vals, idxs_into_labels_table)}
+    sem_names_dict = {v: '({})'.format(v) + n
+                      for v, n in zip(sem_vals, trainer.instance_problem.semantic_class_names)}
+    for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
+        integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
+        for datapoint_idx in range(img_data_b.size(0)):
+            img_data = img_data_b[datapoint_idx, ...]
+            sem_lbl, inst_lbl = sem_lbl_b[datapoint_idx, ...], inst_lbl_b[datapoint_idx, ...]
+            # Transform back to numpy format (rather than tensor that's formatted for model)
+            data_to_img_transformer = lambda i, l: trainer.exporter.untransform_data(
+                trainer.dataloaders[split], i, l)
+            img_untransformed, lbl_untransformed = data_to_img_transformer(
+                img_data, (sem_lbl, inst_lbl)) \
+                if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
+            sem_lbl_np, inst_lbl_np = lbl_untransformed
+            lt_combined = trainer.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+
+            segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
+                lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
+                overlay=False)
+
+            visualization_utils.export_visualizations(segmentation_viz, out_dir_rgb,
+                                                      trainer.exporter.tensorboard_writer,
+                                                      image_idx,
+                                                      basename='loader_' + split + '_', tile=True)
+
+            input_image_resized = visualization_utils.resize_img_to_sz(img_untransformed, sem_lbl.shape[0],
+                                                                       sem_lbl.shape[1])
+            print('Creating decomposed label')
+            out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image_resized,
+                                                           sem_names_dict=sem_names_dict,
+                                                           cmap_dict_by_sem_val=cmap_dict_by_sem_val,
+                                                           max_image_dim=max_image_dim)
+            print('Done creating decomposed label')
+            decomposed_image_path = os.path.join(out_dir_decomposed, 'decomposed_%012d.png' % image_idx)
+            save_and_possibly_resize(decomposed_image_path, out_img)
+            decomposed_image_paths_transformed.append(decomposed_image_path)
+            image_idx += 1
+            if n_debug_images is not None and image_idx >= n_debug_images:
+                break
+        if n_debug_images is not None and image_idx >= n_debug_images:
+            break
 
 
 def unique(tensor_or_np_arr):
@@ -273,8 +279,9 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
 
     if cmap_dict_by_sem_val is None:
         cmap_dict_by_sem_val = visualization_utils.label_colormap(n_sem_classes) * 255
-    elif any([max(c) <= 1 for c in cmap_dict_by_sem_val.values()]):
+    elif any([sum(c) != 0 and max(c) <= 1 for c in cmap_dict_by_sem_val.values()]):
         print('Warning: colormap should be in the range [0, 255], not [0,1]')
+        import ipdb; ipdb.set_trace()
 
     sem_cls_rows = []
     for sem_val in sem_vals:
@@ -382,5 +389,5 @@ def debug_dataloader(trainer: Trainer, split='train', out_dir=None, n_debug_imag
     data_loader = trainer.dataloaders[split]
 
     out_dir_parent = transform_and_export_input_images(trainer, data_loader, split, n_debug_images=n_debug_images,
-                                                       max_image_dim=MAX_IMAGE_DIM)
+                                                       max_image_dim=max_image_dim)
     print('Wrote images into {}'.format(out_dir_parent))

@@ -1,16 +1,15 @@
-import os.path as osp
 from glob import glob
 
 import PIL.Image
 import numpy as np
+import os.path as osp
 
-from instanceseg.datasets import coco_format, palettes
+from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
+from instanceseg.datasets.precomputed_file_transformations import \
+    GenericSequencePrecomputedDatasetFileTransformer
 from . import labels_table_cityscapes
 from .cityscapes_transformations import CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer, \
     ConvertLblstoPModePILImages
-from instanceseg.datasets.precomputed_file_transformations import \
-    GenericSequencePrecomputedDatasetFileTransformer
-from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
 
 CITYSCAPES_MEAN_BGR = np.array([73.15835921, 82.90891754, 72.39239876])
 
@@ -30,11 +29,13 @@ def get_default_cityscapes_root():
 CITYSCAPES_ROOT = get_default_cityscapes_root()
 
 
-class RawCityscapesBase(InstanceDatasetBase):
-    original_semantic_class_names = labels_table_cityscapes.class_names  # by id (not trainId)
+class CityscapesWithOurBasicTrainIds(InstanceDatasetBase):
     precomputed_file_transformer = GenericSequencePrecomputedDatasetFileTransformer(
         [CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(),
          ConvertLblstoPModePILImages()])
+    void_val = 255
+    # class names by id (not trainId)
+    original_semantic_class_names = [l['name'] for l in labels_table_cityscapes.CITYSCAPES_LABELS_TABLE]
 
     def __init__(self, root, split):
         """
@@ -60,20 +61,12 @@ class RawCityscapesBase(InstanceDatasetBase):
 
     @property
     def labels_table(self):
-        labels_table = coco_format.create_default_labels_table_from_semantic_names(
-            semantic_class_names=self.semantic_class_names)
-        for i in range(len(labels_table)):
-            sem_cls_name = self.semantic_class_names[i]
-            is_bground = sem_cls_name == 'background'  # not in original cityscapes
-
-            original_table_idx = labels_table_cityscapes.class_names.index(sem_cls_name) if not is_bground else None
-            labels_table[i].id = labels_table_cityscapes.train_ids[original_table_idx] if not is_bground else 0
-            labels_table[i].isthing = labels_table_cityscapes.has_instances[original_table_idx] \
-                if not is_bground else False
-            labels_table[i].color = labels_table_cityscapes.colors[original_table_idx] if not is_bground else [255,
-                                                                                                               255, 255]
-            labels_table[i].supercategory = labels_table_cityscapes.supercategory[original_table_idx] if not \
-                is_bground else sem_cls_name
+        labels_table = None
+        for transformer in self.precomputed_file_transformer.transformer_sequence:
+            if hasattr(transformer, 'transform_labels_table'):
+                labels_table = transformer.transform_labels_table(labels_table_cityscapes.CITYSCAPES_LABELS_TABLE)
+        assert labels_table is not None, 'Specifically for this Cityscapes loader, we are expecting the train ID ' \
+                                         'mapper to give us the labels_table'
         return labels_table
 
     def get_files(self):
@@ -197,7 +190,7 @@ class TransformedCityscapes(TransformedInstanceDataset):
 
     def __init__(self, root, split, precomputed_file_transformation=None,
                  runtime_transformation=None):
-        raw_dataset = RawCityscapesBase(root, split=split)
+        raw_dataset = CityscapesWithOurBasicTrainIds(root, split=split)
         super(TransformedCityscapes, self).__init__(
             raw_dataset=raw_dataset,
             raw_dataset_returns_images=False,

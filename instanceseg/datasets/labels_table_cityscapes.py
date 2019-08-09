@@ -2,6 +2,7 @@ import PIL.ImagePalette
 import PIL.Image
 import numpy as np
 import six.moves
+from instanceseg.datasets import coco_format
 
 labels_keys = ['name', 'id', 'train_ids', 'category', 'category_id', 'has_instances',
                'ignore_in_eval', 'color']
@@ -35,7 +36,7 @@ def Label(*args):
 # NOTE(allie): We have to add 1 to the train id's because 0 is reserved for background.
 
 CITYSCAPES_LABELS_TABLE = [
-    #       name   id    trainId-1   category            catId     hasInstances   ignoreInEval   color
+    #       name   id    trainId-1   category            catId     hasInstances   ignore_in_eval   color
     Label('unlabeled', 0, 255, 'void', 0, False, True, (0, 0, 0)),
     Label('ego vehicle', 1, 255, 'void', 0, False, True, (0, 0, 0)),
     Label('rectification border', 2, 255, 'void', 0, False, True, (0, 0, 0)),
@@ -81,6 +82,51 @@ colors = [class_label['color'] for class_label in CITYSCAPES_LABELS_TABLE]
 ignore_in_eval = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]
 is_void = [class_label['ignore_in_eval'] for class_label in CITYSCAPES_LABELS_TABLE]
 supercategory = [class_label['category'] for class_label in CITYSCAPES_LABELS_TABLE]
+
+
+ID_TO_TRAIN_ID = {
+    class_label['id']: class_label['train_ids'] for class_label in CITYSCAPES_LABELS_TABLE
+}
+
+
+def get_cityscapes_trainids_label_table_cocoform(void_trainid=255):
+    orig_table_raw = CITYSCAPES_LABELS_TABLE
+    unique_train_ids = sorted(np.unique([l['train_ids'] for l in orig_table_raw]))
+    list_of_labels = []
+    for train_id in unique_train_ids:
+        idxs_with_train_id = [idx for idx, l in enumerate(CITYSCAPES_LABELS_TABLE)
+                              if l['train_ids'] == train_id]
+        if len(idxs_with_train_id) > 1:
+            assert train_id == void_trainid
+            first_entry = orig_table_raw[idxs_with_train_id[0]]
+            name = first_entry['name']
+            assert name == 'unlabeled', '{}'.format(name)  # this is what we assume
+            supercat = 'void'
+            clr = first_entry['color']
+            isthing = orig_table_raw[idxs_with_train_id[0]]['has_instances']
+            void_entries = [orig_table_raw[i] for i in idxs_with_train_id]
+            try:
+                # assert all(l['category'] == supercat for l in void_entries)
+                # assert all(l['has_instances'] == isthing for l in void_entries)
+                assert all(l['ignore_in_eval'] for l in void_entries)
+                # assert all(l['color'] == clr for l in void_entries)
+            except AssertionError:
+                print(void_entries)
+                raise
+        else:
+            idx = idxs_with_train_id[0]
+            name = orig_table_raw[idx]['name']
+            clr = orig_table_raw[idx]['color']
+            supercat = orig_table_raw[idx]['category']
+            isthing = orig_table_raw[idx]['has_instances']
+            if name != 'license plate':
+                assert not orig_table_raw[idx]['ignore_in_eval'], 'Supposed to ignore {}'.format(name, idx, supercat,
+                                                                                                 isthing)
+
+        list_of_labels.append(coco_format.CategoryCOCOFormat(id=train_id, name=name, color=clr,
+                                                             supercategory=supercat, isthing=isthing))
+    labels_table = coco_format.create_labels_table_from_list_of_labels(list_of_labels)
+    return labels_table
 
 
 def get_rgb_semantic_palette_array(vals, corresponding_rgb_colors, unassigned_rgb_color=(0, 0, 0)):

@@ -1,5 +1,6 @@
 from instanceseg.datasets import palettes
 from instanceseg.utils.misc import AttrDict
+import numpy as np
 
 
 def generate_default_rgb_color_list(n_semantic_classes):
@@ -9,7 +10,7 @@ def generate_default_rgb_color_list(n_semantic_classes):
 
 class CategoryCOCOFormat(AttrDict):
     def __init__(self, id, name, color, supercategory=None, isthing=True):
-        self.id = id
+        self.id = id if not hasattr(id, 'dtype') else id.item()
         self.name = str(name)
         self.color = color
         self.supercategory = str(supercategory or name)

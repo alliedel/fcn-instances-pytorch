@@ -1,3 +1,23 @@
+import os
+
+from instanceseg.utils import parse
+from scripts import test
+from instanceseg.utils import script_setup
+
+train_logdir = 'scripts/logs/synthetic/train_2019-08-04-212241_VCS-160c04f_BACKBONE-fcn8'
+stored_models_dir = os.path.join(train_logdir, 'model_checkpoints')
+# tf_events_file = glob.glob(os.path.join(train_logdir, 'events.out.tfevents.*'))[0]
+
+
+all_saved_models = os.path.join(stored_models_dir, '*.pth.tar')
+n_models_to_evaluate = 10
+
+logdir = train_logdir.rstrip('/')
+dataset_name = os.path.basename(os.path.dirname(logdir))
+
+split = 'val'
+sampler_cfg = None
+
 import atexit
 import os
 import shutil
@@ -10,53 +30,7 @@ from instanceseg.utils import parse, script_setup as script_utils
 from instanceseg.utils.misc import y_or_n_input
 from instanceseg.utils.script_setup import configure
 from instanceseg.utils.configs import override_cfg
-
-
-def keys_to_transfer_from_train_to_test():
-    keys_to_transfer = []
-    for k in PARAM_CLASSIFICATIONS.data:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.debug:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.problem_config:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.model:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.export:
-        keys_to_transfer.append(k)
-    for k in PARAM_CLASSIFICATIONS.test:
-        keys_to_transfer.append(k)
-    for k in SYNTHETIC_PARAM_CLASSIFICATIONS.data:
-        keys_to_transfer.append(k)
-
-    keys_to_transfer.remove('train_batch_size')
-
-    return keys_to_transfer
-
-
-def get_config_options_from_train_config(train_config_path, test_split):
-    train_config = yaml.safe_load(open(train_config_path, 'r'))
-    test_config_options = {
-        k: v for k, v in train_config.items() if k in keys_to_transfer_from_train_to_test()
-    }
-    if '{}_batch_size'.format(test_split) in test_config_options.keys() \
-            and test_config_options['{}_batch_size'.format(test_split)] is not None:
-        pass
-    else:
-        if 'val_batch_size' in test_config_options.keys():
-            test_config_options['{}_batch_size'.format(test_split)] = train_config['val_batch_size']
-        else:
-            print('WARNING: validation batch size not specified (probably from an old log).  Using batch size 1.')
-            test_config_options['{}_batch_size'.format(test_split)] = 1
-    test_config_options['test_split'] = test_split
-    return test_config_options
-
-
-def query_remove_logdir(logdir):
-    from instanceseg.utils import misc
-    import shutil
-    if misc.y_or_n_input('Remove {}?'.format(logdir), default='n') == 'y':
-        shutil.rmtree(logdir)
+from scripts.test import keys_to_transfer_from_train_to_test, get_config_options_from_train_config, query_remove_logdir
 
 
 def main(replacement_dict_for_sys_args=None, check_clean_tree=True):
@@ -69,27 +43,16 @@ def main(replacement_dict_for_sys_args=None, check_clean_tree=True):
     cfg, groundtruth_outdir, images_outdir, predictions_outdir, split, tester, use_existing_results = \
         setup_tester(args, cfg_override_args, checkpoint_path)
 
-    if cfg['debug_dataloader_only']:
-        import tqdm
-        for idx, d in tqdm.tqdm(enumerate(tester.dataloaders[args.test_split]), total=len(tester.dataloaders[
-                                                                                              args.test_split]),
-                                desc='testing dataset loading', leave=True):
-            img = d[0]
-
-        debug_helper.debug_dataloader(tester, split=args.test_split)
-        atexit.unregister(query_remove_logdir)
-        import sys
-        sys.exit(0)
-
     if not use_existing_results:
         predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir = tester.test(
             split=split, predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir,
-            images_outdir=images_outdir)
+            images_outdir=images_outdir, save_scores=True)
 
     print('Input logdir: {}'.format(args.logdir))
     print('Problem config file: {}'.format(tester.exporter.instance_problem_path))
     print('Predictions exported to {}'.format(predictions_outdir))
     print('Ground truth exported to {}'.format(groundtruth_outdir))
+    print('Scores exported to {}'.format(groundtruth_outdir))
     atexit.unregister(query_remove_logdir)
     return predictions_outdir, groundtruth_outdir, tester, args.logdir
 
@@ -144,15 +107,4 @@ def setup_tester(args, cfg_override_args, checkpoint_path):
 
 
 if __name__ == '__main__':
-    if os.path.basename(os.path.abspath('.')) == 'debugging' or os.path.basename(os.path.abspath('.')) == 'scripts':
-        os.chdir('../')
-
     predictions_outdir, groundtruth_outdir, tester, logdir = main()
-    problem_config_file = tester.exporter.instance_problem_path
-    print('Run convert_test_results_to_coco:\n'
-          'python scripts/convert_test_results_to_coco.py '
-          '--gt_dir {} '
-          '--pred_dir {} '
-          '--problem_config_file {} '
-          '--logdir {}'.format(groundtruth_outdir, predictions_outdir, problem_config_file, logdir))
-    # Make sure we can load all the images

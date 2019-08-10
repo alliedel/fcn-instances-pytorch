@@ -79,7 +79,7 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         self.original_semantic_class_names = [l['name'] for l in self.original_labels_table]
         self.labels_table = self.get_labels_table()
         self.id_to_train_id = {rawid: self.new_train_id_from_raw(rawid)
-                               for rawid in [l['id'] for l in self.original_labels_table]}
+                               for rawid in sorted([l['id'] for l in self.original_labels_table])}
 
     def get_labels_table(self):
         assert self.background_color not in [l.color for l in self.standard_train_ids_labels_table]  # we're going to
@@ -198,11 +198,7 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         For this to work, train_ids must be <= ids, background_value <= background_ids,
         void_value <= void_ids.
         """
-        old_vals = list(self.id_to_train_id.keys())
-        sorted_is = np.argsort(old_vals)
-        old_vals = [old_vals[i] for i in sorted_is]
-        new_vals = [self.id_to_train_id[i] for i in sorted_is]
-        remap(sem_lbl, old_vals, new_vals)
+        fast_remap(sem_lbl, list(self.id_to_train_id.keys()), list(self.id_to_train_id.values()))
         return sem_lbl
 
 
@@ -223,7 +219,7 @@ def map_raw_inst_labels_to_instance_count(inst_lbl, sem_lbl_for_verification=Non
             print(misc.color_text('Instance values were in a weird format! Values present: {}.  Missing: {}'.format(
                 unique_inst_ids, set(new_consecutive_inst_ids) - set(unique_inst_ids)),
                 misc.TermColors.WARNING))
-            remap(inst_lbl, old_vals=unique_inst_ids, new_vals=new_consecutive_inst_ids)
+            fast_remap(inst_lbl, old_vals=unique_inst_ids, new_vals=new_consecutive_inst_ids)
 
     inst_lbl -= np.int32(sem_lbl_of_objects) * np.int32(1000)  # more efficient
     inst_lbl[orig_inst_lbl >= 1000] += 1
@@ -239,6 +235,17 @@ def map_raw_inst_labels_to_instance_count(inst_lbl, sem_lbl_for_verification=Non
             raise
 
     return inst_lbl
+
+
+def is_sorted(arr):
+    return all(x1 == x2 for x1, x2 in zip(sorted(arr), arr))
+
+
+def fast_remap(arr, old_vals, new_vals):
+    arr_old = arr.copy()
+    for old_val, new_val in zip(old_vals, new_vals):
+        arr[arr_old == old_val] = new_val
+    return arr
 
 
 def remap(arr, old_vals, new_vals):

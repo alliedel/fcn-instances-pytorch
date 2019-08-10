@@ -28,6 +28,8 @@ DEBUG_MEMORY_ISSUES = False
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
 
+from torch.nn import functional as F
+
 
 class TrainingState(object):
     def __init__(self, max_iteration):
@@ -203,7 +205,8 @@ class Trainer(object):
             self.best_mean_iu = mean_iu
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
 
-    def test(self, split='test', predictions_outdir=None, groundtruth_outdir=None, images_outdir=None):
+    def test(self, split='test', predictions_outdir=None, groundtruth_outdir=None, images_outdir=None,
+             scores_outdir=None, save_scores=False):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
         If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
@@ -213,6 +216,7 @@ class Trainer(object):
         tmp_folder = tempfile.NamedTemporaryFile().name
         predictions_outdir = predictions_outdir or os.path.join(tmp_folder, 'predictions')
         groundtruth_outdir = groundtruth_outdir or os.path.join(tmp_folder, 'groundtruth')
+        scores_outdir = None if not save_scores else scores_outdir or os.path.join(tmp_folder, 'scores')
         images_outdir = images_outdir or os.path.join(tmp_folder, 'images')
         for my_dir in [predictions_outdir, groundtruth_outdir, images_outdir]:
             if not os.path.exists(my_dir):
@@ -239,9 +243,14 @@ class Trainer(object):
                 label_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
                 # label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
                 img_idxs = list(range(batch_img_idx, batch_img_idx + batch_sz))
+                if save_scores:
+                    score_names = ['scores_{:06d}_id2rgb.pt'.format(img_idx) for img_idx in img_idxs]
+                    assert len(score.size()) == 4
+                    for idx_into_batch, outf in enumerate(score_names):
+                        torch.save(score[idx_into_batch, ...], os.path.join(scores_outdir, outf))
+
                 prediction_names = ['predictions_{:06d}_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
-                self.exporter.export_predictions_or_gt(label_pred, predictions_outdir,
-                                                       prediction_names)
+                self.exporter.export_predictions_or_gt(label_pred, predictions_outdir, prediction_names)
                 groundtruth_names = ['groundtruth_{:06d}_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
                 self.exporter.export_predictions_or_gt(lt_combined, groundtruth_outdir, groundtruth_names)
                 if 1:
@@ -251,7 +260,7 @@ class Trainer(object):
                         out_file = os.path.join(images_outdir, image_names[ii])
                         self.exporter.write_rgb_image(out_file, orig_image)
                     batch_img_idx += batch_sz
-        return predictions_outdir, groundtruth_outdir, images_outdir
+        return predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir
 
     def validate_split(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
                        should_export_visualizations=True):

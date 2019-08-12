@@ -341,7 +341,6 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
                                                                    margin_color=margin_color,
                                                                    margin_size=margin_size_small)
         sem_cls_rows.append(row_with_colormaps)
-        print(mask_label)
 
     max_width = max([scr.shape[1] for scr in sem_cls_rows])
     sem_cls_rows = [visualization_utils.pad_image_to_right_and_bottom(sem_cls_row, dst_width=max_width)

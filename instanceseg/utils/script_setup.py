@@ -45,14 +45,13 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
     exit_code = child.returncode
     if exit_code != 0:
         override = False
+        print(TermColors.WARNING + 'Your working directory tree isn\'t clean:\n ' +
+        TermColors.ENDC +
+        TermColors.FAIL + '{}'.format(stdout.decode()) + TermColors.ENDC)
         if interactive:
             override = 'y' == input(
-                TermColors.WARNING + 'Your working directory tree isn\'t clean:\n ' +
-                TermColors.ENDC +
-                TermColors.FAIL + '{}'.format(stdout.decode()) + TermColors.ENDC +
-                'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': '
-                '' + TermColors.ENDC)
-        if exit_on_error or interactive and not override:
+                'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': ')
+        if exit_on_error or (interactive and not override):
             raise Exception(
                 TermColors.FAIL + 'Exiting.  Please commit or stash your changes.' +
                 TermColors.ENDC)

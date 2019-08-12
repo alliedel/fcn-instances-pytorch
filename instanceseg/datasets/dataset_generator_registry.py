@@ -1,7 +1,7 @@
 from instanceseg.datasets import precomputed_file_transformations, runtime_transformations
 from instanceseg.datasets import voc, synthetic, cityscapes
 from instanceseg.utils import datasets
-from instanceseg.utils.misc import pop_without_del
+from instanceseg.utils.misc import pop_without_del, TermColors
 from instanceseg.utils.misc import value_as_string
 from scripts.configurations import voc_cfg, cityscapes_cfg
 import numpy as np
@@ -115,6 +115,12 @@ def get_transformations(cfg, original_semantic_class_names=None):
     precomputed_file_transformation = \
         precomputed_file_transformations.precomputed_file_transformer_factory(
             ordering=cfg['ordering'])
+
+    cfg_key = 'instance_id_for_excluded_instances'
+    if cfg_key not in cfg:
+        print(TermColors.WARNING + 'Setting value in cfg for what I believe is backwards compatibility: {}={}'.format(
+                                 cfg_key, None) + TermColors.ENDC)
+        cfg[cfg_key] = None
 
     runtime_transformation = runtime_transformations.runtime_transformer_factory(
         resize=cfg['resize'], resize_size=cfg['resize_size'], mean_bgr=None,

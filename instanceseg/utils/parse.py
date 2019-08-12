@@ -137,6 +137,7 @@ def get_parser_train():
                                help='Checkpoint path of semantic model (e.g. - '
                                     '\'~/data/models/pytorch/semantic_synthetic.pth\'',
                                default=None)
+        subparser.add_argument('--ignore_git', type=bool, default=False)
         subparser.add_argument('--single-image-index', type=int,
                                help='Image index to use for train/validation set',
                                default=None)
@@ -167,6 +168,8 @@ def get_parser_test():
         subparser.add_argument('--single-image-index', type=int,
                                help='Image index to use for unit testing',
                                default=None)
+        subparser.add_argument('--ignore_git', type=bool, default=False)
+        subparser.add_argument('--save_scores', type=bool, default=True)
         subparser.add_argument('--sampler', choices=sampler_cfgs.keys(), default=None,
                                help='Sampler for dataset')
         subparser.add_argument('--test_split', type=str, default='val')

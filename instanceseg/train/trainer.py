@@ -28,8 +28,6 @@ DEBUG_MEMORY_ISSUES = False
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
 
-from torch.nn import functional as F
-
 
 class TrainingState(object):
     def __init__(self, max_iteration):
@@ -216,9 +214,12 @@ class Trainer(object):
         tmp_folder = tempfile.NamedTemporaryFile().name
         predictions_outdir = predictions_outdir or os.path.join(tmp_folder, 'predictions')
         groundtruth_outdir = groundtruth_outdir or os.path.join(tmp_folder, 'groundtruth')
-        scores_outdir = None if not save_scores else scores_outdir or os.path.join(tmp_folder, 'scores')
+        scores_outdir = None if not save_scores else scores_outdir or predictions_outdir.replace('predictions',
+                                                                                                 'scores')
         images_outdir = images_outdir or os.path.join(tmp_folder, 'images')
-        for my_dir in [predictions_outdir, groundtruth_outdir, images_outdir]:
+        for my_dir in [predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir]:
+            if my_dir is None:
+                continue
             if not os.path.exists(my_dir):
                 os.makedirs(my_dir)
             else:
@@ -244,7 +245,7 @@ class Trainer(object):
                 # label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
                 img_idxs = list(range(batch_img_idx, batch_img_idx + batch_sz))
                 if save_scores:
-                    score_names = ['scores_{:06d}_id2rgb.pt'.format(img_idx) for img_idx in img_idxs]
+                    score_names = ['scores_{:06d}.pt'.format(img_idx) for img_idx in img_idxs]
                     assert len(score.size()) == 4
                     for idx_into_batch, outf in enumerate(score_names):
                         torch.save(score[idx_into_batch, ...], os.path.join(scores_outdir, outf))

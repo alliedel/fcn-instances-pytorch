@@ -7,7 +7,7 @@ import debugging.dataloader_debug_utils as debug_helper
 from scripts.configurations.generic_cfg import PARAM_CLASSIFICATIONS
 from scripts.configurations.synthetic_cfg import SYNTHETIC_PARAM_CLASSIFICATIONS
 from instanceseg.utils import parse, script_setup as script_utils
-from instanceseg.utils.misc import y_or_n_input
+from instanceseg.utils.misc import y_or_n_input, TermColors
 from instanceseg.utils.script_setup import configure
 from instanceseg.utils.configs import override_cfg
 
@@ -60,10 +60,16 @@ def query_remove_logdir(logdir):
 
 
 def main(replacement_dict_for_sys_args=None, check_clean_tree=True):
+    args, cfg_override_args = parse.parse_args_test(replacement_dict_for_sys_args)
+
+    if args.ignore_git is True:
+        check_clean_tree = False
+
     if check_clean_tree:
         script_utils.check_clean_work_tree()
+    else:
+        script_utils.check_clean_work_tree(interactive=False)
 
-    args, cfg_override_args = parse.parse_args_test(replacement_dict_for_sys_args)
     checkpoint_path = args.logdir
 
     cfg, groundtruth_outdir, images_outdir, predictions_outdir, split, tester, use_existing_results = \
@@ -84,7 +90,7 @@ def main(replacement_dict_for_sys_args=None, check_clean_tree=True):
     if not use_existing_results:
         predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir = tester.test(
             split=split, predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir,
-            images_outdir=images_outdir)
+            images_outdir=images_outdir, save_scores=args.save_scores)
 
     print('Input logdir: {}'.format(args.logdir))
     print('Problem config file: {}'.format(tester.exporter.instance_problem_path))

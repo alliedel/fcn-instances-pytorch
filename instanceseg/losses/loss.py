@@ -84,7 +84,38 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         raise NotImplementedError
 
     def compute_matching_loss(self, predictions, sem_lbl, inst_lbl):
-        pred_permutations, total_loss, loss_components = self.matching_loss(predictions, sem_lbl, inst_lbl)
+        """
+        Note: predictions should be 'preprocessed' -- take softmax / log as needed for whatever form
+            single_class_component_loss_fcn expects.
+        Note: returned loss components indexed by ground truth order
+        """
+
+        # Allocate memory
+        batch_sz, n_channels = predictions.size(0), predictions.size(1)
+        all_gt_indices = np.empty((batch_sz, n_channels), dtype=int)
+        all_pred_permutations = np.empty((batch_sz, n_channels), dtype=int)
+        all_costs = []  # dataset_utils.zeros_like(log_predictions, (n, c))
+
+        # Compute optimal match & costs for each image in the batch
+        for i in range(batch_sz):
+            gt_indices, pred_permutation, costs = \
+                self._compute_optimal_match_loss_single_img(predictions[i, ...], sem_lbl[i, ...],
+                                                            inst_lbl[i, ...])
+            all_gt_indices[i, ...] = gt_indices
+            all_pred_permutations[i, ...] = pred_permutation
+            try:
+                all_costs.append(torch.stack(costs))
+            except:
+                import ipdb; ipdb.set_trace()
+                raise
+        all_costs = torch.cat([c[None, :] for c in all_costs], dim=0).float()
+        loss_train = all_costs.sum()
+        if DEBUG_ASSERTS:
+            if all_costs.size(1) != len(self.semantic_instance_labels):
+                import ipdb;
+                ipdb.set_trace()
+                raise Exception
+        pred_permutations, total_loss, loss_components = all_pred_permutations, loss_train, all_costs
         return pred_permutations, total_loss, loss_components
 
     def get_binary_gt_for_channel(self, sem_lbl, inst_lbl, channel_idx):
@@ -128,41 +159,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                                                                                            inst_lbl)
         return pred_permutations, total_loss, loss_components
 
-    def matching_loss(self, predictions, sem_lbl, inst_lbl):
-        """
-        Note: predictions should be 'preprocessed' -- take softmax / log as needed for whatever form
-            single_class_component_loss_fcn expects.
-        Note: returned loss components indexed by ground truth order
-        """
-
-        # Allocate memory
-        batch_sz, n_channels = predictions.size(0), predictions.size(1)
-        all_gt_indices = np.empty((batch_sz, n_channels), dtype=int)
-        all_pred_permutations = np.empty((batch_sz, n_channels), dtype=int)
-        all_costs = []  # dataset_utils.zeros_like(log_predictions, (n, c))
-
-        # Compute optimal match & costs for each image in the batch
-        for i in range(batch_sz):
-            gt_indices, pred_permutation, costs = \
-                self.compute_optimal_match_loss_single_img(predictions[i, ...], sem_lbl[i, ...],
-                                                           inst_lbl[i, ...])
-            all_gt_indices[i, ...] = gt_indices
-            all_pred_permutations[i, ...] = pred_permutation
-            try:
-                all_costs.append(torch.stack(costs))
-            except:
-                import ipdb; ipdb.set_trace()
-                raise
-        all_costs = torch.cat([c[None, :] for c in all_costs], dim=0).float()
-        loss_train = all_costs.sum()
-        if DEBUG_ASSERTS:
-            if all_costs.size(1) != len(self.semantic_instance_labels):
-                import ipdb;
-                ipdb.set_trace()
-                raise Exception
-        return all_pred_permutations, loss_train, all_costs
-
-    def compute_optimal_match_loss_single_img(self, predictions, sem_lbl, inst_lbl):
+    def _compute_optimal_match_loss_single_img(self, predictions, sem_lbl, inst_lbl):
         """
         Note: this function returns optimal match loss for a single image (not a batch)
         target: C,H,W.  C is the number of instances for ALL semantic classes.
@@ -186,7 +183,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             # print('APD: Running on sem_val {}'.format(sem_val))
             idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
 
-            assignment, cost_list_2d = self.compute_optimal_match_loss_for_one_sem_cls(
+            assignment, cost_list_2d = self._compute_optimal_match_loss_for_one_sem_cls(
                 predictions, sem_lbl, inst_lbl, sem_val)
             # print('APD: Finished compute_optimal_match_loss_for_one_sem_cls')
             gt_indices += idxs
@@ -209,7 +206,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         costs = [costs[i] for i in sorted_indices]
         return gt_indices, pred_permutations, costs
 
-    def compute_optimal_match_loss_for_one_sem_cls(self, predictions, sem_lbl, inst_lbl, sem_val):
+    def _compute_optimal_match_loss_for_one_sem_cls(self, predictions, sem_lbl, inst_lbl, sem_val):
         cost_matrix, multiplier, cost_list_2d = self.build_cost_matrix_for_one_sem_cls(
             predictions, sem_lbl, inst_lbl, sem_val)
         assignment = match.solve_matching_problem(cost_matrix, multiplier)

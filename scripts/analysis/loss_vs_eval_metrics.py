@@ -41,13 +41,14 @@ def scatter_loss_vs_pq(loss_npz_file, pq_npz_file, save_to_workspace=True, rever
         'problem_config'].item().semantic_instance_class_list, \
         'Sanity check failed: Problem configurations should have matched up'
     assert problem_config.n_semantic_classes == loss_arr.shape[1]
-    plt.figure(figsize=display_pyutils.BIG_FIGSIZE); plt.clf()
     subplot_idx = 1
     sem_names = problem_config.semantic_class_names
     sem_idxs_to_visualize = [i for i, nm in enumerate(sem_names) if nm != 'background']
     sem_totals_to_visualize = ['total_with_bground', 'total_without_bground']
-
     subR, subC = len(eval_stat_types), len(sem_idxs_to_visualize) + len(sem_totals_to_visualize)
+    scale = max(np.ceil(subR / 2), np.ceil(subC / 4))
+    plt.figure(figsize=[scale * s for s in display_pyutils.BIG_FIGSIZE]); plt.clf()
+
     markers = display_pyutils.MARKERS
     colors = display_pyutils.GOOD_COLOR_CYCLE
     size = 30
@@ -100,6 +101,7 @@ def scatter_loss_vs_pq(loss_npz_file, pq_npz_file, save_to_workspace=True, rever
 
 
 def scatter(x, y, colors, label, markers, sem_clr_idx, size, xlabel, ylabel):
+    sem_clr_idx = sem_clr_idx % len(colors)
     plt.scatter(x, y, alpha=0.5, marker=markers[0], s=size,
                 c=colors[sem_clr_idx], edgecolors=colors[sem_clr_idx], label=label)
     plt.legend()
@@ -109,9 +111,9 @@ def scatter(x, y, colors, label, markers, sem_clr_idx, size, xlabel, ylabel):
 
 
 def main(test_logdir, overwrite=False, eval_iou_threshold=None, which_models='best'):
-    with os.path.join(args.test_logdir, 'train_logdir.txt', 'r') as fid:
-        train_logdir = fid.read()
-    model_paths = get_list_of_model_paths(train_logdir, args.which_models)
+    # with open(os.path.join(args.test_logdir, 'train_logdir.txt'), 'r') as fid:
+    #     train_logdir = fid.read()
+    # model_paths = get_list_of_model_paths(train_logdir, which_models)
 
     loss_npz_file = compute_losses(test_logdir, overwrite)
     eval_pq_npz_file = evaluate.main(test_logdir, overwrite=overwrite, iou_threshold=eval_iou_threshold)
@@ -205,7 +207,9 @@ def get_list_of_model_paths(train_logdir, which_models):
         list_of_model_paths = [os.path.join(train_logdir, 'model_best.pth.tar')]
     elif which_models == 'final':
         list_of_model_paths = [os.path.join(train_logdir, 'checkpoint.pth.tar')]
-    return
+    else:
+        raise NotImplementedError
+    return list_of_model_paths
 
 
 if __name__ == '__main__':

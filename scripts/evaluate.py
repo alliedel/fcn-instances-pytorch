@@ -74,7 +74,7 @@ def get_paths_from_test_dir(cached_test_dir):
 
 def main(test_logdir, iou_threshold=None, overwrite=False):
     problem_config_ = instance_utils.InstanceProblemConfig.load(
-        os.path.join(os.path.dirname(test_logdir), 'instance_problem_config.yaml'))
+        os.path.join(test_logdir, 'instance_problem_config.yaml'))
     out_dirs_cache_root = convert_test_results_to_coco.get_cache_dir_from_test_logdir(test_logdir)
     out_jsons, out_dirs = convert_test_results_to_coco.main(
         os.path.join(test_logdir, 'predictions'), os.path.join(

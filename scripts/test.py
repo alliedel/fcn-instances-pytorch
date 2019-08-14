@@ -156,8 +156,6 @@ def setup_tester(args, cfg_override_args, checkpoint_path, model_subpath='model_
     images_outdir = groundtruth_outdir.replace('groundtruth', 'orig_images')
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-    else:
-        raise Exception('Remove directory {} before proceeding.'.format(out_dir))
     tester = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
                                      model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=('train', split))
     return cfg, groundtruth_outdir, images_outdir, predictions_outdir, split, tester, use_existing_results

@@ -13,7 +13,7 @@ from instanceseg.utils.misc import y_or_n_input
 
 def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
                                     problem_config: instance_utils.InstanceProblemConfig,
-                                    VOID_RGB=(255, 255, 255)):
+                                    VOID_RGB=(255, 255, 255), overwrite=None):
     """
     Takes predictions output from tester (special Trainer type) and outputs coco panoptic format
     Inputs should represent the different channels, where rgb2id creates the channel id (R + G*255 + B*255*255)
@@ -41,15 +41,16 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
     some_files_already_exist = any(file_exists)
 
     if all_files_already_exist:
-        y_or_n = y_or_n_input('All files already exist.  Overwrite?')
-        if y_or_n == 'n':
+        if overwrite is None:
+            y_or_n = y_or_n_input('All files already exist.  Overwrite?')
+            if y_or_n == 'n':
+                return
+        elif overwrite is False:
+            print('All files already exist.')
             return
     elif some_files_already_exist:
-        y_or_n = y_or_n_input('{}/{} files already exist.  Overwrite them?'.format(sum(file_exists), len(file_exists)))
-        if y_or_n == 'y':
-            overwrite_existing_files = True
-        else:
-            overwrite_existing_files = False
+        print('Warning: some ({}/{}) files already existed.  I may be overwriting them.'.format(
+            sum(file_exists), len(file_exists)))
 
     for working_idx, label_f in tqdm.tqdm(enumerate(labels_file_list),
                                           desc='Converting to COCO panoptic format', total=n_files):

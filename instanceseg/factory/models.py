@@ -38,7 +38,16 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
 
     if checkpoint_file is not None:
         checkpoint = torch.load(checkpoint_file)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        state_dict = checkpoint['model_state_dict']
+        if list(checkpoint['model_state_dict'].keys())[0].startswith('module') and not hasattr(model, 'module'):
+            from collections import OrderedDict
+            new_state_dict = OrderedDict()
+            for k, v in state_dict.items():
+                name = k.replace('module.', '')  # remove 'module.' of dataparallel
+                new_state_dict[name] = v
+            model.load_state_dict(new_state_dict)
+        else:
+            model.load_state_dict(state_dict)
         start_epoch = checkpoint['epoch']
         start_iteration = checkpoint['iteration']
     else:
@@ -64,7 +73,7 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
                 model.copy_params_from_vgg16(vgg16)
         elif cfg['backbone'] == 'resnet50':
             print('Copying params from rcnn resnet')
-            model.backbone.load_state_dict(resnet_rcnn.pretrained_resnet_rnn_state_dict())
+            model.backbone.load_rnn_resnet_state_dict(resnet_rcnn.pretrained_resnet_rnn_state_dict())
 
     n_gpus = torch.cuda.device_count()
     print('Using {} GPUS for model: {}'.format(

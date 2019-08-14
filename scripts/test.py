@@ -123,7 +123,7 @@ def test_configure(dataset_name, config_idx, sampler_name, script_py_file='unkno
     return cfg, out_dir, sampler_cfg
 
 
-def setup_tester(args, cfg_override_args, checkpoint_path, model_subpath='checkpoint.pth.tar'):
+def setup_tester(args, cfg_override_args, checkpoint_path, model_subpath='model_best.pth.tar'):
     train_config_path = os.path.join(checkpoint_path, 'config.yaml')
     model_checkpoint_path = os.path.join(checkpoint_path, model_subpath)
     assert os.path.exists(checkpoint_path), 'Checkpoint path does not exist: {}'.format(checkpoint_path)

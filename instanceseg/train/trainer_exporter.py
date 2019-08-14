@@ -268,12 +268,16 @@ class TrainerExporter(object):
         out_name = 'checkpoint.pth.tar'
         out_dir = out_dir or os.path.join(self.out_dir)
         checkpoint_file = osp.join(out_dir, out_name)
+        if hasattr(self, 'module'):
+            model_state_dict = model.module.state_dict()  # nn.DataParallel
+        else:
+            model_state_dict = model.state_dict()
         torch.save({
             'epoch': epoch,
             'iteration': iteration,
             'arch': model.__class__.__name__,
             'optim_state_dict': optimizer.state_dict(),
-            'model_state_dict': model.state_dict(),
+            'model_state_dict': model_state_dict,
             'best_mean_iu': best_mean_iu,
             'mean_iu': mean_iu
         }, checkpoint_file)

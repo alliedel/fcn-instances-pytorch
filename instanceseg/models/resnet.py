@@ -136,12 +136,13 @@ class Resnet(nn.Module):
             .replace('layer3', 'resnet_backbone.res4.layers') \
             .replace('layer4', 'resnet_backbone.res5.layers')
 
-    def load_state_dict(self, state_dict, resume=False):
-        self.load_backbone_state_dict(state_dict, resume)
+    def load_rnn_resnet_state_dict(self, state_dict, resume=False):
+        self.load_vgg_backbone_state_dict(state_dict, resume)
 
-    def load_backbone_state_dict(self, state_dict, resume=False):
+    def load_vgg_backbone_state_dict(self, state_dict, resume=False):
         own_state = self.state_dict()
-        if 'rcnn.cls_score.weight' in state_dict and own_state['rcnn.cls_score.weight'].shape[0] == 9 and state_dict['rcnn.cls_score.weight'].shape[0] == 81:
+        if 'rcnn.cls_score.weight' in state_dict and own_state['rcnn.cls_score.weight'].shape[0] == 9 \
+                and state_dict['rcnn.cls_score.weight'].shape[0] == 81:
             cls_map = {  # Imagenet -> COCO
                 0: 0,  # background
                 1: 1,  # person
@@ -199,6 +200,7 @@ class Resnet(nn.Module):
                         weight_blobs[i] = state_dict[weight_name][cls]
                 state_dict[weight_name] = torch.from_numpy(weight_blobs)
 
+        import ipdb; ipdb.set_trace()
         for name, param in state_dict.items():
             name = self.name_mapping(name, resume)
             if name not in own_state:

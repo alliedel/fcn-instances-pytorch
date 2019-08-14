@@ -1,18 +1,15 @@
 import os.path as osp
 
-from instanceseg.models.instance_common import make_conv_block
-from instanceseg.models.model_utils import copy_tensor, copy_conv, module_has_params, get_activations
+from instanceseg.models.model_utils import get_activations
 
 try:
     import fcn
 except ImportError:
     fcn = None
 
-import torch
 import torch.nn as nn
 from instanceseg.utils import instance_utils
 
-from instanceseg.models import model_utils
 from instanceseg.models import resnet
 
 DEFAULT_SAVED_MODEL_PATH = osp.expanduser('~/data/models/pytorch/fcn8s-instance.pth')

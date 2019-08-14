@@ -62,6 +62,8 @@ MARKERS = ('o', 'X', '*', 'v', 's', 'p', 'h', 'H', 'D', 'd', 'P', '8')
 
 DPI = 300
 
+BIG_FIGSIZE = (10, 5)
+
 
 def check_for_emptied_workspace(workspace_dir=WORKSPACE_DIR, interactive=True):
     if len(os.listdir(workspace_dir)) == 0:

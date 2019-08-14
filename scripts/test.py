@@ -72,6 +72,7 @@ def main(replacement_dict_for_sys_args=None, check_clean_tree=True):
 
     checkpoint_path = args.logdir
 
+    model_subpath = 'model_best.pth.tar'
     cfg, groundtruth_outdir, images_outdir, predictions_outdir, split, tester, use_existing_results = \
         setup_tester(args, cfg_override_args, checkpoint_path, model_subpath=model_subpath)
 

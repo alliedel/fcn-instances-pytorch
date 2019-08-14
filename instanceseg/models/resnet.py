@@ -200,7 +200,6 @@ class Resnet(nn.Module):
                         weight_blobs[i] = state_dict[weight_name][cls]
                 state_dict[weight_name] = torch.from_numpy(weight_blobs)
 
-        import ipdb; ipdb.set_trace()
         for name, param in state_dict.items():
             name = self.name_mapping(name, resume)
             if name not in own_state:

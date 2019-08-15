@@ -180,7 +180,7 @@ class InstanceProblemConfig(object):
     def channel_values(self):
         return list(range(len(self.semantic_instance_class_list)))
 
-    def aggregate_across_same_sem_cls(self, arr, empty_val=0):
+    def aggregate_across_same_sem_cls(self, arr, empty_val=np.nan):
         """
         Takes a NxC array and converts to an NxS array, where C is the number of channels (multiple instances per object
         class) and S is the number of semantic classes
@@ -192,8 +192,9 @@ class InstanceProblemConfig(object):
         assert arr.shape[1] == self.n_classes
         aggregated_arr = empty_val * np.ones((arr.shape[0], self.n_semantic_classes))
         for sem_idx, sem_val in enumerate(self.semantic_vals):
-            channel_idxs = [c for c in self.semantic_instance_class_list if c == sem_val]
+            channel_idxs = [ci for ci, cname in enumerate(self.semantic_instance_val_list) if cname == sem_val]
             aggregated_arr[:, sem_idx] = arr[:, channel_idxs].sum(axis=1)
+        # assert aggregated_arr.nansum(axis=1) == arr.nansum(axis=1)
         return aggregated_arr
 
     def decompose_semantic_and_instance_labels(self, gt_combined):

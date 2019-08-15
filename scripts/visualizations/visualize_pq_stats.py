@@ -114,7 +114,9 @@ def scatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None):
     colors = display_pyutils.GOOD_COLOR_CYCLE
     size = 30
     for i, (sq, rq) in enumerate(zip(xs, ys)):
-        plt.scatter(sq, rq, alpha=0.5, marker=markers[i], s=size, c=colors[i], edgecolors=colors[i], label=labels[i])
+        clr_idx = i % len(colors)
+        plt.scatter(sq, rq, alpha=0.5, marker=markers[i], s=size, c=colors[clr_idx], edgecolors=colors[clr_idx],
+                    label=labels[i])
     plt.legend()
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)

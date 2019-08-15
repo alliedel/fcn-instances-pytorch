@@ -240,7 +240,8 @@ def link_files_in_order_of(file_list, x, outdir='/tmp/sortedperf/', basename='im
         if os.path.islink(outfile):
             os.unlink(outfile)
         if os.path.islink(outfile):
-            import ipdb; ipdb.set_trace()
+            import ipdb;
+            ipdb.set_trace()
         commonprefix = os.path.commonprefix([filename, outfile])
 
         symlink(os.path.relpath(filename, os.path.dirname(outfile)), outfile)
@@ -257,7 +258,7 @@ def get_image_file_list(json_file):
     return file_names
 
 
-def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir):
+def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir, overwrite=None):
     data_type_as_str = 'image_name_id'
     print('Saving images in order of {}'.format(data_type_as_str))
     image_id_outdir = os.path.join(sorted_perf_outdir, '{}'.format('image_id'))
@@ -266,8 +267,10 @@ def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorte
     basename = '{}_'.format(data_type_as_str)
     image_names = [os.path.join(image_id_outdir, basename.format() + '{}_{}'.format(i, x_val) + '.png') for i, x_val in
                    enumerate(image_name_ids)]
-    if os.path.exists(image_id_outdir) and all([os.path.exists(i) for i in image_names]) \
-            and y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N', default='n') == 'n':
+    if overwrite is False or (overwrite is None and os.path.exists(image_id_outdir) and all([os.path.exists(i) for i in
+                                                                                             image_names])
+                              and y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N',
+                                               default='n') == 'n'):
         print('Using existing images from {}'.format(image_id_outdir))
     else:
         print('Loading image data')
@@ -283,7 +286,7 @@ def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorte
     return image_names
 
 
-def main(collated_stats_npz):
+def main(collated_stats_npz, overwrite_imgs=False):
     collated_stats_dict = np.load(collated_stats_npz)
     use_labels_table = True
     collated_stats = collated_stats_dict['collated_stats_per_image_per_cat'].item()
@@ -301,7 +304,8 @@ def main(collated_stats_npz):
 
     data_d = get_stat_data(collated_stats, data_types, problem_config)
 
-    image_names = get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir)
+    image_names = get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir,
+                                           overwrite=overwrite_imgs)
 
     for data_type in data_types:
         data_type_as_str = '_'.join(d for d in data_type) if type(data_type) is tuple else data_type

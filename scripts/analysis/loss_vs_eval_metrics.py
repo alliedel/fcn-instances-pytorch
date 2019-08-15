@@ -15,6 +15,7 @@ from instanceseg.utils import display as display_pyutils
 from instanceseg.utils import instance_utils
 from scripts import evaluate
 from scripts.convert_test_results_to_coco import get_outdirs_cache_root
+from scripts.visualizations import visualize_pq_stats, export_prediction_vs_gt_vis_sorted
 
 
 def load_gt_img_in_panoptic_form(gt_img_file):
@@ -80,10 +81,10 @@ def scatter_loss_vs_pq(loss_npz_file, pq_npz_file, save_to_workspace=True, rever
             else:
                 raise NotImplementedError
             plt.subplot(subR, subC, subplot_idx)
-            ylabel = 'loss'
-            xlabel = eval_identifier + (' (reversed)' if reverse_x else '')
+            ylabel = 'total loss'
+            xlabel = 'avg' + eval_identifier + (' (reversed)' if reverse_x else '')
             label = 'loss vs {}, {}'.format(eval_stat_type, aggregate_type)
-            x, y = x_arr[:, sem_idxs].sum(axis=1), y_arr[:, sem_idxs].sum(axis=1)
+            x, y = x_arr[:, sem_idxs].mean(axis=1), y_arr[:, sem_idxs].sum(axis=1)
             scatter(x, y, colors, label, markers, sem_clr_idx, size, xlabel, ylabel)
             subplot_idx += 1
             sem_clr_idx += 1
@@ -110,15 +111,24 @@ def scatter(x, y, colors, label, markers, sem_clr_idx, size, xlabel, ylabel):
     plt.title(label)
 
 
-def main(test_logdir, overwrite=False, eval_iou_threshold=None, which_models='best'):
+def main(test_logdir, overwrite=False, eval_iou_threshold=None, which_models='best',
+         visualize_pq_hists=True, export_sorted_perf_images=None):
     # with open(os.path.join(args.test_logdir, 'train_logdir.txt'), 'r') as fid:
     #     train_logdir = fid.read()
     # model_paths = get_list_of_model_paths(train_logdir, which_models)
+    export_sorted_perf_images = export_sorted_perf_images if export_sorted_perf_images is not None else \
+        visualize_pq_hists
 
     loss_npz_file = compute_losses(test_logdir, overwrite)
     eval_pq_npz_file = evaluate.main(test_logdir, overwrite=overwrite, iou_threshold=eval_iou_threshold)
     scatter_loss_vs_pq(loss_npz_file=loss_npz_file, pq_npz_file=eval_pq_npz_file)
     analysis_cache_outdir = os.path.dirname(eval_pq_npz_file)
+    if visualize_pq_hists:
+        visualize_pq_stats.main(eval_pq_npz_file)
+
+    if export_sorted_perf_images:
+        export_prediction_vs_gt_vis_sorted.main(collated_stats_npz=eval_pq_npz_file)
+
     return analysis_cache_outdir
 
 
@@ -163,12 +173,12 @@ def compute_losses(test_logdir, overwrite):
 
         for idx, (score_file, gt_file) in tqdm.tqdm(enumerate(zip(score_files, gt_files)), total=n_images,
                                                     desc='Getting losses for saved scores, GT'):
-            score = torch.load(score_file)
+            score_3d = torch.load(score_file)
             gt_im = load_gt_img_in_panoptic_form(gt_file).astype('int')
-            gt_sem, gt_inst = problem_config.decompose_semantic_and_instance_labels(gt_im)
-            score = score.view(1, *score.shape)
-            gt_sem, gt_inst = torch.Tensor(gt_sem[np.newaxis, ...]).cuda(device=score.device), \
-                              torch.Tensor(gt_inst[np.newaxis, ...]).cuda(device=score.device)
+            gt_sem_3d, gt_inst_3d = problem_config.decompose_semantic_and_instance_labels(gt_im)
+            score = score_3d.view(1, *score_3d.shape)
+            gt_sem, gt_inst = torch.Tensor(gt_sem_3d[np.newaxis, ...]).cuda(device=score.device), \
+                              torch.Tensor(gt_inst_3d[np.newaxis, ...]).cuda(device=score.device)
             pred_permutations, total_loss, loss_components = my_loss_object.loss_fcn(score, gt_sem, gt_inst)
             per_channel_loss = loss_components.cpu().numpy()
             per_cls_loss = problem_config.aggregate_across_same_sem_cls(per_channel_loss)
@@ -188,6 +198,7 @@ def compute_losses(test_logdir, overwrite):
         print('Losses saved to {}'.format(compiled_loss_arr_outfile))
     else:
         print('Losses already existed in {}'.format(compiled_loss_arr_outfile))
+
     return compiled_loss_arr_outfile
 
 
@@ -199,6 +210,8 @@ def parse_args():
     parser.add_argument('--overwrite', action='store_true', default=False)
     parser.add_argument('--eval_iou_threshold', type=float, default=None)
     parser.add_argument('--which_models', type=str, default='best')
+    parser.add_argument('--visualize_pq_hists', type=bool, default=True)
+    parser.add_argument('--export_sorted_perf_images', type=bool, default=None)
     return parser.parse_args()
 
 
@@ -214,4 +227,6 @@ def get_list_of_model_paths(train_logdir, which_models):
 
 if __name__ == '__main__':
     args = parse_args()
-    compiled_loss_arr_outfile = main(args.test_logdir, args.overwrite, args.eval_iou_threshold, args.which_models)
+    compiled_loss_arr_outfile = main(args.test_logdir, args.overwrite, args.eval_iou_threshold,
+                                     which_models=args.which_models, visualize_pq_hists=args.visualize_pq_hists,
+                                     export_sorted_perf_images=args.export_sorted_perf_images)

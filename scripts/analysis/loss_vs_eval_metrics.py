@@ -119,15 +119,16 @@ def scatter(x, y, color, label, markers, size, xlabel, ylabel):
 
 
 def main(test_logdir, overwrite=False, eval_iou_threshold=None, which_models='best',
-         visualize_pq_hists=True, export_sorted_perf_images=None):
+         visualize_pq_hists=True, export_sorted_perf_images=None, scores_to_onehot=False):
     # with open(os.path.join(args.test_logdir, 'train_logdir.txt'), 'r') as fid:
     #     train_logdir = fid.read()
     # model_paths = get_list_of_model_paths(train_logdir, which_models)
     export_sorted_perf_images = export_sorted_perf_images if export_sorted_perf_images is not None else \
         visualize_pq_hists
 
-    loss_npz_file = compute_losses(test_logdir, overwrite)
-    eval_pq_npz_file = evaluate.main(test_logdir, overwrite=overwrite, iou_threshold=eval_iou_threshold)
+    loss_npz_file = compute_losses(test_logdir, overwrite, scores_to_onehot=scores_to_onehot)
+    analysis_cache_outdir = get_cache_dir_from_test_logdir(test_logdir=test_logdir)
+    eval_pq_npz_file = evaluate.main(analysis_cache_outdir, overwrite=overwrite, iou_threshold=eval_iou_threshold)
     scatter_loss_vs_pq(loss_npz_file=loss_npz_file, pq_npz_file=eval_pq_npz_file)
     analysis_cache_outdir = os.path.dirname(eval_pq_npz_file)
     if visualize_pq_hists:
@@ -162,7 +163,7 @@ def label_to_one_hot(input_label, n_classes, output_onehot=None, dtype=None, dev
     return output_onehot
 
 
-def compute_losses(test_logdir, overwrite, scores_to_onehot=True):
+def compute_losses(test_logdir, overwrite, scores_to_onehot=False):
     scores_outdir = os.path.join(test_logdir, 'scores')
     groundtruth_outdir = os.path.join(test_logdir, 'groundtruth')
     test_cfg_file = os.path.join(test_logdir, 'config.yaml')
@@ -247,6 +248,7 @@ def parse_args():
     parser.add_argument('--which_models', type=str, default='best')
     parser.add_argument('--visualize_pq_hists', type=bool, default=True)
     parser.add_argument('--export_sorted_perf_images', type=bool, default=None)
+    parser.add_argument('--scores_to_onehot', type=int, default=0)
     return parser.parse_args()
 
 
@@ -262,6 +264,8 @@ def get_list_of_model_paths(train_logdir, which_models):
 
 if __name__ == '__main__':
     args = parse_args()
+    print(args.scores_to_onehot)
     compiled_loss_arr_outfile = main(args.test_logdir, args.overwrite, args.eval_iou_threshold,
                                      which_models=args.which_models, visualize_pq_hists=args.visualize_pq_hists,
-                                     export_sorted_perf_images=args.export_sorted_perf_images)
+                                     export_sorted_perf_images=args.export_sorted_perf_images,
+                                     scores_to_onehot=args.scores_to_onehot)

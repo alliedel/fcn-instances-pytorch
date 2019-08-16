@@ -7,7 +7,7 @@ import os.path as osp
 import instanceseg.utils.script_setup
 from instanceseg.panoeval import compute
 from instanceseg.panoeval.utils import collate_pq_into_pq_compute_per_imageNxS
-from instanceseg.utils import instance_utils
+from instanceseg.utils import instance_utils, script_setup
 from instanceseg.utils.script_setup import get_test_logdir_from_cache_dir
 from scripts import convert_test_results_to_coco
 import pathlib
@@ -79,7 +79,7 @@ def main(test_cache_dir, iou_threshold=None, overwrite=False):
     test_logdir = get_test_logdir_from_cache_dir(test_cache_dir)
     problem_config_ = instance_utils.InstanceProblemConfig.load(
         os.path.join(test_logdir, 'instance_problem_config.yaml'))
-    out_dirs_cache_root = instanceseg.utils.script_setup.get_cache_dir_from_test_logdir(test_logdir)
+    out_dirs_cache_root = script_setup.get_cache_dir_from_test_logdir(test_logdir)
     out_jsons, out_dirs = convert_test_results_to_coco.main(
         os.path.join(test_logdir, 'predictions'), os.path.join(
             test_logdir, 'groundtruth'), problem_config_, out_dirs_cache_root, overwrite=overwrite)
@@ -94,5 +94,5 @@ def main(test_cache_dir, iou_threshold=None, overwrite=False):
 
 if __name__ == '__main__':
     args_ = parse_args()
-    test_cache_dir = get_
-    collated_stats_per_image_per_cat_file_ = main(args_.test_logdir, iou_threshold=args_.iou_threshold)
+    test_cache_dir = script_setup.get_cache_dir_from_test_logdir(args_.test_logdir)
+    collated_stats_per_image_per_cat_file_ = main(test_cache_dir, iou_threshold=args_.iou_threshold)

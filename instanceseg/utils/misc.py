@@ -251,3 +251,10 @@ def symlink(target, link_name, overwrite=False):
         if os.path.islink(temp_link_name):
             os.remove(temp_link_name)
         raise
+
+
+def rgb2hex(r, g, b):
+    assert 0 <= r <= 255
+    assert 0 <= g <= 255
+    assert 0 <= b <= 255
+    return '#%02x%02x%02x' % (r, g, b)

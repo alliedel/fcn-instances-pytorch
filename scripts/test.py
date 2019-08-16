@@ -2,12 +2,11 @@ import atexit
 
 import os
 import yaml
-from local_pyutils import get_log_dir
 
 import debugging.dataloader_debug_utils as debug_helper
-from instanceseg.utils import parse, script_setup as script_utils, misc, configs
+from instanceseg.utils import parse, script_setup as script_utils
 from instanceseg.utils.configs import override_cfg
-from scripts.configurations import sampler_cfg_registry
+from instanceseg.utils.script_setup import test_configure
 from scripts.configurations.generic_cfg import PARAM_CLASSIFICATIONS
 from scripts.configurations.synthetic_cfg import SYNTHETIC_PARAM_CLASSIFICATIONS
 
@@ -73,7 +72,7 @@ def main(replacement_dict_for_sys_args=None, check_clean_tree=True):
     checkpoint_path = args.logdir
 
     model_subpath = 'model_best.pth.tar'
-    cfg, groundtruth_outdir, images_outdir, predictions_outdir, split, tester, use_existing_results = \
+    cfg, test_logdir, split, tester = \
         setup_tester(args, cfg_override_args, checkpoint_path, model_subpath=model_subpath)
 
     if cfg['debug_dataloader_only']:
@@ -88,39 +87,11 @@ def main(replacement_dict_for_sys_args=None, check_clean_tree=True):
         import sys
         sys.exit(0)
 
-    if not use_existing_results:
-        predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir = tester.test(
-            split=split, predictions_outdir=predictions_outdir, groundtruth_outdir=groundtruth_outdir,
-            images_outdir=images_outdir, save_scores=args.save_scores)
+    predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir = tester.test(
+        test_logdir, split=split, save_scores=args.save_scores)
 
-    print('Input logdir: {}'.format(args.logdir))
-    print('Problem config file: {}'.format(tester.exporter.instance_problem_path))
-    print('Predictions exported to {}'.format(predictions_outdir))
-    print('Ground truth exported to {}'.format(groundtruth_outdir))
     atexit.unregister(query_remove_logdir)
-    return predictions_outdir, groundtruth_outdir, tester, args.logdir
-
-
-def test_configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscript.py',
-                   cfg_override_args=None, parent_script_directory='scripts', additional_logdir_tag=''):
-    script_basename = os.path.basename(script_py_file).replace('.py', '')
-    parent_directory = os.path.join(script_utils.PROJECT_ROOT, parent_script_directory, 'logs', dataset_name)
-    cfg, cfg_to_print = script_utils.get_cfgs(dataset_name=dataset_name, config_idx=config_idx,
-                                              cfg_override_args=cfg_override_args)
-    if sampler_name is not None or 'sampler' not in cfg:
-        cfg['sampler'] = sampler_name
-    else:
-        sampler_name = cfg['sampler']
-    assert cfg['dataset'] == dataset_name, 'Debug Error: cfg[\'dataset\']: {}, ' \
-                                           'args.dataset: {}'.format(cfg['dataset'], dataset_name)
-    if cfg['dataset_instance_cap'] == 'match_model':
-        cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
-    sampler_cfg = sampler_cfg_registry.get_sampler_cfg_set(sampler_name)
-    out_dir = get_log_dir(os.path.join(parent_directory, script_basename), cfg_to_print,
-                          additional_tag=additional_logdir_tag)
-    configs.save_config(out_dir, cfg)
-    print(misc.color_text('logdir: {}'.format(out_dir), misc.TermColors.OKGREEN))
-    return cfg, out_dir, sampler_cfg
+    return predictions_outdir, groundtruth_outdir, tester, test_logdir
 
 
 def setup_tester(args, cfg_override_args, checkpoint_path, model_subpath='model_best.pth.tar'):
@@ -134,7 +105,8 @@ def setup_tester(args, cfg_override_args, checkpoint_path, model_subpath='model_
     cfg['train_batch_size'] = cfg['{}_batch_size'.format(args.test_split)]
     override_cfg(cfg, cfg_override_args)
 
-    _, out_dir, sampler_cfg = test_configure(dataset_name=args.dataset,
+    _, out_dir, sampler_cfg = test_configure(checkpoint_path=checkpoint_path,
+                                             dataset_name=args.dataset,
                                              config_idx=args.config,
                                              sampler_name=args.sampler,
                                              script_py_file=__file__,
@@ -151,14 +123,11 @@ def setup_tester(args, cfg_override_args, checkpoint_path, model_subpath='model_
     with open(os.path.join(out_dir, 'train_logdir.txt'), 'w') as f:
         f.write(checkpoint_path)
     # out_dir = checkpoint_path.rstrip('/') + '_test'
-    use_existing_results = False
-    predictions_outdir, groundtruth_outdir = (os.path.join(out_dir, s) for s in ('predictions', 'groundtruth'))
-    images_outdir = groundtruth_outdir.replace('groundtruth', 'orig_images')
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
     tester = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
                                      model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=('train', split))
-    return cfg, groundtruth_outdir, images_outdir, predictions_outdir, split, tester, use_existing_results
+    return cfg, out_dir, split, tester
 
 
 if __name__ == '__main__':

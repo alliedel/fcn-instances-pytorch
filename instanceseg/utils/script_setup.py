@@ -16,11 +16,15 @@ import instanceseg.utils
 import instanceseg.utils.configs
 import scripts.configurations
 from instanceseg.models import model_utils
+from instanceseg.utils import configs, misc
 from instanceseg.utils.configs import get_cfgs
 from instanceseg.utils.misc import TermColors
+from scripts.configurations import sampler_cfg_registry
 from scripts.configurations.sampler_cfg_registry import sampler_cfgs
 
 from local_pyutils import get_log_dir
+import pathlib
+
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) + '/'
 
@@ -46,8 +50,8 @@ def check_clean_work_tree(exit_on_error=False, interactive=True):
     if exit_code != 0:
         override = False
         print(TermColors.WARNING + 'Your working directory tree isn\'t clean:\n ' +
-        TermColors.ENDC +
-        TermColors.FAIL + '{}'.format(stdout.decode()) + TermColors.ENDC)
+              TermColors.ENDC +
+              TermColors.FAIL + '{}'.format(stdout.decode()) + TermColors.ENDC)
         if interactive:
             override = 'y' == input(
                 'Please commit or stash your changes. If you\'d like to run anyway,\n enter \'y\': ')
@@ -92,7 +96,6 @@ def setup_train(dataset_type, cfg, out_dir, sampler_cfg, gpu=(0,), checkpoint_pa
 def setup_test(dataset_type, cfg, out_dir, sampler_cfg, model_checkpoint_path, gpu=(0,), splits=('test',)):
     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
         setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, semantic_init=None, splits=splits)
-    print('Number of test minibatches: {}'.format(len(dataloaders[s]) for s in splits))
 
     evaluator = instanceseg.factory.trainers.get_evaluator(cfg, cuda, model, dataloaders, problem_config, out_dir)
     evaluator.epoch = start_epoch
@@ -168,3 +171,51 @@ def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscr
     print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir),
                                             instanceseg.utils.misc.TermColors.OKGREEN))
     return cfg, out_dir, sampler_cfg
+
+
+def get_test_dir_parent_from_traindir(traindir):
+
+    if pathlib.Path(traindir).suffix is not '':
+        traindir = os.path.dirname(traindir)
+    else:
+        traindir = traindir.rstrip(os.sep)
+    train_parentdir = os.path.dirname(traindir)
+    return os.path.join(train_parentdir, 'test', os.path.basename(traindir))
+
+
+def test_configure(dataset_name, checkpoint_path, config_idx, sampler_name, script_py_file='unknownscript.py',
+                   cfg_override_args=None, additional_logdir_tag=''):
+    parent_directory = get_test_dir_parent_from_traindir(checkpoint_path)
+    script_basename = os.path.basename(script_py_file).replace('.py', '')
+    cfg, cfg_to_print = get_cfgs(dataset_name=dataset_name, config_idx=config_idx,
+                                 cfg_override_args=cfg_override_args)
+    if sampler_name is not None or 'sampler' not in cfg:
+        cfg['sampler'] = sampler_name
+    else:
+        sampler_name = cfg['sampler']
+    assert cfg['dataset'] == dataset_name, 'Debug Error: cfg[\'dataset\']: {}, ' \
+                                           'args.dataset: {}'.format(cfg['dataset'], dataset_name)
+    if cfg['dataset_instance_cap'] == 'match_model':
+        cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
+    sampler_cfg = sampler_cfg_registry.get_sampler_cfg_set(sampler_name)
+    out_dir = get_log_dir(os.path.join(parent_directory, script_basename), cfg_to_print,
+                          additional_tag=additional_logdir_tag)
+
+    configs.save_config(out_dir, cfg)
+    print(misc.color_text('logdir: {}'.format(out_dir), misc.TermColors.OKGREEN))
+    return cfg, out_dir, sampler_cfg
+
+
+def get_cache_dir_from_test_logdir(test_logdir):
+    # with open(os.path.join(test_logdir, 'train_logdir.txt'), 'r') as fid:
+    #     train_logdir = fid.read().strip()
+    # test_pred_outdir = os.path.join(test_logdir, 'predictions')
+    p_testpath = pathlib.Path(test_logdir)
+    test_dataset_train_test_subdir = p_testpath.relative_to(pathlib.Path('scripts', 'logs'))
+    out_dirs_root = pathlib.Path('cache', test_dataset_train_test_subdir)
+    return out_dirs_root.as_posix()
+
+
+def get_test_logdir_from_cache_dir(cached_test_dir):
+    test_logdir = pathlib.Path('scripts', 'logs', pathlib.Path(cached_test_dir).relative_to('cache/'))
+    return test_logdir.as_posix()

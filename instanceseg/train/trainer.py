@@ -203,20 +203,17 @@ class Trainer(object):
             self.best_mean_iu = mean_iu
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
 
-    def test(self, split='test', predictions_outdir=None, groundtruth_outdir=None, images_outdir=None,
-             scores_outdir=None, save_scores=False):
+    def test(self, test_outdir, split='test', save_scores=False):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
         If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
             False.
         """
         self.exporter.instance_problem.save(self.exporter.instance_problem_path)
-        tmp_folder = tempfile.NamedTemporaryFile().name
-        predictions_outdir = predictions_outdir or os.path.join(tmp_folder, 'predictions')
-        groundtruth_outdir = groundtruth_outdir or os.path.join(tmp_folder, 'groundtruth')
-        scores_outdir = None if not save_scores else scores_outdir or predictions_outdir.replace('predictions',
-                                                                                                 'scores')
-        images_outdir = images_outdir or os.path.join(tmp_folder, 'images')
+        predictions_outdir = os.path.join(test_outdir, 'predictions')
+        groundtruth_outdir = os.path.join(test_outdir, 'groundtruth')
+        scores_outdir = None if not save_scores else predictions_outdir.replace('predictions', 'scores')
+        images_outdir = os.path.join(test_outdir, 'images')
         for my_dir in [predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir]:
             if my_dir is None:
                 continue

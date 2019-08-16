@@ -3,7 +3,8 @@ from instanceseg.panoeval.utils import panoptic_converter_from_rgb_ids, check_an
 from instanceseg.utils import instance_utils
 import glob
 import argparse
-import yaml
+
+from instanceseg.utils.script_setup import get_cache_dir_from_test_logdir
 
 
 def main(predictions_dir, groundtruth_dir, problem_config, out_dirs_root, overwrite=False):
@@ -51,25 +52,6 @@ def parse_args():
     parser.add_argument('--test_logdir', type=str, help='For test parent directory')
     args_ = parser.parse_args()
     return args_
-
-
-def get_outdirs_cache_root(train_logdir, test_pred_outdir):
-    test_logdir = os.path.dirname(test_pred_outdir)
-    train_logdir, test_pred_outdir = train_logdir.rstrip('/'), test_pred_outdir.rstrip('/')
-    dataset_name_from_logdir = os.path.basename(os.path.dirname(train_logdir))
-    train_exp_id = os.path.basename(train_logdir)
-    test_exp_id = os.path.basename(test_logdir)  # Assuming .../<expid>/'predictions'
-    assert test_exp_id is not '', ValueError('test_pred_outdir not in form I thought')
-    assert train_exp_id is not '', ValueError('train_pred_outdir not in form I thought')
-    out_dirs_root = os.path.join('cache', '{}'.format(dataset_name_from_logdir), train_exp_id, test_exp_id)
-    return out_dirs_root
-
-
-def get_cache_dir_from_test_logdir(test_logdir):
-    with open(os.path.join(test_logdir, 'train_logdir.txt'), 'r') as fid:
-        train_logdir = fid.read().strip()
-    test_pred_outdir = os.path.join(test_logdir, 'predictions')
-    return get_outdirs_cache_root(train_logdir, test_pred_outdir)
 
 
 if __name__ == '__main__':

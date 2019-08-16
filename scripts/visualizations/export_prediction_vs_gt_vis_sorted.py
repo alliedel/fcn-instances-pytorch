@@ -9,7 +9,9 @@ import tqdm
 
 from instanceseg.analysis.visualization_utils import label_colormap, get_tile_image
 from instanceseg.ext.panopticapi.utils import rgb2id
+from instanceseg.utils import script_setup
 from instanceseg.utils.misc import y_or_n_input, symlink
+import pathlib
 
 np.random.seed(42)
 
@@ -93,7 +95,7 @@ def load_images(image_dir, json_list_file, to_id=False, dtype=np.uint8, labels_t
                 file_name = 'groundtruth_{}'.format(file_name).replace('_image.png', '_id2rgb_cocopano.png')
             if not os.path.exists(os.path.join(image_dir, file_name)) and '_pred' in image_dir:
                 file_name = 'predictions_{}'.format(file_name).replace('_image.png', '_id2rgb_cocopano.png')
-            if not os.path.exists(os.path.join(image_dir, file_name)) and 'orig_images' in image_dir:
+            if not os.path.exists(os.path.join(image_dir, file_name)) and 'images' in image_dir:
                 file_name = 'image_{}'.format(file_name).replace('_image', '')
             assert os.path.exists(os.path.join(image_dir, file_name)), '{} does not exist'.format(os.path.join(
                 image_dir, file_name))
@@ -163,8 +165,10 @@ def get_image_data(collated_stats_dict, img_types, labels_table):
             else:
                 raise ValueError
         elif img_type in ('input_image',):
-            pth, nm = os.path.split(os.path.dirname(collated_stats_dict['pred_folder'].item().rstrip('/')))
-            orig_img_dir = os.path.join(os.path.dirname(pth).replace('cache', 'scripts/logs'), nm, 'orig_images')
+            p_pred_folder = pathlib.Path(collated_stats_dict['pred_folder'].item().rstrip('/'))
+            inferred_test_logdir = script_setup.get_test_logdir_from_cache_dir(
+                cached_test_dir=pathlib.Path(*pathlib.Path(p_pred_folder).parts[:-1]))
+            orig_img_dir = pathlib.Path(inferred_test_logdir, 'images').as_posix()
             img_d[img_type] = load_images(orig_img_dir,
                                           collated_stats_dict['gt_json_file'].item(), to_id=False)
         else:
@@ -267,10 +271,10 @@ def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorte
     basename = '{}_'.format(data_type_as_str)
     image_names = [os.path.join(image_id_outdir, basename.format() + '{}_{}'.format(i, x_val) + '.png') for i, x_val in
                    enumerate(image_name_ids)]
-    if overwrite is False or (overwrite is None and os.path.exists(image_id_outdir) and all([os.path.exists(i) for i in
-                                                                                             image_names])
-                              and y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N',
-                                               default='n') == 'n'):
+    if os.path.exists(image_id_outdir) and all([os.path.exists(i) for i in image_names]) and \
+            (overwrite is False or
+             (overwrite is None and y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N',
+                                                 default='n') == 'n')):
         print('Using existing images from {}'.format(image_id_outdir))
     else:
         print('Loading image data')

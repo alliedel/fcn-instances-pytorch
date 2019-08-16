@@ -4,10 +4,13 @@ import numpy as np
 import os
 import os.path as osp
 
+import instanceseg.utils.script_setup
 from instanceseg.panoeval import compute
 from instanceseg.panoeval.utils import collate_pq_into_pq_compute_per_imageNxS
 from instanceseg.utils import instance_utils
+from instanceseg.utils.script_setup import get_test_logdir_from_cache_dir
 from scripts import convert_test_results_to_coco
+import pathlib
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -59,9 +62,9 @@ def get_paths_from_test_dir(cached_test_dir):
     pred_json_file = os.path.join(cached_test_dir, 'panoptic_conversion_pred.json')
     gt_folder = gt_json_file.replace('.json', '')
     pred_folder = pred_json_file.replace('.json', '')
-    problem_config_file = os.path.join(
-        os.path.dirname(cached_test_dir.rstrip('/')).replace('cache/', 'scripts/logs/'),
-        'instance_problem_config.yaml')
+
+    problem_config_file = pathlib.Path('scripts', 'logs', pathlib.Path(cached_test_dir).relative_to('cache/'),
+                                       'instance_problem_config.yaml')
     assert os.path.exists(problem_config_file), \
         'Assumed problem config file does not exist: {}'.format(problem_config_file)
     return {
@@ -72,10 +75,11 @@ def get_paths_from_test_dir(cached_test_dir):
     }
 
 
-def main(test_logdir, iou_threshold=None, overwrite=False):
+def main(test_cache_dir, iou_threshold=None, overwrite=False):
+    test_logdir = get_test_logdir_from_cache_dir(test_cache_dir)
     problem_config_ = instance_utils.InstanceProblemConfig.load(
         os.path.join(test_logdir, 'instance_problem_config.yaml'))
-    out_dirs_cache_root = convert_test_results_to_coco.get_cache_dir_from_test_logdir(test_logdir)
+    out_dirs_cache_root = instanceseg.utils.script_setup.get_cache_dir_from_test_logdir(test_logdir)
     out_jsons, out_dirs = convert_test_results_to_coco.main(
         os.path.join(test_logdir, 'predictions'), os.path.join(
             test_logdir, 'groundtruth'), problem_config_, out_dirs_cache_root, overwrite=overwrite)
@@ -90,4 +94,5 @@ def main(test_logdir, iou_threshold=None, overwrite=False):
 
 if __name__ == '__main__':
     args_ = parse_args()
+    test_cache_dir = get_
     collated_stats_per_image_per_cat_file_ = main(args_.test_logdir, iou_threshold=args_.iou_threshold)

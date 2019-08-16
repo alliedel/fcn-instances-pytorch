@@ -1,6 +1,8 @@
 import os
 import argparse
 import numpy as np
+
+import instanceseg.utils.script_setup
 from instanceseg.utils import script_setup as script_utils
 
 if os.path.basename(os.path.abspath('.')) == 'debugging' or os.path.basename(os.path.abspath('.')) == 'scripts':
@@ -17,16 +19,14 @@ if 'panopticapi' not in os.environ['PYTHONPATH']:
 #          '-133452_VCS-1e74989_SAMPLER-car_2_4_BACKBONE-resnet50_ITR-1000000_NPER-4_SSET-car_person'
 # logdir = 'scripts/logs/synthetic/train_instances_filtered_2019-06-24-163353_VCS-8df0680'
 
-DEFAULT_GPU = 3
-
 
 def get_test_parser_without_logdir():
     parser = argparse.ArgumentParser()
     parser.add_argument('--test_split', default='val', help='train, val, test, or any other split the dataloader can '
                                                             'load for this dataset')
     parser.add_argument('--dataset_name', default=None, help='dataset; default=dataset you trained on')
-    parser.add_argument('--gpu', '-g', default=(DEFAULT_GPU,), type=int, nargs='+',
-                        help='dataset; default=dataset you trained on')
+    parser.add_argument('--gpu', '-g', type=int, nargs='+',
+                        help='dataset; default=dataset you trained on', required=True)
     parser.add_argument('--sampler', default=None)
     parser.add_argument('--batch_size', default=1, type=int, help='Batch size for the dataloader of the designated '
                                                                   'test split')
@@ -46,30 +46,29 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(logdir, test_split, sampler=None, gpu=(DEFAULT_GPU,), batch_size=1, dataset_name=None, iou_threshold=0.5,
+def main(logdir, test_split, gpu, sampler=None, batch_size=1, dataset_name=None, iou_threshold=0.5,
          export_sorted_perf_images=True, check_clean_tree=True):
     if check_clean_tree:
         script_utils.check_clean_work_tree()
 
-    logdir = logdir.rstrip('/')
-    dataset_name = dataset_name or os.path.basename(os.path.dirname(logdir))
-    replacement_dict_for_sys_args = [dataset_name, '--logdir', logdir, '--{}_batch_size'.format(test_split),
+    train_logdir = logdir.rstrip('/')
+    dataset_name = dataset_name or os.path.basename(os.path.dirname(train_logdir))
+    replacement_dict_for_sys_args = [dataset_name, '--logdir', train_logdir, '--{}_batch_size'.format(test_split),
                                      str(batch_size), '-g', ' '.join(str(g) for g in gpu), '--test_split', test_split,
                                      '--sampler', sampler]
     # Test
     np.random.seed(100)
-    predictions_outdir, groundtruth_outdir, tester, logdir = test.main(replacement_dict_for_sys_args,
-                                                                       check_clean_tree=False)
+    predictions_outdir, groundtruth_outdir, tester, test_logdir = test.main(replacement_dict_for_sys_args,
+                                                                            check_clean_tree=False)
 
     # Convert
-    out_dirs_root = convert_test_results_to_coco.get_outdirs_cache_root(logdir, predictions_outdir)
+    cache_out_root = instanceseg.utils.script_setup.get_cache_dir_from_test_logdir(test_logdir)
     problem_config = tester.exporter.instance_problem.load(tester.exporter.instance_problem_path)
     out_jsons, out_dirs = convert_test_results_to_coco.main(predictions_outdir, groundtruth_outdir, problem_config,
-                                                            out_dirs_root)
+                                                            cache_out_root)
 
     # Evaluate
-    collated_stats_per_image_file = evaluate.main(out_jsons['gt'], out_jsons['pred'], out_dirs['gt'],
-                                                  out_dirs['pred'], problem_config, iou_threshold=iou_threshold)
+    collated_stats_per_image_file = evaluate.main(cache_out_root, iou_threshold=iou_threshold)
 
     visualize_pq_stats.main(collated_stats_per_image_file)
 

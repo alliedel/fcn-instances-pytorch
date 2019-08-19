@@ -10,7 +10,7 @@ from instanceseg.losses.xentropy import DEBUG_ASSERTS
 # TODO(allie): Implement test: Compare component loss function with full loss function when matching is off
 
 
-LOSS_TYPES = ['cross_entropy', 'soft_iou']
+LOSS_TYPES = ['cross_entropy', 'soft_iou', 'xent']
 
 
 def get_subclasses(cls):
@@ -22,7 +22,7 @@ def get_subclasses(cls):
 
 def loss_object_factory(loss_type, semantic_instance_class_list, instance_id_count_list, matching, size_average):
     assert loss_type in LOSS_TYPES, 'Loss type must be one of {}; not {}'.format(LOSS_TYPES, loss_type)
-    if loss_type == 'cross_entropy':
+    if loss_type == 'cross_entropy' or loss_type == 'xent':
         loss_object = CrossEntropyComponentMatchingLoss(semantic_instance_class_list, instance_id_count_list, matching,
                                                         size_average)
     elif loss_type == 'soft_iou':

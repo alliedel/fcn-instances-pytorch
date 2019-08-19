@@ -20,7 +20,7 @@ def my_soft_iou_loss(predictions_as_probabilities, binary_target):
     num_nonzero_pixels = binary_target.sum()
     # if num_nonzero_pixels.data.item() == 0:
     assert torch.numel(num_nonzero_pixels) == 1
-    if num_nonzero_pixels.data[0] == 0:
+    if num_nonzero_pixels.item() == 0:
         return num_nonzero_pixels
         # return Variable(type(predictions_as_probabilities)([0]))  # 0 in the correct format (tensor, variable)
     else:
@@ -130,7 +130,7 @@ def lovasz_hinge_flat(logits, labels):
     signs = 2. * labels.float() - 1.
     errors = (1. - logits * Variable(signs))
     errors_sorted, perm = torch.sort(errors, dim=0, descending=True)
-    perm = perm.data
+    perm.requires_grad = False
     gt_sorted = labels[perm]
     grad = lovasz_grad(gt_sorted)
     loss = torch.dot(F.relu(errors_sorted), Variable(grad))
@@ -212,7 +212,7 @@ def lovasz_softmax_2d_single_class_term(prediction_probs_single_instance_cls, bi
     pp = prediction_probs_single_instance_cls.view(-1)
     errors = (bt - pp).abs()
     errors_sorted, perm = torch.sort(errors, dim=0, descending=True)
-    perm = perm.data
+    perm.requires_grad = False
     try:
         fg_sorted = bt[perm]
     except:

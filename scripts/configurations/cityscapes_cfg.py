@@ -139,9 +139,8 @@ train_configurations = {
         n_instances_per_class=4,
         dataset_instance_cap='match_model',
         ordering=None,
-        semantic_subset=['car', 'sky', 'vegetation', 'sidewalk', 'building'],
+        semantic_subset=['car', 'sky', 'vegetation', 'sidewalk', 'building', 'road', 'wall'],
         backbone='resnet50',
-        
         ),
     # 'debug_all': dict(
     #     max_iteration=10000,

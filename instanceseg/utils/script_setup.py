@@ -211,7 +211,7 @@ def get_cache_dir_from_test_logdir(test_logdir):
     #     train_logdir = fid.read().strip()
     # test_pred_outdir = os.path.join(test_logdir, 'predictions')
     p_testpath = pathlib.Path(test_logdir)
-    test_dataset_train_test_subdir = p_testpath.relative_to(pathlib.Path('scripts', 'logs'))
+    test_dataset_train_test_subdir = p_testpath.absolute().relative_to(pathlib.Path('scripts', 'logs').absolute())
     out_dirs_root = pathlib.Path('cache', test_dataset_train_test_subdir)
     return out_dirs_root.as_posix()
 

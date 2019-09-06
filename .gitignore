@@ -24,3 +24,5 @@ pred.txt
 TODO*
 cache
 old_cache
+
+*.ipynb_checkpoints*

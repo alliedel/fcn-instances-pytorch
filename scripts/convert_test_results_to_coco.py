@@ -38,6 +38,8 @@ def main(predictions_dir, groundtruth_dir, problem_config, out_dirs_root, overwr
     return out_jsons, out_dirs
 
 
+
+
 def get_paths(test_outdir):
     return {
         'pred_dir': os.path.join(test_outdir, 'predictions'),

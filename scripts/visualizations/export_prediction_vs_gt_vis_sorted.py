@@ -8,7 +8,7 @@ from PIL import Image
 import tqdm
 
 from instanceseg.analysis.visualization_utils import label_colormap, get_tile_image
-from instanceseg.ext.panopticapi.utils import rgb2id
+from instanceseg.ext.panopticapi.utils import rgb2id, id2rgb
 from instanceseg.utils import script_setup
 from instanceseg.utils.misc import y_or_n_input, symlink
 import pathlib
@@ -62,12 +62,25 @@ def parse_args():
     return args
 
 
-def panoid_im_to_rgb(panoptic_id_im, labels_table):
-    inst_label_colormap = label_colormap(255)
-    out_sem_img = np.zeros((panoptic_id_im.shape[0], panoptic_id_im.shape[1], 3))
-    out_inst_img = np.zeros_like(out_sem_img)
-
+def cityscapes_trainid_im_to_rgb(panoptic_id_im, labels_table):
     sem_id_im, inst_id_im = np.divmod(panoptic_id_im, 1000)
+    out_img = get_sem_inst_rgb_img(sem_id_im, inst_id_im, labels_table)
+    return out_img
+
+
+def panoid_img_to_rgb(coco_id_im, labels_table):
+    sem_inst_ch_im = id2rgb(coco_id_im)
+    sem_id_im, inst_id_im = sem_inst_ch_im[:, :, 0], sem_inst_ch_im[:, :, 1]
+    valid_sem_ids = [l['id'] for l in labels_table]
+    assert all(x in valid_sem_ids for x in np.unique(sem_id_im))
+    out_img = get_sem_inst_rgb_img(sem_id_im, inst_id_im, labels_table)
+    return out_img
+
+
+def get_sem_inst_rgb_img(sem_id_im, inst_id_im, labels_table):
+    inst_label_colormap = label_colormap(255)
+    out_sem_img = np.zeros((inst_id_im.shape[0], inst_id_im.shape[1], 3))
+    out_inst_img = np.zeros_like(out_sem_img)
     max_inst_id = inst_id_im.max()
     label_table_ids = [l['id'] for l in labels_table]
     for sem_val in np.unique(sem_id_im):
@@ -77,12 +90,11 @@ def panoid_im_to_rgb(panoptic_id_im, labels_table):
         for inst_val in np.unique(inst_id_im[sem_id_im == sem_val]):
             out_inst_img[np.bitwise_and(inst_id_im == inst_val, sem_id_im == sem_val), :] = \
                 inst_label_colormap[sem_val * max_inst_id + inst_val, :] * 255
-
     out_img = np.concatenate([out_sem_img, out_inst_img], axis=0)
     return out_img
 
 
-def load_images(image_dir, json_list_file, to_id=False, dtype=np.uint8, labels_table=None):
+def load_images(image_dir, json_list_file, rgb_to_id=False, trainid_to_rgb=False, dtype=np.uint8, labels_table=None):
     image_list = []
 
     with open(json_list_file, 'r') as f:
@@ -97,40 +109,23 @@ def load_images(image_dir, json_list_file, to_id=False, dtype=np.uint8, labels_t
                 file_name = 'predictions_{}'.format(file_name).replace('_image.png', '_id2rgb_cocopano.png')
             if not os.path.exists(os.path.join(image_dir, file_name)) and 'images' in image_dir:
                 file_name = 'image_{}'.format(file_name).replace('_image', '')
+                assert rgb_to_id is False
+                assert trainid_to_rgb is False
             assert os.path.exists(os.path.join(image_dir, file_name)), '{} does not exist'.format(os.path.join(
                 image_dir, file_name))
             with Image.open(os.path.join(image_dir, file_name)) as img:
                 pan_im = np.array(img, dtype=dtype)
-                if to_id or labels_table is not None:
+                if rgb_to_id:
+                    assert trainid_to_rgb is False
                     panoptic_id_im = rgb2id(pan_im)
-                    if to_id:
-                        im = panoptic_id_im
-                    else:
-                        im = panoid_im_to_rgb(panoptic_id_im, labels_table)
+                    im = panoptic_id_im
+                elif trainid_to_rgb:
+                    panoptic_id_im = rgb2id(pan_im)
+                    im = panoid_img_to_rgb(panoptic_id_im, labels_table)
                 else:
                     im = pan_im
                 image_list.append(im)
     return image_list
-
-
-def get_data(collated_stats_dict, data_types=('sq', 'rq'),
-             img_types=('gt_inst_idx', 'pred_inst_idx', 'input_image'), use_labels_table=True):
-    """
-    For a single class:
-    data_types = (('sq', 'car'), ('rq', 'car'))
-    """
-    collated_stats = collated_stats_dict['collated_stats_per_image_per_cat'].item()
-    # Make sure we can directly index the semantic class names to get the correct column for the categories
-    problem_config = collated_stats_dict['problem_config'].item()
-    labels_table = problem_config.labels_table if use_labels_table else None
-
-    assert len(collated_stats_dict['categories']) == len(problem_config.semantic_class_names)
-    assert set(collated_stats_dict['categories']) == set(problem_config.semantic_vals)
-    data_d = get_stat_data(collated_stats, data_types, problem_config)
-
-    img_d = get_image_data(collated_stats_dict, img_types, labels_table)
-
-    return data_d, img_d
 
 
 def get_stat_data(collated_stats, data_types, problem_config):
@@ -153,27 +148,38 @@ def get_stat_data(collated_stats, data_types, problem_config):
 def get_image_data(collated_stats_dict, img_types, labels_table):
     img_d = {}
     for img_type in img_types:
-        if img_type in ('gt_inst_idx', 'pred_inst_idx'):
+        if img_type in ('gt_inst_idx', 'pred_inst_idx', 'gt_pano_id_to_rgb', 'pred_pano_id_to_rgb'):
             if img_type == 'gt_inst_idx':
-                img_d[img_type] = load_images(collated_stats_dict['gt_folder'].item(),
-                                              collated_stats_dict['gt_json_file'].item(), to_id=False,
+                img_d[img_type] = load_images(collated_stats_dict['gt_folder'],
+                                              collated_stats_dict['gt_json_file'], rgb_to_id=False,
                                               labels_table=labels_table)
             elif img_type == 'pred_inst_idx':
-                img_d[img_type] = load_images(collated_stats_dict['pred_folder'].item(),
-                                              collated_stats_dict['pred_json_file'].item(), to_id=False,
+                img_d[img_type] = load_images(collated_stats_dict['pred_folder'],
+                                              collated_stats_dict['pred_json_file'], rgb_to_id=False,
+                                              labels_table=labels_table)
+            elif img_type == 'gt_pano_id_to_rgb':
+                img_d[img_type] = load_images(collated_stats_dict['gt_folder'],
+                                              collated_stats_dict['gt_json_file'], rgb_to_id=False,
+                                              labels_table=labels_table)
+            elif img_type == 'pred_pano_id_to_rgb':
+                img_d[img_type] = load_images(collated_stats_dict['gt_folder'],
+                                              collated_stats_dict['gt_json_file'], rgb_to_id=False,
                                               labels_table=labels_table)
             else:
                 raise ValueError
-        elif img_type in ('input_image',):
-            p_pred_folder = pathlib.Path(collated_stats_dict['pred_folder'].item().rstrip('/'))
-            inferred_test_logdir = script_setup.get_test_logdir_from_cache_dir(
-                cached_test_dir=pathlib.Path(*pathlib.Path(p_pred_folder).parts[:-1]))
-            orig_img_dir = pathlib.Path(inferred_test_logdir, 'images').as_posix()
-            img_d[img_type] = load_images(orig_img_dir,
-                                          collated_stats_dict['gt_json_file'].item(), to_id=False)
-        else:
-            raise ValueError
     return img_d
+
+
+def extract_variable(loaded_dict, key_name):
+    value = loaded_dict[key_name]
+    try:
+        value_shape = value.shape
+    except AttributeError:
+        return value
+    if value_shape == ():
+        return value.item()
+    else:
+        return value
 
 
 def make_interactive_plot(x, y, im_arr, x_type=None, y_type=None):
@@ -262,24 +268,37 @@ def get_image_file_list(json_file):
     return file_names
 
 
-def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir, overwrite=None):
+def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir, overwrite=None,
+                             original_input_image_directory=None):
     data_type_as_str = 'image_name_id'
     print('Saving images in order of {}'.format(data_type_as_str))
     image_id_outdir = os.path.join(sorted_perf_outdir, '{}'.format('image_id'))
     image_name_ids = [im_name.rstrip('.png')
-                      for im_name in get_image_file_list(collated_stats_dict['gt_json_file'].item())]
+                      for im_name in get_image_file_list(extract_variable(collated_stats_dict, 'gt_json_file'))]
     basename = '{}_'.format(data_type_as_str)
     image_names = [os.path.join(image_id_outdir, basename.format() + '{}_{}'.format(i, x_val) + '.png') for i, x_val in
                    enumerate(image_name_ids)]
     if os.path.exists(image_id_outdir) and all([os.path.exists(i) for i in image_names]) and \
             (overwrite is False or
-             (overwrite is None and y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N',
-                                                 default='n') == 'n')):
+             (overwrite is None and
+              y_or_n_input('All files already exist in {}.  Would you like to overwrite? y/N', default='n') == 'n')):
         print('Using existing images from {}'.format(image_id_outdir))
     else:
         print('Loading image data')
-        img_d = get_image_data(collated_stats_dict, img_types, labels_table)
-        img_d['input_image'] = [np.concatenate([im, im], axis=0) for im in img_d['input_image']]
+        non_input_img_types = [i for i in img_types if i != 'input_image']
+        img_d = get_image_data(collated_stats_dict, non_input_img_types, labels_table)
+        if 'input_image' in img_types:
+            assert original_input_image_directory is not None
+            with open(extract_variable(collated_stats_dict, 'gt_json_file'), 'r') as f:
+                file_list = [f['file_name'] for f in json.load(f)['images']]
+            if not os.path.exists(os.path.join(original_input_image_directory, file_list[0])):
+                raise ValueError('Cannot find original image: {}'.format(
+                    os.path.join(original_input_image_directory, file_list[0])))
+            img_d['input_image'] = load_images(original_input_image_directory,
+                                               collated_stats_dict['gt_json_file'])
+            img_d['input_image'] = [np.concatenate([im for _ in range(len(non_input_img_types))], axis=0)
+                                    for im in img_d['input_image']]
+
         print('Tiling images')
         imgs_side_by_side = [get_tile_image(list(imgs), (1, len(imgs)), margin_color=(0, 0, 0), margin_size=2)
                              for imgs in zip(*[img_d[img_type] for img_type in img_types])]
@@ -290,17 +309,30 @@ def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorte
     return image_names
 
 
-def main(collated_stats_npz, overwrite_imgs=False):
-    collated_stats_dict = np.load(collated_stats_npz)
+def main(collated_stats_npz, dataset=None, overwrite_imgs=False):
+    collated_stats_dict = dict(np.load(collated_stats_npz))
+    for key in collated_stats_dict:
+        collated_stats_dict[key] = extract_variable(collated_stats_dict, key)
+    original_input_image_directory = None
+    if dataset is None:
+        if 'cityscapes' in collated_stats_npz:
+            dataset = 'cityscapes'
+            original_input_image_directory = pathlib.Path('~/data/datasets/cityscapes/images').expanduser().absolute()
+        else:
+            raise NotImplementedError
+
     use_labels_table = True
-    collated_stats = collated_stats_dict['collated_stats_per_image_per_cat'].item()
+    collated_stats = collated_stats_dict['collated_stats_per_image_per_cat']
     # Make sure we can directly index the semantic class names to get the correct column for the categories
-    problem_config = collated_stats_dict['problem_config'].item()
+    problem_config = collated_stats_dict['problem_config']
     labels_table = problem_config.labels_table if use_labels_table else None
     instance_classes = [l.name for l in labels_table if l.isthing]
     data_types = [('sq', cls_name) for cls_name in instance_classes] + \
                  [('rq', cls_name) for cls_name in instance_classes]
-    img_types = ('gt_inst_idx', 'pred_inst_idx', 'input_image')
+    if 'upsnet' in collated_stats_npz:
+        img_types = ('gt_pano_id_to_rgb', 'pred_pano_id_to_rgb', 'input_image')
+    else:
+        img_types = ('gt_inst_idx', 'pred_inst_idx', 'input_image')
     assert len(collated_stats_dict['categories']) == len(problem_config.semantic_class_names)
     assert set(collated_stats_dict['categories']) == set(problem_config.semantic_vals)
     print('Loading stats data')
@@ -309,7 +341,8 @@ def main(collated_stats_npz, overwrite_imgs=False):
     data_d = get_stat_data(collated_stats, data_types, problem_config)
 
     image_names = get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir,
-                                           overwrite=overwrite_imgs)
+                                           overwrite=overwrite_imgs,
+                                           original_input_image_directory=original_input_image_directory)
 
     for data_type in data_types:
         data_type_as_str = '_'.join(d for d in data_type) if type(data_type) is tuple else data_type

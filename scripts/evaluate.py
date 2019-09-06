@@ -15,8 +15,17 @@ import pathlib
 here = osp.dirname(osp.abspath(__file__))
 
 
+def get_labels_table_corresponding_to_categories(categories, full_labels_table):
+    labels_table_values = [l['id'] for l in full_labels_table]
+    category_idxs_into_labels_table = [labels_table_values.index(c) for c in categories]
+    new_labels_table = [full_labels_table[i] for i in category_idxs_into_labels_table]
+    leftovers = [full_labels_table[i] for i in set(range(len(full_labels_table)))
+                 - set(category_idxs_into_labels_table)]
+    return new_labels_table, leftovers
+
+
 def main_unwrapped(gt_json_file, pred_json_file, gt_folder, pred_folder, problem_config, iou_threshold=None,
-                   overwrite=False):
+                   overwrite=False, vals_to_ignore_in_collation=(-1, 255)):
     if iou_threshold is None:
         iou_threshold = 0.5
     if iou_threshold != 0.5:
@@ -25,6 +34,8 @@ def main_unwrapped(gt_json_file, pred_json_file, gt_folder, pred_folder, problem
             os.makedirs(out_dirs_root)
     else:
         out_dirs_root = os.path.dirname(pred_json_file)
+
+    categories = [l['id'] for l in problem_config.labels_table if l['id'] not in vals_to_ignore_in_collation]
 
     outfile_collated = os.path.join(out_dirs_root, 'collated_stats_per_img_per_cat.npz')
     if os.path.exists(outfile_collated) and not overwrite:
@@ -35,14 +46,18 @@ def main_unwrapped(gt_json_file, pred_json_file, gt_folder, pred_folder, problem
     class_avgs_per_image = compute.pq_compute_per_image(gt_json_file=gt_json_file, pred_json_file=pred_json_file,
                                                         gt_folder=gt_folder, pred_folder=pred_folder,
                                                         iou_threshold=iou_threshold)
+    dataset_total_results = compute.pq_compute_dataset_total(gt_json_file=gt_json_file,
+                                                             pred_json_file=pred_json_file, gt_folder=gt_folder,
+                                                             pred_folder=pred_folder, iou_threshold=iou_threshold)
     # isthing = problem_config.has_instances
-    categories = problem_config.semantic_vals
     collated_stats_per_image_per_cat = collate_pq_into_pq_compute_per_imageNxS(class_avgs_per_image, categories)
     np.savez(outfile_collated,
              collated_stats_per_image_per_cat=collated_stats_per_image_per_cat,
+             dataset_totals=dataset_total_results,
              categories=categories, problem_config=problem_config, gt_json_file=gt_json_file,
              pred_json_file=pred_json_file, gt_folder=gt_folder, pred_folder=pred_folder,
-             iou_threshold=iou_threshold)
+             iou_threshold=iou_threshold,
+             vals_to_ignore_in_collation=vals_to_ignore_in_collation)
     print('Stats (and categories/problem config) saved to {}'.format(outfile_collated))
 
     return outfile_collated

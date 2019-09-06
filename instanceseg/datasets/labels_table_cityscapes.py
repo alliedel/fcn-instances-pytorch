@@ -89,7 +89,7 @@ ID_TO_TRAIN_ID = {
 }
 
 
-def get_cityscapes_trainids_label_table_cocoform(void_trainid=255):
+def get_cityscapes_trainids_label_table_cocoform(void_trainids=(255,)):
     orig_table_raw = CITYSCAPES_LABELS_TABLE
     unique_train_ids = sorted(np.unique([l['train_ids'] for l in orig_table_raw]))
     list_of_labels = []
@@ -97,7 +97,7 @@ def get_cityscapes_trainids_label_table_cocoform(void_trainid=255):
         idxs_with_train_id = [idx for idx, l in enumerate(CITYSCAPES_LABELS_TABLE)
                               if l['train_ids'] == train_id]
         if len(idxs_with_train_id) > 1:
-            assert train_id == void_trainid
+            assert train_id in void_trainids
             first_entry = orig_table_raw[idxs_with_train_id[0]]
             name = first_entry['name']
             assert name == 'unlabeled', '{}'.format(name)  # this is what we assume

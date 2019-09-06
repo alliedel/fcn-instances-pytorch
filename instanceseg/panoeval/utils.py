@@ -61,7 +61,7 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         file_name = label_f.split('/')[-1]
         out_file_name = file_name.replace('.png', cocopano_ext)
         if os.path.exists(out_file_name):
-            if not overwrite_existing_files:
+            if not overwrite:
                 continue
         image_id = file_name.rsplit('_', 2)[1]
         image_filename = '{}_image.png'.format(image_id)

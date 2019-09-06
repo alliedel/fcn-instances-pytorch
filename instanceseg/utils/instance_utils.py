@@ -28,9 +28,10 @@ class InstanceProblemConfig(object):
 
         if labels_table is not None:
             assert len(labels_table) == len(n_instances_by_semantic_id)
-
-        assert n_instances_by_semantic_id is not None, ValueError
+            if any([l['id'] == void_value for l in labels_table]):
+                raise ValueError('We don\'t allow void value in labels_table.  Not considered a semantic class.')
         self.labels_table = labels_table
+        assert n_instances_by_semantic_id is not None, ValueError
         self.map_to_semantic = map_to_semantic
         self.void_value = void_value
         self.include_instance_channel0 = include_instance_channel0

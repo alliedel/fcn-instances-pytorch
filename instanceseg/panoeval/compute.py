@@ -5,24 +5,36 @@ import time
 import numpy as np
 import os
 
-from instanceseg.ext.panopticapi.evaluation import pq_compute_single_core, pq_compute_multi_core
+from instanceseg.ext.panopticapi import evaluation
+
+
+def pq_compute_dataset_total(gt_json_file, pred_json_file, gt_folder=None, pred_folder=None, iou_threshold=0.5):
+    results_dataset_total = evaluation.pq_compute(gt_json_file, pred_json_file, gt_folder, pred_folder,
+                                                  iou_threshold=iou_threshold)
+    return results_dataset_total
 
 
 def pq_compute_multi_core_per_image(matched_annotations_list, gt_folder, pred_folder, categories, iou_threshold=0.5):
     # cpu_num = multiprocessing.cpu_count()
-    cpu_num = min(len(matched_annotations_list), multiprocessing.cpu_count()-1)
+    cpu_num = min(len(matched_annotations_list), multiprocessing.cpu_count() - 1)
     # cpu_num = len(matched_annotations_list)
 
     annotations_split = np.array_split(matched_annotations_list, len(matched_annotations_list))
     print("Number of cores: {}, images per core: {}".format(cpu_num, len(annotations_split[0])))
     workers = multiprocessing.Pool(processes=cpu_num)
     processes = []
-    for proc_id, annotation_set in enumerate(annotations_split):
-        p = workers.apply_async(pq_compute_single_core,
-                                (proc_id, annotation_set, gt_folder, pred_folder, categories, iou_threshold))
-        processes.append(p)
+    if len(matched_annotations_list) == 1:
+        proc_id = 0
+        annotation_set = annotations_split[0]
+        pq_stats_per_image = [evaluation.pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder,
+                                                                categories, iou_threshold)]
+    else:
+        for proc_id, annotation_set in enumerate(annotations_split):
+            p = workers.apply_async(evaluation.pq_compute_single_core,
+                                    (proc_id, annotation_set, gt_folder, pred_folder, categories, iou_threshold))
+            processes.append(p)
 
-    pq_stats_per_image = combine_processes_to_stats_per_img(processes)
+        pq_stats_per_image = combine_processes_to_stats_per_img(processes)
     assert len(pq_stats_per_image) == len(matched_annotations_list)
     # pq_stat = PQStat()
     # for p in processes:
@@ -39,7 +51,6 @@ def combine_processes_to_stats_per_img(processes):
 
 
 def pq_compute_per_image(gt_json_file, pred_json_file, gt_folder=None, pred_folder=None, iou_threshold=0.5):
-
     start_time = time.time()
     with open(gt_json_file, 'r') as f:
         gt_json = json.load(f)

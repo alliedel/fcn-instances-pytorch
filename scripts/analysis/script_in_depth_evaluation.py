@@ -34,7 +34,7 @@ def make_histogram_set(assigned_attributes, channel_names, split, attribute_name
     colors = [display_pyutils.GOOD_COLOR_CYCLE[np.mod(i, len(display_pyutils.GOOD_COLOR_CYCLE))]
               for i in range(len(channel_names))]
     labels = channel_names
-    density, global_bins, patches = display_pyutils.histogram(
+    density, global_bins, patches = display_pyutils.nanhistogram(
         assigned_attributes, bins=None,
         color=colors, label=labels, histtype='stepfilled')
     plt.figure(figsize=FIGSIZE)
@@ -53,8 +53,8 @@ def make_histogram_set(assigned_attributes, channel_names, split, attribute_name
             channel_name = channel_names[channel_idx]
             bins = np.linspace(global_bins[0], global_bins[-1], 100)
             label = labels[subplot_idx]
-            density, bins, patches = display_pyutils.histogram(y, bins=bins, color=colors[subplot_idx],
-                                                               label=label, histtype='stepfilled')
+            density, bins, patches = display_pyutils.nanhistogram(y, bins=bins, color=colors[subplot_idx],
+                                                                  label=label, histtype='stepfilled')
             # plt.legend(patches, labels, loc='center left', fontsize=8, bbox_to_anchor=(-0.02, 0.5))
             if subplot_idx == 0:
                 title = '{}: {}'.format(split, attribute_name)
@@ -66,8 +66,8 @@ def make_histogram_set(assigned_attributes, channel_names, split, attribute_name
         display_pyutils.sync_axes(axes_list, axis='y')
     else:
         bins = None
-        density, bins, patches = display_pyutils.histogram(assigned_attributes, bins=None,
-                                                           color=colors, label=labels, histtype='bar')
+        density, bins, patches = display_pyutils.nanhistogram(assigned_attributes, bins=None,
+                                                              color=colors, label=labels, histtype='bar')
         title = '{}: {}'.format(split, attribute_name)
         plt.xlabel('{} for assigned ground truth instances'.format(attribute_name), fontsize=12)
         plt.title(title, fontsize=16)

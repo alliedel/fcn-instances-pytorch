@@ -128,21 +128,33 @@ def load_images(image_dir, json_list_file, rgb_to_id=False, trainid_to_rgb=False
     return image_list
 
 
-def get_stat_data(collated_stats, data_types, problem_config):
+def get_stat_data(collated_stats, data_types, semantic_class_names):
+    """
+    Gets, for instance, ('sq', 'car'): semantic quality of car class
+    """
     data_d = {}
     for data_type in data_types:
-        if data_type in ('sq', 'rq', 'pq'):
+        if data_type in list(collated_stats.keys()):
             data = collated_stats[data_type]
-        elif data_type is not str and data_type[0] in ('sq', 'rq', 'pq'):
-            assert data_type[1] in problem_config.semantic_class_names, 'You\'re asking for data_types {} but {} ' \
+        elif data_type is not str and data_type[0] in list(collated_stats.keys()):
+            assert data_type[1] in semantic_class_names, 'You\'re asking for data_types {} but {} ' \
                                                                         'class doesnt exist in the problem ' \
                                                                         'config'.format(data_types, data_type[1])
-            column_idx = problem_config.semantic_class_names.index(data_type[1])
+            column_idx = semantic_class_names.index(data_type[1])
             data = collated_stats[data_type[0]][:, column_idx]
         else:
             raise ValueError('I dont know how to retrieve {}'.format(data_type))
         data_d[data_type] = data
     return data_d
+
+
+def extract_n_instances_of_class(collated_stats, class_name, semantic_class_names):
+    assert class_name in semantic_class_names, 'You\'re asking for data_types {} but {} ' \
+                                                                'class doesnt exist in the problem ' \
+                                                                'config'.format('n_inst', class_name)
+    column_idx = semantic_class_names.index(class_name)
+    data = collated_stats['n_inst'][:, column_idx]
+    return data
 
 
 def get_image_data(collated_stats_dict, img_types, labels_table):
@@ -237,7 +249,6 @@ def link_files_in_order_of(file_list, x, outdir='/tmp/sortedperf/', basename='im
         idxs_sorted_by_x = idxs_sorted_by_x[::-1]
 
     x_sorted = [x[i] for i in idxs_sorted_by_x]
-    assert x_sorted == sorted(x, reverse=decreasing)
 
     files_sorted = [file_list[i] for i in idxs_sorted_by_x]
 
@@ -338,7 +349,7 @@ def main(collated_stats_npz, dataset=None, overwrite_imgs=False):
     print('Loading stats data')
     sorted_perf_outdir = os.path.join(os.path.dirname(collated_stats_npz), 'sortedperf')
 
-    data_d = get_stat_data(collated_stats, data_types, problem_config)
+    data_d = get_stat_data(collated_stats, data_types, problem_config.semantic_class_names)
 
     image_names = get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorted_perf_outdir,
                                            overwrite=overwrite_imgs,
@@ -346,6 +357,12 @@ def main(collated_stats_npz, dataset=None, overwrite_imgs=False):
 
     for data_type in data_types:
         data_type_as_str = '_'.join(d for d in data_type) if type(data_type) is tuple else data_type
+        # Convert metrics for 0 instance images to NaN
+        stat_type = data_type if data_type is str else data_type[0]
+        class_name = None if data_type is str else data_type[1]
+        n_instances_this_cls = extract_n_instances_of_class(collated_stats, class_name,
+                                                            problem_config.semantic_class_names)
+        data_d[data_type][n_instances_this_cls == 0] = np.NaN
         print('Saving images in order of {}'.format(data_type))
         outdir = os.path.join(sorted_perf_outdir, '{}'.format(data_type_as_str))
         idxs_sorted_by_x = link_files_in_order_of(image_names, data_d[data_type],

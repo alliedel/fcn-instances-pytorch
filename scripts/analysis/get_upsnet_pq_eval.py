@@ -6,6 +6,7 @@ import pathlib
 import os
 import glob
 import json
+import argparse
 
 from scripts import evaluate
 from scripts.visualizations import visualize_pq_stats, export_prediction_vs_gt_vis_sorted
@@ -82,8 +83,17 @@ def upsnet_evaluate(upsnet_log_directory='/home/adelgior/code/upsnet/output/upsn
     return eval_pq_npz_file
 
 
-def main(visualize_pq_hists=True, export_sorted_perf_images=None, eval_iou_threshold=0.5):
-    eval_pq_npz_file = upsnet_evaluate(eval_iou_threshold=eval_iou_threshold)
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--eval_iou_threshold', type=float, default=0.5)
+    parser.add_argument('--overwrite', type=bool, default=False)
+    parser.add_argument('--visualize_pq_hists', type=bool, default=True)
+    parser.add_argument('--export_sorted_perf_images', type=bool, default=None)
+    return parser.parse_args()
+
+
+def main(visualize_pq_hists=True, export_sorted_perf_images=None, eval_iou_threshold=0.5, overwrite=False):
+    eval_pq_npz_file = upsnet_evaluate(eval_iou_threshold=eval_iou_threshold, overwrite=overwrite)
 
     export_sorted_perf_images = export_sorted_perf_images if export_sorted_perf_images is not None else \
         visualize_pq_hists
@@ -96,4 +106,6 @@ def main(visualize_pq_hists=True, export_sorted_perf_images=None, eval_iou_thres
 
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    main(visualize_pq_hists=args.visualize_pq_hists, export_sorted_perf_images=args.export_sorted_perf_images,
+         eval_iou_threshold=args.eval_iou_threshold, overwrite=args.overwrite)

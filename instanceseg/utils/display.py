@@ -501,11 +501,13 @@ def pie_chart(values, labels, autopct='%1.1f%%', sort_legend=True):
     plt.tight_layout(pad=1.2)
 
 
-def histogram(y, bins=None, bin_width=None, color=None, label=None, rwidth=None, histtype='bar'):
+def nanhistogram(y, bins=None, bin_width=None, color=None, label=None, rwidth=None, histtype='bar', remove_nan=True):
     assert not (bins is not None and (bin_width is not None)), ValueError(
         'Either specify bins or the other bin parameters (not both)')
     if bin_width is not None:
         bins = range(start=min(y), stop=max(y) + bin_width, step=bin_width)
+    if remove_nan:
+        y = y[~np.isnan(y)]
     density, bins, patches = plt.hist(y, bins=bins, color=color, label=label, histtype=histtype, rwidth=rwidth)
 
     return density, bins, patches

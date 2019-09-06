@@ -107,6 +107,10 @@ def plot_bar_graph_over_full_dataset(stats_arrays_total, stats_arrays_per_class,
 
 def plot_averages_with_error_bars(stats_arrays, semantic_class_names, category_idxs_to_display=None,
                                   save_to_workspace=True, output_dir='/tmp/', category_colors=None):
+    """
+    Note: we filter n_inst == 0 from the averages.
+    """
+
     category_colors = category_colors or [default_colors[i % len(semantic_class_names)] for i in range(len(
         semantic_class_names))]
 
@@ -116,8 +120,8 @@ def plot_averages_with_error_bars(stats_arrays, semantic_class_names, category_i
     std_per_cat = {}
 
     for stat_type, stat_array in stats_arrays.items():
-        average_per_cat[stat_type] = np.average(stat_array, axis=0)
-        std_per_cat[stat_type] = np.std(stat_array, axis=0)
+        average_per_cat[stat_type] = np.nanmean(stat_array, axis=0)
+        std_per_cat[stat_type] = np.nanstd(stat_array, axis=0)
 
     category_names_to_display = [semantic_class_names[idx] for idx in category_idxs_to_display]
     stat_types = average_per_cat.keys()
@@ -155,8 +159,8 @@ def plot_scatterplot_sq_rq(stats_arrays, semantic_class_names, category_idxs_to_
 
     plt.figure(1)
     plt.clf()
-    scatter_list_of_xs_and_ys(sqs, rqs, labels=category_names_to_display, xlabel='SQ', ylabel='RQ',
-                              colors=category_colors)
+    nanscatter_list_of_xs_and_ys(sqs, rqs, labels=category_names_to_display, xlabel='SQ', ylabel='RQ',
+                                 colors=category_colors)
     figname = 'sq_vs_rq' + '.png'
     if save_to_workspace:
         display_pyutils.save_fig_to_workspace(figname)
@@ -167,8 +171,8 @@ def plot_scatterplot_sq_rq(stats_arrays, semantic_class_names, category_idxs_to_
         plt.clf()
         cat_color = category_colors[cat_idx]
         cat_name = semantic_class_names[cat_idx]
-        scatter_list_of_xs_and_ys([sq_cat], [rq_cat], labels=[cat_name], xlabel='SQ', ylabel='RQ',
-                                  colors=[cat_color])
+        nanscatter_list_of_xs_and_ys([sq_cat], [rq_cat], labels=[cat_name], xlabel='SQ', ylabel='RQ',
+                                     colors=[cat_color])
         figname = 'sq_vs_rq_{}'.format(cat_name) + '.png'
         if save_to_workspace:
             display_pyutils.save_fig_to_workspace(figname)
@@ -187,7 +191,7 @@ def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_dis
         for catidx, catname in zip(category_idxs_to_display, category_names_to_display):
             plt.figure(1)
             plt.clf()
-            display_pyutils.histogram(stat_array[:, catidx], label=catname, color=category_colors[catidx])
+            display_pyutils.nanhistogram(stat_array[:, catidx], label=catname, color=category_colors[catidx])
             figname = '{}_{}_hist'.format(stat_type, catname) + '.png'
             plt.title(figname.replace('.png', '').replace('_', ' '))
             if save_to_workspace:
@@ -202,14 +206,19 @@ def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_dis
     plt.figure(1, figsize=figsize)
     is_first_row = True
     r = 0
+    ax1 = None
     for stat_type, stat_array in stats_arrays.items():
-        plt.subplot(R, C, subplot_idx)
+        if subplot_idx == 1:
+            ax1 = plt.subplot(R, C, subplot_idx)
+        else:
+            ax = plt.subplot(R, C, subplot_idx, sharex=ax1, sharey=ax1)
+
         plt.ylabel(stat_type + ' (#images)', labelpad=20)
         for catidx, catname in zip(category_idxs_to_display, category_names_to_display):
             plt.subplot(R, C, subplot_idx)
             if r == 0:
                 plt.title(catname, rotation=45, y=1.4)
-            display_pyutils.histogram(stat_array[:, catidx], label=catname, color=category_colors[catidx])
+            display_pyutils.nanhistogram(stat_array[:, catidx], label=catname, color=category_colors[catidx])
             plottype = '{}_{}'.format(stat_type, catname)
             subplotname = '{}_hist'.format(plottype)
             subplot_idx += 1
@@ -223,13 +232,13 @@ def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_dis
     plt.savefig(os.path.join(output_dir, figname), dpi=500)
 
 
-def scatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None, colors=None):
+def nanscatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None, colors=None, remove_nan=True):
     if labels is None:
         labels = ['{}'.format(i) for i in range(len(xs))]
     markers = display_pyutils.MARKERS
     colors = colors or display_pyutils.GOOD_COLOR_CYCLE
     size = 30
-    for i, (sq, rq) in enumerate(zip(xs, ys)):
+    for i, (x, y) in enumerate(zip(xs, ys)):
         clr_idx = i % len(colors)
         marker_idx = i % len(markers)
         if max(colors[clr_idx]) <= 1:
@@ -237,7 +246,10 @@ def scatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None, col
         else:
             denom = 255.0
         clr = np.array([c / denom for c in colors[clr_idx]]).reshape(1, 3)  # Turn into a tuple instead of ndarray
-        plt.scatter(sq, rq, alpha=0.5, marker=markers[marker_idx], s=size, c=clr,
+        if remove_nan:
+            x = x[~np.isnan(x)]
+            y = y[~np.isnan(y)]
+        plt.scatter(x, y, alpha=0.5, marker=markers[marker_idx], s=size, c=clr,
                     edgecolors=clr, label=labels[i])
     plt.legend()
     plt.xlabel(xlabel)
@@ -267,6 +279,12 @@ def main(collated_stats_npz_file, supercategories_to_ignore=('void', 'background
     colors_norm1 = [np.array(l.color) / 255.0 for l in corresponding_labels_table]
 
     # Per image plots
+
+    for stat_type, stat_array in stats_arrays_per_img.items():
+        n_inst_arrs = stats_arrays_per_img['n_inst']
+        if stat_type != 'n_inst':
+            stat_array[n_inst_arrs == 0] = np.nan
+    
     plot_averages_with_error_bars(stats_arrays_per_img, semantic_class_names=semantic_class_names,
                                   category_idxs_to_display=category_idxs_to_display,
                                   output_dir=fig_output_dir, category_colors=colors_norm1)

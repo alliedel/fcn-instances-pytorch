@@ -57,7 +57,7 @@ class PQStat():
         return self
 
     def pq_average(self, categories, isthing):
-        pq, sq, rq, n = 0, 0, 0, 0
+        pq, sq, rq, n, n_inst = 0, 0, 0, 0, 0
         per_class_results = {}
         for label, label_info in categories.items():
             if isthing is not None:
@@ -69,18 +69,19 @@ class PQStat():
             fp = self.pq_per_cat[label].fp
             fn = self.pq_per_cat[label].fn
             if tp + fp + fn == 0:
-                per_class_results[label] = {'pq': 0.0, 'sq': 0.0, 'rq': 0.0}
+                per_class_results[label] = {'pq': 0.0, 'sq': 0.0, 'rq': 0.0, 'n_inst': 0}
                 continue
             n += 1
+            n_inst += tp + fn
             pq_class = iou / (tp + 0.5 * fp + 0.5 * fn)
             sq_class = iou / tp if tp != 0 else 0
             rq_class = tp / (tp + 0.5 * fp + 0.5 * fn)
-            per_class_results[label] = {'pq': pq_class, 'sq': sq_class, 'rq': rq_class}
+            per_class_results[label] = {'pq': pq_class, 'sq': sq_class, 'rq': rq_class, 'n_inst': (tp + fn)}
             pq += pq_class
             sq += sq_class
             rq += rq_class
 
-        return {'pq': pq / n, 'sq': sq / n, 'rq': rq / n, 'n': n}, per_class_results
+        return {'pq': pq / n, 'sq': sq / n, 'rq': rq / n, 'n': n, 'n_inst': n_inst}, per_class_results
 
 
 @get_traceback

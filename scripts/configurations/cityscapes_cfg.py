@@ -51,6 +51,13 @@ train_configurations = {
         dataset_instance_cap=None,
         map_to_semantic=True,       # TODO(allie): fix the fact that we have to do this.
     ),
+    'semantic_bypass_match': dict(
+        single_instance=True,
+        n_instances_per_class=1,
+        dataset_instance_cap=None,
+        map_to_semantic=True,       # TODO(allie): fix the fact that we have to do this.
+        matching=False
+    ),
     'semantic_v2': dict(
         dataset_instance_cap=None,
         map_to_semantic=True,       # TODO(allie): fix the fact that we have to do this.

@@ -172,22 +172,23 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
     def compute_nonmatching_loss(self, predictions, sem_lbl, inst_lbl):
         # Allocate memory
         batch_sz, n_channels = predictions.size(0), predictions.size(1)
-        loss_components_per_channel = torch.empty((batch_sz, n_channels))
+        unassigned_val = -10
+        loss_components_per_channel = unassigned_val * torch.empty((batch_sz, n_channels))
         n_channels = len(self.semantic_instance_labels)
         for i in range(batch_sz):
-            for channel_idx in range(n_channels):
-                binary_target_single_instance_cls = self.get_binary_gt_for_channel(sem_lbl, inst_lbl, channel_idx).view(-1)
-                predictions_single_instance_cls = predictions[:, channel_idx, :, :].view(-1)
-                new_loss = self.component_loss(binary_target_single_instance_cls, predictions_single_instance_cls)
-                loss_components_per_channel[i, channel_idx] = new_loss
-
-        # losses = torch.cat([c[None, :] for c in losses], dim=0).float()
-        # loss = sum(losses)
-        if self.size_average:
-            normalizer = (inst_lbl >= 0).data.float().sum()
-            loss_components_per_channel /= normalizer
-
-        return iou.mean(loss_components_per_channel), loss_components_per_channel
+            if self.size_average:
+                # TODO(allie): Verify this is correct (and not sem_lbl >=0, or some combo)
+                normalizer = (inst_lbl >= 0).data.sum()
+            else:
+                normalizer = 1.0
+            for c, (sem_val, inst_val) in enumerate(zip(self.semantic_instance_labels, self.instance_id_labels)):
+                import ipdb; ipdb.set_trace()
+                loss_components_per_channel[i, c] = self.component_loss(predictions[i, c, :, :],
+                                                                        (sem_lbl[i, ...] == sem_val).float() *
+                                                                        (inst_lbl == inst_val).float()) / normalizer
+        if DEBUG_ASSERTS:
+            assert torch.all(loss_components_per_channel != unassigned_val)
+        return None, loss_components_per_channel.sum(), loss_components_per_channel
 
     def loss_fcn(self, scores, sem_lbl, inst_lbl):
         """
@@ -205,8 +206,8 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             assignments, total_loss, loss_components_by_channel = \
                 self.compute_matching_loss(predictions, sem_lbl, inst_lbl)
         else:
-            total_loss, loss_components_by_channel = self.compute_nonmatching_loss(predictions, sem_lbl, inst_lbl)
-            assignments = None
+            assignments, total_loss, loss_components_by_channel = \
+                self.compute_nonmatching_loss(predictions, sem_lbl, inst_lbl)
         return assignments, total_loss, loss_components_by_channel
 
     def _compute_optimal_match_loss_single_img(self, predictions, sem_lbl, inst_lbl):

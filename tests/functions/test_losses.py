@@ -71,8 +71,9 @@ def main():
                                                                  model_channel_sem_vals, score_1, sem_vals)
 
     loss_object.matching = False
-    assignments_perm1, avg_loss_perm1, loss_components_perm1 = loss_object.compute_nonmatching_loss(
-        permuted_score_1, sem_lbl, inst_lbl)
+    assignments_perm1, avg_loss_perm1, loss_components_perm1 = loss_object.loss_fcn(permuted_score_1, sem_lbl, inst_lbl)
+    assignments_perm100, avg_loss_perm1100, loss_components_perm100 = loss_object.loss_fcn(
+        permuted_score_1 * magnitude_gt, sem_lbl, inst_lbl)
 
 
     import ipdb;

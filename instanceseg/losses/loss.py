@@ -66,9 +66,9 @@ class LossMatchAssignments(AttrDict):
         n_channels = model_channels.shape[1]
         assert assigned_gt_inst_vals.shape[1] == n_channels
         assert sem_values.shape[1] == n_channels
-        self.model_channels = model_channels,  # torch.empty((0, n_channels))
-        self.assigned_gt_inst_vals = assigned_gt_inst_vals,  # torch.empty((0, n_channels))
-        self.sem_values = sem_values,  # torch.empty((0, n_channels))
+        self.model_channels = model_channels  # torch.empty((0, n_channels))
+        self.assigned_gt_inst_vals = assigned_gt_inst_vals  # torch.empty((0, n_channels))
+        self.sem_values = sem_values  # torch.empty((0, n_channels))
         self.unassigned_gt_sem_inst_tuples = unassigned_gt_sem_inst_tuples
 
     @classmethod
@@ -98,9 +98,9 @@ class LossMatchAssignments(AttrDict):
 
     def insert_assignment_for_image(self, image_index, model_channels, assigned_gt_inst_vals, sem_values,
                                     unassigned_gt_sem_inst_tuples):
-        self.model_channels[image_index, :] = model_channels,  # torch.empty((0, n_channels))
-        self.assigned_gt_inst_vals[image_index, :] = None,  # torch.empty((0, n_channels))
-        self.sem_values[image_index, :] = None,  # torch.empty((0, n_channels))
+        self.model_channels[image_index, :] = model_channels  # torch.empty((0, n_channels))
+        self.assigned_gt_inst_vals[image_index, :] = assigned_gt_inst_vals# torch.empty((0, n_channels))
+        self.sem_values[image_index, :] = sem_values  # torch.empty((0, n_channels))
         self.unassigned_gt_sem_inst_tuples[image_index] = unassigned_gt_sem_inst_tuples
 
 
@@ -233,7 +233,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             'first dimension of predictions should be the number of channels.  It is {} instead. ' \
             'Are you trying to pass an entire batch into the loss function?'.format(predictions.size(0))
         costs = -1 * torch.ones((C,))
-        model_channels = torch.empty((C,))
+        model_channels = torch.empty((C,), dtype=torch.long)
         sem_values = torch.empty((C,))
         assigned_gt_inst_values = torch.empty((C,))
         unassigned_gt_sem_inst_tuples = []
@@ -245,7 +245,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                 unassigned_gt_inst_vals_this_cls = \
                 self._compute_optimal_match_loss_for_one_sem_cls(predictions, sem_lbl, inst_lbl, sem_val)
             channel_idxs = torch.LongTensor(model_channels_for_this_cls)
-            model_channels[channel_idxs] = torch.IntTensor(model_channels_for_this_cls)
+            model_channels[channel_idxs] = channel_idxs
             costs[channel_idxs] = costs_this_cls
             assigned_gt_inst_values[channel_idxs] = torch.FloatTensor(assigned_gt_inst_vals_this_cls)
             sem_values[channel_idxs] = sem_val
@@ -272,7 +272,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             assert (len(unassigned_gt_inst_vals) + len(assigned_gt_inst_vals)) == len(gt_inst_vals_present), \
                 'Debug error'
 
-        costs = cost_tensor[model_channels_for_this_cls, assigned_col_inds]
+        costs = cost_tensor[range(cost_tensor.shape[0]), assigned_col_inds]
 
         return costs, model_channels_for_this_cls, assigned_gt_inst_vals, unassigned_gt_inst_vals
 

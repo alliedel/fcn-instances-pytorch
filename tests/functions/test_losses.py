@@ -32,21 +32,32 @@ def main():
     score_1 = trainer.model(full_input)
     score_gt = score_1.clone()
     score_gt[...] = 0
-    magnitude = 100
+    magnitude_gt = 100
     for c in range(score_1.size(1)):
         score_gt[:, c, :, :] = (sem_lbl == trainer.instance_problem.semantic_instance_class_list[c]).float() * \
-                               (inst_lbl == trainer.instance_problem.instance_count_id_list[c]).float() * magnitude
+                               (inst_lbl == trainer.instance_problem.instance_count_id_list[c]).float() * magnitude_gt
+    magnitude_1 = 1
+    for c in range(score_1.size(1)):
+        import numpy as np
+        inst_vals = range(1, max(trainer.instance_problem.instance_count_id_list) + 1)
+        permuted = np.random.permutation(inst_vals)
+        inst_to_permuted = {0: 0}
+        inst_to_permuted.update({
+            i: p for i, p in zip(inst_vals, permuted)
+        })
+        score_1[:, c, :, :] = (sem_lbl == trainer.instance_problem.semantic_instance_class_list[c]).float() * \
+                               (inst_lbl == inst_to_permuted[trainer.instance_problem.instance_count_id_list[
+                                   c]]).float() * magnitude_1
     try:
-        assert (score_gt.sum(dim=1) == magnitude).all()  # debug sanity check
+        assert (score_gt.sum(dim=1) == magnitude_gt).all()  # debug sanity check
     except AssertionError:
         import ipdb
         ipdb.set_trace()
     loss_object = trainer.loss_object
-    import ipdb; ipdb.set_trace()
 
     # cost_matrix_gt = loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
     #     loss_object.transform_scores_to_predictions(score_gt)[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
-    pred_permutations_gt, avg_loss_gt, loss_components_gt = trainer.compute_loss(score_gt, sem_lbl, inst_lbl)
+    assignments_gt, avg_loss_gt, loss_components_gt = trainer.compute_loss(score_gt, sem_lbl, inst_lbl)
     pred_permutations_1, avg_loss_1, loss_components_1 = trainer.compute_loss(score_1, sem_lbl, inst_lbl)
     import ipdb;
     ipdb.set_trace()

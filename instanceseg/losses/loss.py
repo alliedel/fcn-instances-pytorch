@@ -120,7 +120,6 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         self.unique_semantic_values = sorted([s for s in np.unique(semantic_instance_labels)])
         self.instance_id_labels = instance_id_labels
         self.size_average = size_average
-        self.only_present = True
         if self.loss_type is None:
             raise NotImplementedError('Loss type should be defined in subclass of {}'.format(__class__))
 
@@ -171,29 +170,24 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         return ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
 
     def compute_nonmatching_loss(self, predictions, sem_lbl, inst_lbl):
+        # Allocate memory
         batch_sz, n_channels = predictions.size(0), predictions.size(1)
-
-        losses = []
-        component_losses = []
+        loss_components_per_channel = torch.empty((batch_sz, n_channels))
         n_channels = len(self.semantic_instance_labels)
-        for channel_idx in range(n_channels):
-            binary_target_single_instance_cls = self.get_binary_gt_for_channel(sem_lbl, inst_lbl, channel_idx).view(-1)
-            predictions_single_instance_cls = predictions[:, channel_idx, :, :].view(-1)
-            new_loss = self.component_loss(binary_target_single_instance_cls, predictions_single_instance_cls)
-            losses.append(new_loss)
-            if self.only_present and binary_target_single_instance_cls.sum() == 0:
-                component_losses.append(0)
-                continue
-            component_losses.append(new_loss)  # TODO(allie): Fix if we move away from batch size 1
+        for i in range(batch_sz):
+            for channel_idx in range(n_channels):
+                binary_target_single_instance_cls = self.get_binary_gt_for_channel(sem_lbl, inst_lbl, channel_idx).view(-1)
+                predictions_single_instance_cls = predictions[:, channel_idx, :, :].view(-1)
+                new_loss = self.component_loss(binary_target_single_instance_cls, predictions_single_instance_cls)
+                loss_components_per_channel[i, channel_idx] = new_loss
 
-        losses = torch.cat([c[None, :] for c in losses], dim=0).float()
-        loss = sum(losses)
+        # losses = torch.cat([c[None, :] for c in losses], dim=0).float()
+        # loss = sum(losses)
         if self.size_average:
             normalizer = (inst_lbl >= 0).data.float().sum()
-            loss /= normalizer
-            losses /= normalizer
+            loss_components_per_channel /= normalizer
 
-        return iou.mean(losses), component_losses
+        return iou.mean(loss_components_per_channel), loss_components_per_channel
 
     def loss_fcn(self, scores, sem_lbl, inst_lbl):
         """

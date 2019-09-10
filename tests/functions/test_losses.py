@@ -1,7 +1,9 @@
 import os.path as osp
 
+from instanceseg.losses.match import GT_VALUE_FOR_FALSE_POSITIVE
 from instanceseg.utils import parse
 from instanceseg.utils.script_setup import setup_train, configure
+import torch
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -58,9 +60,58 @@ def main():
     # cost_matrix_gt = loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
     #     loss_object.transform_scores_to_predictions(score_gt)[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
     assignments_gt, avg_loss_gt, loss_components_gt = trainer.compute_loss(score_gt, sem_lbl, inst_lbl)
-    pred_permutations_1, avg_loss_1, loss_components_1 = trainer.compute_loss(score_1, sem_lbl, inst_lbl)
+    assignments_1, avg_loss_1, loss_components_1 = trainer.compute_loss(score_1, sem_lbl, inst_lbl)
+
+    assigned_gt_inst_vals = assignments_1.assigned_gt_inst_vals
+    sem_vals = assignments_1.sem_values
+    model_channel_sem_vals = trainer.instance_problem.semantic_instance_class_list
+    model_channel_inst_vals = trainer.instance_problem.instance_count_id_list
+    permuted_score_1 = permute_predictions_to_match_gt_inst_vals(assigned_gt_inst_vals, assignments_1,
+                                                                 model_channel_inst_vals,
+                                                                 model_channel_sem_vals, score_1, sem_vals)
+
+    loss_object.matching = False
+    assignments_perm1, avg_loss_perm1, loss_components_perm1 = loss_object.compute_nonmatching_loss(
+        permuted_score_1, sem_lbl, inst_lbl)
+
+
     import ipdb;
     ipdb.set_trace()
+
+
+def permute_predictions_to_match_gt_inst_vals(assigned_gt_inst_vals, assignments_1, model_channel_inst_vals,
+                                              model_channel_sem_vals, score_1, sem_vals):
+    permuted_score_1 = score_1.clone()
+    for data_idx in range(score_1.shape[0]):
+        assert all(x1 == x2 for x1, x2 in zip(assignments_1.model_channels[data_idx, :], range(score_1.size(1))))
+        unassigned_val = -10
+        new_channels = unassigned_val * torch.ones((score_1.size(1)), dtype=torch.long)
+        for sem_val in torch.unique(sem_vals[data_idx, :]):
+            non_FP_channels = [i for i, (iv, sv) in enumerate(zip(assigned_gt_inst_vals[data_idx, :],
+                                                                  sem_vals[data_idx, :]))
+                               if sv == sem_val and (iv != GT_VALUE_FOR_FALSE_POSITIVE)]
+            FP_channels = [i for i, (iv, sv) in enumerate(zip(assigned_gt_inst_vals[data_idx, :], sem_vals[data_idx,
+                                                                                                           :]))
+                           if sv == sem_val and (iv == GT_VALUE_FOR_FALSE_POSITIVE)]
+            for c in non_FP_channels:
+                gt_inst_val = assigned_gt_inst_vals[data_idx, c]
+                corresponding_inst_val_channel = [i for i, (sv, iv) in
+                                                  enumerate(zip(model_channel_sem_vals,
+                                                                model_channel_inst_vals)) if sv == sem_val and
+                                                  iv == gt_inst_val]
+                assert len(corresponding_inst_val_channel) == 1
+                corresponding_inst_val_channel = corresponding_inst_val_channel[0]
+                new_channels[c] = corresponding_inst_val_channel
+            unassigned_channels = [i for i, (sv, new_c) in
+                                   enumerate(zip(model_channel_sem_vals,
+                                                 new_channels)) if sv == sem_val and
+                                   new_c == unassigned_val]
+            assert len(unassigned_channels) == len(FP_channels)
+            for c, new_c in zip(unassigned_channels, FP_channels):
+                new_channels[c] = new_c
+        for c, new_c in enumerate(new_channels):
+            permuted_score_1[data_idx, new_c, :, :] = score_1[data_idx, c, :, :]
+    return permuted_score_1
 
 
 if __name__ == '__main__':

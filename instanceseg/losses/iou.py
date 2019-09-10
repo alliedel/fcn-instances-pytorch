@@ -177,7 +177,7 @@ def binary_xloss(logits, labels, ignore=None):
 # --------------------------- MULTICLASS LOSSES ---------------------------
 
 
-def lovasz_softmax_2d(predictions, sem_lbl, inst_lbl, semantic_instance_labels, instance_id_labels,
+def lovasz_softmax_2d(predictions, sem_lbl, inst_lbl, sem_vals_by_channel, gt_instance_vals_by_channel,
                       only_present=False, return_loss_components=False):
     """
     Multi-class Lovasz-Softmax losses
@@ -191,7 +191,7 @@ def lovasz_softmax_2d(predictions, sem_lbl, inst_lbl, semantic_instance_labels, 
     assert (predictions.size(0), predictions.size(2), predictions.size(3)) == sem_lbl.size()
     losses = []  # Differs from component losses only when only_present is True (excludes the 0's created by GT=0)
     component_losses = []
-    for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(semantic_instance_labels, instance_id_labels)):
+    for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(sem_vals_by_channel, gt_instance_vals_by_channel)):
         binary_target_single_instance_cls = (((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()).view(-1)
         if only_present and binary_target_single_instance_cls.sum() == 0:
             component_losses.append(0)

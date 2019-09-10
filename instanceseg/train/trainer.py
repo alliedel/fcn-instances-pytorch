@@ -98,13 +98,9 @@ class Trainer(object):
         if self.loss_type is not None:
             self.loss_object = self.build_my_loss()
             self.eval_loss_object_with_matching = self.build_my_loss(matching_override=True)  # Uses matching
-            self.loss_fcn = self.loss_object.loss_fcn  # scores, sem_lbl, inst_lbl
-            self.eval_loss_fcn_with_matching = self.eval_loss_object_with_matching.loss_fcn
         else:
             self.loss_object = None
             self.eval_loss_object_with_matching = None
-            self.loss_fcn = None
-            self.eval_loss_fcn_with_matching = None
         self.lr_scheduler = lr_scheduler
 
         metric_maker_kwargs = {
@@ -126,6 +122,14 @@ class Trainer(object):
             out_dir=out_dir, instance_problem=instance_problem,
             export_config=export_config, tensorboard_writer=tensorboard_writer,
             metric_makers=metric_makers)
+
+    @property
+    def eval_loss_fcn_with_matching(self):
+        return None if self.loss_type is None else self.eval_loss_object_with_matching.loss_fcn
+
+    @property
+    def loss_fcn(self):
+        return None if self.loss_type is None else self.loss_object.loss_fcn
 
     def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
         """
@@ -149,16 +153,14 @@ class Trainer(object):
         if requires_grad:
             # APD: Still not sure it's okay to set requires_grad to False on all labels (was True
             #  previously)
-            full_input, sem_lbl, inst_lbl = \
-                Variable(full_input, True), \
-                Variable(sem_lbl, requires_grad=False), \
-                Variable(inst_lbl, requires_grad=False)
+            full_input.requires_grad = True
+            sem_lbl.requires_grad = False
+            inst_lbl.requires_grad = False
         else:
             with torch.no_grad():  # volatile replacement
-                full_input, sem_lbl, inst_lbl = \
-                    Variable(full_input, requires_grad=False), \
-                    Variable(sem_lbl, requires_grad=False), \
-                    Variable(inst_lbl, requires_grad=False)
+                full_input.requires_grad = False
+                sem_lbl.requires_grad = False
+                inst_lbl.requires_grad = False
         return full_input, sem_lbl, inst_lbl
 
     def build_my_loss(self, matching_override=None):
@@ -174,6 +176,9 @@ class Trainer(object):
         return my_loss_object
 
     def compute_loss(self, score, sem_lbl, inst_lbl, val_matching_override=False):
+        """
+        Returns assignments, total_loss, loss_components_by_channel
+        """
         # permutations, loss, loss_components = f(scores, sem_lbl, inst_lbl)
         map_to_semantic = self.instance_problem.map_to_semantic
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2), score.size(3))):
@@ -183,10 +188,11 @@ class Trainer(object):
             inst_lbl[inst_lbl > 1] = 1
         loss_fcn = self.loss_fcn if not val_matching_override else self.eval_loss_fcn_with_matching
         # print('APD: Running loss fcn')
-        permutations, total_loss, loss_components = loss_fcn(score, sem_lbl, inst_lbl)
+        assignments, total_loss, loss_components_by_channel = loss_fcn(score, sem_lbl, inst_lbl)
+
         # print('APD: Finished running loss fcn')
         avg_loss = total_loss / score.size(0)
-        return permutations, avg_loss, loss_components
+        return assignments, avg_loss, loss_components_by_channel
 
     def augment_image(self, img, sem_lbl):
         semantic_one_hot = datasets.labels_to_one_hot(sem_lbl,
@@ -237,7 +243,9 @@ class Trainer(object):
                 # pred_permutations, _, _ = self.compute_loss(score, sem_lbl, inst_lbl)
                 sem_lbl_np = sem_lbl.data.cpu().numpy()
                 inst_lbl_np = inst_lbl.data.cpu().numpy()
-                lt_combined = self.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+                lt_combined = self.exporter.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,
+                                                                             assigned_sem_vals=None,
+                                                                             assigned_inst_vals=None)
                 label_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
                 # label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
                 img_idxs = list(range(batch_img_idx, batch_img_idx + batch_sz))
@@ -364,11 +372,9 @@ class Trainer(object):
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss
 
-        val_metrics = self.exporter.run_post_val_epoch(label_preds, label_trues, pred_permutations,
-                                                       should_compute_basic_metrics, split,
-                                                       val_loss, val_metrics,
-                                                       write_basic_metrics, write_instance_metrics,
-                                                       self.state.epoch, self.state.iteration,
+        val_metrics = self.exporter.run_post_val_epoch(label_preds, label_trues, should_compute_basic_metrics, split,
+                                                       val_loss, val_metrics, write_basic_metrics,
+                                                       write_instance_metrics, self.state.epoch, self.state.iteration,
                                                        self.model)
         if save_checkpoint:
             self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2],
@@ -389,18 +395,18 @@ class Trainer(object):
 
             score = self.model(full_input)
             # print('APD: Computing loss')
-            pred_permutations, loss, _ = self.compute_loss(score, sem_lbl, inst_lbl,
-                                                           val_matching_override=True)
+            assignments, avg_loss, loss_components_by_channel = self.compute_loss(score, sem_lbl, inst_lbl,
+                                                                                  val_matching_override=True)
             # print('APD: Finished computing loss')
-            val_loss = float(loss.item())
+            val_loss = float(avg_loss.item())
             true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
                 self.exporter.run_post_val_iteration(
-                    imgs, inst_lbl, pred_permutations, score, sem_lbl, should_visualize,
+                    imgs, inst_lbl, score, sem_lbl, assignments, should_visualize,
                     data_to_img_transformer=lambda i, l: self.exporter.untransform_data(
                         data_loader, i, l))
 
             # print('APD: Finished iteration')
-        return true_labels, pred_labels, score, pred_permutations, val_loss, \
+        return true_labels, pred_labels, score, val_loss, \
                segmentation_visualizations, score_visualizations
 
     @property
@@ -462,7 +468,7 @@ class Trainer(object):
                                                                            requires_grad=True)
         self.optim.zero_grad()
         score = self.model(full_input)
-        pred_permutations, loss, loss_components = self.compute_loss(score, sem_lbl, inst_lbl)
+        assignments, loss, loss_components = self.compute_loss(score, sem_lbl, inst_lbl)
         debug_check_values_are_valid(loss, score, self.state.iteration)
 
         # if 1:
@@ -477,7 +483,7 @@ class Trainer(object):
         if self.exporter.run_loss_updates:
             self.model.eval()
             new_score = self.model(full_input)
-            new_pred_permutations, new_loss, new_loss_components = \
+            new_assignments, new_loss, new_loss_components = \
                 self.compute_loss(new_score, sem_lbl, inst_lbl)
             # num_reassignments = np.sum(new_pred_permutations != pred_permutations)
             # if not num_reassignments == 0:
@@ -486,42 +492,19 @@ class Trainer(object):
             self.model.train()
 
         else:
-            new_pred_permutations, new_loss = None, None
+            new_assignments, new_loss = None, None
 
         group_lrs = []
         for grp_idx, param_group in enumerate(self.optim.param_groups):
             group_lr = self.optim.param_groups[grp_idx]['lr']
             group_lrs.append(group_lr)
-        self.exporter.run_post_train_iteration(full_input=full_input,
-                                               inst_lbl=inst_lbl, sem_lbl=sem_lbl,
-                                               loss=loss, loss_components=loss_components,
-                                               pred_permutations=pred_permutations, score=score,
-                                               epoch=self.state.epoch,
-                                               iteration=self.state.iteration,
-                                               new_pred_permutations=new_pred_permutations,
-                                               new_loss=new_loss,
+        self.exporter.run_post_train_iteration(full_input=full_input, sem_lbl=sem_lbl, inst_lbl=inst_lbl, loss=loss,
+                                               loss_components=loss_components, assignments=assignments, score=score,
+                                               epoch=self.state.epoch, iteration=self.state.iteration,
+                                               new_assignments=new_assignments, new_loss=new_loss,
                                                get_activations_fcn=self.model.module.get_activations
                                                if isinstance(self.model, torch.nn.DataParallel)
-                                               else self.model.get_activations,
-                                               lrs_by_group=group_lrs)
-
-    def debug_loss(self, score, sem_lbl, inst_lbl, new_score, new_loss, loss_components,
-                   new_loss_components):
-        predictions = self.loss_object.transform_scores_to_predictions(score)
-        new_predictions = self.loss_object.transform_scores_to_predictions(new_score)
-        old_cost_matrix = self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
-            predictions[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
-        new_cost_matrix = self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
-            predictions[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
-        ch_idx = 1
-        pred_for_ch = predictions[0, ch_idx, :, :]
-        binary_gt_for_ch = self.loss_object.get_binary_gt_for_channel(sem_lbl[0, ...],
-                                                                      inst_lbl[0, ...], ch_idx)
-        import ipdb;
-        ipdb.set_trace()
-        loss_component_example = self.loss_object.component_loss(
-            single_channel_prediction=pred_for_ch,
-            binary_target=binary_gt_for_ch)
+                                               else self.model.get_activations, lrs_by_group=group_lrs)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.dataloaders['train'])))

@@ -1,10 +1,6 @@
 import os.path as osp
 
-import instanceseg.utils.configs
-import instanceseg.utils.logs
-import instanceseg.utils.misc
-import instanceseg.utils.script_setup
-import utils.parse
+from instanceseg.utils import parse
 from instanceseg.utils.script_setup import setup_train, configure
 
 here = osp.dirname(osp.abspath(__file__))
@@ -19,7 +15,7 @@ def get_single_img_data(dataloader, idx=0):
 
 
 def main():
-    args, cfg_override_args = utils.parse.parse_args_without_sys(dataset_name='synthetic')
+    args, cfg_override_args = parse.parse_args_without_sys(dataset_name='synthetic')
     cfg_override_args.loss_type = 'soft_iou'
     cfg_override_args.size_average = False
     cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
@@ -30,7 +26,7 @@ def main():
     trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, checkpoint_path=args.resume,
                           semantic_init=args.semantic_init)
 
-    img_data, (sem_lbl, inst_lbl) = get_single_img_data(trainer.train_loader, idx=0)
+    img_data, (sem_lbl, inst_lbl) = get_single_img_data(trainer.dataloaders['train'], idx=0)
     full_input, sem_lbl, inst_lbl = trainer.prepare_data_for_forward_pass(img_data, (sem_lbl, inst_lbl),
                                                                           requires_grad=False)
     score_1 = trainer.model(full_input)
@@ -46,9 +42,10 @@ def main():
         import ipdb
         ipdb.set_trace()
     loss_object = trainer.loss_object
+    import ipdb; ipdb.set_trace()
 
-    cost_matrix_gt = loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
-        loss_object.transform_scores_to_predictions(score_gt)[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
+    # cost_matrix_gt = loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
+    #     loss_object.transform_scores_to_predictions(score_gt)[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
     pred_permutations_gt, avg_loss_gt, loss_components_gt = trainer.compute_loss(score_gt, sem_lbl, inst_lbl)
     pred_permutations_1, avg_loss_1, loss_components_1 = trainer.compute_loss(score_1, sem_lbl, inst_lbl)
     import ipdb;

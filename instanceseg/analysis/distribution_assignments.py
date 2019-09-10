@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import tqdm
 from torch.nn import functional as F
+from torch.utils.data import DataLoader
 
 import instanceseg.utils.eval
 from instanceseg.losses import iou
@@ -16,51 +17,52 @@ def get_center_min_max(h, dest_h, floor=False):
     return pad_vertical, (pad_vertical + h)
 
 
-def get_per_channel_per_image_sizes_and_losses(model, dataloader, cuda, my_trainer):
+def get_per_channel_per_image_sizes_and_losses(model, dataloader: DataLoader, cuda, my_trainer):
     sem_inst_class_list = my_trainer.instance_problem.semantic_instance_class_list
-    inst_id_list = my_trainer.instance_problem.instance_count_id_list
     n_channels = len(sem_inst_class_list)
-
-    assigned_instance_sizes = np.zeros((len(dataloader), n_channels), dtype=int)
-    losses_by_channel = np.zeros((len(dataloader), n_channels), dtype=float)
-    ious_by_channel = np.zeros((len(dataloader), n_channels), dtype=float)
-    soft_ious_by_channel = np.zeros((len(dataloader), n_channels), dtype=float)
-
-    for idx, (x, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataloader), total=len(dataloader),
-                                                   desc='Matching channels to instances and computing sizes'):
+    n_images = len(dataloader.dataset)
+    assigned_instance_sizes = np.zeros((n_images, n_channels), dtype=int)
+    losses_by_channel = np.zeros((n_images, n_channels), dtype=float)
+    ious_by_channel = np.zeros((n_images, n_channels), dtype=float)
+    soft_ious_by_channel = np.zeros((n_images, n_channels), dtype=float)
+    image_idx = 0
+    for batch_idx, (x, (sem_lbl, inst_lbl)) in tqdm.tqdm(enumerate(dataloader), total=len(dataloader),
+                                                         desc='Matching channels to instances and computing sizes'):
         x, sem_lbl, inst_lbl = datasets.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
         assert x.size(0) == 1, NotImplementedError('Assuming batch size 1 at the moment')
-        score = model(x)
+        scores = model(x)
         # softmax_scores = F.softmax(score, dim=1).data.cpu()
         # inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        pred_permutations, loss, component_loss = my_trainer.compute_loss(score, sem_lbl, inst_lbl)
+        assignments, loss, component_loss = my_trainer.compute_loss(scores, sem_lbl, inst_lbl)
         sem_lbl_np = sem_lbl.data.cpu().numpy()
         inst_lbl_np = inst_lbl.data.cpu().numpy()
-        lt_combined = my_trainer.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
-        label_trues = lt_combined
-        label_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
-        label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
-        scores_permuted = instance_utils.permute_scores(score, pred_permutations)
-        confusion_matrix = instanceseg.utils.eval.calculate_confusion_matrix_from_arrays(
-            label_preds_permuted, label_trues, n_channels)
-        ious = instanceseg.utils.eval.calculate_iou(confusion_matrix)
-        soft_iou, soft_iou_components = iou.lovasz_softmax_2d(F.softmax(scores_permuted, dim=1), sem_lbl, inst_lbl,
-                                                              my_trainer.instance_problem.semantic_instance_class_list,
-                                                              my_trainer.instance_problem.instance_count_id_list,
-                                                              return_loss_components=True)
+        label_pred = scores.data.max(dim=1)[1].cpu().numpy()[:, :, :]
 
-        data_idx = 0
-        for channel_idx in range(n_channels):
-            """
-            We grab the ground truth location of the instance assigned to this channel
-            """
-            assigned_gt_idx = (pred_permutations[:, channel_idx]).item()
-            sem_val, inst_val = sem_inst_class_list[assigned_gt_idx], inst_id_list[assigned_gt_idx]
-            assigned_instance_sizes[idx, channel_idx] = datasets.get_instance_size(
-                sem_lbl_np[data_idx, ...], sem_val, inst_lbl_np[data_idx, ...], inst_val)
-            losses_by_channel[idx, channel_idx] = component_loss[:, assigned_gt_idx].view(-1,)
-            ious_by_channel[idx, channel_idx] = ious[assigned_gt_idx]
-            soft_ious_by_channel[idx, channel_idx] = soft_iou_components[assigned_gt_idx]
+        for data_idx in range(x.size(0)):
+            losses_by_channel[image_idx, :] = component_loss[data_idx, :]
+            assigned_sem_vals = [my_trainer.instance_problem.semantic_instance_class_list[c]
+                                 for c in assignments.model_channels[data_idx, :]]
+            assigned_inst_vals = [my_trainer.instance_problem.instance_count_id_list[c]
+                                  for c in assignments.model_channels[data_idx, :]]
+            lt_combined_channelwise = my_trainer.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,
+                                                                                  assigned_sem_vals=assigned_sem_vals,
+                                                                                  assigned_inst_vals=assigned_inst_vals)
+            confusion_matrix = instanceseg.utils.eval.calculate_confusion_matrix_from_arrays(
+                label_pred, lt_combined_channelwise, n_channels)
+            ious = instanceseg.utils.eval.calculate_iou(confusion_matrix)
+            soft_iou, soft_iou_components = iou.lovasz_softmax_2d(
+                F.softmax(scores, dim=1), sem_lbl, inst_lbl, sem_vals_by_channel=assigned_sem_vals,
+                gt_instance_vals_by_channel=assigned_inst_vals, return_loss_components=True)
+            soft_ious_by_channel[image_idx, :] = soft_iou_components[data_idx, :]
+            ious_by_channel[image_idx, :] = ious
+            for i, channel_idx in enumerate(assignments.model_channels.shape[0]):
+                assert assignments.model_channels[data_idx, i] == channel_idx
+                # channel_idx == i at earliest implementation
+                assigned_instance_sizes[image_idx, channel_idx] = datasets.get_instance_size(
+                    sem_lbl_np[data_idx, ...], assignments.sem_vals[i], inst_lbl_np[data_idx, ...],
+                    assignments.assigned_gt_inst_vals[data_idx, i])
+
+            image_idx += 1
 
     return assigned_instance_sizes, losses_by_channel, ious_by_channel, soft_ious_by_channel
 

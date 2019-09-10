@@ -513,7 +513,7 @@ def visualize_segmentation(**kwargs):
         raise RuntimeError
 
 
-def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permutations=None,
+def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None,
                        margin_color=(255, 255, 255), n_class=None, score_vis_normalizer=None, channel_labels=None,
                        channels_to_visualize=None, margin_size_small=3, margin_size_large=6):
     """
@@ -543,11 +543,11 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permut
     #        lbl_permuted = permute_labels(lbl)
     #        label_names_permuted = permute_labels(label_names)
     channels_to_visualize = channels_to_visualize or range(n_channels)
-    for gt_channel in channels_to_visualize:
-        matched_channel = pred_permutations[gt_channel]
-        single_channel_scores = scores[matched_channel, :, :]
+    for pred_channel in channels_to_visualize:
+        gt_channel = pred_channel
+        single_channel_scores = scores[gt_channel, :, :]
         color = cmap[gt_channel, :]
-        pred_label_mask = np.repeat((lbl_pred == matched_channel)[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
+        pred_label_mask = np.repeat((lbl_pred == gt_channel)[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
         true_label_mask = np.repeat((lbl_true == gt_channel)[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
         if use_funky_void_pixels:
             void_mask = lbl_true == -1
@@ -561,7 +561,7 @@ def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None, pred_permut
                                               color=(255, 255, 255)).astype(np.uint8)
         colormap = np.ones_like(heatmap) * color
         if channel_labels is not None:
-            write_word_in_img_center(colormap, channel_labels[pred_permutations[gt_channel]], font_scale=2.0)
+            write_word_in_img_center(colormap, channel_labels[pred_channel], font_scale=2.0)
         pred_label_masks.append(pred_label_mask)
         true_label_masks.append(true_label_mask)
         heatmaps.append(heatmap)

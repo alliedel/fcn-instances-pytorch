@@ -1,5 +1,4 @@
 import argparse
-from scripts.analysis import load_results
 
 
 def parse_args():
@@ -15,6 +14,6 @@ if __name__ == '__main__':
     args = parse_args()
     logdir = args.logdir
     cfg, model_pth, out_dir, problem_config, model, my_trainer, optim, dataloaders = \
-        load_results.load_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
+        load_logdir(logdir, gpu=args.gpu, packed_as_dict=False)
 
 

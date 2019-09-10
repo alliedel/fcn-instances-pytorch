@@ -243,17 +243,12 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
     else:
         y = inst_lbl.copy()
     y[...] = void_value
-    unique_semantic_vals, inst_counts = np.unique(semantic_instance_class_list, return_counts=True)
-    for sem_val, n_instances_for_this_sem_cls in zip(unique_semantic_vals, inst_counts):
-        sem_inst_idxs = [i for i, s in enumerate(semantic_instance_class_list) if s == sem_val]
-        for sem_inst_idx in sem_inst_idxs:
-            inst_val = instance_count_id_list[sem_inst_idx]
-            try:
-                y[(sem_lbl == int(sem_val)) * (inst_lbl == int(inst_val))] = sem_inst_idx
-            except:
-                import ipdb;
-                ipdb.set_trace()
-                raise
+    for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(semantic_instance_class_list, instance_count_id_list)):
+        y[(sem_lbl == int(sem_val)) * (inst_lbl == int(inst_val))] = sem_inst_idx
+    # potential bug: y produces void values where they shouldn't exist
+    if torch.any((y == void_value).int() - (inst_lbl == void_value.int())):
+        raise Exception
+    # if (y == void_value)
     return y
 
 

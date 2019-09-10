@@ -195,7 +195,10 @@ def tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_p
                 img_data, (sem_lbl, inst_lbl)) \
                 if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
             sem_lbl_np, inst_lbl_np = lbl_untransformed
-            lt_combined = trainer.exporter.gt_tuple_to_combined(sem_lbl_np, inst_lbl_np)
+
+            lt_combined = trainer.exporter.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,
+                                                                            assigned_sem_vals=None,
+                                                                            assigned_inst_vals=None)
 
             segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
                 lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
@@ -203,8 +206,7 @@ def tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_p
 
             visualization_utils.export_visualizations(segmentation_viz, out_dir_rgb,
                                                       trainer.exporter.tensorboard_writer,
-                                                      image_idx,
-                                                      basename='loader_' + split + '_', tile=True)
+                                                      image_idx, basename='loader_' + split + '_', tile=True)
 
             input_image_resized = visualization_utils.resize_img_to_sz(img_untransformed, sem_lbl.shape[0],
                                                                        sem_lbl.shape[1])

@@ -98,7 +98,7 @@ def plot_bar_graph_over_full_dataset(stats_arrays_total, stats_arrays_per_class,
         ax.set_title(ylabel)
         ax.yaxis.grid(True)
         autolabel_above_bars(ax)
-        figname = 'avg_' + ylabel + '.png'
+        figname = 'avg_with_err' + ylabel + '.png'
         plt.tight_layout()
         if save_to_workspace:
             display_pyutils.save_fig_to_workspace(figname)
@@ -188,6 +188,8 @@ def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_dis
     category_names_to_display = [semantic_class_names[idx] for idx in category_idxs_to_display]
 
     for stat_type, stat_array in stats_arrays.items():
+        import ipdb;
+        ipdb.set_trace()
         for catidx, catname in zip(category_idxs_to_display, category_names_to_display):
             plt.figure(1)
             plt.clf()
@@ -204,21 +206,21 @@ def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_dis
     fig = plt.figure(1)
     plt.clf()
     plt.figure(1, figsize=figsize)
-    is_first_row = True
     r = 0
-    ax1 = None
     for stat_type, stat_array in stats_arrays.items():
-        if subplot_idx == 1:
-            ax1 = plt.subplot(R, C, subplot_idx)
-        else:
-            ax = plt.subplot(R, C, subplot_idx, sharex=ax1, sharey=ax1)
-
+        ax1 = plt.subplot(R, C, subplot_idx)
+        ax1_subplot_num = subplot_idx
         plt.ylabel(stat_type + ' (#images)', labelpad=20)
         for catidx, catname in zip(category_idxs_to_display, category_names_to_display):
-            plt.subplot(R, C, subplot_idx)
+            if subplot_idx == ax1_subplot_num:
+                plt.subplot(R, C, subplot_idx)
+            else:
+                ax = plt.subplot(R, C, subplot_idx, sharex=ax1, sharey=ax1)
             if r == 0:
                 plt.title(catname, rotation=45, y=1.4)
             display_pyutils.nanhistogram(stat_array[:, catidx], label=catname, color=category_colors[catidx])
+            if subplot_idx != ax1_subplot_num:
+                plt.setp(plt.gca().get_yticklabels(), visible=False)
             plottype = '{}_{}'.format(stat_type, catname)
             subplotname = '{}_hist'.format(plottype)
             subplot_idx += 1
@@ -284,7 +286,7 @@ def main(collated_stats_npz_file, supercategories_to_ignore=('void', 'background
         n_inst_arrs = stats_arrays_per_img['n_inst']
         if stat_type != 'n_inst':
             stat_array[n_inst_arrs == 0] = np.nan
-    
+
     plot_averages_with_error_bars(stats_arrays_per_img, semantic_class_names=semantic_class_names,
                                   category_idxs_to_display=category_idxs_to_display,
                                   output_dir=fig_output_dir, category_colors=colors_norm1)

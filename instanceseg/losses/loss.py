@@ -6,15 +6,15 @@ from instanceseg.losses import match
 from instanceseg.losses import xentropy, iou
 from instanceseg.losses.xentropy import DEBUG_ASSERTS
 
-
 # TODO(allie): Implement test: Compare component loss function with full loss function when matching is off
-
+from instanceseg.utils.misc import AttrDict
 
 LOSS_TYPES = ['cross_entropy', 'soft_iou', 'xent']
 
 
 def get_subclasses(cls):
     return set(cls.__subclasses__()).union([s for c in cls.__subclasses__() for s in get_subclasses(c)])
+
 
 # matching_component_loss_registry = {loss_class.loss_type: loss_class
 #                                     for loss_class in get_subclasses(ComponentMatchingLossBase)}
@@ -26,7 +26,8 @@ def loss_object_factory(loss_type, semantic_instance_class_list, instance_id_cou
         loss_object = CrossEntropyComponentMatchingLoss(semantic_instance_class_list, instance_id_count_list, matching,
                                                         size_average)
     elif loss_type == 'soft_iou':
-        loss_object = SoftIOUComponentMatchingLoss(semantic_instance_class_list, instance_id_count_list, matching, size_average)
+        loss_object = SoftIOUComponentMatchingLoss(semantic_instance_class_list, instance_id_count_list, matching,
+                                                   size_average)
     else:
         raise NotImplementedError
     return loss_object
@@ -38,6 +39,7 @@ class ComponentLossAbstractInterface(object):
     """
     An agreed upon interface -- the minimum requirements for creating a loss function that works with our trainer.
     """
+
     def loss_fcn(self, scores, sem_lbl, inst_lbl):
         """
         inputs:
@@ -46,11 +48,60 @@ class ComponentLossAbstractInterface(object):
          inst_lbl: NxHxW
 
         return:
-         pred_permutations: NxC  (pred_permutations[i, :] = range(C) without matching)
-         total_loss: scalar Variable: avg of loss_components
-         loss_components: NxC
+         LossMatchAssignments
+         {component_channels: NxC  we expect channels[i, ...] = range(C), but we put this here to be sure.
+         component_sem_vals: NxC  corresponding semantic values for each pred/gt channel
+                                  component_sem_vals[i, c] = sem_inst_idxs[component_channels[c]]
+         gt_inst_vals: NxC        corresponding ground truth inst values for each matched pred channel
+         }
+         total_loss: scalar, requires_grad=True: avg (for instance) of loss_components
+         loss_components_by_channel: NxC
         """
         raise NotImplementedError
+
+
+class LossMatchAssignments(AttrDict):
+    def __init__(self, model_channels, assigned_gt_inst_vals, sem_values, unassigned_gt_sem_inst_tuples):
+        # super(LossMatchAssignments, self).__init__(self)
+        n_channels = model_channels.shape[1]
+        assert assigned_gt_inst_vals.shape[1] == n_channels
+        assert sem_values.shape[1] == n_channels
+        self.model_channels = model_channels,  # torch.empty((0, n_channels))
+        self.assigned_gt_inst_vals = assigned_gt_inst_vals,  # torch.empty((0, n_channels))
+        self.sem_values = sem_values,  # torch.empty((0, n_channels))
+        self.unassigned_gt_sem_inst_tuples = unassigned_gt_sem_inst_tuples
+
+    @classmethod
+    def allocate(cls, n_images, n_channels):
+        model_channels = torch.empty((n_images, n_channels))
+        assigned_gt_inst_vals = torch.empty((n_images, n_channels))  # torch.empty((0, n_channels))
+        sem_values = torch.empty((n_images, n_channels))
+        unassigned_gt_sem_inst_tuples = [[] for _ in range(n_images)]
+        return cls(model_channels=model_channels,
+                   assigned_gt_inst_vals=assigned_gt_inst_vals,
+                   sem_values=sem_values,
+                   unassigned_gt_sem_inst_tuples=unassigned_gt_sem_inst_tuples)
+
+    @classmethod
+    def assemble(cls, list_of_loss_match_assignments):
+        model_channels = torch.cat([lma.model_channels for lma in list_of_loss_match_assignments], dim=0)
+        assigned_gt_inst_vals = torch.cat([lma.assigned_gt_inst_vals for lma in list_of_loss_match_assignments], dim=0)
+        sem_values = torch.cat([lma.sem_values for lma in list_of_loss_match_assignments], dim=0)
+        unassigned_gt_sem_inst_tuples = []
+        for lma in list_of_loss_match_assignments:
+            unassigned_gt_sem_inst_tuples.extend(lma.unassigned_gt_sem_inst_tuples)
+        assembled_assignments = cls(model_channels=model_channels,
+                                    assigned_gt_inst_vals=assigned_gt_inst_vals,
+                                    sem_values=sem_values,
+                                    unassigned_gt_sem_inst_tuples=unassigned_gt_sem_inst_tuples)
+        return assembled_assignments
+
+    def insert_assignment_for_image(self, image_index, model_channels, assigned_gt_inst_vals, sem_values,
+                                    unassigned_gt_sem_inst_tuples):
+        self.model_channels[image_index, :] = model_channels,  # torch.empty((0, n_channels))
+        self.assigned_gt_inst_vals[image_index, :] = None,  # torch.empty((0, n_channels))
+        self.sem_values[image_index, :] = None,  # torch.empty((0, n_channels))
+        self.unassigned_gt_sem_inst_tuples[image_index] = unassigned_gt_sem_inst_tuples
 
 
 class ComponentMatchingLossBase(ComponentLossAbstractInterface):
@@ -66,6 +117,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                 'We need semantic and instance ids to perform matching')
         self.matching = matching
         self.semantic_instance_labels = semantic_instance_labels
+        self.unique_semantic_values = sorted([s for s in np.unique(semantic_instance_labels)])
         self.instance_id_labels = instance_id_labels
         self.size_average = size_average
         self.only_present = True
@@ -91,34 +143,28 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             single_class_component_loss_fcn expects.
         Note: returned loss components indexed by ground truth order
         """
-
         # Allocate memory
         batch_sz, n_channels = predictions.size(0), predictions.size(1)
-        all_gt_indices = np.empty((batch_sz, n_channels), dtype=int)
-        all_pred_permutations = np.empty((batch_sz, n_channels), dtype=int)
-        all_costs = []  # dataset_utils.zeros_like(log_predictions, (n, c))
+
+        loss_components_per_channel = torch.empty((batch_sz, n_channels))
+        # []  # dataset_utils.zeros_like(log_predictions, (n, c))
+        assignments = LossMatchAssignments.allocate(n_images=batch_sz, n_channels=n_channels)
 
         # Compute optimal match & costs for each image in the batch
         for i in range(batch_sz):
-            gt_indices, pred_permutation, costs = \
-                self._compute_optimal_match_loss_single_img(predictions[i, ...], sem_lbl[i, ...],
-                                                            inst_lbl[i, ...])
-            all_gt_indices[i, ...] = gt_indices
-            all_pred_permutations[i, ...] = pred_permutation
-            try:
-                all_costs.append(torch.stack(costs))
-            except:
-                import ipdb; ipdb.set_trace()
-                raise
-        all_costs = torch.cat([c[None, :] for c in all_costs], dim=0).float()
-        loss_train = all_costs.sum()
+            assignment_values, costs = \
+                self._compute_optimal_match_loss_single_img(predictions[i, ...], sem_lbl[i, ...], inst_lbl[i, ...])
+            assignments.insert_assignment_for_image(i, **assignment_values)
+            loss_components_per_channel[i, :] = costs
+            # all_costs.append(costs)
+        # all_costs = torch.cat([c[None, :] for c in all_costs], dim=0).float()
+        total_train_loss = loss_components_per_channel.sum()
         if DEBUG_ASSERTS:
-            if all_costs.size(1) != len(self.semantic_instance_labels):
+            if loss_components_per_channel.size(1) != len(self.semantic_instance_labels):
                 import ipdb;
                 ipdb.set_trace()
                 raise Exception
-        pred_permutations, total_loss, loss_components = all_pred_permutations, loss_train, all_costs
-        return pred_permutations, total_loss, loss_components
+        return assignments, total_train_loss, loss_components_per_channel
 
     def get_binary_gt_for_channel(self, sem_lbl, inst_lbl, channel_idx):
         sem_val, inst_val = self.semantic_instance_labels[channel_idx], self.instance_id_labels[channel_idx]
@@ -126,9 +172,6 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
 
     def compute_nonmatching_loss(self, predictions, sem_lbl, inst_lbl):
         batch_sz, n_channels = predictions.size(0), predictions.size(1)
-        pred_permutations = np.empty((batch_sz, n_channels), dtype=int)
-        for i in range(batch_sz):
-            pred_permutations[i, :] = range(n_channels)
 
         losses = []
         component_losses = []
@@ -150,16 +193,27 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             loss /= normalizer
             losses /= normalizer
 
-        return pred_permutations, iou.mean(losses), component_losses
+        return iou.mean(losses), component_losses
 
     def loss_fcn(self, scores, sem_lbl, inst_lbl):
+        """
+        # component_channels: NxC  we expect channels[i, ...] = range(C), but we put this here to be sure.
+        # component_sem_vals: NxC  corresponding semantic values for each pred/gt channel
+        #                          component_sem_vals[i, c] = sem_inst_idxs[component_channels[c]]
+        # gt_inst_vals: NxC        corresponding ground truth inst values for each matched pred channel
+        # total_loss: scalar, requires_grad=True: avg (for instance) of loss_components
+        # loss_components_by_channel: NxC
+        # additional_out: {}
+        """
+
         predictions = self.transform_scores_to_predictions(scores)
         if self.matching:
-            pred_permutations, total_loss, loss_components = self.compute_matching_loss(predictions, sem_lbl, inst_lbl)
+            assignments, total_loss, loss_components_by_channel = \
+                self.compute_matching_loss(predictions, sem_lbl, inst_lbl)
         else:
-            pred_permutations, total_loss, loss_components = self.compute_nonmatching_loss(predictions, sem_lbl,
-                                                                                           inst_lbl)
-        return pred_permutations, total_loss, loss_components
+            total_loss, loss_components_by_channel = self.compute_nonmatching_loss(predictions, sem_lbl, inst_lbl)
+            assignments = None
+        return assignments, total_loss, loss_components_by_channel
 
     def _compute_optimal_match_loss_single_img(self, predictions, sem_lbl, inst_lbl):
         """
@@ -174,77 +228,63 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         """
         # print('APD: inside compute_optimal_match_loss_single_img')
         semantic_instance_labels = self.semantic_instance_labels
-        assert len(semantic_instance_labels) == predictions.size(0), \
+        C = predictions.size(0)
+        assert len(semantic_instance_labels) == C, \
             'first dimension of predictions should be the number of channels.  It is {} instead. ' \
             'Are you trying to pass an entire batch into the loss function?'.format(predictions.size(0))
-        gt_indices, pred_permutations, costs = [], [], []
-        num_inst_classes = len(semantic_instance_labels)
-        unique_semantic_values = range(max(semantic_instance_labels) + 1)
-        for sem_val in unique_semantic_values:
-
+        costs = -1 * torch.ones((C,))
+        model_channels = torch.empty((C,))
+        sem_values = torch.empty((C,))
+        assigned_gt_inst_values = torch.empty((C,))
+        unassigned_gt_sem_inst_tuples = []
+        for sem_val in self.unique_semantic_values:
+            assert int(sem_val) == sem_val
+            sem_val = int(sem_val)
             # print('APD: Running on sem_val {}'.format(sem_val))
-            idxs = [i for i in range(num_inst_classes) if (semantic_instance_labels[i] == sem_val)]
+            costs_this_cls, model_channels_for_this_cls, assigned_gt_inst_vals_this_cls, \
+                unassigned_gt_inst_vals_this_cls = \
+                self._compute_optimal_match_loss_for_one_sem_cls(predictions, sem_lbl, inst_lbl, sem_val)
+            channel_idxs = torch.LongTensor(model_channels_for_this_cls)
+            model_channels[channel_idxs] = torch.IntTensor(model_channels_for_this_cls)
+            costs[channel_idxs] = costs_this_cls
+            assigned_gt_inst_values[channel_idxs] = torch.FloatTensor(assigned_gt_inst_vals_this_cls)
+            sem_values[channel_idxs] = sem_val
+            unassigned_gt_sem_inst_tuples.append([(sem_val, i) for i in unassigned_gt_inst_vals_this_cls])
+        assert torch.all(costs != -1)  # costs for all channels were filled
+        assignment_values = {
+            'model_channels': model_channels,
+            'assigned_gt_inst_vals': assigned_gt_inst_values,
+            'sem_values': sem_values,
+            'unassigned_gt_sem_inst_tuples': unassigned_gt_sem_inst_tuples
+        }
 
-            assignment, cost_list_2d = self._compute_optimal_match_loss_for_one_sem_cls(
-                predictions, sem_lbl, inst_lbl, sem_val)
-            # print('APD: Finished compute_optimal_match_loss_for_one_sem_cls')
-            gt_indices += idxs
-            try:
-                # print('APD: Inside try statement')
-                # print(len(idxs), assignment.NumNodes())
-                pred_permutations += [idxs[assignment.RightMate(i)] for i in range(len(idxs))]
-                # print('APD: past pred_permutations')
-                costs += [cost_list_2d[assignment.RightMate(i)][i] for i in range(len(idxs))]
-                # print('APD: past costs')
-            except Exception as exc:
-                print(exc)
-                import ipdb; ipdb.set_trace()
-                raise
-
-        # print('APD: finished looping over classes')
-        sorted_indices = np.argsort(gt_indices)
-        gt_indices = np.array(gt_indices)[sorted_indices]
-        pred_permutations = np.array(pred_permutations)[sorted_indices]
-        costs = [costs[i] for i in sorted_indices]
-        return gt_indices, pred_permutations, costs
+        return assignment_values, costs
 
     def _compute_optimal_match_loss_for_one_sem_cls(self, predictions, sem_lbl, inst_lbl, sem_val):
-        cost_matrix, multiplier, cost_list_2d = self.build_cost_matrix_for_one_sem_cls(
+        cost_tensor, model_channels_for_this_cls, gt_inst_vals_present = self.build_cost_tensor_for_one_sem_cls(
             predictions, sem_lbl, inst_lbl, sem_val)
-        assignment = match.solve_matching_problem(cost_matrix, multiplier)
-        return assignment, cost_list_2d
-
-    def build_all_sem_cls_cost_matrices_as_tensor_data(self, predictions, sem_lbl, inst_lbl, cost_list_only=True):
-        if len(predictions.size()) == 4:
-            if predictions.size(0) == 1:
-                raise Exception('predictions, sem_lbl, inst_lbl should be formatted as coming from a single image.  '
-                                'Yours is formatted as a minibatch, with size {}'.format(predictions.size()))
-            else:
-                raise Exception('predictions, sem_lbl, and inst_lbl should be a 3-D tensor (not 4-D)')
-        unique_semantic_values = range(max(self.semantic_instance_labels) + 1)
-        cost_matrix_tuples = [self.build_cost_matrix_for_one_sem_cls(predictions, sem_lbl, inst_lbl, sem_val=sem_val)
-                              for sem_val in unique_semantic_values]
-        if not cost_list_only:
-            return cost_matrix_tuples
+        assigned_col_inds = match.solve_matching_problem(cost_tensor)
+        assigned_gt_inst_vals = [gt_inst_vals_present[col_ind] for col_ind in assigned_col_inds]
+        if len(assigned_col_inds) == len(gt_inst_vals_present):
+            unassigned_gt_inst_vals = []
         else:
-            cost_matrices_as_lists_of_variables = [c[2] for c in cost_matrix_tuples]
-            cost_matrices_as_tensors = [torch.stack([torch.stack([cij.data for cij in ci])
-                                                     for ci in c]) for c in cost_matrices_as_lists_of_variables
-                                        ]
-            return cost_matrices_as_tensors
+            unassigned_gt_inst_vals = [v for v in gt_inst_vals_present if v not in assigned_gt_inst_vals]
+            assert (len(unassigned_gt_inst_vals) + len(assigned_gt_inst_vals)) == len(gt_inst_vals_present), \
+                'Debug error'
 
-    def build_cost_matrix_for_one_sem_cls(self, predictions, sem_lbl, inst_lbl, sem_val):
-        # print('APD: building cost list 2d')
-        cost_list_2d = match.create_pytorch_cost_matrix(self.component_loss, predictions,
-                                                        sem_lbl, inst_lbl,
-                                                        self.semantic_instance_labels,
-                                                        self.instance_id_labels, sem_val,
-                                                        size_average=self.size_average)
-        # print('APD: Cost list 2d size: {}'.format((len(cost_list_2d), len(cost_list_2d[0]))))
-        cost_matrix, multiplier = match.convert_pytorch_costs_to_ints(cost_list_2d)
-        # print('APD: Cost matrix size: {}'.format((len(cost_matrix), len(cost_matrix[0]))))
-        # print('APD: leaving build_cost_matrix_for_one_sem_cls')
-        return cost_matrix, multiplier, cost_list_2d
+        costs = cost_tensor[model_channels_for_this_cls, assigned_col_inds]
+
+        return costs, model_channels_for_this_cls, assigned_gt_inst_vals, unassigned_gt_inst_vals
+
+    def build_cost_tensor_for_one_sem_cls(self, predictions, sem_lbl, inst_lbl, sem_val):
+        """
+        Creates cost_tensor[prediction, ground_truth]
+        """
+
+        cost_tensor, model_channels_for_this_cls, gt_inst_vals_present = match.create_pytorch_cost_matrix(
+            self.component_loss, predictions, sem_lbl, inst_lbl,
+            self.semantic_instance_labels, sem_val, size_average=self.size_average)
+        return cost_tensor, model_channels_for_this_cls, gt_inst_vals_present
 
 
 class CrossEntropyComponentMatchingLoss(ComponentMatchingLossBase):

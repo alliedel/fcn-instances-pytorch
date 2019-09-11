@@ -103,7 +103,7 @@ def load_images(image_dir, json_list_file, rgb_to_id=False, trainid_to_rgb=False
                            total=len(file_list['images'])):
             file_name = i['file_name']
             # Hackery.
-            possible_extensions = ['_sem255instid2rgb_cocopano.png', 'id2rgb_cocopano.png']
+            possible_extensions = ['_sem255instid2rgb_cocopano.png', '_id2rgb_cocopano.png']
             if not os.path.exists(os.path.join(image_dir, file_name)) and '_gt' in image_dir:
                 for ext in possible_extensions:
                     new_file_name = 'groundtruth_{}'.format(file_name).replace('_image.png', ext)

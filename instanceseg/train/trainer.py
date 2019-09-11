@@ -252,9 +252,9 @@ class Trainer(object):
                     for idx_into_batch, outf in enumerate(score_names):
                         torch.save(score[idx_into_batch, ...], os.path.join(scores_outdir, outf))
 
-                prediction_names = ['predictions_{:06d}_sem255inst_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
+                prediction_names = ['predictions_{:06d}_sem255instid2rgb.png'.format(img_idx) for img_idx in img_idxs]
                 self.exporter.export_channelvals2d_as_id2rgb(label_pred, predictions_outdir, prediction_names)
-                groundtruth_names = ['groundtruth_{:06d}_sem255inst_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
+                groundtruth_names = ['groundtruth_{:06d}_sem255instid2rgb.png'.format(img_idx) for img_idx in img_idxs]
                 self.exporter.export_inst_sem_lbls_as_id2rgb(self.map_sem_ids_to_sem_vals(sem_lbl_np),
                                                              inst_lbl_np, groundtruth_outdir, groundtruth_names)
                 if 1:

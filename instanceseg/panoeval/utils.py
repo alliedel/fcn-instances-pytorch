@@ -63,6 +63,7 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         if os.path.exists(out_file_name):
             if not overwrite:
                 continue
+        assert file_name.rsplit('_', 2)[2] == 'sem255instid2rgb.png'
         image_id = file_name.rsplit('_', 2)[1]
         image_filename = '{}_image.png'.format(image_id)
         # image entry, id for image is its filename without extension

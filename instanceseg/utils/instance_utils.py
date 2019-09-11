@@ -209,6 +209,17 @@ class InstanceProblemConfig(object):
             instance_count_id_list=instance_count_id_list, void_value=void_value)
         return sem_lbl, inst_lbl
 
+    def decompose_semantic_and_instance_labels_with_original_sem_ids(self, gt_combined):
+        void_value = self.void_value
+        channel_values = self.channel_values
+        semantic_instance_class_list = self.semantic_instance_val_list
+        instance_count_id_list = self.instance_count_id_list
+        sem_lbl, inst_lbl = decompose_semantic_and_instance_labels(
+            gt_combined,
+            channel_values=channel_values, semantic_instance_class_list=semantic_instance_class_list,
+            instance_count_id_list=instance_count_id_list, void_value=void_value)
+        return sem_lbl, inst_lbl
+
 
 def decompose_semantic_and_instance_labels(gt_combined, channel_values, semantic_instance_class_list,
                                            instance_count_id_list, void_value=-1):

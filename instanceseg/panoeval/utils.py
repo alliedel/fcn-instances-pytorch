@@ -80,13 +80,17 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         pan_format = np.zeros((rgb_format.shape[0], rgb_format.shape[1], 3), dtype=np.uint8)
         segm_info = []
         pan_ids = np.zeros((rgb_format.shape[0], rgb_format.shape[1]))
+        semantic_ids_not_in_category_dict = []
         for color_val in present_channel_colors:
-            channel_idx = rgb2id(color_val)
+            sem255_inst_ids = rgb2id(color_val)
             # semantic_id = problem_config.semantic_vals[problem_config.semantic_instance_class_list[channel_idx]]
-            semantic_id = problem_config.semantic_instance_val_list[channel_idx]
-            instance_count_id = problem_config.instance_count_id_list[channel_idx]
+            semantic_id = int(sem255_inst_ids / 255)
+            instance_count_id = sem255_inst_ids - semantic_id * 255
+            assert (semantic_id * 255 + instance_count_id) == sem255_inst_ids
             is_crowd = instance_count_id < 1
             if semantic_id not in categories_dict:
+                if semantic_id not in semantic_ids_not_in_category_dict:
+                    semantic_ids_not_in_category_dict.append(semantic_id)
                 continue
             if categories_dict[semantic_id]['isthing'] == 0:
                 is_crowd = 0
@@ -103,6 +107,9 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
                               "area": area,
                               "bbox": bbox,
                               "iscrowd": is_crowd})
+        if len(semantic_ids_not_in_category_dict) > 0:
+            print('The following semantic ids were present in the image, but not in the categories dict ({catdict}): '
+                  '{semids}'.format(catdict=categories_dict, semids=semantic_ids_not_in_category_dict))
         Image.fromarray(pan_format).save(os.path.join(out_folder, out_file_name))
         # Reverse the process and ensure we get the right id
         reloaded_pan_img = np.array(Image.open(os.path.join(out_folder, out_file_name)), dtype=np.uint32)

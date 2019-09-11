@@ -471,11 +471,23 @@ class TrainerExporter(object):
             img_untransformed, lbl_untransformed = img, lbl
         return img_untransformed, lbl_untransformed
 
-    def export_predictions_or_gt(self, labels_as_batch_nparray, output_directory, image_names):
+    def export_channelvals2d_as_id2rgb(self, labels_as_batch_nparray, output_directory, image_names):
         batch_sz = labels_as_batch_nparray.shape[0]
         for img_idx in range(batch_sz):
             lbl = labels_as_batch_nparray[img_idx, ...]
-            img = self.convert_lbl_to_image_with_id2rgb(lbl)
+            sem_l, inst_l = self.instance_problem.decompose_semantic_and_instance_labels_with_original_sem_ids(lbl)
+            img = self.convert_lbl_to_image_with_id2rgb(255 * sem_l + inst_l)
+            out_file = os.path.join(output_directory, image_names[img_idx])
+            visualization_utils.write_image(out_file, img)
+
+    def export_inst_sem_lbls_as_id2rgb(self, sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
+                                       image_names):
+        batch_sz = sem_lbls_as_batch_nparray.shape[0]
+        assert batch_sz == inst_lbls_as_batch_nparray.shape[0]
+        for img_idx in range(batch_sz):
+            sem_l = sem_lbls_as_batch_nparray[img_idx, ...]
+            inst_l = inst_lbls_as_batch_nparray[img_idx, ...]
+            img = self.convert_lbl_to_image_with_id2rgb(255 * sem_l + inst_l)
             out_file = os.path.join(output_directory, image_names[img_idx])
             visualization_utils.write_image(out_file, img)
 

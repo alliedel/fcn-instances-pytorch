@@ -243,9 +243,6 @@ class Trainer(object):
                 # pred_permutations, _, _ = self.compute_loss(score, sem_lbl, inst_lbl)
                 sem_lbl_np = sem_lbl.data.cpu().numpy()
                 inst_lbl_np = inst_lbl.data.cpu().numpy()
-                lt_combined = self.exporter.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,
-                                                                             assigned_sem_vals=None,
-                                                                             assigned_inst_vals=None)
                 label_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
                 # label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
                 img_idxs = list(range(batch_img_idx, batch_img_idx + batch_sz))
@@ -255,10 +252,11 @@ class Trainer(object):
                     for idx_into_batch, outf in enumerate(score_names):
                         torch.save(score[idx_into_batch, ...], os.path.join(scores_outdir, outf))
 
-                prediction_names = ['predictions_{:06d}_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
-                self.exporter.export_predictions_or_gt(label_pred, predictions_outdir, prediction_names)
-                groundtruth_names = ['groundtruth_{:06d}_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
-                self.exporter.export_predictions_or_gt(lt_combined, groundtruth_outdir, groundtruth_names)
+                prediction_names = ['predictions_{:06d}_sem255inst_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
+                self.exporter.export_channelvals2d_as_id2rgb(label_pred, predictions_outdir, prediction_names)
+                groundtruth_names = ['groundtruth_{:06d}_sem255inst_id2rgb.png'.format(img_idx) for img_idx in img_idxs]
+                self.exporter.export_inst_sem_lbls_as_id2rgb(self.map_sem_ids_to_sem_vals(sem_lbl_np),
+                                                             inst_lbl_np, groundtruth_outdir, groundtruth_names)
                 if 1:
                     image_names = ['image_{:06d}.png'.format(img_idx) for img_idx in img_idxs]
                     for ii, img_idx in enumerate(img_idxs):
@@ -267,6 +265,22 @@ class Trainer(object):
                         self.exporter.write_rgb_image(out_file, orig_image)
                     batch_img_idx += batch_sz
         return predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir
+
+    def map_sem_ids_to_sem_vals(self, sem_lbl_channel_ids):
+        """
+        When training, we load sem_vals as channel idxs rather than their original semantic val (which in retrospect
+        was dumb, but we're rolling with it for now...)
+        This transformation function creates a copy of the 'dumb' semantic label and maps it onto the original
+        semantic values (e.g. - from the labels table).
+        """
+        sem_vals = np.nan * np.ones_like(sem_lbl_channel_ids)
+        for sem_channel_lbl, sem_val in zip(
+                self.instance_problem.semantic_transformed_label_ids,
+                self.instance_problem.semantic_vals):
+            sem_vals[sem_lbl_channel_ids == sem_channel_lbl] = sem_val
+        assert np.all(~np.isnan(sem_vals))
+        return sem_vals
+
 
     def validate_split(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
                        should_export_visualizations=True):

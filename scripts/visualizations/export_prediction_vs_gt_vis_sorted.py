@@ -106,15 +106,18 @@ def load_images(image_dir, json_list_file, rgb_to_id=False, trainid_to_rgb=False
             possible_extensions = ['_sem255instid2rgb_cocopano.png', 'id2rgb_cocopano.png']
             if not os.path.exists(os.path.join(image_dir, file_name)) and '_gt' in image_dir:
                 for ext in possible_extensions:
-                    file_name = 'groundtruth_{}'.format(file_name).replace('_image.png', ext)
-                    if os.path.exists(file_name):
+                    new_file_name = 'groundtruth_{}'.format(file_name).replace('_image.png', ext)
+                    if os.path.exists(new_file_name):
+                        file_name = new_file_name
                         break
-                assert os.path.exists(file_name)
+                assert os.path.exists(file_name), '{} does not exist'.format(file_name)
             if not os.path.exists(os.path.join(image_dir, file_name)) and '_pred' in image_dir:
                 for ext in possible_extensions:
-                    file_name = 'predictions_{}'.format(file_name).replace('_image.png', ext)
-                    if os.path.exists(file_name):
+                    new_file_name = 'predictions_{}'.format(file_name).replace('_image.png', ext)
+                    if os.path.exists(new_file_name):
+                        file_name = new_file_name
                         break
+            assert os.path.exists(file_name), '{} does not exist'.format(file_name)
             if not os.path.exists(os.path.join(image_dir, file_name)) and 'images' in image_dir:
                 file_name = 'image_{}'.format(file_name).replace('_image', '')
                 assert rgb_to_id is False

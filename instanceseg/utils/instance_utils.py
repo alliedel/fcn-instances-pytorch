@@ -246,8 +246,16 @@ def combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_cl
     for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(semantic_instance_class_list, instance_count_id_list)):
         y[(sem_lbl == int(sem_val)) * (inst_lbl == int(inst_val))] = sem_inst_idx
     # potential bug: y produces void values where they shouldn't exist
-    if torch.any((y == void_value).int() - (inst_lbl == void_value.int())):
-        raise Exception
+    if torch.is_tensor(y):
+        if torch.any((y == void_value).int() - (inst_lbl == void_value.int())):
+            raise Exception
+    else:
+        if np.any(inst_lbl[(y == void_value) != void_value]):
+            semantic_vals = np.unique(sem_lbl[y == void_value])
+            inst_vals = {}
+            for sem_val in semantic_vals:
+                inst_vals[sem_val] = np.unique(inst_lbl[(y == void_value) * (sem_lbl == sem_val)])
+            raise Exception
     # if (y == void_value)
     return y
 

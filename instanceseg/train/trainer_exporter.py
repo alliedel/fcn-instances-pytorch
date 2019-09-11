@@ -434,7 +434,7 @@ class TrainerExporter(object):
                 else (img, (sem_lbl, inst_lbl))
             sem_lbl_np, inst_lbl_np = lbl_untransformed
             assigned_sem_vals = [self.instance_problem.semantic_instance_class_list[c]
-                                 for c in assignments.model_channels[idx, :]]
+                                 for c in assignments.model_channels[idx, :].long()]
             assigned_inst_vals = [self.instance_problem.instance_count_id_list[c]
                                   for c in assignments.model_channels[idx, :]]
             lt_combined = self.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,

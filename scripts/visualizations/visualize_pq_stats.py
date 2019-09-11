@@ -188,8 +188,6 @@ def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_dis
     category_names_to_display = [semantic_class_names[idx] for idx in category_idxs_to_display]
 
     for stat_type, stat_array in stats_arrays.items():
-        import ipdb;
-        ipdb.set_trace()
         for catidx, catname in zip(category_idxs_to_display, category_names_to_display):
             plt.figure(1)
             plt.clf()
@@ -243,19 +241,27 @@ def nanscatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None, 
     for i, (x, y) in enumerate(zip(xs, ys)):
         clr_idx = i % len(colors)
         marker_idx = i % len(markers)
-        if max(colors[clr_idx]) <= 1:
-            denom = 1.0
-        else:
-            denom = 255.0
-        clr = np.array([c / denom for c in colors[clr_idx]]).reshape(1, 3)  # Turn into a tuple instead of ndarray
-        if remove_nan:
-            x = x[~np.isnan(x)]
-            y = y[~np.isnan(y)]
-        plt.scatter(x, y, alpha=0.5, marker=markers[marker_idx], s=size, c=clr,
-                    edgecolors=clr, label=labels[i])
+        clr = colors[clr_idx]
+        nanscatter_x_y(x, y, alpha=0.5, marker=markers[marker_idx], s=size, c=clr, label=labels[i],
+                       remove_nan=remove_nan)
     plt.legend()
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+
+
+def nanscatter_x_y(x, y, marker=None, alpha=1.0, c=None, label=None, s=None, remove_nan=True):
+    if c is not None:
+        if max(c) <= 1:
+            denom = 1.0
+        else:
+            denom = 255.0
+        c = np.array([c / denom for c in c]).reshape(1, 3)  # Turn into a tuple instead of ndarray
+    if remove_nan:
+        assert np.all(~np.isnan(x) == ~np.isnan(y))
+        x = x[~np.isnan(x)]
+        y = y[~np.isnan(y)]
+    plt.scatter(x, y, alpha=alpha, marker=marker, s=s, c=c, edgecolors=c, label=label)
+    plt.legend()
 
 
 def main(collated_stats_npz_file, supercategories_to_ignore=('void', 'background'), values_to_ignore=(-1,)):
@@ -286,14 +292,15 @@ def main(collated_stats_npz_file, supercategories_to_ignore=('void', 'background
         n_inst_arrs = stats_arrays_per_img['n_inst']
         if stat_type != 'n_inst':
             stat_array[n_inst_arrs == 0] = np.nan
-
-    plot_averages_with_error_bars(stats_arrays_per_img, semantic_class_names=semantic_class_names,
-                                  category_idxs_to_display=category_idxs_to_display,
-                                  output_dir=fig_output_dir, category_colors=colors_norm1)
-    plot_scatterplot_sq_rq(stats_arrays_per_img, semantic_class_names=semantic_class_names,
+    semantic_class_names_before_selection = [l['name'] for l in corresponding_labels_table]
+    plot_averages_with_error_bars(
+        stats_arrays_per_img, semantic_class_names=semantic_class_names_before_selection,
+        category_idxs_to_display=category_idxs_to_display,
+        output_dir=fig_output_dir, category_colors=colors_norm1)
+    plot_scatterplot_sq_rq(stats_arrays_per_img, semantic_class_names=semantic_class_names_before_selection,
                            category_idxs_to_display=category_idxs_to_display, output_dir=fig_output_dir,
                            category_colors=colors_norm1)
-    plot_hists_pq_rq_sq(stats_arrays_per_img, semantic_class_names=semantic_class_names,
+    plot_hists_pq_rq_sq(stats_arrays_per_img, semantic_class_names=semantic_class_names_before_selection,
                         category_idxs_to_display=category_idxs_to_display, output_dir=fig_output_dir,
                         category_colors=colors_norm1)
     stat_arrays_total_dataset_per_class_by_stat = swap_outer_and_inner_keys(stats_arrays_total_dataset['per_class'])

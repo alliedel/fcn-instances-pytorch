@@ -66,14 +66,14 @@ class LossMatchAssignments(AttrDict):
         n_channels = model_channels.shape[1]
         assert assigned_gt_inst_vals.shape[1] == n_channels
         assert sem_values.shape[1] == n_channels
-        self.model_channels = model_channels  # torch.empty((0, n_channels))
+        self.model_channels = model_channels.long()  # torch.empty((0, n_channels))
         self.assigned_gt_inst_vals = assigned_gt_inst_vals  # torch.empty((0, n_channels))
         self.sem_values = sem_values  # torch.empty((0, n_channels))
         self.unassigned_gt_sem_inst_tuples = unassigned_gt_sem_inst_tuples
 
     @classmethod
     def allocate(cls, n_images, n_channels):
-        model_channels = torch.empty((n_images, n_channels))
+        model_channels = torch.empty((n_images, n_channels), dtype=torch.long)
         assigned_gt_inst_vals = torch.empty((n_images, n_channels))  # torch.empty((0, n_channels))
         sem_values = torch.empty((n_images, n_channels))
         unassigned_gt_sem_inst_tuples = [[] for _ in range(n_images)]
@@ -182,7 +182,6 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             else:
                 normalizer = 1.0
             for c, (sem_val, inst_val) in enumerate(zip(self.semantic_instance_labels, self.instance_id_labels)):
-                import ipdb; ipdb.set_trace()
                 loss_components_per_channel[i, c] = self.component_loss(predictions[i, c, :, :],
                                                                         (sem_lbl[i, ...] == sem_val).float() *
                                                                         (inst_lbl == inst_val).float()) / normalizer

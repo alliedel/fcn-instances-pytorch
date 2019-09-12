@@ -109,7 +109,6 @@ def compare_two_eval_npz_files(npz_1, npz_2, output_dir, identifier_1='1', ident
         for stat_type, stat_array_by_type in per_image.items():
             n_inst_arrs = per_image['n_inst']
             if stat_type != 'n_inst':
-                import ipdb; ipdb.set_trace()
                 stat_array_by_type[n_inst_arrs == 0] = np.nan
 
         stats_arrays_per_img_same_cols[identifier] = {k: subsample_arr_with_categories_by_name(
@@ -147,7 +146,8 @@ def compare_two_eval_npz_files(npz_1, npz_2, output_dir, identifier_1='1', ident
     return fig_names
 
 
-def all_scatters(x_arrs_R_C, y_arrs_R_C, x_labels_c=None, y_labels_r=None, colors_c=None, labels_R_C=None):
+def all_scatters(x_arrs_R_C, y_arrs_R_C, x_labels_c=None, y_labels_r=None, colors_c=None, labels_R_C=None,
+                 subtitles_c=None):
     R = len(x_arrs_R_C)
     C = len(x_arrs_R_C[0])
     for arr in [x_arrs_R_C, y_arrs_R_C, labels_R_C]:
@@ -160,6 +160,10 @@ def all_scatters(x_arrs_R_C, y_arrs_R_C, x_labels_c=None, y_labels_r=None, color
         colors_c = [None for _ in range(C)]
     else:
         assert len(colors_c) == C
+    if subtitles_c is None:
+        subtitles_c = [None for _ in range(C)]
+    else:
+        assert len(subtitles_c) == C
     if y_labels_r is None:
         y_labels_r = [None for _ in range(R)]
     else:
@@ -180,7 +184,9 @@ def all_scatters(x_arrs_R_C, y_arrs_R_C, x_labels_c=None, y_labels_r=None, color
             else:
                 ax = plt.subplot(R, C, subplot_idx, sharex=ax1, sharey=ax1)
             if r == 0:
-                plt.title(x_labels_c[c], rotation=45, y=1.4)
+                plt.title(subtitles_c[c], rotation=45, y=1.4)
+            if r == (R-1):
+                plt.xlabel(x_labels_c[c])
 
             nanscatter_x_y(x_arrs_R_C[r][c], y_arrs_R_C[r][c], marker=None, alpha=1.0, c=colors_c[c],
                            label=labels_R_C[r][c], s=None, remove_nan=True)

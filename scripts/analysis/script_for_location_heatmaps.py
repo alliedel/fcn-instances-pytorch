@@ -28,8 +28,6 @@ COLORMAP = 'cubehelix'  # 'cubehelix', 'inferno', 'magma', 'viridis', 'gray'
 
 
 def write_absolute_heatmaps(absolute_heatmap_average, split, instance_problem):
-    sem_inst_class_list = instance_problem.semantic_instance_class_list
-    inst_id_list = instance_problem.instance_count_id_list
     channel_names = instance_problem.get_channel_labels()
     is_background = ['background' in s for s in channel_names]
     non_bground_channel_idxs = [i for i, is_b in enumerate(is_background) if not is_b]
@@ -52,7 +50,7 @@ def write_absolute_heatmaps(absolute_heatmap_average, split, instance_problem):
 
 def write_relative_heatmaps_by_channel(list_of_relative_heatmap_averages, instance_problem, split):
     channel_names = instance_problem.get_channel_labels()
-    sem_inst_class_list = instance_problem.semantic_instance_class_list
+    sem_inst_class_list = instance_problem.model_channel_semantic_ids
     is_background = ['background' in s for s in channel_names]
     non_bground_channel_idxs = [i for i, is_b in enumerate(is_background) if not is_b]
     inst_id_list = instance_problem.instance_count_id_list
@@ -113,7 +111,7 @@ def write_relative_heatmaps_by_sem_cls(list_of_relative_heatmap_averages_rel_by_
 def compute_relative_per_sem_class_heatmaps(list_of_relative_heatmap_averages, instance_problem):
     n_semantic_classes = instance_problem.n_semantic_classes
     sem_class_vals = range(n_semantic_classes)
-    sem_inst_class_list = instance_problem.semantic_instance_class_list
+    sem_inst_class_list = instance_problem.model_channel_semantic_ids
 
     channels_by_sem_val = [[c for c, s in enumerate(sem_inst_class_list) if s == sem_val] for sem_val in
                            sem_class_vals]

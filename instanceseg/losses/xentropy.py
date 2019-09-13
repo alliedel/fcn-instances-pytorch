@@ -33,7 +33,7 @@ def tensors_are_close(tensor_a, tensor_b):
     return torch.np.allclose(tensor_a.cpu().numpy(), tensor_b.cpu().numpy())
 
 
-def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semantic_instance_labels,
+def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, model_channel_semantic_ids,
                                      instance_id_labels, weight=None, size_average=True, return_loss_components=False):
     """
     Target should *not* be onehot.
@@ -44,7 +44,7 @@ def cross_entropy2d_without_matching(log_predictions, sem_lbl, inst_lbl, semanti
     assert (log_predictions.size(0), log_predictions.size(2), log_predictions.size(3)) == sem_lbl.size()
     assert weight is None, NotImplementedError
     losses = []
-    for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(semantic_instance_labels, instance_id_labels)):
+    for sem_inst_idx, (sem_val, inst_val) in enumerate(zip(model_channel_semantic_ids, instance_id_labels)):
         binary_target_single_instance_cls = ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
         log_predictions_single_instance_cls = log_predictions[:, sem_inst_idx, :, :]
         losses.append(nll2d_single_class_term(log_predictions_single_instance_cls,

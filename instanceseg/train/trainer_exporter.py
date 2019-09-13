@@ -9,17 +9,17 @@ import pytz
 import torch
 import torch.nn.functional as F
 import tqdm
+from tensorboardX import SummaryWriter
 
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
 from instanceseg.analysis import visualization_utils
 from instanceseg.datasets import runtime_transformations
+from instanceseg.ext.panopticapi.utils import rgb2id, id2rgb
 from instanceseg.losses.loss import LossMatchAssignments
 from instanceseg.utils import instance_utils
-from instanceseg.utils.misc import flatten_dict
 from instanceseg.utils.instance_utils import InstanceProblemConfig
-from tensorboardX import SummaryWriter
-from instanceseg.ext.panopticapi.utils import rgb2id, id2rgb
+from instanceseg.utils.misc import flatten_dict
 
 display_pyutils.set_my_rc_defaults()
 
@@ -53,6 +53,18 @@ class ExportConfig(object):
         self.write_lr = True
 
 
+def export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
+                                   image_names):
+    batch_sz = sem_lbls_as_batch_nparray.shape[0]
+    assert batch_sz == inst_lbls_as_batch_nparray.shape[0]
+    for img_idx in range(batch_sz):
+        sem_l = sem_lbls_as_batch_nparray[img_idx, ...]
+        inst_l = inst_lbls_as_batch_nparray[img_idx, ...]
+        img = id2rgb(255 * sem_l + inst_l)
+        out_file = os.path.join(output_directory, image_names[img_idx])
+        visualization_utils.write_image(out_file, img)
+
+
 class TrainerExporter(object):
     log_headers = [
         'epoch',
@@ -71,7 +83,7 @@ class TrainerExporter(object):
     ]
 
     def __init__(self, out_dir, instance_problem: InstanceProblemConfig, export_config: ExportConfig = None,
-                 tensorboard_writer: SummaryWriter=None, metric_makers=None):
+                 tensorboard_writer: SummaryWriter = None, metric_makers=None):
 
         self.export_config = export_config or ExportConfig()
 
@@ -106,6 +118,25 @@ class TrainerExporter(object):
         # Writing activations
 
         self.run_loss_updates = True
+
+    def get_big_channel_set_to_fit_pred_and_gt(self, max_n_channels=(256 * 256), sem_vals_not_model_ids=True):
+        """
+        sem_vals_not_model_ids: False if you want what the model calls semantic ids (e.g. - remapping car to 3
+        instead of 14); True if you want the sem vals from the initial dataset
+        """
+
+        n_stuff_classes = len(self.instance_problem.stuff_class_vals)
+        n_thing_classes = len(self.instance_problem.thing_class_vals)
+        n_thing_channels_per_cls = int((max_n_channels - n_stuff_classes) / n_thing_classes)
+        channel_sem_vals, channel_inst_vals = [], []
+        no_ch_0 = int(self.instance_problem.include_instance_channel0)  # 0 if channel 0, else 1
+        for i, l in enumerate(self.instance_problem.labels_table):
+            sem_val = l['id'] if sem_vals_not_model_ids else i
+            is_thing = l['isthing']
+            n_channels_this_cls = n_thing_channels_per_cls if is_thing else 1
+            channel_sem_vals.extend([sem_val] * n_channels_this_cls)
+            channel_inst_vals.extend([0] if not is_thing else list(range(no_ch_0, n_channels_this_cls + no_ch_0)))
+        return channel_sem_vals, channel_inst_vals
 
     @property
     def instance_problem_path(self):
@@ -312,10 +343,10 @@ class TrainerExporter(object):
         if self.export_config.which_heatmaps_to_visualize == 'same semantic':
             inst_sem_classes_present = torch.from_numpy(np.unique(true_labels))  # torch.np.unique
             inst_sem_classes_present = inst_sem_classes_present[inst_sem_classes_present != -1]
-            sem_classes_present = np.unique([self.instance_problem.semantic_instance_class_list[c]
+            sem_classes_present = np.unique([self.instance_problem.model_channel_semantic_ids[c]
                                              for c in inst_sem_classes_present])
             channels_for_these_semantic_classes = [inst_idx for inst_idx, sem_cls in enumerate(
-                self.instance_problem.semantic_instance_class_list) if sem_cls in sem_classes_present]
+                self.instance_problem.model_channel_semantic_ids) if sem_cls in sem_classes_present]
             channels_to_visualize = channels_for_these_semantic_classes
         elif self.export_config.which_heatmaps_to_visualize == 'all':
             channels_to_visualize = list(range(sp.shape[0]))
@@ -375,20 +406,20 @@ class TrainerExporter(object):
         lbl_true_sem, lbl_true_inst = sem_lbl.detach().cpu().numpy(), inst_lbl.detach().cpu().numpy()
         eval_metrics = []
         for idx, (sem_lbl_np, inst_lbl_np, lp) in enumerate(zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
-            assigned_sem_vals = [self.instance_problem.semantic_instance_class_list[c]
+            assigned_sem_vals = [self.instance_problem.model_channel_semantic_ids[c]
                                  for c in assignments.model_channels[idx, :]]
             assigned_inst_vals = [self.instance_problem.instance_count_id_list[c]
                                   for c in assignments.model_channels[idx, :]]
-            lt_combined = self.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,
-                                                                assigned_sem_vals=assigned_sem_vals,
-                                                                assigned_inst_vals=assigned_inst_vals)
+            lt_combined = self.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
+                                                          assigned_sem_vals=assigned_sem_vals,
+                                                          assigned_inst_vals=assigned_inst_vals)
             acc, acc_cls, mean_iu, fwavacc = \
                 self.compute_eval_metrics(label_trues=[lt_combined], label_preds=[lp])
             eval_metrics.append((acc, acc_cls, mean_iu, fwavacc))
         eval_metrics = np.mean(eval_metrics, axis=0)
         self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
-        # TODO(allie): Check dimensionality of loss to prevent potential bugs
+            # TODO(allie): Check dimensionality of loss to prevent potential bugs
             self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.detach().sum(),
                                                iteration)
 
@@ -433,13 +464,13 @@ class TrainerExporter(object):
                 if data_to_img_transformer is not None \
                 else (img, (sem_lbl, inst_lbl))
             sem_lbl_np, inst_lbl_np = lbl_untransformed
-            assigned_sem_vals = [self.instance_problem.semantic_instance_class_list[c]
+            assigned_sem_vals = [self.instance_problem.model_channel_semantic_ids[c]
                                  for c in assignments.model_channels[idx, :].long()]
             assigned_inst_vals = [self.instance_problem.instance_count_id_list[c]
                                   for c in assignments.model_channels[idx, :]]
-            lt_combined = self.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,
-                                                                assigned_sem_vals=assigned_sem_vals,
-                                                                assigned_inst_vals=assigned_inst_vals)
+            lt_combined = self.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
+                                                          assigned_sem_vals=assigned_sem_vals,
+                                                          assigned_inst_vals=assigned_inst_vals)
             true_labels.append(lt_combined)
             pred_labels.append(lp)
             if should_visualize:
@@ -454,11 +485,14 @@ class TrainerExporter(object):
                                                                         n_class=self.instance_problem.n_classes)
         return eval_metrics_list
 
-    def gt_tuple_to_channelwise_combined(self, sem_lbl, inst_lbl, assigned_sem_vals=None, assigned_inst_vals=None):
-        # semantic_instance_class_list = self.instance_problem.semantic_instance_class_list
-        # instance_count_id_list = self.instance_problem.instance_count_id_list
-        return instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl,
-                                                                   assigned_sem_vals, assigned_inst_vals)
+    @staticmethod
+    def label_tuple_to_channel_ids(sem_lbl, inst_lbl, assigned_sem_vals, assigned_inst_vals):
+        """
+        assigned_inst_vals: each channel is assigned to a ground truth value
+        """
+        return instance_utils.label_tuple_to_channel_ids(sem_lbl, inst_lbl,
+                                                         channel_semantic_values=assigned_sem_vals,
+                                                         channel_instance_values=assigned_inst_vals)
 
     @staticmethod
     def untransform_data(data_loader, img, lbl):
@@ -476,18 +510,7 @@ class TrainerExporter(object):
         for img_idx in range(batch_sz):
             lbl = labels_as_batch_nparray[img_idx, ...]
             sem_l, inst_l = self.instance_problem.decompose_semantic_and_instance_labels_with_original_sem_ids(lbl)
-            img = self.convert_lbl_to_image_with_id2rgb(255 * sem_l + inst_l)
-            out_file = os.path.join(output_directory, image_names[img_idx])
-            visualization_utils.write_image(out_file, img)
-
-    def export_inst_sem_lbls_as_id2rgb(self, sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
-                                       image_names):
-        batch_sz = sem_lbls_as_batch_nparray.shape[0]
-        assert batch_sz == inst_lbls_as_batch_nparray.shape[0]
-        for img_idx in range(batch_sz):
-            sem_l = sem_lbls_as_batch_nparray[img_idx, ...]
-            inst_l = inst_lbls_as_batch_nparray[img_idx, ...]
-            img = self.convert_lbl_to_image_with_id2rgb(255 * sem_l + inst_l)
+            img = id2rgb(255 * sem_l + inst_l)
             out_file = os.path.join(output_directory, image_names[img_idx])
             visualization_utils.write_image(out_file, img)
 
@@ -531,28 +554,3 @@ class TrainerExporter(object):
         #         import ipdb;
         #         ipdb.set_trace()
         #         raise
-
-    @staticmethod
-    def convert_lbl_to_image_with_id2rgb(lbl, permutation=None, void_value=-1):
-        """
-        Returns
-        img_array: ndarray
-            Visualized image.
-        """
-
-        # Generate funky pixels for void class
-        mask_unlabeled = lbl == void_value
-        lbl[mask_unlabeled] = 255
-        # lbl_true[mask_unlabeled] = 0
-        if permutation is not None:
-            assert len(permutation.shape) == 1, 'Debug this -- assumed one image here.'
-            lbl_permuted = instance_utils.permute_labels(lbl, permutation[np.newaxis, :])
-        else:
-            lbl_permuted = lbl
-        viz = id2rgb(lbl_permuted)
-        viz[:, :, 0][mask_unlabeled] = 255
-        viz[:, :, 1][mask_unlabeled] = 255
-        viz[:, :, 2][mask_unlabeled] = 255
-        return viz
-
-

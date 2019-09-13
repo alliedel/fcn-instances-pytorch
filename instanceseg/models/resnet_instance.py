@@ -31,7 +31,7 @@ DEBUG = True
 
 class ResNet50Instance(nn.Module):
 
-    def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
+    def __init__(self, n_instance_classes=None, model_channel_semantic_ids=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
                  at_once=True, n_input_channels=3, use_conv8=False, use_attention_layer=False):
         """
@@ -48,24 +48,24 @@ class ResNet50Instance(nn.Module):
 
         if include_instance_channel0:
             raise NotImplementedError
-        if semantic_instance_class_list is None:
+        if model_channel_semantic_ids is None:
             assert n_instance_classes is not None, \
-                ValueError('either n_classes or semantic_instance_class_list must be specified.')
-            assert not map_to_semantic, ValueError('need semantic_instance_class_list to map to semantic')
+                ValueError('either n_classes or model_channel_semantic_ids must be specified.')
+            assert not map_to_semantic, ValueError('need model_channel_semantic_ids to map to semantic')
         else:
-            assert n_instance_classes is None or n_instance_classes == len(semantic_instance_class_list)
-            n_instance_classes = len(semantic_instance_class_list)
+            assert n_instance_classes is None or n_instance_classes == len(model_channel_semantic_ids)
+            n_instance_classes = len(model_channel_semantic_ids)
 
-        if semantic_instance_class_list is None:
-            self.semantic_instance_class_list = list(range(n_instance_classes))
+        if model_channel_semantic_ids is None:
+            self.model_channel_semantic_ids = list(range(n_instance_classes))
         else:
-            self.semantic_instance_class_list = semantic_instance_class_list
+            self.model_channel_semantic_ids = model_channel_semantic_ids
         self.n_instance_classes = n_instance_classes
         self.map_to_semantic = map_to_semantic
         self.score_multiplier_init = score_multiplier_init
         self.instance_to_semantic_mapping_matrix = \
-            instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
-                self.semantic_instance_class_list, as_numpy=False, compose_transposed=True)
+            instance_utils.get_instance_to_semantic_mapping_from_model_channel_semantic_ids(
+                self.model_channel_semantic_ids, as_numpy=False, compose_transposed=True)
         self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
         self.n_output_channels = n_instance_classes if not map_to_semantic else self.n_semantic_classes
         self.n_input_channels = n_input_channels

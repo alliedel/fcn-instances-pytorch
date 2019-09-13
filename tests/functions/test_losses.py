@@ -36,7 +36,7 @@ def main():
     score_gt[...] = 0
     magnitude_gt = 100
     for c in range(score_1.size(1)):
-        score_gt[:, c, :, :] = (sem_lbl == trainer.instance_problem.semantic_instance_class_list[c]).float() * \
+        score_gt[:, c, :, :] = (sem_lbl == trainer.instance_problem.model_channel_semantic_ids[c]).float() * \
                                (inst_lbl == trainer.instance_problem.instance_count_id_list[c]).float() * magnitude_gt
     magnitude_1 = 1
     for c in range(score_1.size(1)):
@@ -47,8 +47,8 @@ def main():
         inst_to_permuted.update({
             i: p for i, p in zip(inst_vals, permuted)
         })
-        score_1[:, c, :, :] = (sem_lbl == trainer.instance_problem.semantic_instance_class_list[c]).float() * \
-                               (inst_lbl == inst_to_permuted[trainer.instance_problem.instance_count_id_list[
+        score_1[:, c, :, :] = (sem_lbl == trainer.instance_problem.model_channel_semantic_ids[c]).float() * \
+                              (inst_lbl == inst_to_permuted[trainer.instance_problem.instance_count_id_list[
                                    c]]).float() * magnitude_1
     try:
         assert (score_gt.sum(dim=1) == magnitude_gt).all()  # debug sanity check
@@ -64,7 +64,7 @@ def main():
 
     assigned_gt_inst_vals = assignments_1.assigned_gt_inst_vals
     sem_vals = assignments_1.sem_values
-    model_channel_sem_vals = trainer.instance_problem.semantic_instance_class_list
+    model_channel_sem_vals = trainer.instance_problem.model_channel_semantic_ids
     model_channel_inst_vals = trainer.instance_problem.instance_count_id_list
     permuted_score_1 = permute_predictions_to_match_gt_inst_vals(assigned_gt_inst_vals, assignments_1,
                                                                  model_channel_inst_vals,

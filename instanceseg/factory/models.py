@@ -19,7 +19,7 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
     n_input_channels = 3 if not cfg['augment_semantic'] else 3 + problem_config.n_semantic_classes
     if cfg['backbone'] == 'fcn8':
         model = MODEL_OPTIONS['fcn8'](
-            semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
+            model_channel_semantic_ids=problem_config.model_channel_semantic_ids,
             map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
             bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'],
             score_multiplier_init=cfg['score_multiplier'],
@@ -28,7 +28,7 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
                 'use_attn_layer'])
     elif cfg['backbone'] == 'resnet50':
         model = instanceseg.models.ResNet50Instance(
-            semantic_instance_class_list=problem_config.model_semantic_instance_class_list,
+            model_channel_semantic_ids=problem_config.model_channel_semantic_ids,
             map_to_semantic=problem_config.map_to_semantic, include_instance_channel0=False,
             bottleneck_channel_capacity=cfg['bottleneck_channel_capacity'],
             score_multiplier_init=cfg['score_multiplier'], n_input_channels=n_input_channels)
@@ -60,8 +60,8 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
                         'I could not find the path {}.  Did you set the path using the '
                         'semantic-init flag?'.format(semantic_init_path))
                 semantic_model = instanceseg.models.FCN8sInstance(
-                    semantic_instance_class_list=[1 for _ in
-                                                  range(problem_config.n_semantic_classes)],
+                    model_channel_semantic_ids=[1 for _ in
+                                                range(problem_config.n_semantic_classes)],
                     map_to_semantic=False, include_instance_channel0=False)
                 print('Copying params from preinitialized semantic model')
                 checkpoint_file = torch.load(semantic_init_path)
@@ -89,8 +89,9 @@ def get_model(cfg, problem_config: InstanceProblemConfig, checkpoint_file, seman
     return model, start_epoch, start_iteration
 
 
-def get_problem_config_from_labels_table(labels_table, n_instances_by_semantic_id, map_to_semantic=False):
+def get_problem_config_from_labels_table(labels_table, n_instances_by_semantic_id, map_to_semantic=False,
+                                         void_value=255):
     problem_config = instance_utils.InstanceProblemConfig(labels_table=labels_table,
                                                           n_instances_by_semantic_id=n_instances_by_semantic_id,
-                                                          map_to_semantic=map_to_semantic)
+                                                          map_to_semantic=map_to_semantic, void_value=void_value)
     return problem_config

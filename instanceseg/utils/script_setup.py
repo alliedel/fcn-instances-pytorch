@@ -123,9 +123,14 @@ def setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, sem
     # labels_table = dataloaders[splits[0]].dataset.labels_table
     # NOTE(allie): Should double-check labels_table
     labels_table = dataloaders[splits[0]].dataset.labels_table
+    try:
+        void_value = dataloaders[splits[0]].dataset.raw_dataset.void_val
+    except AttributeError:
+        void_value = 255
+    labels_table = [l for l in labels_table if l['id'] != void_value]
     n_instances_by_semantic_id = [1 if not l.isthing else n_instances_per_class for l in labels_table]
     problem_config = instanceseg.factory.models.get_problem_config_from_labels_table(
-        labels_table, n_instances_by_semantic_id, map_to_semantic=cfg['map_to_semantic'])
+        labels_table, n_instances_by_semantic_id, map_to_semantic=cfg['map_to_semantic'], void_value=void_value)
     if model_checkpoint_path:
         checkpoint = torch.load(model_checkpoint_path)
     else:
@@ -137,7 +142,7 @@ def setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, sem
 
     # Run a few checks
     problem_config_semantic_classes = set([problem_config.semantic_class_names[si]
-                                           for si in problem_config.semantic_instance_class_list])
+                                           for si in problem_config.model_channel_semantic_ids])
     dataset_semantic_classes = set(dataloaders[splits[0]].dataset.semantic_class_names)
     assert problem_config_semantic_classes == dataset_semantic_classes, \
         'Model covers these semantic classes: {}.\n ' \

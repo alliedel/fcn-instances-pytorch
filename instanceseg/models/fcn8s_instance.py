@@ -38,7 +38,7 @@ def initialize_basic_conv_from_sublayers(basic_conv, conv_sublayers):
 class FCN8sInstance(nn.Module):
     INTERMEDIATE_CONV_CHANNEL_SIZE = 20
 
-    def __init__(self, n_instance_classes=None, semantic_instance_class_list=None, map_to_semantic=False,
+    def __init__(self, n_instance_classes=None, model_channel_semantic_ids=None, map_to_semantic=False,
                  include_instance_channel0=False, bottleneck_channel_capacity=None, score_multiplier_init=None,
                  at_once=True, n_input_channels=3, clip=None, use_conv8=False, use_attention_layer=False):
         """
@@ -52,25 +52,25 @@ class FCN8sInstance(nn.Module):
 
         if include_instance_channel0:
             raise NotImplementedError
-        if semantic_instance_class_list is None:
+        if model_channel_semantic_ids is None:
             assert n_instance_classes is not None, \
-                ValueError('either n_classes or semantic_instance_class_list must be specified.')
-            assert not map_to_semantic, ValueError('need semantic_instance_class_list to map to semantic')
+                ValueError('either n_classes or model_channel_semantic_ids must be specified.')
+            assert not map_to_semantic, ValueError('need model_channel_semantic_ids to map to semantic')
         else:
-            assert n_instance_classes is None or n_instance_classes == len(semantic_instance_class_list)
-            n_instance_classes = len(semantic_instance_class_list)
+            assert n_instance_classes is None or n_instance_classes == len(model_channel_semantic_ids)
+            n_instance_classes = len(model_channel_semantic_ids)
 
-        if semantic_instance_class_list is None:
-            self.semantic_instance_class_list = list(range(n_instance_classes))
+        if model_channel_semantic_ids is None:
+            self.model_channel_semantic_ids = list(range(n_instance_classes))
         else:
-            self.semantic_instance_class_list = semantic_instance_class_list
+            self.model_channel_semantic_ids = model_channel_semantic_ids
         self.n_instance_classes = n_instance_classes
         self.at_once = at_once
         self.map_to_semantic = map_to_semantic
         self.score_multiplier_init = score_multiplier_init
         self.instance_to_semantic_mapping_matrix = \
-            instance_utils.get_instance_to_semantic_mapping_from_sem_inst_class_list(
-                self.semantic_instance_class_list, as_numpy=False, compose_transposed=True)
+            instance_utils.get_instance_to_semantic_mapping_from_model_channel_semantic_ids(
+                self.model_channel_semantic_ids, as_numpy=False, compose_transposed=True)
         self.n_semantic_classes = self.instance_to_semantic_mapping_matrix.size(0)
         self.n_output_channels = n_instance_classes if not map_to_semantic else self.n_semantic_classes
         self.n_input_channels = n_input_channels
@@ -233,7 +233,7 @@ class FCN8sInstance(nn.Module):
                 else:
                     initial_weight = model_utils.get_non_symmetric_upsampling_weight(
                         m.in_channels, m.out_channels, m.kernel_size[0],
-                        semantic_instance_class_list=self.semantic_instance_class_list)
+                        model_channel_semantic_ids=self.model_channel_semantic_ids)
                 copy_tensor(src=initial_weight, dest=m.weight.data)
         if self.score_multiplier_init:
             self.score_multiplier1x1.weight.data.zero_()
@@ -274,7 +274,7 @@ class FCN8sInstance(nn.Module):
         module_types_to_ignore = [nn.ReLU, nn.MaxPool2d, nn.Dropout2d]
         module_names_to_ignore = ['score_multiplier1x1']
         # check whether this has the right number of channels to be the semantic version of me
-        assert self.semantic_instance_class_list is not None, ValueError('I must know which semantic classes each of '
+        assert self.model_channel_semantic_ids is not None, ValueError('I must know which semantic classes each of '
                                                                          'my instance channels map to in order to '
                                                                          'copy weights.')
         n_semantic_classes = self.n_semantic_classes
@@ -286,11 +286,11 @@ class FCN8sInstance(nn.Module):
         copy_modules_from_semantic_to_instance(self, semantic_model, conv2dT_with_repeated_channels,
                                                conv2d_with_repeated_channels, module_names_to_ignore,
                                                module_types_to_ignore, n_semantic_classes,
-                                               self.semantic_instance_class_list)
+                                               self.model_channel_semantic_ids)
 
         # Assert that all the weights equal each other
         if DEBUG:
-            assert_successful_copy_from_semantic_model(self, semantic_model, self.semantic_instance_class_list,
+            assert_successful_copy_from_semantic_model(self, semantic_model, self.model_channel_semantic_ids,
                                                        conv2dT_with_repeated_channels,
                                                        conv2d_with_repeated_channels, module_names_to_ignore)
 
@@ -311,9 +311,9 @@ class FCN8sInstance(nn.Module):
 
 
 def FCN8sInstancePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, n_instance_classes=21,
-                            semantic_instance_class_list=None, map_to_semantic=False):
+                            model_channel_semantic_ids=None, map_to_semantic=False):
     model = FCN8sInstance(n_instance_classes=n_instance_classes,
-                          semantic_instance_class_list=semantic_instance_class_list,
+                          model_channel_semantic_ids=model_channel_semantic_ids,
                           map_to_semantic=map_to_semantic, at_once=True)
     # state_dict = torch.load(model_file, map_location=lambda storage, location: 'cpu')
     state_dict = torch.load(model_file, map_location=lambda storage, loc: storage)[
@@ -323,7 +323,7 @@ def FCN8sInstancePretrained(model_file=DEFAULT_SAVED_MODEL_PATH, n_instance_clas
 
 
 def assert_successful_copy_from_semantic_model(instance_model, semantic_model,
-                                               semantic_instance_class_list, conv2dT_with_repeated_channels,
+                                               model_channel_semantic_ids, conv2dT_with_repeated_channels,
                                                conv2d_with_repeated_channels, module_names_to_ignore):
     successfully_copied_modules = []
     unsuccessfully_copied_modules = []
@@ -342,7 +342,7 @@ def assert_successful_copy_from_semantic_model(instance_model, semantic_model,
             else:
                 if module_name in (conv2d_with_repeated_channels + conv2dT_with_repeated_channels):
                     are_equal = True
-                    for inst_cls, sem_cls in enumerate(semantic_instance_class_list):
+                    for inst_cls, sem_cls in enumerate(model_channel_semantic_ids):
                         are_equal = torch.equal(my_p[1].data[:, inst_cls, :, :],
                                                 p_to_copy[1].data[:, sem_cls, :, :])
                         if not are_equal:
@@ -359,7 +359,7 @@ def assert_successful_copy_from_semantic_model(instance_model, semantic_model,
 
 def copy_modules_from_semantic_to_instance(instance_model_dest, semantic_model, conv2dT_with_repeated_channels,
                                            conv2d_with_repeated_channels, module_names_to_ignore,
-                                           module_types_to_ignore, n_semantic_classes, semantic_instance_class_list):
+                                           module_types_to_ignore, n_semantic_classes, model_channel_semantic_ids):
     for module_name, my_module in instance_model_dest.named_children():
         if module_name in module_names_to_ignore:
             continue
@@ -372,13 +372,13 @@ def copy_modules_from_semantic_to_instance(instance_model_dest, semantic_model, 
                     ipdb.set_trace()
                     raise ValueError('semantic model is formatted incorrectly at layer {}'.format(module_name))
                 if DEBUG:
-                    assert my_p.data.size(0) == len(semantic_instance_class_list) \
+                    assert my_p.data.size(0) == len(model_channel_semantic_ids) \
                            and p_to_copy.data.size(0) == n_semantic_classes
-                for inst_cls, sem_cls in enumerate(semantic_instance_class_list):
+                for inst_cls, sem_cls in enumerate(model_channel_semantic_ids):
                     # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
                     # so we use slicing)
                     n_instances_this_class = float(sum(
-                        [1 if sic == sem_cls else 0 for sic in semantic_instance_class_list]))
+                        [1 if sic == sem_cls else 0 for sic in model_channel_semantic_ids]))
                     copy_tensor(src=p_to_copy.data[sem_cls:(sem_cls + 1), ...] / n_instances_this_class,
                                 dest=my_p.data[inst_cls:(inst_cls + 1), ...])
         elif module_name in conv2dT_with_repeated_channels:
@@ -393,7 +393,7 @@ def copy_modules_from_semantic_to_instance(instance_model_dest, semantic_model, 
                     ipdb.set_trace()
                     raise ValueError('semantic model formatted incorrectly for repeating params.')
 
-                for inst_cls, sem_cls in enumerate(semantic_instance_class_list):
+                for inst_cls, sem_cls in enumerate(model_channel_semantic_ids):
                     # weird formatting because scalar -> scalar not implemented (must be FloatTensor,
                     # so we use slicing)
                     copy_tensor(src=p_to_copy.data[:, sem_cls:(sem_cls + 1), ...],

@@ -75,9 +75,9 @@ class InstanceMetrics(object):
 
     def _compute_pixels_assigned_per_channel(self, assignments):
         n_images = len(self.data_loader)
-        n_inst_classes = len(self.problem_config.semantic_instance_class_list)
+        n_inst_classes = len(self.problem_config.model_channel_semantic_ids)
         n_pixels_assigned_per_channel = torch.IntTensor(n_images, n_inst_classes).zero_()
-        for channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.semantic_instance_class_list,
+        for channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.model_channel_semantic_ids,
                                                              self.problem_config.instance_count_id_list)):
             n_pixels_assigned_per_channel[:, channel_idx] = \
                 (assignments[:, :, :] == channel_idx).int().sum(dim=2).sum(dim=1)
@@ -86,7 +86,7 @@ class InstanceMetrics(object):
     def _compute_instances_assigned_per_sem_cls(self, pixels_assigned_per_channel):
         n_images = len(self.data_loader)
         instances_found_per_channel = torch.IntTensor(n_images, self.problem_config.n_semantic_classes).zero_()
-        for channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.semantic_instance_class_list,
+        for channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.model_channel_semantic_ids,
                                                              self.problem_config.instance_count_id_list)):
             instances_found_per_channel[:, sem_cls] += (pixels_assigned_per_channel[:, channel_idx] > 0).int()
         return instances_found_per_channel
@@ -96,13 +96,13 @@ class InstanceMetrics(object):
         n_found_per_sem_cls = torch.IntTensor(n_images, self.problem_config.n_semantic_classes).zero_()
         n_missed_per_sem_cls = torch.IntTensor(n_images, self.problem_config.n_semantic_classes).zero_()
         channels_of_majority_assignments = \
-            torch.IntTensor(n_images, len(self.problem_config.semantic_instance_class_list)).zero_()
+            torch.IntTensor(n_images, len(self.problem_config.model_channel_semantic_ids)).zero_()
 
-        already_matched_pred_channels = torch.ByteTensor(len(self.problem_config.semantic_instance_class_list))
+        already_matched_pred_channels = torch.ByteTensor(len(self.problem_config.model_channel_semantic_ids))
         assumed_image_size = (assignments.size(1), assignments.size(2))
         for data_idx, (_, (sem_lbl, inst_lbl)) in enumerate(self.data_loader):
             already_matched_pred_channels.zero_()
-            for gt_channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.semantic_instance_class_list,
+            for gt_channel_idx, (sem_cls, inst_id) in enumerate(zip(self.problem_config.model_channel_semantic_ids,
                                                                     self.problem_config.instance_count_id_list)):
                 instance_mask = (sem_lbl == sem_cls) * (inst_lbl == inst_id)
                 if (instance_mask.size(1), instance_mask.size(2)) != assumed_image_size:
@@ -147,7 +147,7 @@ class InstanceMetrics(object):
         softmax_scores_per_sem_cls = torch.zeros(tuple(sz_score_by_sem))
         for sem_cls in range(self.problem_config.n_semantic_classes):
             chs = [ci for ci, sc in
-                   enumerate(self.problem_config.semantic_instance_class_list) if sc == sem_cls]
+                   enumerate(self.problem_config.model_channel_semantic_ids) if sc == sem_cls]
             softmax_scores_per_sem_cls[:, sem_cls, ...] = self.softmaxed_scores[:, chs, ...].sum(dim=1)
         metrics_dict = {
             'n_instances_assigned_per_sem_cls':
@@ -190,7 +190,7 @@ class InstanceMetrics(object):
                             channel_labels[channel_idx] + '_mean': 0 if (self.assignments == channel_idx).sum() == 0
                             else ((self.softmaxed_scores[:, channel_idx, :, :][self.assignments == channel_idx]) /
                                   softmax_scores_per_sem_cls[:, sem_cls, :, :][self.assignments == channel_idx]).mean()
-                            for channel_idx, sem_cls in enumerate(self.problem_config.semantic_instance_class_list)
+                            for channel_idx, sem_cls in enumerate(self.problem_config.model_channel_semantic_ids)
                         },
                     },
                     'score': {
@@ -231,7 +231,7 @@ class InstanceMetrics(object):
         softmax_scores_per_sem_cls = torch.zeros(tuple(sz_score_by_sem))
         for sem_cls in range(self.problem_config.n_semantic_classes):
             chs = [ci for ci, sc in
-                   enumerate(self.problem_config.semantic_instance_class_list) if sc == sem_cls]
+                   enumerate(self.problem_config.model_channel_semantic_ids) if sc == sem_cls]
             softmax_scores_per_sem_cls[:, sem_cls, ...] = self.softmaxed_scores[:, chs, ...].sum(dim=1)
         histogram_metrics_dict = {
             'loss_per_image':
@@ -256,9 +256,9 @@ class InstanceMetrics(object):
         return image_characteristics
 
 
-def get_same_sem_cls_channels(channel_idx, semantic_instance_class_list):
-    return [ci for ci, sc in enumerate(semantic_instance_class_list)
-            if sc == semantic_instance_class_list[channel_idx]]
+def get_same_sem_cls_channels(channel_idx, model_channel_semantic_ids):
+    return [ci for ci, sc in enumerate(model_channel_semantic_ids)
+            if sc == model_channel_semantic_ids[channel_idx]]
 
 
 def cat_dictionaries(dictionary, dictionary_to_add):

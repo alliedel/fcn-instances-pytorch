@@ -129,7 +129,7 @@ class Trainer(object):
 
     @property
     def loss_fcn(self):
-        return None if self.loss_type is None else self.loss_object.loss_fcn
+        return self.loss_object.loss_fcn
 
     def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
         """
@@ -170,7 +170,7 @@ class Trainer(object):
 
         my_loss_object = instanceseg.losses.loss.loss_object_factory(
             self.loss_type,
-            self.instance_problem.semantic_instance_class_list,
+            self.instance_problem.model_channel_semantic_ids,
             self.instance_problem.instance_count_id_list,
             matching, self.size_average)
         return my_loss_object
@@ -239,12 +239,9 @@ class Trainer(object):
                     img_data, lbls, requires_grad=False)
                 batch_sz = full_input.size(0)
                 score = self.model(full_input)
-                # We use the loss function just for getting optimal permutation for ease of visualization
-                # pred_permutations, _, _ = self.compute_loss(score, sem_lbl, inst_lbl)
                 sem_lbl_np = sem_lbl.data.cpu().numpy()
                 inst_lbl_np = inst_lbl.data.cpu().numpy()
                 label_pred = score.data.max(dim=1)[1].cpu().numpy()[:, :, :]
-                # label_preds_permuted = instance_utils.permute_labels(label_pred, pred_permutations)
                 img_idxs = list(range(batch_img_idx, batch_img_idx + batch_sz))
                 if save_scores:
                     score_names = ['scores_{:06d}.pt'.format(img_idx) for img_idx in img_idxs]
@@ -281,7 +278,6 @@ class Trainer(object):
         assert np.all(~np.isnan(sem_vals))
         return sem_vals
 
-
     def validate_split(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
                        should_export_visualizations=True):
         """
@@ -308,7 +304,7 @@ class Trainer(object):
 
         val_loss = 0
         segmentation_visualizations, score_visualizations = [], []
-        label_trues, label_preds, pred_permutations = [], [], []
+        label_trues, label_preds, assignments = [], [], []
         num_images_to_visualize = min(len(data_loader), 9)
         memory_allocated_before = torch.cuda.memory_allocated(device=None)
         mem_report_dict = torch_utils.generate_mem_report_dict()
@@ -339,7 +335,7 @@ class Trainer(object):
                         pprint.pprint(new_vars_as_dict)
                         print('\nDiff vars:')
                         pprint.pprint(diff_counts_as_dict)
-                        vars_to_check = ['pred_permutations_sb', 'val_loss_sb',
+                        vars_to_check = ['assignments_sb', 'val_loss_sb',
                                          'segmentation_visualizations_sb',
                                          'score_visualizations_sb']
                         for var_name in vars_to_check:
@@ -361,8 +357,9 @@ class Trainer(object):
                 if not (should_compute_basic_metrics or should_visualize):
                     # Don't waste computation if we don't need to run on the remaining images
                     continue
-                true_labels_sb, pred_labels_sb, score_sb, pred_permutations_sb, val_loss_sb, \
-                segmentation_visualizations_sb, score_visualizations_sb = \
+
+                true_labels_sb, pred_labels_sb, score_sb, val_loss_sb, assignments_sb, \
+                    segmentation_visualizations_sb, score_visualizations_sb = \
                     self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                                should_visualize=should_visualize)
                 # print('APD: Memory allocated after validating {} GB'.format(memory_allocated / 1e9))
@@ -370,7 +367,7 @@ class Trainer(object):
                 label_preds += pred_labels_sb
                 val_loss += val_loss_sb
                 # scores += [score_sb]  # This takes up way too much memory
-                pred_permutations += [pred_permutations_sb]
+                assignments += [assignments_sb]
                 segmentation_visualizations += segmentation_visualizations_sb
                 score_visualizations += score_visualizations_sb
                 # num_collected, mem_collected = torch_utils.garbage_collect(verbose=True)
@@ -420,7 +417,7 @@ class Trainer(object):
                         data_loader, i, l))
 
             # print('APD: Finished iteration')
-        return true_labels, pred_labels, score, val_loss, \
+        return true_labels, pred_labels, score, val_loss, assignments, \
                segmentation_visualizations, score_visualizations
 
     @property

@@ -20,13 +20,13 @@ def get_subclasses(cls):
 #                                     for loss_class in get_subclasses(ComponentMatchingLossBase)}
 
 
-def loss_object_factory(loss_type, semantic_instance_class_list, instance_id_count_list, matching, size_average):
+def loss_object_factory(loss_type, model_channel_semantic_ids, instance_id_count_list, matching, size_average):
     assert loss_type in LOSS_TYPES, 'Loss type must be one of {}; not {}'.format(LOSS_TYPES, loss_type)
     if loss_type == 'cross_entropy' or loss_type == 'xent':
-        loss_object = CrossEntropyComponentMatchingLoss(semantic_instance_class_list, instance_id_count_list, matching,
+        loss_object = CrossEntropyComponentMatchingLoss(model_channel_semantic_ids, instance_id_count_list, matching,
                                                         size_average)
     elif loss_type == 'soft_iou':
-        loss_object = SoftIOUComponentMatchingLoss(semantic_instance_class_list, instance_id_count_list, matching,
+        loss_object = SoftIOUComponentMatchingLoss(model_channel_semantic_ids, instance_id_count_list, matching,
                                                    size_average)
     else:
         raise NotImplementedError
@@ -99,7 +99,7 @@ class LossMatchAssignments(AttrDict):
     def insert_assignment_for_image(self, image_index, model_channels, assigned_gt_inst_vals, sem_values,
                                     unassigned_gt_sem_inst_tuples):
         self.model_channels[image_index, :] = model_channels  # torch.empty((0, n_channels))
-        self.assigned_gt_inst_vals[image_index, :] = assigned_gt_inst_vals# torch.empty((0, n_channels))
+        self.assigned_gt_inst_vals[image_index, :] = assigned_gt_inst_vals  # torch.empty((0, n_channels))
         self.sem_values[image_index, :] = sem_values  # torch.empty((0, n_channels))
         self.unassigned_gt_sem_inst_tuples[image_index] = unassigned_gt_sem_inst_tuples
 
@@ -111,14 +111,15 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
     """
     loss_type = None
 
-    def __init__(self, semantic_instance_labels=None, instance_id_labels=None, matching=True, size_average=True):
+    def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
+                 size_average=True):
         if matching:
-            assert semantic_instance_labels is not None and instance_id_labels is not None, ValueError(
+            assert model_channel_semantic_ids is not None and model_channel_instance_ids is not None, ValueError(
                 'We need semantic and instance ids to perform matching')
         self.matching = matching
-        self.semantic_instance_labels = semantic_instance_labels
-        self.unique_semantic_values = sorted([s for s in np.unique(semantic_instance_labels)])
-        self.instance_id_labels = instance_id_labels
+        self.model_channel_semantic_ids = model_channel_semantic_ids
+        self.unique_semantic_values = sorted([s for s in np.unique(model_channel_semantic_ids)])
+        self.model_channel_instance_ids = model_channel_instance_ids
         self.size_average = size_average
         if self.loss_type is None:
             raise NotImplementedError('Loss type should be defined in subclass of {}'.format(__class__))
@@ -159,14 +160,14 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         # all_costs = torch.cat([c[None, :] for c in all_costs], dim=0).float()
         total_train_loss = loss_components_per_channel.sum()
         if DEBUG_ASSERTS:
-            if loss_components_per_channel.size(1) != len(self.semantic_instance_labels):
+            if loss_components_per_channel.size(1) != len(self.model_channel_semantic_ids):
                 import ipdb;
                 ipdb.set_trace()
                 raise Exception
         return assignments, total_train_loss, loss_components_per_channel
 
     def get_binary_gt_for_channel(self, sem_lbl, inst_lbl, channel_idx):
-        sem_val, inst_val = self.semantic_instance_labels[channel_idx], self.instance_id_labels[channel_idx]
+        sem_val, inst_val = self.model_channel_semantic_ids[channel_idx], self.model_channel_instance_ids[channel_idx]
         return ((sem_lbl == sem_val) * (inst_lbl == inst_val)).float()
 
     def compute_nonmatching_loss(self, predictions, sem_lbl, inst_lbl):
@@ -174,14 +175,15 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         batch_sz, n_channels = predictions.size(0), predictions.size(1)
         unassigned_val = -10
         loss_components_per_channel = unassigned_val * torch.empty((batch_sz, n_channels))
-        n_channels = len(self.semantic_instance_labels)
+        n_channels = len(self.model_channel_semantic_ids)
         for i in range(batch_sz):
             if self.size_average:
                 # TODO(allie): Verify this is correct (and not sem_lbl >=0, or some combo)
                 normalizer = (inst_lbl >= 0).data.sum()
             else:
                 normalizer = 1.0
-            for c, (sem_val, inst_val) in enumerate(zip(self.semantic_instance_labels, self.instance_id_labels)):
+            for c, (sem_val, inst_val) in enumerate(
+                    zip(self.model_channel_semantic_ids, self.model_channel_instance_ids)):
                 loss_components_per_channel[i, c] = self.component_loss(predictions[i, c, :, :],
                                                                         (sem_lbl[i, ...] == sem_val).float() *
                                                                         (inst_lbl == inst_val).float()) / normalizer
@@ -214,16 +216,16 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         Note: this function returns optimal match loss for a single image (not a batch)
         target: C,H,W.  C is the number of instances for ALL semantic classes.
         predictions: C,H,W
-        semantic_instance_labels: the mapping from ground truth index to semantic labels.  This is
+        model_channel_semantic_ids: the mapping from ground truth index to semantic labels.  This is
         needed so we only allow instances in the same semantic class to compete.
         gt_indices, perm_permutation -- indices into (0, ..., C-1) for gt and predictions of the
          matches.
         costs -- cost of each of the matches (also length C)
         """
         # print('APD: inside compute_optimal_match_loss_single_img')
-        semantic_instance_labels = self.semantic_instance_labels
+        model_channel_semantic_ids = self.model_channel_semantic_ids
         C = predictions.size(0)
-        assert len(semantic_instance_labels) == C, \
+        assert len(model_channel_semantic_ids) == C, \
             'first dimension of predictions should be the number of channels.  It is {} instead. ' \
             'Are you trying to pass an entire batch into the loss function?'.format(predictions.size(0))
         costs = -1 * torch.ones((C,))
@@ -236,7 +238,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             sem_val = int(sem_val)
             # print('APD: Running on sem_val {}'.format(sem_val))
             costs_this_cls, model_channels_for_this_cls, assigned_gt_inst_vals_this_cls, \
-                unassigned_gt_inst_vals_this_cls = \
+            unassigned_gt_inst_vals_this_cls = \
                 self._compute_optimal_match_loss_for_one_sem_cls(predictions, sem_lbl, inst_lbl, sem_val)
             channel_idxs = torch.LongTensor(model_channels_for_this_cls)
             model_channels[channel_idxs] = channel_idxs
@@ -277,15 +279,16 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
 
         cost_tensor, model_channels_for_this_cls, gt_inst_vals_present = match.create_pytorch_cost_matrix(
             self.component_loss, predictions, sem_lbl, inst_lbl,
-            self.semantic_instance_labels, sem_val, size_average=self.size_average)
+            self.model_channel_semantic_ids, sem_val, size_average=self.size_average)
         return cost_tensor, model_channels_for_this_cls, gt_inst_vals_present
 
 
 class CrossEntropyComponentMatchingLoss(ComponentMatchingLossBase):
     loss_type = 'cross_entropy'
 
-    def __init__(self, semantic_instance_labels=None, instance_id_labels=None, matching=True, size_average=True):
-        super().__init__(semantic_instance_labels, instance_id_labels, matching, size_average)
+    def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
+                 size_average=True):
+        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average)
 
     def transform_scores_to_predictions(self, scores):
         assert len(scores.size()) == 4
@@ -298,10 +301,11 @@ class CrossEntropyComponentMatchingLoss(ComponentMatchingLossBase):
 class SoftIOUComponentMatchingLoss(ComponentMatchingLossBase):
     loss_type = 'soft_iou'
 
-    def __init__(self, semantic_instance_labels=None, instance_id_labels=None, matching=True, size_average=False):
+    def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
+                 size_average=False):
         if size_average:
             raise Exception('Pretty sure you didn\'t want size_average to be True since it\'s already embedded in iou.')
-        super().__init__(semantic_instance_labels, instance_id_labels, matching, size_average)
+        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average)
 
     def transform_scores_to_predictions(self, scores):
         assert len(scores.size()) == 4

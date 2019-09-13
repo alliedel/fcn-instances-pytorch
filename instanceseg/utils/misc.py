@@ -7,6 +7,10 @@ import numpy as np
 import torch
 
 
+def warn(warning):
+    print(color_text(warning, 'WARNING'))
+
+
 def _fast_hist(label_true, label_pred, n_class):
     try:
         mask = (label_true >= 0) & (label_true < n_class)

@@ -60,14 +60,14 @@ def ortools_solve_matching_problem(cost_matrix, multiplier_for_db_print=1.0):
 
 
 def ortools_create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem_lbl, inst_lbl,
-                                       semantic_instance_labels, instance_id_labels, sem_val, size_average=True):
+                                       model_channel_semantic_ids, instance_id_labels, sem_val, size_average=True):
     """
 
     :param single_class_component_loss_fcn: f(yhat, binary_y) where yhat, binary_2d_gt are (N, H, W)
     :param predictions: C,H,W
     :param sem_lbl: (H,W)
     :param inst_lbl: (H,W)
-    :param semantic_instance_labels:
+    :param model_channel_semantic_ids:
     :param instance_id_labels:
     :param sem_val:
     :param size_average:
@@ -83,7 +83,7 @@ def ortools_create_pytorch_cost_matrix(single_class_component_loss_fcn, predicti
         normalizer = (inst_lbl >= 0).data.sum()
     else:
         normalizer = 1
-    sem_inst_idxs_for_this_class = [i for i, sem_inst_val in enumerate(semantic_instance_labels) if
+    sem_inst_idxs_for_this_class = [i for i, sem_inst_val in enumerate(model_channel_semantic_ids) if
                                     sem_inst_val == sem_val]
     inst_id_lbls_for_this_class = [instance_id_labels[i] for i in sem_inst_idxs_for_this_class]
     if normalizer == 0:
@@ -115,14 +115,14 @@ def ortools_create_pytorch_cost_matrix(single_class_component_loss_fcn, predicti
 
 
 def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem_lbl, inst_lbl,
-                               semantic_instance_labels, sem_val, size_average=True):
+                               model_channel_semantic_ids, sem_val, size_average=True):
     """
 
     :param single_class_component_loss_fcn: f(yhat, binary_y) where yhat, binary_2d_gt are (N, H, W)
     :param predictions: C,H,W
     :param sem_lbl: (H,W)
     :param inst_lbl: (H,W)
-    :param semantic_instance_labels:
+    :param model_channel_semantic_ids:
     :param sem_val:
     :param size_average:
     :return:
@@ -148,7 +148,7 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
         normalizer = (inst_lbl >= 0).data.sum()
     else:
         normalizer = 1
-    model_channels_for_this_cls = [i for i, sem_inst_val in enumerate(semantic_instance_labels)
+    model_channels_for_this_cls = [i for i, sem_inst_val in enumerate(model_channel_semantic_ids)
                                    if sem_inst_val == sem_val]
     # inst_id_lbls_for_this_class = [instance_id_labels[i] for i in sem_inst_idxs_for_this_class]
     gt_inst_vals_present = sorted([x.detach().item() for x in torch.unique(inst_lbl[sem_lbl == sem_val])])

@@ -59,7 +59,6 @@ def main():
 
     ts = list(range(n_tasks))
     ws = [assignment.RightMate(t) for t in ts]
-    print('APD: past pred_permutations')
 
     # for w, t in zip(ws, ts):
     #     print('cost(w={w},t={t}) = {cost}'.format(w=w, t=t, cost=float(cost_matrix_np[w, t])))

@@ -19,9 +19,9 @@ MAX_IMAGE_DIM = 5000
 
 
 class DataloaderDataIntegrityChecker(object):
-    def __init__(self, instance_problem: instance_utils.InstanceProblemConfig):
+    def __init__(self, instance_problem: instance_utils.InstanceProblemConfig, void_value=-1):
         self.instance_problem = instance_problem
-        self.void_val = -1
+        self.void_val = void_value
 
     @property
     def thing_values(self):
@@ -58,7 +58,7 @@ class DataloaderDataIntegrityChecker(object):
         else:
             semvals = np.unique(sem_lbl)
         for semval in semvals:
-            assert semval in self.instance_problem.semantic_transformed_label_ids, \
+            assert semval in self.instance_problem.semantic_transformed_label_ids or semval == self.void_val, \
                 'Semantic label contains value {} which is not in the following list: {}'.format(
                     semval, '\n'.join(['{}: {}'.format(v, n)
                                        for v, n in zip(self.instance_problem.semantic_transformed_label_ids,
@@ -173,7 +173,11 @@ def tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_p
     for out_dir_ in [out_dir_rgb, out_dir_decomposed]:
         if not os.path.exists(out_dir_):
             os.makedirs(out_dir_)
-    integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem)
+    try:
+        void_value = dataloader.dataset.raw_dataset.void_val
+    except:
+        void_value = trainer.instance_problem.void_value
+    integrity_checker = DataloaderDataIntegrityChecker(trainer.instance_problem, void_value)
     decomposed_image_paths_transformed = []
     labels_table = dataloader.dataset.labels_table
     sem_vals = trainer.instance_problem.semantic_transformed_label_ids
@@ -196,9 +200,9 @@ def tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_p
                 if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
             sem_lbl_np, inst_lbl_np = lbl_untransformed
 
-            lt_combined = trainer.exporter.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,
-                                                                            assigned_sem_vals=None,
-                                                                            assigned_inst_vals=None)
+            lt_combined = trainer.exporter.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
+                                                                      assigned_sem_vals=None,
+                                                                      assigned_inst_vals=None)
 
             segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
                 lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,

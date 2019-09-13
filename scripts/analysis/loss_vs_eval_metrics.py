@@ -39,8 +39,8 @@ def scatter_loss_vs_pq(loss_npz_file, pq_npz_file, save_to_workspace=True, rever
         stat_type: pq_npz_d['collated_stats_per_image_per_cat'].item()[stat_type] for stat_type in eval_stat_types
     }
     problem_config = loss_npz_d['problem_config'].item()
-    assert problem_config.semantic_instance_class_list == pq_npz_d[
-        'problem_config'].item().semantic_instance_class_list, \
+    assert problem_config.model_channel_semantic_ids == pq_npz_d[
+        'problem_config'].item().model_channel_semantic_ids, \
         'Sanity check failed: Problem configurations should have matched up'
     assert problem_config.n_semantic_classes == loss_arr.shape[1]
     subplot_idx = 1
@@ -195,7 +195,7 @@ def compute_losses(test_logdir, overwrite, scores_to_onehot=False):
         assert len(score_files) == len(gt_files)
 
         my_loss_object = loss.loss_object_factory(
-            loss_type=cfg['loss_type'], semantic_instance_class_list=problem_config.semantic_instance_class_list,
+            loss_type=cfg['loss_type'], model_channel_semantic_ids=problem_config.model_channel_semantic_ids,
             instance_id_count_list=problem_config.instance_count_id_list, matching=cfg['matching'],
             size_average=cfg['size_average'])
 

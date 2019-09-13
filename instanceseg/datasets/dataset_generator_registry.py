@@ -87,7 +87,7 @@ def get_dataset(dataset_type, cfg, split, transform=True):
             img_size=img_size,
             portrait=portrait,
             intermediate_write_path=intermediate_write_path, transform=transform,
-        blob_size=blob_size)
+            blob_size=blob_size)
     else:
         raise NotImplementedError('Generator for dataset type {} not implemented.'.format(dataset_type))
     return dataset
@@ -99,7 +99,7 @@ def get_transformations(cfg, original_semantic_class_names=None):
     if semantic_subset is not None:
         assert original_semantic_class_names is not None
         class_names, reduced_class_idxs = datasets.get_semantic_names_and_idxs(
-                semantic_subset=semantic_subset, full_set=original_semantic_class_names)
+            semantic_subset=semantic_subset, full_set=original_semantic_class_names)
     else:
         reduced_class_idxs = None
 
@@ -119,7 +119,7 @@ def get_transformations(cfg, original_semantic_class_names=None):
     cfg_key = 'instance_id_for_excluded_instances'
     if cfg_key not in cfg:
         print(TermColors.WARNING + 'Setting value in cfg for what I believe is backwards compatibility: {}={}'.format(
-                                 cfg_key, None) + TermColors.ENDC)
+            cfg_key, None) + TermColors.ENDC)
         cfg[cfg_key] = None
 
     runtime_transformation = runtime_transformations.runtime_transformer_factory(

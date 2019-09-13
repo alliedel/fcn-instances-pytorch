@@ -137,8 +137,8 @@ def create_dataset_summary(dataset, all_semantic_class_names, n_max_per_class=No
         number_of_total_instances[idx] = np.sum(number_of_instances_per_semantic_class[idx, :])
         number_of_void_pixels[idx] = torch.sum(sem_target == -1)
         # The function below overwrites the inst_target, so gotta be careful!
-        full_instance_target = instance_utils.combine_semantic_and_instance_labels(sem_target, inst_target,
-                                                                                   n_max_per_class)
+        full_instance_target = instance_utils.label_tuple_to_channel_ids(sem_target, inst_target,
+                                                                         n_max_per_class, )
         number_of_pixels_per_semantic_instance[idx, :] = [torch.sum(full_instance_target ==
                                                                     sem_inst_cls)
                                                           for sem_inst_cls in

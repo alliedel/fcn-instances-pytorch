@@ -227,7 +227,7 @@ def main():
             sem_cls_name = problem_config.semantic_class_names[sem_cls_val]
             if sem_cls_name == 'background':
                 continue
-            sem_cls_channel_idxs = [i for i, s_val in enumerate(problem_config.semantic_instance_class_list)
+            sem_cls_channel_idxs = [i for i, s_val in enumerate(problem_config.model_channel_semantic_ids)
                                     if s_val == sem_cls_val]
             sem_cls_channel_names = [channel_names[c] for c in sem_cls_channel_idxs]
 

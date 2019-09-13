@@ -35,7 +35,7 @@ class CityscapesWithOurBasicTrainIds(InstanceDatasetBase):
          ConvertLblstoPModePILImages()])
     void_val = 255
     # class names by id (not trainId)
-    original_semantic_class_names = [l['name'] for l in labels_table_cityscapes.CITYSCAPES_LABELS_TABLE]
+    original_labels_table = [l for l in labels_table_cityscapes.CITYSCAPES_LABELS_TABLE]
 
     def __init__(self, root, split):
         """
@@ -58,6 +58,10 @@ class CityscapesWithOurBasicTrainIds(InstanceDatasetBase):
         img, lbl = load_cityscapes_files(data_file['img'], data_file['sem_lbl'],
                                          data_file['inst_lbl'])
         return img, lbl
+
+    @property
+    def original_semantic_class_names(self):
+        return [l['name'] for l in labels_table_cityscapes.CITYSCAPES_LABELS_TABLE if l['id'] != self.void_val]
 
     @property
     def labels_table(self):
@@ -89,9 +93,27 @@ class CityscapesWithOurBasicTrainIds(InstanceDatasetBase):
             file_list = orig_file_list
         return file_list
 
+    @staticmethod
+    def get_semantic_class_names_from_labels_table(labels_table, void_val):
+        return [l['name'] for l in labels_table if l['id'] != void_val]
+
     @property
     def semantic_class_names(self):
-        return self.get_semantic_class_names()
+        """
+        If we changed the semantic subset, we have to account for that change in the semantic
+        class name list.
+        """
+        return self.get_semantic_class_names_from_labels_table(self.labels_table, self.void_val)
+
+    @classmethod
+    def get_default_labels_table(cls):
+        labels_table = None
+        for transformer in cls.precomputed_file_transformer.transformer_sequence:
+            if hasattr(transformer, 'transform_labels_table'):
+                labels_table = transformer.transform_labels_table(labels_table_cityscapes.CITYSCAPES_LABELS_TABLE)
+        assert labels_table is not None, 'Specifically for this Cityscapes loader, we are expecting the train ID ' \
+                                         'mapper to give us the labels_table'
+        return labels_table
 
     @classmethod
     def get_default_semantic_class_names(cls):
@@ -99,44 +121,7 @@ class CityscapesWithOurBasicTrainIds(InstanceDatasetBase):
         If we changed the semantic subset, we have to account for that change in the semantic
         class name list.
         """
-        if cls.precomputed_file_transformer is not None:
-            transformation_list = cls.precomputed_file_transformer.transformer_sequence \
-                if isinstance(cls.precomputed_file_transformer,
-                              GenericSequencePrecomputedDatasetFileTransformer) else \
-                [cls.precomputed_file_transformer]
-            semantic_class_names = cls.original_semantic_class_names
-            for transformer in transformation_list:
-                if hasattr(transformer, 'transform_semantic_class_names'):
-                    semantic_class_names = transformer.transform_semantic_class_names(
-                        semantic_class_names)
-        else:
-            semantic_class_names = cls.original_semantic_class_names
-        assert AssertionError(
-            'There must be a bug somewhere.  The first semantic class name should always be '
-            'background.')
-        return semantic_class_names
-
-    def get_semantic_class_names(self):
-        """
-        If we changed the semantic subset, we have to account for that change in the semantic
-        class name list.
-        """
-        if self.precomputed_file_transformer is not None:
-            transformation_list = self.precomputed_file_transformer.transformer_sequence \
-                if isinstance(self.precomputed_file_transformer,
-                              GenericSequencePrecomputedDatasetFileTransformer) else \
-                [self.precomputed_file_transformer]
-            semantic_class_names = self.original_semantic_class_names
-            for transformer in transformation_list:
-                if hasattr(transformer, 'transform_semantic_class_names'):
-                    semantic_class_names = transformer.transform_semantic_class_names(
-                        semantic_class_names)
-        else:
-            semantic_class_names = self.original_semantic_class_names
-        assert AssertionError(
-            'There must be a bug somewhere.  The first semantic class name should always be '
-            'background.')
-        return semantic_class_names
+        return cls.get_semantic_class_names_from_labels_table(cls.get_default_labels_table(), cls.void_val)
 
     @property
     def n_semantic_classes(self):

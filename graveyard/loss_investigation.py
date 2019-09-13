@@ -60,11 +60,11 @@ def permute_channels(tensor_4d, permuted_channels):
 
 def semantic_label_gt_as_instance_prediction(sem_lbl, problem_config):
     n_instance_classes = problem_config.n_classes
-    semantic_instance_class_list = problem_config.semantic_instance_class_list
+    model_channel_semantic_ids = problem_config.model_channel_semantic_ids
     # compute the semantic label score
     score_shape = (sem_lbl.size(0), n_instance_classes, sem_lbl.size(1), sem_lbl.size(2))
     sem_lbl_score = Variable(torch.zeros(score_shape))
-    for inst_idx, sem_val in enumerate(semantic_instance_class_list):
+    for inst_idx, sem_val in enumerate(model_channel_semantic_ids):
         sem_lbl_score[:, inst_idx, ...] = sem_lbl == sem_val
     return sem_lbl_score
 
@@ -72,11 +72,10 @@ def semantic_label_gt_as_instance_prediction(sem_lbl, problem_config):
 def semantic_instance_label_gts_as_instance_prediction(sem_lbl, inst_lbl, problem_config):
     n_instance_classes = problem_config.n_classes
     instance_ids = problem_config.instance_count_id_list
-    semantic_instance_class_list = problem_config.semantic_instance_class_list
     # compute the semantic label score
     score_shape = (sem_lbl.size(0), n_instance_classes, sem_lbl.size(1), sem_lbl.size(2))
     inst_score = Variable(torch.zeros(score_shape))
-    for inst_idx, (sem_val, inst_id) in enumerate(zip(semantic_instance_class_list, instance_ids)):
+    for inst_idx, (sem_val, inst_id) in enumerate(zip(problem_config.model_channel_semantic_ids, instance_ids)):
         inst_score[:, inst_idx, ...] = (sem_lbl == sem_val) & (inst_lbl == inst_id)
     return inst_score
 
@@ -90,7 +89,7 @@ def loss_function(score, sem_lbl, inst_lbl, instance_problem, matching_loss=True
         raise Exception('Sizes of score, targets are incorrect')
     rets = instanceseg.losses.loss.cross_entropy2d(
         score, sem_lbl, inst_lbl,
-        semantic_instance_labels=instance_problem.semantic_instance_class_list,
+        semantic_instance_labels=instance_problem.model_channel_semantic_ids,
         instance_id_labels=instance_problem.instance_count_id_list,
         matching=matching_loss, size_average=size_average, break_here=False, recompute_optimal_loss=False,
         return_loss_components=return_loss_components, **kwargs)
@@ -121,11 +120,11 @@ def write_visualizations(sem_lbl, inst_lbl, score, pred_permutations, problem_co
     sem_lbl = sem_lbl.data.cpu().numpy()
     inst_lbl = inst_lbl.data.cpu().numpy()
     score = score.data.cpu().numpy()
-    semantic_instance_class_list = problem_config.semantic_instance_class_list
+    model_channel_semantic_ids = problem_config.model_channel_semantic_ids
     instance_count_id_list = problem_config.instance_count_id_list
     n_combined_class = problem_config.n_classes
 
-    lt_combined = instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl, semantic_instance_class_list,
+    lt_combined = instance_utils.combine_semantic_and_instance_labels(sem_lbl, inst_lbl, model_channel_semantic_ids,
                                                                       instance_count_id_list)
     channel_labels = problem_config.get_channel_labels('{} {}')
     viz = visualization_utils.visualize_heatmaps(scores=score[0, ...],
@@ -222,7 +221,7 @@ def main():
             }
             print('prediction {}/{}'.format(prediction_number + 1, len(max_confidences)))
             score = compute_scores(data, sem_lbl, inst_lbl, problem_config, cuda=True, **scoring_cfg)
-            pred_permutations, loss, loss_components = loss_function(score, sem_lbl, inst_lbl, problem_config,
+            assignments, loss, loss_components = loss_function(score, sem_lbl, inst_lbl, problem_config,
                                                                      return_loss_components=True)
             if np.isnan(float(loss.data[0])):
                 raise ValueError('losses is nan while validating')

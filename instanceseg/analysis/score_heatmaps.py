@@ -1,6 +1,7 @@
 import torch
 from torch.nn import functional as F
 
+from instanceseg.train.trainer import Trainer
 from instanceseg.utils import datasets
 
 
@@ -12,7 +13,7 @@ def get_center_min_max(h, dest_h, floor=False):
     return pad_vertical, (pad_vertical + h)
 
 
-def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my_trainer):
+def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my_trainer: Trainer):
     if cfg['augment_semantic']:
         raise NotImplementedError('Gotta augment semantic first before running through model.')
 
@@ -29,8 +30,7 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
                               for _ in range(n_channels)]  # indexed by relative channel
     list_of_heatmap_counts = [torch.zeros(n_channels, *heatmap_img_shape_rc)
                               for _ in range(n_channels)]  # indexed by relative channel
-    sem_inst_class_list = my_trainer.instance_problem.semantic_instance_class_list
-    inst_id_list = my_trainer.instance_problem.instance_count_id_list
+    sem_inst_class_list = my_trainer.instance_problem.model_channel_semantic_ids
 
     for idx, (x, (sem_lbl, inst_lbl)) in enumerate(dataloader):
         x, sem_lbl, inst_lbl = datasets.prep_inputs_for_scoring(x, sem_lbl, inst_lbl, cuda=cuda)
@@ -38,9 +38,7 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
         cropped_r1, cropped_r2 = get_center_min_max(x.size(2), heatmap_img_shape_rc[0], floor=True)
         cropped_c1, cropped_c2 = get_center_min_max(x.size(3), heatmap_img_shape_rc[1], floor=True)
         softmax_scores = F.softmax(score, dim=1).data.cpu()
-        inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        pred_permutations, loss = my_trainer.my_loss_fcn(score, sem_lbl, inst_lbl)
-        # scores_permuted = instance_utils.permute_scores(score, pred_permutations)
+        assignments, avg_loss, component_loss = my_trainer.compute_loss(score, sem_lbl, inst_lbl)
 
         assert x.size(0) == 1, NotImplementedError('Assuming batch size 1 at the moment')
         data_idx = 0
@@ -48,8 +46,9 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
             """
             We grab the ground truth location of the instance assigned to this channel
             """
-            gt_idx = (pred_permutations[:, channel_idx_to_be_relative_to]).item()
-            sem_val, inst_val = sem_inst_class_list[gt_idx], inst_id_list[gt_idx]
+            sem_val, inst_val = \
+                sem_inst_class_list[channel_idx_to_be_relative_to], assignments.assigned_gt_inst_vals[
+                    data_idx, channel_idx_to_be_relative_to]
             gt_location_mask = (sem_lbl[data_idx, ...] == sem_val).int() * (inst_lbl[data_idx, ...] == inst_val).int()
             if gt_location_mask.sum().data.cpu().numpy() == 0:
                 # ground truth instance non-existent
@@ -100,9 +99,6 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
         r1, r2 = get_center_min_max(x.size(2), heatmap_scores.size(1))
         c1, c2 = get_center_min_max(x.size(3), heatmap_scores.size(2))
         softmax_scores = F.softmax(score, dim=1).data.cpu()
-        inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        # pred_permutations, losses = my_trainer.my_cross_entropy(score, sem_lbl, inst_lbl)
-        # scores_permuted = instance_utils.permute_scores(score, pred_permutations)
 
         heatmap_scores[:, r1:r2, c1:c2] += softmax_scores
         heatmap_counts[:, r1:r2, c1:c2] += 1

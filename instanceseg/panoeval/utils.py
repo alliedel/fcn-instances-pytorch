@@ -84,7 +84,6 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         semantic_ids_not_in_category_dict = []
         for color_val in present_channel_colors:
             sem255_inst_ids = rgb2id(color_val)
-            # semantic_id = problem_config.semantic_vals[problem_config.semantic_instance_class_list[channel_idx]]
             semantic_id = int(sem255_inst_ids / 255)
             instance_count_id = sem255_inst_ids - semantic_id * 255
             assert (semantic_id * 255 + instance_count_id) == sem255_inst_ids

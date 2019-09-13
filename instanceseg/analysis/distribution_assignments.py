@@ -18,7 +18,7 @@ def get_center_min_max(h, dest_h, floor=False):
 
 
 def get_per_channel_per_image_sizes_and_losses(model, dataloader: DataLoader, cuda, my_trainer):
-    sem_inst_class_list = my_trainer.instance_problem.semantic_instance_class_list
+    sem_inst_class_list = my_trainer.instance_problem.model_channel_semantic_ids
     n_channels = len(sem_inst_class_list)
     n_images = len(dataloader.dataset)
     assigned_instance_sizes = np.zeros((n_images, n_channels), dtype=int)
@@ -40,13 +40,13 @@ def get_per_channel_per_image_sizes_and_losses(model, dataloader: DataLoader, cu
 
         for data_idx in range(x.size(0)):
             losses_by_channel[image_idx, :] = component_loss[data_idx, :]
-            assigned_sem_vals = [my_trainer.instance_problem.semantic_instance_class_list[c]
+            assigned_sem_vals = [my_trainer.instance_problem.model_channel_semantic_ids[c]
                                  for c in assignments.model_channels[data_idx, :]]
             assigned_inst_vals = [my_trainer.instance_problem.instance_count_id_list[c]
                                   for c in assignments.model_channels[data_idx, :]]
-            lt_combined_channelwise = my_trainer.gt_tuple_to_channelwise_combined(sem_lbl_np, inst_lbl_np,
-                                                                                  assigned_sem_vals=assigned_sem_vals,
-                                                                                  assigned_inst_vals=assigned_inst_vals)
+            lt_combined_channelwise = my_trainer.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
+                                                                            assigned_sem_vals=assigned_sem_vals,
+                                                                            assigned_inst_vals=assigned_inst_vals)
             confusion_matrix = instanceseg.utils.eval.calculate_confusion_matrix_from_arrays(
                 label_pred, lt_combined_channelwise, n_channels)
             ious = instanceseg.utils.eval.calculate_iou(confusion_matrix)
@@ -89,9 +89,6 @@ def get_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda):
         r1, r2 = get_center_min_max(x.size(2), heatmap_scores.size(1))
         c1, c2 = get_center_min_max(x.size(3), heatmap_scores.size(2))
         softmax_scores = F.softmax(score, dim=1).data.cpu()
-        inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        # pred_permutations, losses = my_trainer.my_cross_entropy(score, sem_lbl, inst_lbl)
-        # scores_permuted = instance_utils.permute_scores(score, pred_permutations)
 
         heatmap_scores[:, r1:r2, c1:c2] += softmax_scores
         heatmap_counts[:, r1:r2, c1:c2] += 1

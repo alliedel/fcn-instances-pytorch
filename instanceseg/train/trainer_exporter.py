@@ -414,7 +414,7 @@ class TrainerExporter(object):
             if should_visualize:
                 segmentation_viz = visualization_utils.visualize_segmentations_as_rgb_imgs(
                     gt_sem_inst_lbl_tuple=(sem_lbl_np, inst_lbl_np),
-                    pred_channelwise_lbl=pred_channel_lbl, img=img_untransformed, overlay=False)
+                    pred_channelwise_lbl=pred_l, img=img_untransformed, overlay=False)
                 score_viz = self.visualize_one_img_prediction_score(
                     img_untransformed, softmax_scores, (sem_lbl_np, inst_lbl_np), assignments)
                 score_visualizations.append(score_viz)

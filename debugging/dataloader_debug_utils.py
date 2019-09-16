@@ -98,7 +98,7 @@ def transform_and_export_input_images(trainer: Trainer, dataloader,
                                       write_transformed_images=True, n_debug_images=None, max_image_dim=MAX_IMAGE_DIM):
     out_dir_parent = out_dir_parent or trainer.exporter.out_dir
     if write_transformed_images:
-        tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_parent, split, trainer)
+        transformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_parent, split, trainer)
 
     if write_raw_images:
         try:
@@ -167,7 +167,7 @@ def raw_image_exporter(dataloader, n_debug_images, out_dir_parent):
             break
 
 
-def tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_parent, split, trainer):
+def transformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_parent, split, trainer):
     t = tqdm.tqdm(enumerate(dataloader), total=len(dataloader) if n_debug_images is None else n_debug_images,
                   ncols=120, leave=False)
     image_idx = 0

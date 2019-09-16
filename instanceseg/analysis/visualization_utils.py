@@ -7,6 +7,7 @@ import math
 import os
 import warnings
 from os import path as osp
+from skimage import transform  # resize
 
 import scipy.misc
 
@@ -64,10 +65,10 @@ def labelcolormap(*args, **kwargs):
 
 def label_colormap(N=256):
     cmap = np.zeros((N, 3))
-    for i in six.moves.range(0, N):
+    for i in range(0, N):
         id = i
         r, g, b = 0, 0, 0
-        for j in six.moves.range(0, 8):
+        for j in range(0, 8):
             r = np.bitwise_or(r, (bitget(id, 0) << 7 - j))
             g = np.bitwise_or(g, (bitget(id, 1) << 7 - j))
             b = np.bitwise_or(b, (bitget(id, 2) << 7 - j))
@@ -77,6 +78,8 @@ def label_colormap(N=256):
         cmap[i, 2] = b
     cmap = cmap.astype(np.float32) / 255
     return cmap
+
+
 
 
 def visualize_labelcolormap(*args, **kwargs):
@@ -311,7 +314,12 @@ def get_max_height_and_width(imgs):
 
 
 def resize_np_img(img, sz):
-    return np.array(PIL.Image.fromarray(img).resize((sz[1], sz[0])))
+    # try:
+    img = transform.resize(img, sz)
+    # except:
+    #     im = PIL.Image.fromarray(img.astype(int))
+    # img = np.array(im.resize((sz[1], sz[0])))
+    return img
 
 
 def resize_img_to_sz(img, height, width):
@@ -519,6 +527,7 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
     Note this is not channelwise!
     """
     gt_sem_lbl, gt_inst_lbl = gt_sem_inst_lbl_tuple
+    assert pred_channelwise_lbl.shape == gt_sem_lbl.shape
     # Generate funky pixels for void class
     mask_unlabeled = None
     viz_unlabeled = None

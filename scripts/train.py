@@ -47,16 +47,15 @@ def main(replacement_dict_for_sys_args=None):
         n_debug_images = None if cfg['n_debug_images'] is None else int(cfg['n_debug_images'])
         debug_helper.debug_dataloader(trainer, split='train', n_debug_images=n_debug_images)
         atexit.unregister(query_remove_logdir)
-        return
-
-    print('Evaluating final model')
-    metrics = run(trainer)
-    print('''\
-        Accuracy: {0}
-        Accuracy Class: {1}
-        Mean IU: {2}
-        FWAV Accuracy: {3}'''.format(*metrics))
-    atexit.unregister(query_remove_logdir)
+    else:
+        print('Evaluating final model')
+        metrics = run(trainer)
+        print('''\
+            Accuracy: {0}
+            Accuracy Class: {1}
+            Mean IU: {2}
+            FWAV Accuracy: {3}'''.format(*metrics))
+        atexit.unregister(query_remove_logdir)
     return out_dir
 
 

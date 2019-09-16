@@ -336,7 +336,7 @@ class TrainerExporter(object):
         score_viz = visualization_utils.visualize_heatmaps(
             softmax_scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_channel_inst_vals,
             sem_val_to_name=self.instance_problem.semantic_class_names_by_model_id,
-            leftover_gt_sem_inst_tuples=None,
+            leftover_gt_sem_inst_tuples=assignments.unassigned_gt_sem_inst_tuples,
             input_image=img_untransformed,
             margin_color=(255, 255, 255), margin_size_small=3, margin_size_large=6,
             use_funky_void_pixels=True, void_val=-1)

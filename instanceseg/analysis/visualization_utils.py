@@ -598,7 +598,7 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
     viz_void = (np.random.random((R, C, 3)) * 255).astype(np.uint8)
 
     n_pred_channels = scores.shape[0]
-    n_channels_tot = n_pred_channels + len(leftover_gt_sem_inst_tuples)
+    n_channels_tot = n_pred_channels + (0 if leftover_gt_sem_inst_tuples is None else len(leftover_gt_sem_inst_tuples))
     cmap = np.repeat(np.ones((1, 3)) * 255, [n_channels_tot, 1])
 
     heatmaps, colormaps, pred_label_masks, true_label_masks = [], [], [], []

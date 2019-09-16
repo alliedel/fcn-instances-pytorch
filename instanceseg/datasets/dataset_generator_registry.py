@@ -125,7 +125,8 @@ def get_transformations(cfg, original_semantic_class_names=None):
     runtime_transformation = runtime_transformations.runtime_transformer_factory(
         resize=cfg['resize'], resize_size=cfg['resize_size'], mean_bgr=None,
         reduced_class_idxs=reduced_class_idxs,
-        map_other_classes_to_bground=True, map_to_single_instance_problem=cfg['single_instance'],
+        map_other_classes_to_bground=True, map_to_single_instance_problem=
+        cfg['single_instance'] or cfg['map_to_semantic'],
         n_inst_cap_per_class=n_inst_cap_per_class,
         instance_id_for_excluded_instances=cfg['instance_id_for_excluded_instances'])
 

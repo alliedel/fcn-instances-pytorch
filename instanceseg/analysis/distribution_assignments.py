@@ -40,19 +40,26 @@ def get_per_channel_per_image_sizes_and_losses(model, dataloader: DataLoader, cu
 
         for data_idx in range(x.size(0)):
             losses_by_channel[image_idx, :] = component_loss[data_idx, :]
-            assigned_sem_vals = [my_trainer.instance_problem.model_channel_semantic_ids[c]
-                                 for c in assignments.model_channels[data_idx, :]]
-            assigned_inst_vals = [my_trainer.instance_problem.instance_count_id_list[c]
-                                  for c in assignments.model_channels[data_idx, :]]
-            lt_combined_channelwise = my_trainer.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
-                                                                            assigned_sem_vals=assigned_sem_vals,
-                                                                            assigned_inst_vals=assigned_inst_vals)
+            channel_sem_vals = assignments.sem_vals[data_idx, :]
+            channel_inst_vals = assignments.assigned_gt_inst_vals[data_idx, :]
+            pred_sem, pred_inst = instance_utils.decompose_semantic_and_instance_labels(label_pred[data_idx, ...],
+                                                                                        channel_inst_vals,
+                                                                                        channel_sem_vals)
+            gt_combined_channelwise = \
+                instance_utils.label_tuple_to_channel_ids(sem_lbl_np[data_idx, ...], inst_lbl_np[data_idx, ...],
+                                                          channel_semantic_values=channel_sem_vals,
+                                                          channel_instance_values=channel_inst_vals)
+            pred_big_channelwise = \
+                instance_utils.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
+                                                          channel_semantic_values=channel_sem_vals,
+                                                          channel_instance_values=channel_inst_vals)
+
             confusion_matrix = instanceseg.utils.eval.calculate_confusion_matrix_from_arrays(
-                label_pred, lt_combined_channelwise, n_channels)
+                pred_big_channelwise, gt_combined_channelwise, n_channels)
             ious = instanceseg.utils.eval.calculate_iou(confusion_matrix)
             soft_iou, soft_iou_components = iou.lovasz_softmax_2d(
-                F.softmax(scores, dim=1), sem_lbl, inst_lbl, sem_vals_by_channel=assigned_sem_vals,
-                gt_instance_vals_by_channel=assigned_inst_vals, return_loss_components=True)
+                F.softmax(scores, dim=1), sem_lbl, inst_lbl, sem_vals_by_channel=channel_sem_vals,
+                gt_instance_vals_by_channel=channel_inst_vals, return_loss_components=True)
             soft_ious_by_channel[image_idx, :] = soft_iou_components[data_idx, :]
             ious_by_channel[image_idx, :] = ious
             for i, channel_idx in enumerate(assignments.model_channels.shape[0]):

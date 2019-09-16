@@ -186,9 +186,12 @@ class Trainer(object):
 
         if map_to_semantic:
             inst_lbl[inst_lbl > 1] = 1
-        loss_fcn = self.loss_fcn if not val_matching_override else self.eval_loss_fcn_with_matching
         # print('APD: Running loss fcn')
-        assignments, total_loss, loss_components_by_channel = loss_fcn(score, sem_lbl, inst_lbl)
+        if val_matching_override:
+            assignments, total_loss, loss_components_by_channel = self.eval_loss_fcn_with_matching(score, sem_lbl,
+                                                                                                   inst_lbl)
+        else:
+            assignments, total_loss, loss_components_by_channel = self.loss_fcn(score, sem_lbl, inst_lbl)
 
         # print('APD: Finished running loss fcn')
         avg_loss = total_loss / score.size(0)
@@ -307,7 +310,7 @@ class Trainer(object):
         label_trues, label_preds, assignments = [], [], []
         num_images_to_visualize = min(len(data_loader), 9)
         memory_allocated_before = torch.cuda.memory_allocated(device=None)
-        mem_report_dict = torch_utils.generate_mem_report_dict()
+
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader), desc='Valid iteration (split=%s)=%d' %
@@ -321,50 +324,15 @@ class Trainer(object):
                                / 1e9)
                 t.set_description_str(description)
 
-                if DEBUG_MEMORY_ISSUES:
-                    memory_allocated = torch.cuda.memory_allocated(device=None)
-                    description = 'Valid iteration (split=%s)=%d, %g GB' % \
-                                  (split, self.state.iteration, memory_allocated / 1e9)
-                    t.set_description_str(description)
-                    mem_report_dict_old = mem_report_dict
-                    mem_report_dict = torch_utils.generate_mem_report_dict()
-                    new_vars_as_dict, diff_counts_as_dict, same_vars_as_dict = \
-                        torch_utils.diff_mem_reports(mem_report_dict_old, mem_report_dict)
-                    if batch_idx > num_images_to_visualize:
-                        print('\nNew vars:')
-                        pprint.pprint(new_vars_as_dict)
-                        print('\nDiff vars:')
-                        pprint.pprint(diff_counts_as_dict)
-                        vars_to_check = ['assignments_sb', 'val_loss_sb',
-                                         'segmentation_visualizations_sb',
-                                         'score_visualizations_sb']
-                        for var_name in vars_to_check:
-                            value = eval(var_name)
-                            if type(value) is list and len(value) > 0:
-                                element_sizes = [get_array_size(v) for v in value]
-                                if all([s == element_sizes[0] for s in element_sizes]):
-                                    var_size = \
-                                        '{} of {}'.format(len(element_sizes), element_sizes[0])
-                                else:
-                                    var_size = element_sizes
-                                var_type = 'list of {}'.format(type(value[0]))
-                            else:
-                                var_size = get_array_size(value)
-                                var_type = type(value)
-                            print('{}: {}, {}'.format(var_name, var_type, var_size))
-
                 should_visualize = len(segmentation_visualizations) < num_images_to_visualize
                 if not (should_compute_basic_metrics or should_visualize):
                     # Don't waste computation if we don't need to run on the remaining images
                     continue
 
-                true_labels_sb, pred_labels_sb, score_sb, val_loss_sb, assignments_sb, \
-                    segmentation_visualizations_sb, score_visualizations_sb = \
+                score_sb, val_loss_sb, assignments_sb, segmentation_visualizations_sb, score_visualizations_sb = \
                     self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                                should_visualize=should_visualize)
                 # print('APD: Memory allocated after validating {} GB'.format(memory_allocated / 1e9))
-                label_trues += true_labels_sb
-                label_preds += pred_labels_sb
                 val_loss += val_loss_sb
                 # scores += [score_sb]  # This takes up way too much memory
                 assignments += [assignments_sb]
@@ -377,16 +345,23 @@ class Trainer(object):
                         del var
 
         if should_export_visualizations:
-            self.exporter.export_score_and_seg_images(segmentation_visualizations,
-                                                      score_visualizations, self.state.iteration,
-                                                      split)
+            self.exporter.export_score_and_seg_images(segmentation_visualizations, score_visualizations,
+                                                      self.state.iteration, split)
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss
 
-        val_metrics = self.exporter.run_post_val_epoch(label_preds, label_trues, should_compute_basic_metrics, split,
-                                                       val_loss, val_metrics, write_basic_metrics,
-                                                       write_instance_metrics, self.state.epoch, self.state.iteration,
-                                                       self.model)
+        if should_compute_basic_metrics:
+            if write_basic_metrics:
+                self.exporter.write_eval_metrics(val_metrics, val_loss, split, epoch=self.state.epoch,
+                                                 iteration=self.state.iteration)
+                if self.exporter.tensorboard_writer is not None:
+                    self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{}/losses'.format(split), val_loss,
+                                                                self.state.iteration)
+                    self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2],
+                                                                self.state.iteration)
+
+        if write_instance_metrics:
+            self.exporter.compute_and_write_instance_metrics(model=self.model, iteration=self.state.iteration)
         if save_checkpoint:
             self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2],
                                                     save_by_iteration=save_checkpoint_by_itr_name)
@@ -410,15 +385,12 @@ class Trainer(object):
                                                                                   val_matching_override=True)
             # print('APD: Finished computing loss')
             val_loss = float(avg_loss.item())
-            true_labels, pred_labels, segmentation_visualizations, score_visualizations = \
-                self.exporter.run_post_val_iteration(
-                    imgs, inst_lbl, score, sem_lbl, assignments, should_visualize,
-                    data_to_img_transformer=lambda i, l: self.exporter.untransform_data(
-                        data_loader, i, l))
+            segmentation_visualizations, score_visualizations = self.exporter.run_post_val_iteration(
+                imgs, sem_lbl, inst_lbl, score, assignments, should_visualize,
+                data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
 
             # print('APD: Finished iteration')
-        return true_labels, pred_labels, score, val_loss, assignments, \
-               segmentation_visualizations, score_visualizations
+        return score, val_loss, assignments, segmentation_visualizations, score_visualizations
 
     @property
     def model_save_iters(self):

@@ -330,42 +330,21 @@ class TrainerExporter(object):
         shutil.copy(current_checkpoint_file, best_checkpoint_file)
         return best_checkpoint_file
 
-    def visualize_one_img_prediction(self, img_untransformed, lp, lt_combined, softmax_scores,
-                                     true_labels, idx):
-        # Segmentations
-        segmentation_viz = visualization_utils.visualize_segmentation(
-            lbl_pred=lp, lbl_true=lt_combined, img=img_untransformed, n_class=self.instance_problem.n_classes,
-            overlay=False)
-        # Scores
-        sp = softmax_scores[idx, :, :, :]
-        # TODO(allie): Fix this -- bug(?!)
-        lp = np.argmax(sp, axis=0)
-        if self.export_config.which_heatmaps_to_visualize == 'same semantic':
-            inst_sem_classes_present = torch.from_numpy(np.unique(true_labels))  # torch.np.unique
-            inst_sem_classes_present = inst_sem_classes_present[inst_sem_classes_present != -1]
-            sem_classes_present = np.unique([self.instance_problem.model_channel_semantic_ids[c]
-                                             for c in inst_sem_classes_present])
-            channels_for_these_semantic_classes = [inst_idx for inst_idx, sem_cls in enumerate(
-                self.instance_problem.model_channel_semantic_ids) if sem_cls in sem_classes_present]
-            channels_to_visualize = channels_for_these_semantic_classes
-        elif self.export_config.which_heatmaps_to_visualize == 'all':
-            channels_to_visualize = list(range(sp.shape[0]))
-        else:
-            raise ValueError('which heatmaps to visualize is not recognized: {}'.format(
-                self.export_config.which_heatmaps_to_visualize))
-        channel_labels = self.instance_problem.get_channel_labels('{} {}')
-        score_viz = visualization_utils.visualize_heatmaps(scores=sp,
-                                                           lbl_true=lt_combined,
-                                                           lbl_pred=lp,
-                                                           n_class=self.instance_problem.n_classes,
-                                                           score_vis_normalizer=sp.max(),
-                                                           channel_labels=channel_labels,
-                                                           channels_to_visualize=channels_to_visualize,
-                                                           input_image=img_untransformed)
+    def visualize_one_img_prediction_score(self, img_untransformed, softmax_scores, gt_sem_inst_tuple,
+                                           assignments):
+        pred_channel_sem_vals, pred_channel_inst_vals = assignments.sem_values, assignments.assigned_gt_inst_vals
+        score_viz = visualization_utils.visualize_heatmaps(
+            softmax_scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_channel_inst_vals,
+            sem_val_to_name=self.instance_problem.semantic_class_names_by_model_id,
+            leftover_gt_sem_inst_tuples=None,
+            input_image=img_untransformed,
+            margin_color=(255, 255, 255), margin_size_small=3, margin_size_large=6,
+            use_funky_void_pixels=True, void_val=-1)
+
         if self.export_config.downsample_multiplier_score_images != 1:
             score_viz = visualization_utils.resize_img_by_multiplier(
                 score_viz, self.export_config.downsample_multiplier_score_images)
-        return segmentation_viz, score_viz
+        return score_viz
 
     def export_score_and_seg_images(self, segmentation_visualizations, score_visualizations, iteration, split):
         self.export_visualizations(segmentation_visualizations, iteration, basename='seg_' + split, tile=True)
@@ -379,45 +358,14 @@ class TrainerExporter(object):
         visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer, iteration,
                                                   basename=basename, tile=tile)
 
-    def run_post_val_epoch(self, label_preds, label_trues, should_compute_basic_metrics, split, val_loss, val_metrics,
-                           write_basic_metrics, write_instance_metrics, epoch, iteration, model):
-        if should_compute_basic_metrics:
-            val_metrics = self.compute_eval_metrics(label_trues, label_preds)
-            if write_basic_metrics:
-                self.write_eval_metrics(val_metrics, val_loss, split, epoch=epoch, iteration=iteration)
-                if self.tensorboard_writer is not None:
-                    self.tensorboard_writer.add_scalar('A_eval_metrics/{}/losses'.format(split), val_loss, iteration)
-                    self.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2],
-                                                       iteration)
-
-        if write_instance_metrics:
-            self.compute_and_write_instance_metrics(model=model, iteration=iteration)
-        return val_metrics
-
     def run_post_train_iteration(self, full_input, sem_lbl, inst_lbl, loss, loss_components,
                                  assignments: LossMatchAssignments, score,
-                                 epoch,
-                                 iteration, new_assignments=None, new_loss=None, get_activations_fcn=None,
+                                 epoch, iteration, new_assignments=None, new_loss=None, get_activations_fcn=None,
                                  lrs_by_group=None):
         """
         get_activations_fcn=self.model.get_activations
         """
-        inst_lbl_pred = score.detach().max(1)[1].cpu().numpy()[:, :, :]
-        lbl_true_sem, lbl_true_inst = sem_lbl.detach().cpu().numpy(), inst_lbl.detach().cpu().numpy()
         eval_metrics = []
-        for idx, (sem_lbl_np, inst_lbl_np, lp) in enumerate(zip(lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
-            assigned_sem_vals = [self.instance_problem.model_channel_semantic_ids[c]
-                                 for c in assignments.model_channels[idx, :]]
-            assigned_inst_vals = [self.instance_problem.instance_count_id_list[c]
-                                  for c in assignments.model_channels[idx, :]]
-            lt_combined = self.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
-                                                          assigned_sem_vals=assigned_sem_vals,
-                                                          assigned_inst_vals=assigned_inst_vals)
-            acc, acc_cls, mean_iu, fwavacc = \
-                self.compute_eval_metrics(label_trues=[lt_combined], label_preds=[lp])
-            eval_metrics.append((acc, acc_cls, mean_iu, fwavacc))
-        eval_metrics = np.mean(eval_metrics, axis=0)
-        self.write_eval_metrics(eval_metrics, loss, split='train', epoch=epoch, iteration=iteration)
         if self.tensorboard_writer is not None:
             # TODO(allie): Check dimensionality of loss to prevent potential bugs
             self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.detach().sum(),
@@ -443,56 +391,40 @@ class TrainerExporter(object):
                                                           get_activations_fcn=get_activations_fcn)
         return eval_metrics
 
-    def run_post_val_iteration(self, imgs, inst_lbl, score, sem_lbl, assignments: LossMatchAssignments,
+    def run_post_val_iteration(self, imgs, sem_lbl, inst_lbl, score, assignments: LossMatchAssignments,
                                should_visualize, data_to_img_transformer):
         """
         data_to_img_transformer: img_untransformed, lbl_untransformed = f(img, lbl) : e.g. - resizes, etc.
         """
-        true_labels = []
-        pred_labels = []
-        segmentation_visualizations = []
-        score_visualizations = []
+        true_labels, pred_labels, segmentation_visualizations, score_visualizations = [], [], [], []
 
         softmax_scores = F.softmax(score, dim=1).detach().cpu().numpy()
-        inst_lbl_pred = score.detach().max(dim=1)[1].cpu().numpy()[:, :, :]
+        pred_channel_lbl = score.detach().max(dim=1)[1].cpu().numpy()[:, :, :]
         lbl_true_sem, lbl_true_inst = (sem_lbl.detach().cpu(), inst_lbl.detach().cpu())
         if DEBUG_ASSERTS:
-            assert inst_lbl_pred.shape == lbl_true_inst.shape
-        for idx, (img, sem_lbl, inst_lbl, lp) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst, inst_lbl_pred)):
+            assert pred_channel_lbl.shape == lbl_true_inst.shape
+        max_n_insts_per_thing = 255
+        for idx, (img, sem_lbl, inst_lbl, pred_l) in enumerate(zip(imgs, lbl_true_sem, lbl_true_inst,
+                                                                   pred_channel_lbl)):
             # runtime_transformation needs to still run the resize, even for untransformed img, lbl pair
             img_untransformed, lbl_untransformed = data_to_img_transformer(img, (sem_lbl, inst_lbl)) \
-                if data_to_img_transformer is not None \
-                else (img, (sem_lbl, inst_lbl))
+                if data_to_img_transformer is not None else (img, (sem_lbl, inst_lbl))
             sem_lbl_np, inst_lbl_np = lbl_untransformed
-            assigned_sem_vals = [self.instance_problem.model_channel_semantic_ids[c]
-                                 for c in assignments.model_channels[idx, :].long()]
-            assigned_inst_vals = [self.instance_problem.instance_count_id_list[c]
-                                  for c in assignments.model_channels[idx, :]]
-            lt_combined = self.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
-                                                          assigned_sem_vals=assigned_sem_vals,
-                                                          assigned_inst_vals=assigned_inst_vals)
-            true_labels.append(lt_combined)
-            pred_labels.append(lp)
+            assert max_n_insts_per_thing > inst_lbl.max()
             if should_visualize:
-                segmentation_viz, score_viz = self.visualize_one_img_prediction(
-                    img_untransformed, lp, lt_combined, softmax_scores, true_labels, idx)
+                segmentation_viz = visualization_utils.visualize_segmentations_as_rgb_imgs(
+                    gt_sem_inst_lbl_tuple=(sem_lbl_np, inst_lbl_np),
+                    pred_channelwise_lbl=pred_channel_lbl, img=img_untransformed, overlay=False)
+                score_viz = self.visualize_one_img_prediction_score(
+                    img_untransformed, softmax_scores, (sem_lbl_np, inst_lbl_np), assignments)
                 score_visualizations.append(score_viz)
                 segmentation_visualizations.append(segmentation_viz)
-        return true_labels, pred_labels, segmentation_visualizations, score_visualizations
+        return segmentation_visualizations, score_visualizations
 
     def compute_eval_metrics(self, label_trues, label_preds):
         eval_metrics_list = instanceseg.utils.misc.label_accuracy_score(label_trues, label_preds,
                                                                         n_class=self.instance_problem.n_classes)
         return eval_metrics_list
-
-    @staticmethod
-    def label_tuple_to_channel_ids(sem_lbl, inst_lbl, assigned_sem_vals, assigned_inst_vals):
-        """
-        assigned_inst_vals: each channel is assigned to a ground truth value
-        """
-        return instance_utils.label_tuple_to_channel_ids(sem_lbl, inst_lbl,
-                                                         channel_semantic_values=assigned_sem_vals,
-                                                         channel_instance_values=assigned_inst_vals)
 
     @staticmethod
     def untransform_data(data_loader, img, lbl):

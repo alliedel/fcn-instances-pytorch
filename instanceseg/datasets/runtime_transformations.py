@@ -58,7 +58,7 @@ def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, re
             instance_id_for_excluded_instances=instance_id_for_excluded_instances))
         
     if map_to_single_instance_problem:
-        transformer_sequence.append(SingleInstanceMapperRuntimeDatasetTransformer(stuff_values=stuff_values))
+        transformer_sequence.append(ThingsToStuffRuntimeDatasetTransformer(stuff_values=stuff_values))
 
     # Some post-processing (should maybe be later(?))
     # transformer_sequence.append(SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer(
@@ -184,7 +184,7 @@ class InstanceNumberCapRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
         return img, lbl
 
 
-class SingleInstanceMapperRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
+class ThingsToStuffRuntimeDatasetTransformer(RuntimeDatasetTransformerBase):
     def __init__(self, stuff_values=(0,)):
         self.stuff_values = stuff_values
 

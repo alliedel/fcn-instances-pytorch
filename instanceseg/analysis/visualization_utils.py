@@ -513,83 +513,138 @@ def visualize_segmentation(**kwargs):
         raise RuntimeError
 
 
-def visualize_heatmaps(scores, lbl_pred, lbl_true, input_image=None,
-                       margin_color=(255, 255, 255), n_class=None, score_vis_normalizer=None, channel_labels=None,
-                       channels_to_visualize=None, margin_size_small=3, margin_size_large=6):
+def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_lbl, margin_color=(255, 255, 255),
+                                        overlay=True, img=None, void_val=-1):
     """
-    n_labels: for colormap. Make sure it matches the segmentation n_labels if you want it to make sense.
-    channels_to_visualize: None == 'all'
+    Note this is not channelwise!
     """
-    use_funky_void_pixels = True
-    n_channels = scores.shape[0]
-    if n_class is None:
-        cmap = np.repeat(np.ones((1, 3)) * 255, [n_channels, 1])
-    else:
-        cmap = label_colormap(n_class) * 255
+    gt_sem_lbl, gt_inst_lbl = gt_sem_inst_lbl_tuple
+    # Generate funky pixels for void class
+    mask_unlabeled = None
+    viz_unlabeled = None
+    if gt_sem_inst_lbl_tuple is not None:
+        mask_unlabeled = gt_sem_lbl == void_val
+        # lbl_true[mask_unlabeled] = 0
+        viz_unlabeled = (
+                np.random.random((gt_sem_lbl.shape[0], gt_inst_lbl.shape[1], 3)) * 255
+        ).astype(np.uint8)
+        if pred_channelwise_lbl is not None:
+            pred_channelwise_lbl[mask_unlabeled] = 0
+        # if mask_unlabeled.sum() > 1:
+        #     import ipdb; ipdb.set_trace()
 
-    heatmaps = []
-    heatmaps_normalized = []
-    pred_label_masks, true_label_masks = [], []
-    colormaps = []
-    scores_min_max = (scores.min(), scores.max())
-    score_vis_normalizer = score_vis_normalizer or scores.max()
-    #    for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
-    #        if lbl is None:
-    #            continue
-    #        if permutation is not None:
-    #            permute_labels = np.vectorize(lambda x: pred_permutations[x])
-    #        else:
-    #            permute_labels = lamba x: x  # identity
-    #        lbl_permuted = permute_labels(lbl)
-    #        label_names_permuted = permute_labels(label_names)
-    channels_to_visualize = channels_to_visualize or range(n_channels)
-    for pred_channel in channels_to_visualize:
-        gt_channel = pred_channel
-        single_channel_scores = scores[gt_channel, :, :]
-        color = cmap[gt_channel, :]
-        pred_label_mask = np.repeat((lbl_pred == gt_channel)[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
-        true_label_mask = np.repeat((lbl_true == gt_channel)[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
+    vizs = []
+
+    # GT
+    if gt_sem_inst_lbl_tuple is not None:
+        viz = []
+        if img is not None:
+            viz.append(img)
+        gt_lbl_as_arbitrary_channels = gt_sem_lbl * 255 + gt_inst_lbl
+        lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels)
+        lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+
+        if overlay:
+            lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels, img)
+            lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+
+        vizs.append(viz)
+
+    # Pred
+    if pred_channelwise_lbl is not None:
+        viz = []
+        if img is not None:
+            viz.append(img)
+
+        lbl_viz = label2rgb(pred_channelwise_lbl)
+        lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+
+        if overlay:
+            lbl_viz = label2rgb(pred_channelwise_lbl, img)
+            lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+
+        vizs.append(viz)
+
+    if len(vizs) == 1:
+        return vizs[0]
+    elif len(vizs) == 2:
+        all_vizs = vizs[0] + vizs[1][1:]
+        return get_tile_image(all_vizs, (1, len(all_vizs)), margin_color=margin_color,
+                              margin_size=2)
+    else:
+        raise RuntimeError
+
+
+def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_channel_inst_vals,
+                       sem_val_to_name=None, leftover_gt_sem_inst_tuples=None, input_image=None,
+                       margin_color=(255, 255, 255), margin_size_small=3, margin_size_large=6,
+                       use_funky_void_pixels=True, void_val=-1):
+    """
+    We trust that leftover_gt_sem_inst_tuples covers all the values that are not in zip(pred_channel_sem_vals,
+    pred_channel_inst_vals) -- or at least the ones you want to cover.
+    """
+    gt_sem_lbl, gt_inst_lbl = gt_sem_inst_tuple
+    pred_channel_labels = np.argmax(scores, axis=0)
+    R, C = gt_sem_lbl.shape[0:2]
+    viz_void = (np.random.random((R, C, 3)) * 255).astype(np.uint8)
+
+    n_pred_channels = scores.shape[0]
+    n_channels_tot = n_pred_channels + len(leftover_gt_sem_inst_tuples)
+    cmap = np.repeat(np.ones((1, 3)) * 255, [n_channels_tot, 1])
+
+    heatmaps, colormaps, pred_label_masks, true_label_masks = [], [], [], []
+
+    void_mask = gt_sem_lbl == void_val
+    for pred_channel, sem_val, inst_val in enumerate(zip(pred_channel_sem_vals, pred_channel_inst_vals)):
+        single_channel_scores = scores[pred_channel, :, :]
+        color = cmap[pred_channel, :]
+        pred_label_mask = np.repeat((pred_channel_labels == pred_channel)[:, :, np.newaxis], 3, axis=2).astype(
+            np.uint8) * 255
+        true_label_mask = np.repeat(
+            ((gt_sem_lbl == sem_val) * (gt_inst_lbl == inst_val))[:, :, np.newaxis], 3, axis=2).astype(np.uint8) * 255
         if use_funky_void_pixels:
-            void_mask = lbl_true == -1
-            viz_void = (
-                    np.random.random((lbl_true.shape[0], lbl_true.shape[1], 3)) * 255
-            ).astype(np.uint8)
             true_label_mask[void_mask] = viz_void[void_mask]
 
         heatmap = scores2d2heatmap(single_channel_scores, clims=(0, 1), color=(255, 255, 255)).astype(np.uint8)
-        heatmap_normalized = scores2d2heatmap(single_channel_scores, clims=(0, score_vis_normalizer),
-                                              color=(255, 255, 255)).astype(np.uint8)
         colormap = np.ones_like(heatmap) * color
-        if channel_labels is not None:
-            write_word_in_img_center(colormap, channel_labels[pred_channel], font_scale=2.0)
+        write_word_in_img_center(colormap, '{} {}'.format(sem_val_to_name[sem_val], inst_val), font_scale=2.0)
         pred_label_masks.append(pred_label_mask)
         true_label_masks.append(true_label_mask)
         heatmaps.append(heatmap)
-        heatmaps_normalized.append(heatmap_normalized)
         colormaps.append(colormap)
-    true_label_mask_row = get_tile_image(true_label_masks, (1, len(channels_to_visualize)), margin_color=margin_color,
-                                         margin_size=margin_size_small)
-    pred_label_mask_row = get_tile_image(pred_label_masks, (1, len(channels_to_visualize)), margin_color=margin_color,
-                                         margin_size=margin_size_small)
-    heatmap_row = get_tile_image(heatmaps, (1, len(channels_to_visualize)), margin_color=margin_color,
-                                 margin_size=margin_size_small)
-    heatmap_row_normalized = get_tile_image(heatmaps_normalized, (1, len(channels_to_visualize)),
-                                            margin_color=margin_color, margin_size=margin_size_small)
-    colormaps_row = get_tile_image(colormaps, (1, len(channels_to_visualize)), margin_color=margin_color,
-                                   margin_size=margin_size_small)
 
-    all_rows = [heatmap_row]
-    # all_rows.append(heatmap_row_normalized)
-    all_rows += [pred_label_mask_row, colormaps_row, true_label_mask_row]
+    row_C = n_pred_channels
+    input_img_list = [] if input_image is None else [[input_image for _ in range(row_C)]]
+    all_rows = [true_label_masks, pred_label_masks, heatmaps, colormaps] + input_img_list
+    vis_for_all_assigned_instances = get_tile_image(
+        [get_tile_image(im_list, (1, row_C), margin_color=margin_color, margin_size=margin_size_small)
+         for im_list in all_rows], (len(all_rows), 1), margin_color=margin_color, margin_size=margin_size_large)
 
-    if input_image is not None:
-        input_image_row = get_tile_image([input_image for _ in range(len(channels_to_visualize))],
-                                         (1, len(channels_to_visualize)),
-                                         margin_color=margin_color,
-                                         margin_size=margin_size_small)
-        all_rows.append(input_image_row)
+    if leftover_gt_sem_inst_tuples is None:
+        score_viz = vis_for_all_assigned_instances
+    else:
+        heatmaps, colormaps, pred_label_masks, true_label_masks = [], [], [], []
+        for leftover_channel_idx, (sem_val, inst_val) in enumerate(leftover_gt_sem_inst_tuples):
+            heatmaps.append(np.zeros((R, C, 3), dtype=np.uint8))
+            pred_label_masks.append(np.zeros((R, C, 3), dtype=np.uint8))
+            pred_label_masks.append(np.zeros((R, C, 3), dtype=np.uint8))
+            true_label_mask = np.repeat(
+                ((gt_sem_lbl == sem_val) * (gt_inst_lbl == inst_val))[:, :, np.newaxis], 3, axis=2).astype(
+                np.uint8) * 255
+            true_label_masks.append(true_label_mask)
+            colormap = np.ones((R, C, 3)) * cmap[n_pred_channels + leftover_channel_idx, :]
+            write_word_in_img_center(colormap, '{} {}'.format(sem_val_to_name[sem_val], inst_val), font_scale=2.0)
+            colormaps.append(colormap)
+        row_C_unass = len(leftover_gt_sem_inst_tuples)
+        all_rows_unass = [true_label_masks, pred_label_masks, heatmaps, colormaps] + input_img_list
+        vis_for_all_unassigned_instances = get_tile_image(
+            [get_tile_image(im_list, (1, row_C_unass), margin_color=margin_color, margin_size=margin_size_small)
+             for im_list in all_rows_unass], (len(all_rows_unass), 1), margin_color=margin_color,
+            margin_size=margin_size_large)
+        score_viz = get_tile_image([vis_for_all_assigned_instances, vis_for_all_unassigned_instances], (1, 2),
+                                   margin_color=margin_color, margin_size=margin_size_large)
 
-    return get_tile_image(all_rows, (len(all_rows), 1), margin_color=margin_color, margin_size=margin_size_large)
+    return score_viz
 
 
 def scores2d2heatmap(scores_single_channel, clims=None, color=(255, 255, 255)):

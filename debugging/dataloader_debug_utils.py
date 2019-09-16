@@ -9,11 +9,11 @@ import PIL.Image
 from instanceseg.analysis import visualization_utils
 from instanceseg.datasets import labels_table_cityscapes, instance_dataset
 from instanceseg.datasets.cityscapes_transformations import convert_to_p_mode_file
+from instanceseg.datasets.runtime_transformations import SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer
 from instanceseg.train import trainer_exporter
 from instanceseg.train.trainer import Trainer
 from instanceseg.utils.misc import value_as_string
 from instanceseg.utils import instance_utils
-
 
 MAX_IMAGE_DIM = 5000
 
@@ -42,10 +42,15 @@ class DataloaderDataIntegrityChecker(object):
             semantic_idx = self.instance_problem.semantic_vals.index(tv)
             sem_locs = sem_lbl == tv
             if sem_locs.sum() > 0:
-                assert (inst_lbl[sem_locs] == 0).sum() == 0, \
-                    'Things should not have instance label 0 (error for class {}, {}'.format(
-                        tv, self.instance_problem.semantic_class_names[semantic_idx])
-                assert inst_lbl[sem_locs].max() <= self.instance_problem.n_instances_by_semantic_id[semantic_idx]
+                if self.instance_problem.map_to_semantic:
+                    # I think we need thing value 1 (things we're actually predicting) and thing value 0 (things we're
+                    # not bothering to predict)
+                    assert (inst_lbl[sem_locs] == 1).sum() + (inst_lbl[sem_locs] == 0).sum() == sem_locs.sum()
+                else:
+                    assert (inst_lbl[sem_locs] == 0).sum() == 0, \
+                        'Things should not have instance label 0 (error for class {}, {}'.format(
+                            tv, self.instance_problem.semantic_class_names[semantic_idx])
+                # assert inst_lbl[sem_locs].max() <= self.instance_problem.n_instances_by_semantic_id[semantic_idx]
 
     def stuff_constraint(self, sem_lbl, inst_lbl):
         for sv in self.stuff_values:
@@ -150,12 +155,10 @@ def raw_image_exporter(dataloader, n_debug_images, out_dir_parent):
         input_image = np.array(PIL.Image.open(filename_d['img'], 'r'))
         assert len(sem_lbl.shape) == 2
         assert len(inst_lbl.shape) == 2
-        print('Creating decomposed label')
         out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image,
                                                        cmap_dict_by_sem_val=cmap_dict_by_sem_val,
                                                        sem_names_dict=sem_names_dict, max_image_dim=MAX_IMAGE_DIM,
                                                        sort_by_sem_val=True)
-        print('Done creating decomposed label')
         imname = os.path.basename(filename_d['img']).rstrip('.png')
         decomposed_image_path = os.path.join(out_dir_raw_decomposed, 'decomposed_%012d' % image_idx + imname + '.png')
         save_and_possibly_resize(decomposed_image_path, out_img)
@@ -189,24 +192,21 @@ def tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_p
                       for v, n in zip(sem_vals, trainer.instance_problem.semantic_class_names)}
     for batch_idx, (img_data_b, (sem_lbl_b, inst_lbl_b)) in t:
         integrity_checker.check_batch_label_integrity(sem_lbl_b, inst_lbl_b)
+
         for datapoint_idx in range(img_data_b.size(0)):
             img_data = img_data_b[datapoint_idx, ...]
             sem_lbl, inst_lbl = sem_lbl_b[datapoint_idx, ...], inst_lbl_b[datapoint_idx, ...]
+
             # Transform back to numpy format (rather than tensor that's formatted for model)
             data_to_img_transformer = lambda i, l: trainer.exporter.untransform_data(
                 trainer.dataloaders[split], i, l)
             img_untransformed, lbl_untransformed = data_to_img_transformer(
                 img_data, (sem_lbl, inst_lbl)) \
                 if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
-            sem_lbl_np, inst_lbl_np = lbl_untransformed
 
-            lt_combined = trainer.exporter.label_tuple_to_channel_ids(sem_lbl_np, inst_lbl_np,
-                                                                      assigned_sem_vals=None,
-                                                                      assigned_inst_vals=None)
-
-            segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentation(
-                lbl_true=lt_combined, img=img_untransformed, n_class=trainer.instance_problem.n_classes,
-                overlay=False)
+            segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentations_as_rgb_imgs(
+                gt_sem_inst_lbl_tuple=lbl_untransformed, pred_channelwise_lbl=None, margin_color=(255, 255, 255),
+                overlay=True, img=img_untransformed, void_val=-1)
 
             visualization_utils.export_visualizations(segmentation_viz, out_dir_rgb,
                                                       trainer.exporter.tensorboard_writer,
@@ -214,12 +214,10 @@ def tranformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_p
 
             input_image_resized = visualization_utils.resize_img_to_sz(img_untransformed, sem_lbl.shape[0],
                                                                        sem_lbl.shape[1])
-            print('Creating decomposed label')
             out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl, input_image=input_image_resized,
                                                            sem_names_dict=sem_names_dict,
                                                            cmap_dict_by_sem_val=cmap_dict_by_sem_val,
                                                            max_image_dim=max_image_dim)
-            print('Done creating decomposed label')
             decomposed_image_path = os.path.join(out_dir_decomposed, 'decomposed_%012d.png' % image_idx)
             save_and_possibly_resize(decomposed_image_path, out_img)
             decomposed_image_paths_transformed.append(decomposed_image_path)
@@ -290,7 +288,8 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
         cmap_dict_by_sem_val = visualization_utils.label_colormap(n_sem_classes) * 255
     elif any([sum(c) != 0 and max(c) <= 1 for c in cmap_dict_by_sem_val.values()]):
         print('Warning: colormap should be in the range [0, 255], not [0,1]')
-        import ipdb; ipdb.set_trace()
+        import ipdb;
+        ipdb.set_trace()
 
     sem_cls_rows = []
     for sem_val in sem_vals:

@@ -74,6 +74,14 @@ class InstanceProblemConfig(object):
         return [l.name for l in self.labels_table]
 
     @property
+    def semantic_class_names_by_model_id(self):
+        return {i: l.name for i, l in enumerate(self.labels_table)}
+
+    @property
+    def semantic_class_names_by_val(self):
+        return {l.val: l.name for i, l in enumerate(self.labels_table)}
+
+    @property
     def n_semantic_classes(self):
         return len(self.semantic_class_names)
 
@@ -238,7 +246,7 @@ class InstanceProblemConfig(object):
         instance_count_id_list = self.instance_count_id_list
         sem_lbl, inst_lbl = decompose_semantic_and_instance_labels(
             gt_combined,
-            channel_values=channel_values, model_channel_semantic_ids=model_channel_semantic_ids,
+            channel_inst_vals=channel_values, channel_sem_vals=model_channel_semantic_ids,
             instance_count_id_list=instance_count_id_list, void_value=void_value)
         return sem_lbl, inst_lbl
 
@@ -249,12 +257,39 @@ class InstanceProblemConfig(object):
         instance_count_id_list = self.instance_count_id_list
         sem_lbl, inst_lbl = decompose_semantic_and_instance_labels(
             gt_combined,
-            channel_values=channel_values, model_channel_semantic_ids=model_channel_semantic_ids,
+            channel_inst_vals=channel_values, channel_sem_vals=model_channel_semantic_ids,
             instance_count_id_list=instance_count_id_list, void_value=void_value)
         return sem_lbl, inst_lbl
 
+    def create_channel_set_that_fits_all_labels(self, max_n_instances_per_thing=255, sem_type='val'):
+        """
+        sem_type = 'val' or 'channel_id' based on whether to use the index into the labels table (channel_id) or l[
+        'id'] ('val')
+        """
+        unique_sem_vals = {'val': self.semantic_vals, 'channel_id': self.semantic_ids}[sem_type]
+        thing_vals = {'val': self.thing_class_vals, 'channel_id': self.thing_class_ids}[sem_type]
+        return create_channel_set_that_fits_all_labels(
+            unique_sem_vals=unique_sem_vals, is_thing_each_sem=[True if sv in thing_vals else False
+                                                                for sv in unique_sem_vals],
+            max_n_instances_per_thing=max_n_instances_per_thing,
+            min_inst_id_for_thing=(0 if self.include_instance_channel0 else 1))
 
-def decompose_semantic_and_instance_labels(gt_combined, channel_values, model_channel_semantic_ids,
+
+def create_channel_set_that_fits_all_labels(unique_sem_vals, is_thing_each_sem, max_n_instances_per_thing,
+                                            min_inst_id_for_thing=1):
+    channel_sem_vals = []
+    channel_inst_vals = []
+    for sv, ist in zip(unique_sem_vals, is_thing_each_sem):
+        if not ist:
+            channel_sem_vals.append(sv)
+            channel_sem_vals.append(sv)
+        else:
+            channel_sem_vals.extend([sv] * max_n_instances_per_thing)
+            channel_sem_vals.extend(list(x + min_inst_id_for_thing for x in range(max_n_instances_per_thing)))
+    return channel_sem_vals, channel_inst_vals
+
+
+def decompose_semantic_and_instance_labels(gt_combined, channel_inst_vals, channel_sem_vals,
                                            instance_count_id_list, void_value=-1):
     if torch.is_tensor(gt_combined):
         sem_lbl = gt_combined.clone()
@@ -265,9 +300,7 @@ def decompose_semantic_and_instance_labels(gt_combined, channel_values, model_ch
     sem_lbl[...] = void_value
     inst_lbl[...] = void_value
 
-    for inst_idx, sem_cls, inst_count_id in zip(channel_values,
-                                                model_channel_semantic_ids,
-                                                instance_count_id_list):
+    for inst_idx, sem_cls, inst_count_id in zip(channel_inst_vals, channel_sem_vals, instance_count_id_list):
         sem_lbl[gt_combined == inst_idx] = sem_cls
         inst_lbl[gt_combined == inst_idx] = inst_count_id
     return sem_lbl, inst_lbl
@@ -279,6 +312,7 @@ def label_tuple_to_channel_ids(sem_lbl, inst_lbl, channel_semantic_values, chann
     sem_lbl is size(img); inst_lbl is size(img).  inst_lbl is just the original instance
     image (inst_lbls at coordinates of person 0 are 0)
     """
+    assert len(channel_semantic_values) == len(channel_instance_values)
     # TODO(allie): handle class overflow (from ground truth)
     assert set_extras_to_void == True, NotImplementedError
     assert sem_lbl.shape == inst_lbl.shape
@@ -291,7 +325,7 @@ def label_tuple_to_channel_ids(sem_lbl, inst_lbl, channel_semantic_values, chann
         y[(sem_lbl == int(sem_val)) * (inst_lbl == int(inst_val))] = sem_inst_idx
     # potential bug: y produces void values where they shouldn't exist
     if torch.is_tensor(y):
-        if torch.any((y == void_value).int() - (inst_lbl == void_value.int())):
+        if torch.any((y == void_value).int() - (inst_lbl == void_value).int()):
             raise Exception
     else:
         if np.any(inst_lbl[(y == void_value) != void_value]):
@@ -299,6 +333,7 @@ def label_tuple_to_channel_ids(sem_lbl, inst_lbl, channel_semantic_values, chann
             inst_vals = {}
             for sem_val in semantic_vals:
                 inst_vals[sem_val] = np.unique(inst_lbl[(y == void_value) * (sem_lbl == sem_val)])
+            print(inst_vals)
             raise Exception
     # if (y == void_value)
     return y

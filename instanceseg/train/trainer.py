@@ -350,15 +350,15 @@ class Trainer(object):
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss
 
-        # if should_compute_basic_metrics:
-        #     if write_basic_metrics:
+        if should_compute_basic_metrics:
+            if write_basic_metrics:
         #         self.exporter.write_eval_metrics(val_metrics, val_loss, split, epoch=self.state.epoch,
         #                                          iteration=self.state.iteration)
-        #         if self.exporter.tensorboard_writer is not None:
-        #             self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{}/losses'.format(split), val_loss,
-        #                                                         self.state.iteration)
-        #             self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2],
-        #                                                         self.state.iteration)
+                if self.exporter.tensorboard_writer is not None:
+                    self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{}/losses'.format(split), val_loss,
+                                                                self.state.iteration)
+                    # self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2],
+                    #                                             self.state.iteration)
         #
         if write_instance_metrics:
             self.exporter.compute_and_write_instance_metrics(model=self.model, iteration=self.state.iteration)

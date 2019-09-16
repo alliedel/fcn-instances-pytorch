@@ -261,7 +261,7 @@ class TrainerExporter(object):
                            new_assignments: LossMatchAssignments, iteration):
         loss_improvement = old_loss - new_loss
         num_reassignments = float(
-            np.sum(new_assignments.assigned_gt_inst_vals != old_assignments.assigned_gt_inst_vals))
+            (new_assignments.assigned_gt_inst_vals != old_assignments.assigned_gt_inst_vals).sum())
         self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss_improvement', loss_improvement,
                                            iteration)
         self.tensorboard_writer.add_scalar('A_eval_metrics/reassignment', num_reassignments, iteration)

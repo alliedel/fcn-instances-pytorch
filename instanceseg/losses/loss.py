@@ -245,7 +245,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             costs[channel_idxs] = costs_this_cls
             assigned_gt_inst_values[channel_idxs] = torch.FloatTensor(assigned_gt_inst_vals_this_cls)
             sem_values[channel_idxs] = sem_val
-            unassigned_gt_sem_inst_tuples.append([(sem_val, i) for i in unassigned_gt_inst_vals_this_cls])
+            unassigned_gt_sem_inst_tuples.extend([(sem_val, i) for i in unassigned_gt_inst_vals_this_cls])
         assert torch.all(costs != -1)  # costs for all channels were filled
         assignment_values = {
             'model_channels': model_channels,

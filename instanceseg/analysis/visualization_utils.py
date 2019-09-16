@@ -593,6 +593,7 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
     pred_channel_inst_vals) -- or at least the ones you want to cover.
     """
     gt_sem_lbl, gt_inst_lbl = gt_sem_inst_tuple
+    assert len(scores.shape) == 3
     pred_channel_labels = np.argmax(scores, axis=0)
     R, C = gt_sem_lbl.shape[0:2]
     viz_void = (np.random.random((R, C, 3)) * 255).astype(np.uint8)
@@ -604,7 +605,10 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
     heatmaps, colormaps, pred_label_masks, true_label_masks = [], [], [], []
 
     void_mask = gt_sem_lbl == void_val
-    for pred_channel, sem_val, inst_val in enumerate(zip(pred_channel_sem_vals, pred_channel_inst_vals)):
+    for pred_channel, (sem_val, inst_val) in enumerate(zip(pred_channel_sem_vals, pred_channel_inst_vals)):
+        if hasattr(sem_val, 'item'):
+            sem_val = sem_val.item()
+            inst_val = inst_val.item()
         single_channel_scores = scores[pred_channel, :, :]
         color = cmap[pred_channel, :]
         pred_label_mask = np.repeat((pred_channel_labels == pred_channel)[:, :, np.newaxis], 3, axis=2).astype(
@@ -629,7 +633,7 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
         [get_tile_image(im_list, (1, row_C), margin_color=margin_color, margin_size=margin_size_small)
          for im_list in all_rows], (len(all_rows), 1), margin_color=margin_color, margin_size=margin_size_large)
 
-    if leftover_gt_sem_inst_tuples is None:
+    if leftover_gt_sem_inst_tuples is None or len(leftover_gt_sem_inst_tuples) == 0:
         score_viz = vis_for_all_assigned_instances
     else:
         heatmaps, colormaps, pred_label_masks, true_label_masks = [], [], [], []

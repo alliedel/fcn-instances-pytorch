@@ -331,12 +331,11 @@ class TrainerExporter(object):
         return best_checkpoint_file
 
     def visualize_one_img_prediction_score(self, img_untransformed, softmax_scores, gt_sem_inst_tuple,
-                                           assignments):
-        pred_channel_sem_vals, pred_channel_inst_vals = assignments.sem_values, assignments.assigned_gt_inst_vals
+                                           channel_sem_values, channel_inst_vals, unassigned_gt_sem_inst_tuples):
         score_viz = visualization_utils.visualize_heatmaps(
-            softmax_scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_channel_inst_vals,
+            softmax_scores, gt_sem_inst_tuple, channel_sem_values, channel_inst_vals,
             sem_val_to_name=self.instance_problem.semantic_class_names_by_model_id,
-            leftover_gt_sem_inst_tuples=assignments.unassigned_gt_sem_inst_tuples,
+            leftover_gt_sem_inst_tuples=unassigned_gt_sem_inst_tuples,
             input_image=img_untransformed,
             margin_color=(255, 255, 255), margin_size_small=3, margin_size_large=6,
             use_funky_void_pixels=True, void_val=-1)
@@ -416,7 +415,9 @@ class TrainerExporter(object):
                     gt_sem_inst_lbl_tuple=(sem_lbl_np, inst_lbl_np),
                     pred_channelwise_lbl=pred_l, img=img_untransformed, overlay=False)
                 score_viz = self.visualize_one_img_prediction_score(
-                    img_untransformed, softmax_scores, (sem_lbl_np, inst_lbl_np), assignments)
+                    img_untransformed, softmax_scores[idx, ...], (sem_lbl_np, inst_lbl_np),
+                    assignments.sem_values[idx, ...],
+                    assignments.assigned_gt_inst_vals[idx, ...], assignments.unassigned_gt_sem_inst_tuples[idx])
                 score_visualizations.append(score_viz)
                 segmentation_visualizations.append(segmentation_viz)
         return segmentation_visualizations, score_visualizations

@@ -55,12 +55,15 @@ class ExportConfig(object):
 
 def export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
                                    image_names):
+    assert np.sum(sem_lbls_as_batch_nparray < 0) == 0  # semantic labels need to be >= 0 for unique ids
+    assert np.sum(inst_lbls_as_batch_nparray < 0) == 0  # instance labels need to be >= 0 for unique ids
     batch_sz = sem_lbls_as_batch_nparray.shape[0]
     assert batch_sz == inst_lbls_as_batch_nparray.shape[0]
     for img_idx in range(batch_sz):
         sem_l = sem_lbls_as_batch_nparray[img_idx, ...]
         inst_l = inst_lbls_as_batch_nparray[img_idx, ...]
-        img = id2rgb(255 * sem_l + inst_l)
+        img = id2rgb(sem_l + 256 * inst_l)
+        img[sem_l == 255, :] = 255         # Convert all void to (255,255,255) instead of, say, (255,0,0)
         out_file = os.path.join(output_directory, image_names[img_idx])
         visualization_utils.write_image(out_file, img)
 
@@ -118,6 +121,12 @@ class TrainerExporter(object):
         # Writing activations
 
         self.run_loss_updates = True
+
+    @staticmethod
+    def export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
+                                       image_names):
+        return export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
+                                              image_names)
 
     def get_big_channel_set_to_fit_pred_and_gt(self, max_n_channels=(256 * 256), sem_vals_not_model_ids=True):
         """
@@ -443,7 +452,7 @@ class TrainerExporter(object):
         for img_idx in range(batch_sz):
             lbl = labels_as_batch_nparray[img_idx, ...]
             sem_l, inst_l = self.instance_problem.decompose_semantic_and_instance_labels_with_original_sem_ids(lbl)
-            img = id2rgb(255 * sem_l + inst_l)
+            img = id2rgb(256 * sem_l + inst_l)
             out_file = os.path.join(output_directory, image_names[img_idx])
             visualization_utils.write_image(out_file, img)
 

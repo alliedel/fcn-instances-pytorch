@@ -278,7 +278,14 @@ class Trainer(object):
                 self.instance_problem.semantic_transformed_label_ids,
                 self.instance_problem.semantic_vals):
             sem_vals[sem_lbl_channel_ids == sem_channel_lbl] = sem_val
-        assert np.all(~np.isnan(sem_vals))
+        sem_vals[sem_lbl_channel_ids == self.instance_problem.void_value] = self.instance_problem.void_value
+        try:
+            assert np.all(~np.isnan(sem_vals))
+        except AssertionError:
+            channel_ids_not_found = set(np.unique(sem_lbl_channel_ids).tolist()) - set(
+                self.instance_problem.semantic_transformed_label_ids)
+            print('Could not map {} to a semantic value'.format(channel_ids_not_found))
+            raise
         return sem_vals
 
     def validate_split(self, split='val', write_basic_metrics=None, write_instance_metrics=None,

@@ -617,6 +617,7 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
         inst_val = int(inst_val) if inst_val == int(inst_val) else inst_val
         if hasattr(sem_val, 'item'):
             sem_val = sem_val.item()
+        if hasattr(inst_val, 'item'):
             inst_val = inst_val.item()
         single_channel_scores = scores[pred_channel, :, :]
         color = cmap[pred_channel, :]

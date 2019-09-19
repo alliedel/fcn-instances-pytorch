@@ -314,12 +314,13 @@ def get_max_height_and_width(imgs):
 
 
 def resize_np_img(img, sz):
+    dtype = img.dtype
     # try:
-    img = transform.resize(img, sz)
+    img = transform.resize(img.astype(float), sz)
     # except:
     #     im = PIL.Image.fromarray(img.astype(int))
     # img = np.array(im.resize((sz[1], sz[0])))
-    return img
+    return img.astype(dtype)
 
 
 def resize_img_to_sz(img, height, width):
@@ -521,7 +522,9 @@ def visualize_segmentation(**kwargs):
         raise RuntimeError
 
 
-def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_lbl, margin_color=(255, 255, 255),
+def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_lbl, channel_inst_vals,
+                                        channel_sem_vals, instance_count_id_list=None,
+                                        margin_color=(255, 255, 255),
                                         overlay=True, img=None, void_val=-1):
     """
     Note this is not channelwise!
@@ -544,44 +547,47 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
 
     vizs = []
 
+    if img is not None:
+        vizs.append(img)
+
+    arbitrary_inst_multiplier = 50
+
     # GT
     if gt_sem_inst_lbl_tuple is not None:
-        viz = []
-        if img is not None:
-            viz.append(img)
-        gt_lbl_as_arbitrary_channels = gt_sem_lbl * 255 + gt_inst_lbl
-        lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels)
-        lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+        gt_lbl_as_arbitrary_channels = gt_sem_lbl * 256 + gt_inst_lbl * arbitrary_inst_multiplier
 
         if overlay:
             lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels, img)
             lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+        else:
+            lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels)
+            lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
 
-        vizs.append(viz)
+        vizs.append(lbl_viz)
 
     # Pred
     if pred_channelwise_lbl is not None:
-        viz = []
-        if img is not None:
-            viz.append(img)
+        sem_l, inst_l = instance_utils.decompose_semantic_and_instance_labels(
+            pred_channelwise_lbl, channel_inst_vals, channel_sem_vals,
+            instance_count_id_list=instance_count_id_list or channel_inst_vals,
+            void_value=void_val)
 
-        lbl_viz = label2rgb(pred_channelwise_lbl)
-        lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+        pred_lbl_as_arbitrary_channels = sem_l * 256 + inst_l * arbitrary_inst_multiplier
 
         if overlay:
-            lbl_viz = label2rgb(pred_channelwise_lbl, img)
+            lbl_viz = label2rgb(pred_lbl_as_arbitrary_channels, img)
+            lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
+        else:
+            lbl_viz = label2rgb(pred_lbl_as_arbitrary_channels)
             lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
 
-        vizs.append(viz)
+        vizs.append(lbl_viz)
 
     if len(vizs) == 1:
         return vizs[0]
-    elif len(vizs) == 2:
-        all_vizs = vizs[0] + vizs[1][1:]
-        return get_tile_image(all_vizs, (1, len(all_vizs)), margin_color=margin_color,
-                              margin_size=2)
     else:
-        raise RuntimeError
+        return get_tile_image(vizs, (1, len(vizs)), margin_color=margin_color,
+                              margin_size=2)
 
 
 def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_channel_inst_vals,
@@ -600,12 +606,15 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
 
     n_pred_channels = scores.shape[0]
     n_channels_tot = n_pred_channels + (0 if leftover_gt_sem_inst_tuples is None else len(leftover_gt_sem_inst_tuples))
-    cmap = np.ones((n_channels_tot, 3)) * 255
+    assert n_channels_tot < 256
+    cmap = (label_colormap(256) * 255).astype(np.uint8)
+    # cmap = np.ones((n_channels_tot, 3), dtype=np.uint8) * 255
 
     heatmaps, colormaps, pred_label_masks, true_label_masks = [], [], [], []
 
     void_mask = gt_sem_lbl == void_val
     for pred_channel, (sem_val, inst_val) in enumerate(zip(pred_channel_sem_vals, pred_channel_inst_vals)):
+        inst_val = int(inst_val) if inst_val == int(inst_val) else inst_val
         if hasattr(sem_val, 'item'):
             sem_val = sem_val.item()
             inst_val = inst_val.item()
@@ -638,6 +647,7 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
     else:
         heatmaps, colormaps, pred_label_masks, true_label_masks = [], [], [], []
         for leftover_channel_idx, (sem_val, inst_val) in enumerate(leftover_gt_sem_inst_tuples):
+            inst_val = int(inst_val) if int(inst_val) == inst_val else inst_val
             heatmaps.append(np.zeros((R, C, 3), dtype=np.uint8))
             pred_label_masks.append(np.zeros((R, C, 3), dtype=np.uint8))
             pred_label_masks.append(np.zeros((R, C, 3), dtype=np.uint8))
@@ -654,7 +664,7 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
             [get_tile_image(im_list, (1, row_C_unass), margin_color=margin_color, margin_size=margin_size_small)
              for im_list in all_rows_unass], (len(all_rows_unass), 1), margin_color=margin_color,
             margin_size=margin_size_large)
-        score_viz = get_tile_image([vis_for_all_assigned_instances, vis_for_all_unassigned_instances], (1, 2),
+        score_viz = get_tile_image([vis_for_all_assigned_instances, vis_for_all_unassigned_instances], (2, 1),
                                    margin_color=margin_color, margin_size=margin_size_large)
 
     return score_viz

@@ -54,6 +54,24 @@ class TransformedInstanceDataset(InstanceDatasetBase):
                                  runtime_transformation=runtime_transformation)
         return img, lbl
 
+    def get_image_files(self):
+        data_files = []
+        for index in range(len(self)):
+            if not self.raw_dataset_returns_images:
+                data_file = self.raw_dataset.files[
+                    index]  # files populated when raw_dataset was instantiated
+                data_files.append(data_file)
+            else:
+                raise Exception('Cannot get filename from raw dataset {}'.format(type(self.raw_dataset)))
+        return data_files
+
+    def get_image_file(self, index):
+        if not self.raw_dataset_returns_images:
+            data_file = self.raw_dataset.files[index]  # files populated when raw_dataset was instantiated
+        else:
+            raise Exception('Cannot get filename from raw dataset {}'.format(type(self.raw_dataset)))
+        return data_file
+
     @property
     def semantic_class_names(self):
         return self.get_semantic_class_names()

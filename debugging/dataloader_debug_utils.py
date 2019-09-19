@@ -301,6 +301,7 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
         else:
             true_label_masks, colormaps = [], []
         for inst_val, inst_mask in zip(inst_vals_dict[sem_val], instance_mask_dict[sem_val]):
+            inst_val = int(inst_val) if int(inst_val) == inst_val else inst_val
             if sem_val in sem_names_dict:
                 sem_name = sem_names_dict[sem_val]
             else:
@@ -326,9 +327,8 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
                 rgb_mask = visualization_utils.resize_img_by_multiplier(rgb_mask, downsample_multiplier)
 
             # font_scale = 2.0 * downsample_multiplier
-            visualization_utils.write_word_in_img_center(colormap, mask_label, font_scale=max(0.5,
-                                                                                              2.0 *
-                                                                                              downsample_multiplier))
+            visualization_utils.write_word_in_img_center(colormap, mask_label,
+                                                         font_scale=max(0.5, 2.0 * downsample_multiplier))
 
             true_label_masks.append(rgb_mask)
             colormaps.append(colormap)

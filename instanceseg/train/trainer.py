@@ -9,6 +9,7 @@ import tqdm
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
+from torch.utils.data import SequentialSampler
 
 import instanceseg
 import instanceseg.losses.loss
@@ -231,6 +232,12 @@ class Trainer(object):
             else:
                 print(Warning('I didnt expect the directory {} to already exist.'.format(my_dir)))
         data_loader = self.dataloaders[split]
+        if data_loader.sampler.sequential:
+            indices = [i for i in data_loader.sampler]
+        else:
+            raise Exception('We need the sampler to be sequential to know which images we\'re testing')
+        image_filenames = [data_loader.dataset.get_image_file(i) for i in indices]
+        np.savez(os.path.join(test_outdir, 'image_filenames.npz'), image_filenames=image_filenames)
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader), desc='Test iteration (split=%s)=%d' %
@@ -352,8 +359,11 @@ class Trainer(object):
                         del var
 
         if should_export_visualizations:
-            self.exporter.export_score_and_seg_images(segmentation_visualizations, score_visualizations,
-                                                      self.state.iteration, split)
+            self.exporter.export_visualizations(segmentation_visualizations, self.state.iteration,
+                                                basename='seg_' + split, tile=True)
+            if score_visualizations is not None:
+                self.exporter.export_visualizations(score_visualizations, self.state.iteration,
+                                                    basename='score_' + split, tile=False)
         val_loss /= len(data_loader)
         self.last_val_loss = val_loss
 

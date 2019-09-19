@@ -53,6 +53,13 @@ class ExportConfig(object):
         self.write_lr = True
 
 
+def sem_inst_lbls_to_id2rgb(sem_lbl, inst_lbl, void_mapping={255: [255, 255, 255]}):
+    im = id2rgb(sem_lbl + 256 * inst_lbl)
+    for key, value in void_mapping.items():
+        im[sem_lbl == key, :] = value
+    return im
+
+
 def export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
                                    image_names):
     assert np.sum(sem_lbls_as_batch_nparray < 0) == 0  # semantic labels need to be >= 0 for unique ids
@@ -62,7 +69,7 @@ def export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch
     for img_idx in range(batch_sz):
         sem_l = sem_lbls_as_batch_nparray[img_idx, ...]
         inst_l = inst_lbls_as_batch_nparray[img_idx, ...]
-        img = id2rgb(sem_l + 256 * inst_l)
+        img = sem_inst_lbls_to_id2rgb(sem_l, inst_l)
         img[sem_l == 255, :] = 255         # Convert all void to (255,255,255) instead of, say, (255,0,0)
         out_file = os.path.join(output_directory, image_names[img_idx])
         visualization_utils.write_image(out_file, img)
@@ -354,11 +361,6 @@ class TrainerExporter(object):
                 score_viz, self.export_config.downsample_multiplier_score_images)
         return score_viz
 
-    def export_score_and_seg_images(self, segmentation_visualizations, score_visualizations, iteration, split):
-        self.export_visualizations(segmentation_visualizations, iteration, basename='seg_' + split, tile=True)
-        if score_visualizations is not None:
-            self.export_visualizations(score_visualizations, iteration, basename='score_' + split, tile=False)
-
     def export_visualizations(self, visualizations, iteration, basename='val_', tile=True, out_dir=None):
         if visualizations is None:
             return
@@ -422,11 +424,17 @@ class TrainerExporter(object):
             if should_visualize:
                 segmentation_viz = visualization_utils.visualize_segmentations_as_rgb_imgs(
                     gt_sem_inst_lbl_tuple=(sem_lbl_np, inst_lbl_np),
-                    pred_channelwise_lbl=pred_l, img=img_untransformed, overlay=False)
+                    pred_channelwise_lbl=pred_l,
+                    channel_inst_vals=assignments.assigned_gt_inst_vals[idx, ...].numpy(),
+                    channel_sem_vals=assignments.sem_values[idx, ...].numpy(),
+                    instance_count_id_list=self.instance_problem.instance_count_id_list,
+                    img=img_untransformed, overlay=False)
                 score_viz = self.visualize_one_img_prediction_score(
-                    img_untransformed, softmax_scores[idx, ...], (sem_lbl_np, inst_lbl_np),
-                    assignments.sem_values[idx, ...],
-                    assignments.assigned_gt_inst_vals[idx, ...], assignments.unassigned_gt_sem_inst_tuples[idx])
+                    img_untransformed=img_untransformed, softmax_scores=softmax_scores[idx, ...],
+                    gt_sem_inst_tuple=(sem_lbl_np, inst_lbl_np),
+                    channel_sem_values=assignments.sem_values[idx, ...],
+                    channel_inst_vals=assignments.assigned_gt_inst_vals[idx, ...],
+                    unassigned_gt_sem_inst_tuples=assignments.unassigned_gt_sem_inst_tuples[idx])
                 score_visualizations.append(score_viz)
                 segmentation_visualizations.append(segmentation_viz)
         return segmentation_visualizations, score_visualizations
@@ -452,7 +460,7 @@ class TrainerExporter(object):
         for img_idx in range(batch_sz):
             lbl = labels_as_batch_nparray[img_idx, ...]
             sem_l, inst_l = self.instance_problem.decompose_semantic_and_instance_labels_with_original_sem_ids(lbl)
-            img = id2rgb(256 * sem_l + inst_l)
+            img = sem_inst_lbls_to_id2rgb(sem_l, inst_l)
             out_file = os.path.join(output_directory, image_names[img_idx])
             visualization_utils.write_image(out_file, img)
 

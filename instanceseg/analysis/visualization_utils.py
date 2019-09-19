@@ -306,10 +306,10 @@ def get_tile_image(imgs, tile_shape=None, result_img=None, margin_color=None, ma
 
 
 def get_max_height_and_width(imgs):
-    max_height, max_width = np.inf, np.inf
+    max_height, max_width = 0, 0
     for img in imgs:
-        max_height = min([max_height, img.shape[0]])
-        max_width = min([max_width, img.shape[1]])
+        max_height = max([max_height, img.shape[0]])
+        max_width = max([max_width, img.shape[1]])
     return max_height, max_width
 
 
@@ -665,10 +665,16 @@ def visualize_heatmaps(scores, gt_sem_inst_tuple, pred_channel_sem_vals, pred_ch
             [get_tile_image(im_list, (1, row_C_unass), margin_color=margin_color, margin_size=margin_size_small)
              for im_list in all_rows_unass], (len(all_rows_unass), 1), margin_color=margin_color,
             margin_size=margin_size_large)
-        score_viz = get_tile_image([vis_for_all_assigned_instances, vis_for_all_unassigned_instances], (2, 1),
+        imgs_to_stack = pad_to_same_size([vis_for_all_assigned_instances, vis_for_all_unassigned_instances])
+        score_viz = get_tile_image(imgs_to_stack, (2, 1),
                                    margin_color=margin_color, margin_size=margin_size_large)
 
     return score_viz
+
+
+def pad_to_same_size(imgs):
+    max_height, max_width = get_max_height_and_width(imgs)
+    return [pad_image_to_right_and_bottom(im, max_height, max_width) for im in imgs]
 
 
 def scores2d2heatmap(scores_single_channel, clims=None, color=(255, 255, 255)):

@@ -452,7 +452,7 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
 
     # GT
     if gt_sem_inst_lbl_tuple is not None:
-        gt_lbl_as_arbitrary_channels = np.mod(gt_sem_lbl * max_n_inst_vals + gt_inst_lbl, 255)
+        gt_lbl_as_arbitrary_channels = np.mod(gt_sem_lbl * max_n_inst_vals + gt_inst_lbl, 255).astype(gt_sem_lbl.dtype)
 
         gt_lbl_as_arbitrary_channels[mask_unlabeled] = n_labels - 1
 
@@ -472,7 +472,7 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
             instance_count_id_list=instance_count_id_list or channel_inst_vals,
             void_value=void_val)
 
-        pred_lbl_as_arbitrary_channels = np.mod(sem_l * max_n_inst_vals + inst_l, 255)
+        pred_lbl_as_arbitrary_channels = np.mod(sem_l * max_n_inst_vals + inst_l, 255).astype(sem_l.dtype)
         pred_lbl_as_arbitrary_channels[mask_unlabeled] = n_labels - 1
 
         if overlay:

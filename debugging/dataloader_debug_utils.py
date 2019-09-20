@@ -205,7 +205,10 @@ def transformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_
                 if data_to_img_transformer is not None else (img_data, (sem_lbl, inst_lbl))
 
             segmentation_viz = trainer_exporter.visualization_utils.visualize_segmentations_as_rgb_imgs(
-                gt_sem_inst_lbl_tuple=lbl_untransformed, pred_channelwise_lbl=None, margin_color=(255, 255, 255),
+                gt_sem_inst_lbl_tuple=lbl_untransformed, pred_channelwise_lbl=None,
+                instance_count_id_list=trainer.instance_problem.instance_count_id_list,
+                channel_inst_vals=None, channel_sem_vals=None,
+                margin_color=(255, 255, 255),
                 overlay=True, img=img_untransformed, void_val=-1)
 
             visualization_utils.export_visualizations(segmentation_viz, out_dir_rgb,

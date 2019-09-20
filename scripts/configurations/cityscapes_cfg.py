@@ -149,6 +149,16 @@ train_configurations = {
         semantic_subset=['car', 'sky', 'vegetation', 'sidewalk', 'building', 'road', 'wall'],
         backbone='resnet50',
         ),
+    'full_panoptic_5each': dict(
+        max_iteration=10000000,
+        sampler=None,
+        interval_validate=4000,
+        n_instances_per_class=5,
+        dataset_instance_cap=None,
+        ordering=None,
+        semantic_subset=None,
+        backbone='resnet50',
+        ),
     # 'debug_all': dict(
     #     max_iteration=10000,
     #     interval_validate=100,

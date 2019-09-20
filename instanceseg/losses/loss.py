@@ -238,7 +238,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             sem_val = int(sem_val)
             # print('APD: Running on sem_val {}'.format(sem_val))
             costs_this_cls, model_channels_for_this_cls, assigned_gt_inst_vals_this_cls, \
-            unassigned_gt_inst_vals_this_cls = \
+                unassigned_gt_inst_vals_this_cls = \
                 self._compute_optimal_match_loss_for_one_sem_cls(predictions, sem_lbl, inst_lbl, sem_val)
             channel_idxs = torch.LongTensor(model_channels_for_this_cls)
             model_channels[channel_idxs] = channel_idxs
@@ -256,19 +256,48 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
 
         return assignment_values, costs
 
+    def has_channel0(self, sem_val):
+        instance_ids_this_sem_val = [ch_id for ch_id, sv in zip(self.model_channel_instance_ids,
+                                                                self.model_channel_semantic_ids) if sv == sem_val]
+        return 0 in instance_ids_this_sem_val
+
+    def is_semantic(self, sem_val):
+        """
+        is semantic according to the model
+        """
+        instance_ids_this_sem_val = [ch_id for ch_id, sv in zip(self.model_channel_instance_ids,
+                                                                self.model_channel_semantic_ids) if sv == sem_val]
+        return len(instance_ids_this_sem_val) == 1 and instance_ids_this_sem_val[0] == 0
+
     def _compute_optimal_match_loss_for_one_sem_cls(self, predictions, sem_lbl, inst_lbl, sem_val):
         cost_tensor, model_channels_for_this_cls, gt_inst_vals_present = self.build_cost_tensor_for_one_sem_cls(
             predictions, sem_lbl, inst_lbl, sem_val)
-        assigned_col_inds = match.solve_matching_problem(cost_tensor)
-        assigned_gt_inst_vals = [gt_inst_vals_present[col_ind] for col_ind in assigned_col_inds]
-        if len(assigned_col_inds) == len(gt_inst_vals_present):
+        if self.is_semantic(sem_val):  # Only one channel each -- instance values are 0 for both
+            assert len(gt_inst_vals_present) == 1
+            assert gt_inst_vals_present[0] == 0 or gt_inst_vals_present[0] == match.GT_VALUE_FOR_FALSE_POSITIVE, \
+                'Data error: instance value isn\'t 0 for a semantic class'  # only 0 is present
+            assert len(model_channels_for_this_cls) == 1, 'Debug error'
+            assert self.model_channel_instance_ids[model_channels_for_this_cls[0]] == 0, 'Debug error'
+            assert cost_tensor.shape == torch.Size((1, 1)), 'Cost tensor should have been 1x1 for semantic class'
+            # costs = cost_tensor[0:1, 0:1]  # :1 to maintain shape
+            costs = cost_tensor
+            assigned_gt_inst_vals = gt_inst_vals_present
             unassigned_gt_inst_vals = []
+        elif self.has_channel0(sem_val):
+            raise NotImplementedError
+        elif 0 in gt_inst_vals_present:
+            raise Exception('Did not expect gt to have inst value 0 when I dont have a channel 0')
         else:
-            unassigned_gt_inst_vals = [v for v in gt_inst_vals_present if v not in assigned_gt_inst_vals]
-            assert (len(unassigned_gt_inst_vals) + len(assigned_gt_inst_vals)) == len(gt_inst_vals_present), \
-                'Debug error'
+            assigned_col_inds = match.solve_matching_problem(cost_tensor)
+            assigned_gt_inst_vals = [gt_inst_vals_present[col_ind] for col_ind in assigned_col_inds]
+            if len(assigned_col_inds) == len(gt_inst_vals_present):
+                unassigned_gt_inst_vals = []
+            else:
+                unassigned_gt_inst_vals = [v for v in gt_inst_vals_present if v not in assigned_gt_inst_vals]
+                assert (len(unassigned_gt_inst_vals) + len(assigned_gt_inst_vals)) == len(gt_inst_vals_present), \
+                    'Debug error'
 
-        costs = cost_tensor[range(cost_tensor.shape[0]), assigned_col_inds]
+            costs = cost_tensor[range(cost_tensor.shape[0]), assigned_col_inds]
 
         return costs, model_channels_for_this_cls, assigned_gt_inst_vals, unassigned_gt_inst_vals
 
@@ -276,7 +305,6 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         """
         Creates cost_tensor[prediction, ground_truth]
         """
-
         cost_tensor, model_channels_for_this_cls, gt_inst_vals_present = match.create_pytorch_cost_matrix(
             self.component_loss, predictions, sem_lbl, inst_lbl,
             self.model_channel_semantic_ids, sem_val, size_average=self.size_average)

@@ -1,10 +1,9 @@
 import numpy as np
-from ortools.graph import pywrapgraph
+from scipy import optimize
 
 from instanceseg.losses.xentropy import DEBUG_ASSERTS
-from instanceseg.models.model_utils import any_nan, is_nan
-from instanceseg.utils.misc import get_logger, unique
-from scipy import optimize
+from instanceseg.models.model_utils import is_nan
+from instanceseg.utils.misc import get_logger
 
 try:
     import torch
@@ -33,85 +32,6 @@ def solve_matching_problem(cost_tensor: torch.Tensor):
     ind_idxs_sorted_by_row = np.argsort(row_ind)
     col_ind = [col_ind[idx] for idx in ind_idxs_sorted_by_row]
     return col_ind
-
-
-def ortools_solve_matching_problem(cost_matrix, multiplier_for_db_print=1.0):
-    """
-
-    :param cost_matrix: [[cost(w,t) for w in workers] for t in tasks]
-    :param multiplier_for_db_print:
-    :return:
-    """
-    assignment = pywrapgraph.LinearSumAssignment()
-    # print('APD: Cost matrix size: {}'.format((len(cost_matrix), len(cost_matrix[0]))))
-    for ground_truth in range(len(cost_matrix)):
-        for prediction in range(len(cost_matrix[0])):
-            try:
-                assignment.AddArcWithCost(ground_truth, prediction,
-                                          cost_matrix[prediction][ground_truth])
-            except:
-                print(cost_matrix[prediction][ground_truth])
-                import ipdb;
-                ipdb.set_trace()
-                raise
-    check_status(assignment.Solve(), assignment)
-    debug_print_assignments(assignment, multiplier_for_db_print)
-    return assignment
-
-
-def ortools_create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem_lbl, inst_lbl,
-                                       model_channel_semantic_ids, instance_id_labels, sem_val, size_average=True):
-    """
-
-    :param single_class_component_loss_fcn: f(yhat, binary_y) where yhat, binary_2d_gt are (N, H, W)
-    :param predictions: C,H,W
-    :param sem_lbl: (H,W)
-    :param inst_lbl: (H,W)
-    :param model_channel_semantic_ids:
-    :param instance_id_labels:
-    :param sem_val:
-    :param size_average:
-    :return:
-        cost_list_2d[prediction][ground_truth]
-    """
-
-    if DEBUG_ASSERTS:
-        assert inst_lbl.size() == sem_lbl.size()
-        assert predictions.size()[1:] == inst_lbl.size()
-    if size_average:
-        # TODO(allie): Verify this is correct (and not sem_lbl >=0, or some combo)
-        normalizer = (inst_lbl >= 0).data.sum()
-    else:
-        normalizer = 1
-    sem_inst_idxs_for_this_class = [i for i, sem_inst_val in enumerate(model_channel_semantic_ids) if
-                                    sem_inst_val == sem_val]
-    inst_id_lbls_for_this_class = [instance_id_labels[i] for i in sem_inst_idxs_for_this_class]
-    if normalizer == 0:
-        # print('APD: Found {} idxs for this class: {}'.format(len(sem_inst_idxs_for_this_class),
-        #                                                 sem_inst_idxs_for_this_class))
-        print(Warning('WARNING: image contained all void class.  '
-                      'Setting error to 0 for all channels.'))
-        cost_list_2d = [[normalizer.detach() for inst_val in inst_id_lbls_for_this_class]
-                        for sem_inst_idx in sem_inst_idxs_for_this_class]
-    else:
-        cost_list_2d = [[
-            single_class_component_loss_fcn(
-                predictions[sem_inst_idx, :, :],
-                (sem_lbl == sem_val).float() * (inst_lbl == inst_val).float()) / normalizer
-            for inst_val in inst_id_lbls_for_this_class]
-            for sem_inst_idx in sem_inst_idxs_for_this_class]
-    if DEBUG_ASSERTS:
-        try:
-            if len(inst_id_lbls_for_this_class) == 1 and len(sem_inst_idxs_for_this_class) == 1:
-                assert not is_nan(cost_list_2d[0][0].item())
-            else:
-                assert all([not any_nan(cost_list_1d[j])
-                            for cost_list_1d in cost_list_2d for j in range(len(cost_list_1d))])
-        except AssertionError as ae:
-            import ipdb;
-            ipdb.set_trace()
-            raise Exception('costs reached nan in cost_list_2d')
-    return cost_list_2d
 
 
 def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem_lbl, inst_lbl,
@@ -212,19 +132,3 @@ def convert_pytorch_costs_to_ints(cost_list_2d_variables, multiplier=None, infin
             raise Exception('costs in cost_matrix_int reached nan')
     return cost_matrix_int, multiplier
 
-
-def check_status(solve_status, assignment):
-    if solve_status != assignment.OPTIMAL:
-        if solve_status == assignment.INFEASIBLE:
-            raise Exception('No assignment is possible.')
-        elif solve_status == assignment.POSSIBLE_OVERFLOW:
-            raise Exception('Some input costs are too large and may cause an integer overflow.')
-        else:
-            raise Exception('Unknown exception')
-
-
-def debug_print_assignments(assignment, multiplier):
-    logger.debug('Total cost = {}'.format(assignment.OptimalCost()))
-    for i in range(0, assignment.NumNodes()):
-        logger.debug('ground truth %d assigned to prediction %d.  Cost = %f' % (
-            i, assignment.RightMate(i), float(assignment.AssignmentCost(i)) / multiplier))

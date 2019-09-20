@@ -162,6 +162,11 @@ class Trainer(object):
                 full_input.requires_grad = False
                 sem_lbl.requires_grad = False
                 inst_lbl.requires_grad = False
+
+        assert not self.instance_problem.include_instance_channel0, NotImplementedError
+        for sem_id in self.instance_problem.thing_class_ids:  # inst_val == 0 for thing classes get mapped to 255
+            inst_lbl[(sem_lbl == sem_id) * (inst_lbl == 0)] = self.instance_problem.void_value
+
         return full_input, sem_lbl, inst_lbl
 
     def build_my_loss(self, matching_override=None):

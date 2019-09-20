@@ -417,111 +417,6 @@ def label2rgb(lbl, img=None, label_names=None, n_labels=None,
     return lbl_viz
 
 
-# noinspection PyTypeChecker
-def visualize_segmentation(**kwargs):
-    """Visualize segmentation.
-
-    Parameters
-    ----------
-    img: ndarray
-        Input image to predict label.
-    lbl_true: ndarray
-        Ground truth of the label.
-    lbl_pred: ndarray
-        Label predicted.
-    n_class: int
-        Number of classes.
-    label_names: dict or list
-        Names of each label value.
-        Key or index is label_value and value is its name.
-    margin_color: RGB list or None
-    overlay: True or False
-    pred_permutations
-
-    Returns
-    -------
-    img_array: ndarray
-        Visualized image.
-    """
-    img = kwargs.pop('img', None)
-    lbl_true = kwargs.pop('lbl_true', None)
-    lbl_pred = kwargs.pop('lbl_pred', None)
-    n_class = kwargs.pop('n_class', None)
-    label_names = kwargs.pop('label_names', None)
-    margin_color = kwargs.pop('margin_color', [255, 255, 255])
-    overlay = kwargs.pop('overlay', True)
-    pred_permutations = kwargs.pop('pred_permutations', None)
-
-    if kwargs:
-        raise RuntimeError(
-            'Unexpected keys in kwargs: {}'.format(kwargs.keys()))
-
-    if lbl_true is None and lbl_pred is None:
-        raise ValueError('lbl_true or lbl_pred must be not None.')
-    if DEBUG_ASSERTS:
-        if lbl_true is not None and lbl_pred is not None:
-            assert lbl_pred.shape == lbl_true.shape, 'lbl_pred shape and lbl_true shape should match: {}, ' \
-                                                     '{}.  Note the image size is {}'.format(
-                lbl_pred.shape, lbl_true.shape, img.shape)
-
-    # Generate funky pixels for void class
-    mask_unlabeled = None
-    viz_unlabeled = None
-    if lbl_true is not None:
-        mask_unlabeled = lbl_true == -1
-        # lbl_true[mask_unlabeled] = 0
-        viz_unlabeled = (
-                np.random.random((lbl_true.shape[0], lbl_true.shape[1], 3)) * 255
-        ).astype(np.uint8)
-        if lbl_pred is not None:
-            lbl_pred[mask_unlabeled] = 0
-        # if mask_unlabeled.sum() > 1:
-        #     import ipdb; ipdb.set_trace()
-
-    vizs = []
-    for permutation, lbl in zip([None, pred_permutations], [lbl_true, lbl_pred]):
-        if lbl is None:
-            continue
-        # if permutation is not None:
-        #     permute_labels = np.vectorize(lambda x: pred_permutations[x])
-        # else:
-        #     permute_labels = lambda x: x  # identity
-        if permutation is not None:
-            assert len(permutation.shape) == 1, 'Debug this -- assumed one image here.'
-            lbl_permuted = instance_utils.permute_labels(lbl, permutation[np.newaxis, :])
-        else:
-            lbl_permuted = lbl
-        # lbl_permuted = permute_labels(lbl)
-        if label_names is not None:
-            label_names_permuted = [label_names[pred_permutations[x]] for x in range(len(label_names))]
-        else:
-            label_names_permuted = None
-        if overlay:
-            viz = [
-                img,
-                label2rgb(lbl_permuted, label_names=label_names_permuted, n_labels=n_class),
-                label2rgb(lbl_permuted, img, label_names=label_names_permuted,
-                          n_labels=n_class) if overlay else None
-            ]
-            viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
-            viz[2][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
-        else:
-            viz = [
-                img,
-                label2rgb(lbl_permuted, label_names=label_names_permuted, n_labels=n_class)]
-            viz[1][mask_unlabeled] = viz_unlabeled[mask_unlabeled]
-        vizs.append(viz)
-
-    if len(vizs) == 1:
-        return vizs[0]
-    elif len(vizs) == 2:
-        all_vizs = vizs[0] + vizs[1][1:]
-        return get_tile_image(all_vizs, (1, len(all_vizs)), margin_color=margin_color,
-                              margin_size=2)
-    else:
-        raise RuntimeError
-
-
 def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_lbl, channel_inst_vals,
                                         channel_sem_vals, instance_count_id_list=None,
                                         margin_color=(255, 255, 255),
@@ -529,13 +424,18 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
     """
     Note this is not channelwise!
     """
+
     gt_sem_lbl, gt_inst_lbl = gt_sem_inst_lbl_tuple
+    max_n_inst_vals = max(gt_sem_lbl[gt_sem_lbl != void_val].max(), max(channel_inst_vals)) + 1
+    max_sem_val = max(gt_sem_lbl[gt_sem_lbl != void_val].max(), max(channel_sem_vals))
+    n_labels = min(255, max_n_inst_vals * (max_sem_val + 1))
     assert pred_channelwise_lbl.shape == gt_sem_lbl.shape
     # Generate funky pixels for void class
     mask_unlabeled = None
     viz_unlabeled = None
     if gt_sem_inst_lbl_tuple is not None:
         mask_unlabeled = gt_sem_lbl == void_val
+        mask_unlabeled[gt_inst_lbl == void_val] = 1
         # lbl_true[mask_unlabeled] = 0
         viz_unlabeled = (
                 np.random.random((gt_sem_lbl.shape[0], gt_inst_lbl.shape[1], 3)) * 255
@@ -550,17 +450,17 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
     if img is not None:
         vizs.append(img)
 
-    arbitrary_inst_multiplier = 50
-
     # GT
     if gt_sem_inst_lbl_tuple is not None:
-        gt_lbl_as_arbitrary_channels = gt_sem_lbl * 256 + gt_inst_lbl * arbitrary_inst_multiplier
+        gt_lbl_as_arbitrary_channels = np.mod(gt_sem_lbl * max_n_inst_vals + gt_inst_lbl, 255)
+
+        gt_lbl_as_arbitrary_channels[mask_unlabeled] = n_labels - 1
 
         if overlay:
-            lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels, img)
+            lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels, img, n_labels=n_labels)
             lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
         else:
-            lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels)
+            lbl_viz = label2rgb(gt_lbl_as_arbitrary_channels, n_labels=n_labels)
             lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
 
         vizs.append(lbl_viz)
@@ -572,15 +472,15 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
             instance_count_id_list=instance_count_id_list or channel_inst_vals,
             void_value=void_val)
 
-        pred_lbl_as_arbitrary_channels = sem_l * 256 + inst_l * arbitrary_inst_multiplier
+        pred_lbl_as_arbitrary_channels = np.mod(sem_l * max_n_inst_vals + inst_l, 255)
+        pred_lbl_as_arbitrary_channels[mask_unlabeled] = n_labels - 1
 
         if overlay:
-            lbl_viz = label2rgb(pred_lbl_as_arbitrary_channels, img)
+            lbl_viz = label2rgb(pred_lbl_as_arbitrary_channels, img, n_labels=n_labels)
             lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
         else:
-            lbl_viz = label2rgb(pred_lbl_as_arbitrary_channels)
+            lbl_viz = label2rgb(pred_lbl_as_arbitrary_channels, n_labels=n_labels)
             lbl_viz[mask_unlabeled] = viz_unlabeled[mask_unlabeled]
-
         vizs.append(lbl_viz)
 
     if len(vizs) == 1:

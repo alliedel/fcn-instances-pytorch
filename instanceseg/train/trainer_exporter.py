@@ -70,7 +70,7 @@ def export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch
         sem_l = sem_lbls_as_batch_nparray[img_idx, ...]
         inst_l = inst_lbls_as_batch_nparray[img_idx, ...]
         img = sem_inst_lbls_to_id2rgb(sem_l, inst_l)
-        img[sem_l == 255, :] = 255         # Convert all void to (255,255,255) instead of, say, (255,0,0)
+        img[sem_l == 255, :] = 255  # Convert all void to (255,255,255) instead of, say, (255,0,0)
         out_file = os.path.join(output_directory, image_names[img_idx])
         visualization_utils.write_image(out_file, img)
 
@@ -428,7 +428,8 @@ class TrainerExporter(object):
                     channel_inst_vals=assignments.assigned_gt_inst_vals[idx, ...].numpy(),
                     channel_sem_vals=assignments.sem_values[idx, ...].numpy(),
                     instance_count_id_list=self.instance_problem.instance_count_id_list,
-                    img=img_untransformed, overlay=False)
+                    img=img_untransformed, overlay=False,
+                    void_val=self.instance_problem.void_value)
                 score_viz = self.visualize_one_img_prediction_score(
                     img_untransformed=img_untransformed, softmax_scores=softmax_scores[idx, ...],
                     gt_sem_inst_tuple=(sem_lbl_np, inst_lbl_np),

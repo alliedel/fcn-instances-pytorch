@@ -9,7 +9,7 @@ from instanceseg.utils.misc import y_or_n_input
 
 
 def upsnet_panoptic_converter(out_folder, out_json_file, labels_file_list, labels_table,
-                              VOID_RGB=(255, 255, 255), overwrite=None):
+                              VOID_RGB=(255, 255, 255), VOID_INSTANCE_G=255, overwrite=None):
     """
     Takes predictions output from tester (special Trainer type) and outputs coco panoptic format
     Inputs should represent the different channels, where rgb2id creates the channel id (R + G*255 + B*255*255)
@@ -71,7 +71,8 @@ def upsnet_panoptic_converter(out_folder, out_json_file, labels_file_list, label
 
         idx = 0
         present_channel_colors = np.unique(rgb_format.reshape(-1, rgb_format.shape[2]), axis=0)
-        present_channel_colors = [c for c in present_channel_colors if rgb2id(c) != rgb2id(VOID_RGB)]
+        present_channel_colors = [c for c in present_channel_colors if rgb2id(c) != rgb2id(VOID_RGB) and [1]
+                                  != VOID_INSTANCE_G]
         present_id_vals = [rgb2id(color_val) for color_val in present_channel_colors]
 
         pan_format = np.zeros((rgb_format.shape[0], rgb_format.shape[1], 3), dtype=np.uint8)

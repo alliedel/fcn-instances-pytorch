@@ -420,7 +420,7 @@ class TrainerExporter(object):
             img_untransformed, lbl_untransformed = data_to_img_transformer(img, (sem_lbl, inst_lbl)) \
                 if data_to_img_transformer is not None else (img, (sem_lbl, inst_lbl))
             sem_lbl_np, inst_lbl_np = lbl_untransformed
-            assert max_n_insts_per_thing > inst_lbl.max()
+            assert max_n_insts_per_thing >= inst_lbl.max()
             if should_visualize:
                 segmentation_viz = visualization_utils.visualize_segmentations_as_rgb_imgs(
                     gt_sem_inst_lbl_tuple=(sem_lbl_np, inst_lbl_np),

@@ -1,7 +1,7 @@
 import numpy as np
 
 from instanceseg.utils import datasets
-from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
+from instanceseg.datasets.panoptic_dataset import PanopticDatasetBase, TransformedPanopticDataset
 from instanceseg.datasets import coco_format
 
 BACKGROUND_WHITE = (255, 255, 255)
@@ -27,7 +27,7 @@ class Defaults(object):
     portrait = False
 
 
-class BlobExampleGenerator(InstanceDatasetBase):
+class BlobExampleGenerator(PanopticDatasetBase):
     def __init__(self, img_size=Defaults.img_size, blob_size=Defaults.blob_size,
                  clrs=Defaults.clrs,
                  n_instances_per_img=Defaults.n_instances_per_img,
@@ -227,7 +227,7 @@ class BlobExampleGenerator(InstanceDatasetBase):
                             allow_overflow=True, row_col_dims=(0, 1), color_dim=None)
 
 
-class TransformedBlobExampleGenerator(TransformedInstanceDataset):
+class TransformedBlobExampleGenerator(TransformedPanopticDataset):
     def __init__(self, raw_synthetic_dataset, precomputed_file_transformation=None, runtime_transformation=None):
         super(TransformedBlobExampleGenerator, self).__init__(raw_synthetic_dataset, precomputed_file_transformation,
                                                               runtime_transformation)

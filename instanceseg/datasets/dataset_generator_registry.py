@@ -186,7 +186,7 @@ def get_synthetic_dataset(n_images, ordering, n_instances_per_img,
                             semantic_subset_to_generate=semantic_subset_to_generate,
                             n_instances_per_img=n_instances_per_img, img_size=img_size,
                             portrait=portrait, random_seed=random_seed, blob_size=blob_size)
-    dataset = synthetic.TransformedInstanceDataset(
+    dataset = synthetic.TransformedPanopticDataset(
         raw_dataset=synthetic.BlobExampleGenerator(n_images=n_images, **synthetic_kwargs),
         raw_dataset_returns_images=True, runtime_transformation=runtime_transformation)
 

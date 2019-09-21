@@ -7,7 +7,7 @@ import torch
 import PIL.Image
 
 from instanceseg.analysis import visualization_utils
-from instanceseg.datasets import labels_table_cityscapes, instance_dataset
+from instanceseg.datasets import labels_table_cityscapes, panoptic_dataset
 from instanceseg.datasets.cityscapes_transformations import convert_to_p_mode_file
 from instanceseg.datasets.runtime_transformations import SemanticAgreementForInstanceLabelsRuntimeDatasetTransformer
 from instanceseg.train import trainer_exporter

@@ -71,8 +71,8 @@ def upsnet_panoptic_converter(out_folder, out_json_file, labels_file_list, label
 
         idx = 0
         present_channel_colors = np.unique(rgb_format.reshape(-1, rgb_format.shape[2]), axis=0)
-        present_channel_colors = [c for c in present_channel_colors if rgb2id(c) != rgb2id(VOID_RGB) and [1]
-                                  != VOID_INSTANCE_G]
+        present_channel_colors = [c for c in present_channel_colors if rgb2id(c) != rgb2id(VOID_RGB)
+                                  and c[1] != VOID_INSTANCE_G]
         present_id_vals = [rgb2id(color_val) for color_val in present_channel_colors]
 
         pan_format = np.zeros((rgb_format.shape[0], rgb_format.shape[1], 3), dtype=np.uint8)
@@ -99,6 +99,8 @@ def upsnet_panoptic_converter(out_folder, out_json_file, labels_file_list, label
                               "area": area,
                               "bbox": bbox,
                               "iscrowd": is_crowd})
+        assert len(segm_info) == len(present_channel_colors)
+
         Image.fromarray(pan_format).save(os.path.join(out_folder, out_file_name))
         # Reverse the process and ensure we get the right id
         reloaded_pan_img = np.array(Image.open(os.path.join(out_folder, out_file_name)), dtype=np.uint32)
@@ -113,8 +115,6 @@ def upsnet_panoptic_converter(out_folder, out_json_file, labels_file_list, label
                             "segments_info": segm_info})
 
         # shutil.copy(label_f, os.path.join(out_folder, file_name))
-
-        assert len(segm_info) == len(present_channel_colors)
 
     d = {
         'images': images,

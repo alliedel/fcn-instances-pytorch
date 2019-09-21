@@ -50,28 +50,30 @@ def main(replacement_dict_for_sys_args=None):
     else:
         print('Evaluating final model')
         metrics = run(trainer)
-        print('''\
-            Accuracy: {0}
-            Accuracy Class: {1}
-            Mean IU: {2}
-            FWAV Accuracy: {3}'''.format(*metrics))
-        atexit.unregister(query_remove_logdir)
+        # atexit.unregister(query_remove_logdir)
+        if metrics is not None:
+            print('''\
+                Accuracy: {0}
+                Accuracy Class: {1}
+                Mean IU: {2}
+                FWAV Accuracy: {3}'''.format(*metrics))
     return out_dir
 
 
 def run(trainer: trainer.Trainer):
     try:
         trainer.train()
+        atexit.unregister(query_remove_logdir)
     except KeyboardInterrupt:
         if y_or_n_input('I\'ve stopped training.  Finish script?', default='y') == 'n':
             raise
     val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = \
         trainer.validate_split(should_export_visualizations=False)
-
+    if eval_metrics is not None:
+        eval_metrics = np.array(eval_metrics)
+        eval_metrics *= 100
     viz = visualization_utils.get_tile_image(segmentation_visualizations)
     skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
-    eval_metrics = np.array(eval_metrics)
-    eval_metrics *= 100
     return eval_metrics
 
 

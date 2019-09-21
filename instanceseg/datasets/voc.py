@@ -5,7 +5,7 @@ import os.path as osp
 import numpy as np
 
 from instanceseg.utils import datasets
-from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
+from instanceseg.datasets.panoptic_dataset import PanopticDatasetBase, TransformedPanopticDataset
 
 # TODO(allie): Allow for permuting the instance order at the beginning, and copying each filename
 #  multiple times with the assigned permutation.  That way you can train in batches that have
@@ -57,7 +57,7 @@ ALL_VOC_CLASS_NAMES = np.array([
 ])
 
 
-class RawVOCBase(InstanceDatasetBase):
+class RawVOCBase(PanopticDatasetBase):
     semantic_class_names = ALL_VOC_CLASS_NAMES
 
     def __init__(self, root, split):
@@ -154,7 +154,7 @@ def load_voc_files(img_file, sem_lbl_file, inst_lbl_file=None, return_semantic_o
     return img, lbl
 
 
-class TransformedVOC(TransformedInstanceDataset):
+class TransformedVOC(TransformedPanopticDataset):
     """
     Has a raw dataset
     """

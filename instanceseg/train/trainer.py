@@ -1,15 +1,11 @@
-import pprint
-
 import math
-import numpy as np
 import os
-import tempfile
+
+import numpy as np
 import torch
 import tqdm
-from torch.autograd import Variable
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.optim.optimizer import Optimizer
-from torch.utils.data import SequentialSampler
 
 import instanceseg
 import instanceseg.losses.loss
@@ -19,9 +15,7 @@ from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
 from instanceseg.utils import datasets
-from instanceseg.utils import torch_utils
 from instanceseg.utils.instance_utils import InstanceProblemConfig
-from instanceseg.utils.misc import get_array_size
 
 DEBUG_ASSERTS = True
 DEBUG_MEMORY_ISSUES = False
@@ -264,10 +258,11 @@ class Trainer(object):
                     for idx_into_batch, outf in enumerate(score_names):
                         torch.save(score[idx_into_batch, ...], os.path.join(scores_outdir, outf))
 
+                # TODO(allie): remap both to original semantic values
                 prediction_names = ['predictions_{:06d}_sem255instid2rgb.png'.format(img_idx) for img_idx in img_idxs]
                 self.exporter.export_channelvals2d_as_id2rgb(label_pred, predictions_outdir, prediction_names)
                 groundtruth_names = ['groundtruth_{:06d}_sem255instid2rgb.png'.format(img_idx) for img_idx in img_idxs]
-                self.exporter.export_inst_sem_lbls_as_id2rgb(self.map_sem_ids_to_sem_vals(sem_lbl_np),
+                self.exporter.export_inst_sem_lbls_as_id2rgb(sem_lbl_np,
                                                              inst_lbl_np, groundtruth_outdir, groundtruth_names)
                 if 1:
                     image_names = ['image_{:06d}.png'.format(img_idx) for img_idx in img_idxs]

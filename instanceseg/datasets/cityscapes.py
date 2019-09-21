@@ -4,7 +4,7 @@ import PIL.Image
 import numpy as np
 import os.path as osp
 
-from instanceseg.datasets.instance_dataset import InstanceDatasetBase, TransformedInstanceDataset
+from instanceseg.datasets.panoptic_dataset import PanopticDatasetBase, TransformedPanopticDataset
 from instanceseg.datasets.precomputed_file_transformations import \
     GenericSequencePrecomputedDatasetFileTransformer
 from . import labels_table_cityscapes
@@ -29,7 +29,7 @@ def get_default_cityscapes_root():
 CITYSCAPES_ROOT = get_default_cityscapes_root()
 
 
-class CityscapesWithOurBasicTrainIds(InstanceDatasetBase):
+class CityscapesWithOurBasicTrainIds(PanopticDatasetBase):
     precomputed_file_transformer = GenericSequencePrecomputedDatasetFileTransformer(
         [CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(),
          ConvertLblstoPModePILImages()])
@@ -168,7 +168,7 @@ def load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file):
     return img, (sem_lbl, inst_lbl)
 
 
-class TransformedCityscapes(TransformedInstanceDataset):
+class TransformedCityscapes(TransformedPanopticDataset):
     """
     Has a raw dataset
     """

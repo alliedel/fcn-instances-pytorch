@@ -4,7 +4,7 @@ from torch.utils import data
 from .runtime_transformations import GenericSequenceRuntimeDatasetTransformer
 
 
-class InstanceDatasetBase(data.Dataset):
+class PanopticDatasetBase(data.Dataset):
     __metaclass__ = abc.ABC
 
     @property
@@ -21,10 +21,10 @@ class InstanceDatasetBase(data.Dataset):
     # __len__(self) enforced by data.Dataset
 
 
-class TransformedInstanceDataset(InstanceDatasetBase):
+class TransformedPanopticDataset(PanopticDatasetBase):
     __metaclass__ = data.Dataset
 
-    def __init__(self, raw_dataset: InstanceDatasetBase, raw_dataset_returns_images=False,
+    def __init__(self, raw_dataset: PanopticDatasetBase, raw_dataset_returns_images=False,
                  precomputed_file_transformation=None, runtime_transformation=None):
         """
         :param raw_dataset_returns_images: Set to false for standard datasets that load from files; set to true for

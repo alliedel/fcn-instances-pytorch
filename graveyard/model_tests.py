@@ -33,7 +33,7 @@ def test_forward_hook():
     torch.manual_seed(1337)
     if cuda:
         torch.cuda.manual_seed(1337)
-    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'voc', cuda, sampler_cfg=None)
+    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg=None)
 
     layer_names = ['conv1x1_instance_to_semantic'] if model.map_to_semantic else []
     layer_names += ['upscore8', 'score_pool4']

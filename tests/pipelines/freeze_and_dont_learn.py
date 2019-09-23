@@ -6,8 +6,7 @@ import os.path as osp
 import instanceseg.factory.data
 import instanceseg.factory.models
 import instanceseg.factory.optimizer
-from scripts.configurations import voc_cfg
-from instanceseg.datasets.voc import ALL_VOC_CLASS_NAMES
+from scripts.configurations import generic_cfg
 from instanceseg.models import model_utils
 from instanceseg.factory import trainers
 from scripts.configurations.sampler_cfg_registry import sampler_cfgs
@@ -18,13 +17,13 @@ def test(frozen=True):
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
-    cfg = voc_cfg.get_default_config()
+    cfg = generic_cfg.get_default_config()
     cfg_override_args = {'n_instances_per_class': 1, 'max_iteration': 1, 'interval_validate': 1, 'lr': 0.01}
     for k, v in cfg_override_args.items():
         cfg.pop(k)  # ensures the key actually existed before
         cfg[k] = v
 
-    problem_config = instanceseg.factory.models.get_problem_config(ALL_VOC_CLASS_NAMES, cfg['n_instances_per_class'])
+    problem_config = instanceseg.factory.models.get_problem_config(...)
     model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config,
                                                                                checkpoint_file=None, semantic_init=None, cuda=cuda)
     initial_model = copy.deepcopy(model)
@@ -38,7 +37,7 @@ def test(frozen=True):
     sampler_cfg['train'].n_images = 1
     sampler_cfg['train_for_val'].n_images = 1
     sampler_cfg['val'].n_images = 1
-    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'voc', cuda, sampler_cfg)
+    dataloaders = instanceseg.factory.data.get_dataloaders(cfg, 'cityscapes', cuda, sampler_cfg)
 
     optim = instanceseg.factory.optimizer.get_optimizer(cfg, model, None)
     out_dir = '/tmp/{}'.format(osp.basename(__file__))

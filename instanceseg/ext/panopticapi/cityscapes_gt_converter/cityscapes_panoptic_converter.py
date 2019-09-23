@@ -3,12 +3,12 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-import os, sys
-import json
-import glob
-import numpy as np
-import PIL.Image as Image
 
+import glob
+import os
+
+import PIL.Image as Image
+import numpy as np
 # from panopticapi.utils
 from utils import IdGenerator, save_json
 

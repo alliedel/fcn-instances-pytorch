@@ -10,6 +10,12 @@ class PanopticDatasetBase(data.Dataset):
 
     # __getitem__(self, index) enforced by data.Dataset
     # __len__(self) enforced by data.Dataset
+
+    def __getitem__(self, index):
+        identifier = self.get_image_id(index)
+        image, lbl = self.get_datapoint_from_identifier(identifier)
+        return identifier, image, lbl
+
     @property
     @abc.abstractmethod
     def labels_table(self):
@@ -17,10 +23,10 @@ class PanopticDatasetBase(data.Dataset):
 
     @abc.abstractmethod
     def get_image_id(self, index):
-        """
-        Preferably, override this property with a useful image id.
-        """
-        # return '{:06d}'.format(index)
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_datapoint_from_identifier(self, identifier):
         raise NotImplementedError
 
     @property

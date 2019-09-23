@@ -1,9 +1,9 @@
 from instanceseg.datasets import precomputed_file_transformations, runtime_transformations
-from instanceseg.datasets import voc, synthetic, cityscapes
+from instanceseg.datasets import synthetic, cityscapes
 from instanceseg.utils import datasets
 from instanceseg.utils.misc import pop_without_del, TermColors
 from instanceseg.utils.misc import value_as_string
-from scripts.configurations import voc_cfg, cityscapes_cfg
+from scripts.configurations import cityscapes_cfg
 import numpy as np
 
 
@@ -20,17 +20,7 @@ def get_default_datasets_for_instance_counts(dataset_type, splits=('train', 'val
     Dataset before any of the precomputed_file_transformation, runtime_transformation runs on it
     """
     if dataset_type == 'voc':
-        default_cfg = voc_cfg.get_default_config()
-        default_cfg[
-            'n_instances_per_class'] = None  # don't want to cap instances when running stats
-        precomputed_file_transformation, runtime_transformation = \
-            get_transformations(default_cfg, voc.ALL_VOC_CLASS_NAMES)
-        default_datasets = {
-            split: get_voc_dataset(
-                dataset_path=default_cfg['dataset_path'],
-                precomputed_file_transformation=precomputed_file_transformation,
-                runtime_transformation=runtime_transformation, split=split) for split in splits
-        }
+        raise NotImplementedError
     elif dataset_type == 'cityscapes':
         default_cfg = cityscapes_cfg.get_default_train_config()
         default_cfg[
@@ -54,12 +44,7 @@ def get_default_datasets_for_instance_counts(dataset_type, splits=('train', 'val
 
 def get_dataset(dataset_type, cfg, split, transform=True):
     if dataset_type == 'voc':
-        precomputed_file_transformation, runtime_transformation = \
-            get_transformations(cfg, voc.ALL_VOC_CLASS_NAMES)
-        dataset_path = cfg['dataset_path']
-        dataset = get_voc_dataset(
-            dataset_path=dataset_path, split=split, precomputed_file_transformation=precomputed_file_transformation,
-            runtime_transformation=runtime_transformation, transform=transform)
+        raise NotImplementedError
     elif dataset_type == 'cityscapes':
         dataset_path = cfg['dataset_path']
         precomputed_file_transformation, runtime_transformation = get_transformations(
@@ -131,23 +116,6 @@ def get_transformations(cfg, original_semantic_class_names=None):
         instance_id_for_excluded_instances=cfg['instance_id_for_excluded_instances'])
 
     return precomputed_file_transformation, runtime_transformation
-
-
-def get_voc_dataset(dataset_path, precomputed_file_transformation, runtime_transformation, split,
-                    transform=True):
-    assert split in ['train', 'val']
-    if split == 'val':
-        split = 'seg11valid'
-    dataset = voc.TransformedVOC(
-        root=dataset_path, split=split,
-        precomputed_file_transformation=precomputed_file_transformation,
-        runtime_transformation=runtime_transformation)
-
-    if not transform:
-        dataset.should_use_precompute_transform = False
-        dataset.should_use_runtime_transform = False
-
-    return dataset
 
 
 def get_cityscapes_dataset(dataset_path, precomputed_file_transformation, runtime_transformation, split,

@@ -29,14 +29,6 @@ class PrecomputedDatasetFileTransformerBase(object):
         attributes = [a for a in attributes if not(a[0].startswith('__') and a[0].endswith('__')) and not callable(a)]
         return attributes
 
-    # def transform_semantic_class_names(self, original_semantic_class_names):
-    # """ If exists, gets called whenever the dataset's semantic class names are queried. """
-    #     self.original_semantic_class_names = original_semantic_class_names
-    #     return fcn(self.original_semantic_class_names)
-    #
-    # def untransform_semantic_class_names(self):
-    #     return self.original_semantic_class_names
-
 
 def precomputed_file_transformer_factory(ordering=None):
     # Basic transformation (numpy array to torch tensor; resizing and centering)

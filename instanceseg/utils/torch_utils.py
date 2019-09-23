@@ -1,5 +1,8 @@
-import torch
 import gc
+import torch
+from torch.autograd import Variable
+from torch.nn import functional as F
+
 from . import misc
 
 
@@ -44,3 +47,38 @@ def garbage_collect(verbose=False, threshold_for_printing=0, color='WARNING'):
             print_str = 'Cleaned %d objects, %g MB' % (num_cleaned, memory_cleaned / 1e6)
             print(misc.color_text(print_str, color=color))
     return num_cleaned, memory_cleaned
+
+
+def softmax_scores(compiled_scores, dim=1):
+    return F.softmax(Variable(compiled_scores), dim=dim).data
+
+
+def argmax_scores(compiled_scores, dim=1):
+    return compiled_scores.max(dim=dim)[1]
+
+
+def center_crop_to_reduced_size(tensor, cropped_size_rc, rc_axes=(1, 2)):
+    if rc_axes == (1, 2):
+        start_coords = (int((tensor.size(1) - cropped_size_rc[0]) / 2),
+                        int((tensor.size(2) - cropped_size_rc[1]) / 2))
+        cropped_tensor = tensor[:,
+                         start_coords[0]:(start_coords[0] + cropped_size_rc[0]),
+                         start_coords[1]:(start_coords[1] + cropped_size_rc[1])]
+    elif rc_axes == (2, 3):
+        assert len(tensor.size()) == 4, NotImplementedError
+        start_coords = (int((tensor.size(2) - cropped_size_rc[0]) / 2),
+                        int((tensor.size(3) - cropped_size_rc[1]) / 2))
+        cropped_tensor = tensor[:, :,
+                         start_coords[0]:(start_coords[0] + cropped_size_rc[0]),
+                         start_coords[1]:(start_coords[1] + cropped_size_rc[1])]
+        assert cropped_tensor.size()[2:] == cropped_size_rc
+    else:
+        raise NotImplementedError
+    return cropped_tensor
+
+
+def fast_remap(arr, old_vals, new_vals):
+    arr_old = arr.copy()
+    for old_val, new_val in zip(old_vals, new_vals):
+        arr[arr_old == old_val] = new_val
+    return arr

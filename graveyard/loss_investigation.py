@@ -4,6 +4,7 @@ import argparse
 import os
 import os.path as osp
 
+import instanceseg.utils.logs
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -13,11 +14,9 @@ from torch.autograd import Variable
 import instanceseg
 import instanceseg.analysis.visualization_utils
 import instanceseg.datasets.synthetic
-import instanceseg.datasets.voc
 import instanceseg.losses.loss
-import instanceseg.utils.logs
-from instanceseg.utils import instance_utils
 from instanceseg.analysis import visualization_utils
+from instanceseg.utils import instance_utils
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -180,7 +179,7 @@ def main():
                                                        shuffle=False, **loader_kwargs)
 
     # 0. Problem setup (instance segmentation definition)
-    class_names = val_dataset.class_names
+    class_names = val_dataset.semantic_class_names
     n_semantic_classes = len(class_names)
     cfg = {'n_instances_per_class': 3}
     n_instances_per_class = cfg['n_instances_per_class'] or \

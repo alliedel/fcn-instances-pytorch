@@ -30,7 +30,7 @@ def is_lr_ordered(sem_lbl, inst_lbl):
     return ordering_correct
 
 
-def test_lr_ordering_voc():
+def test_lr_ordering_cityscapes():
     img_id = '2011_003114'
     test_data_folder = osp.join(osp.dirname(here), 'test_data')
     sem_lbl_file = osp.join(test_data_folder, 'VOC2012', 'SegmentationClass', '{}.png'.format(img_id))
@@ -52,5 +52,5 @@ def test_lr_ordering_voc():
 
 
 if __name__ == '__main__':
-    test_lr_ordering_voc()
+    test_lr_ordering_cityscapes()
 

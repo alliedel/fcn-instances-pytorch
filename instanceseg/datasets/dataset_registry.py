@@ -1,10 +1,8 @@
 import os
 
 import instanceseg.datasets.synthetic
-import instanceseg.datasets.voc
 import scripts.configurations.synthetic_cfg
-import scripts.configurations.voc_cfg
-from instanceseg.datasets import cityscapes, voc
+from instanceseg.datasets import cityscapes
 from instanceseg.datasets import dataset_generator_registry
 from scripts.configurations import cityscapes_cfg
 
@@ -44,19 +42,6 @@ class RegisteredDataset(object):
             split, transformer_tag))
 
 
-def get_cityscapes_labels_table(semantic_vals, semantic_names):
-
-    categories = []
-    for semantic_val, semantic_class_name in zip(semantic_vals, semantic_names):
-        el = cityscapes.labels_table[semantic_class_name]
-        categories.append({'id': el.id,
-                           'name': el.name,
-                           'color': el.color,
-                           'supercategory': el.category,
-                           'isthing': 1 if el.hasInstances else 0})
-    return categories
-
-
 REGISTRY = {
     'cityscapes': RegisteredDataset(
         name='cityscapes',
@@ -66,15 +51,6 @@ REGISTRY = {
         dataset_path=cityscapes.get_default_cityscapes_root(),
         dataset_generator=lambda cfg, split: dataset_generator_registry.get_dataset('cityscapes', cfg, split,
                                                                                     transform=True),
-    ),
-    'voc': RegisteredDataset(
-        name='voc',
-        default_config=scripts.configurations.voc_cfg.get_default_config(),
-        config_option_dict=scripts.configurations.voc_cfg.configurations,
-        original_semantic_class_names=instanceseg.datasets.voc.ALL_VOC_CLASS_NAMES,
-        dataset_path=voc.get_default_voc_root(),
-        dataset_generator=lambda cfg, split: dataset_generator_registry.get_dataset('voc', cfg, split,
-                                                                                    transform=True)
     ),
     'synthetic': RegisteredDataset(
         name='synthetic',

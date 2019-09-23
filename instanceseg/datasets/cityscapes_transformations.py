@@ -1,4 +1,5 @@
 from instanceseg.datasets import coco_format
+from instanceseg.utils.torch_utils import fast_remap
 from . import labels_table_cityscapes
 from .precomputed_file_transformations import PrecomputedDatasetFileTransformerBase
 import numpy as np
@@ -236,22 +237,4 @@ def map_raw_inst_labels_to_instance_count(inst_lbl, sem_lbl_for_verification=Non
 
     return inst_lbl
 
-
-def is_sorted(arr):
-    return all(x1 == x2 for x1, x2 in zip(sorted(arr), arr))
-
-
-def fast_remap(arr, old_vals, new_vals):
-    arr_old = arr.copy()
-    for old_val, new_val in zip(old_vals, new_vals):
-        arr[arr_old == old_val] = new_val
-    return arr
-
-
-def remap(arr, old_vals, new_vals):
-    assert all(x >= y for x, y, in zip(old_vals, new_vals))
-    for old_val, new_val in zip(old_vals, new_vals):
-        if old_val == new_val:
-            pass
-        arr[arr == old_val] = new_val
 

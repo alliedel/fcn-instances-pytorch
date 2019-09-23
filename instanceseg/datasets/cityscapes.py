@@ -4,7 +4,7 @@ import PIL.Image
 import numpy as np
 import os.path as osp
 
-from instanceseg.datasets.panoptic_dataset import PanopticDatasetBase, TransformedPanopticDataset
+from instanceseg.datasets.panoptic_dataset_base import PanopticDatasetBase, TransformedPanopticDataset
 from instanceseg.datasets.precomputed_file_transformations import \
     GenericSequencePrecomputedDatasetFileTransformer
 from . import labels_table_cityscapes
@@ -33,7 +33,7 @@ class CityscapesWithOurBasicTrainIds(PanopticDatasetBase):
     precomputed_file_transformer = GenericSequencePrecomputedDatasetFileTransformer(
         [CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(),
          ConvertLblstoPModePILImages()])
-    void_val = 255
+
     # class names by id (not trainId)
     original_labels_table = [l for l in labels_table_cityscapes.CITYSCAPES_LABELS_TABLE]
 
@@ -61,7 +61,7 @@ class CityscapesWithOurBasicTrainIds(PanopticDatasetBase):
 
     @property
     def original_semantic_class_names(self):
-        return [l['name'] for l in labels_table_cityscapes.CITYSCAPES_LABELS_TABLE if l['id'] != self.void_val]
+        return [l['name'] for l in self.original_labels_table if l['id'] != self.void_val]
 
     @property
     def labels_table(self):
@@ -93,18 +93,6 @@ class CityscapesWithOurBasicTrainIds(PanopticDatasetBase):
             file_list = orig_file_list
         return file_list
 
-    @staticmethod
-    def get_semantic_class_names_from_labels_table(labels_table, void_val):
-        return [l['name'] for l in labels_table if l['id'] != void_val]
-
-    @property
-    def semantic_class_names(self):
-        """
-        If we changed the semantic subset, we have to account for that change in the semantic
-        class name list.
-        """
-        return self.get_semantic_class_names_from_labels_table(self.labels_table, self.void_val)
-
     @classmethod
     def get_default_labels_table(cls):
         labels_table = None
@@ -122,10 +110,6 @@ class CityscapesWithOurBasicTrainIds(PanopticDatasetBase):
         class name list.
         """
         return cls.get_semantic_class_names_from_labels_table(cls.get_default_labels_table(), cls.void_val)
-
-    @property
-    def n_semantic_classes(self):
-        return len(self.semantic_class_names)
 
 
 def get_raw_cityscapes_files(dataset_dir, split):

@@ -20,14 +20,6 @@ class RuntimeDatasetTransformerBase(object):
         attributes = [a for a in attributes if not(a[0].startswith('__') and a[0].endswith('__')) and not callable(a)]
         return attributes
 
-    # def transform_semantic_class_names(self, original_semantic_class_names):
-    # """ If exists, gets called whenever the dataset's semantic class names are queried. """
-    #     self.original_semantic_class_names = original_semantic_class_names
-    #     return fcn(self.original_semantic_class_names)
-    #
-    # def untransform_semantic_class_names(self):
-    #     return self.original_semantic_class_names
-
 
 # noinspection PyTypeChecker
 def runtime_transformer_factory(resize=None, resize_size=None, mean_bgr=None, reduced_class_idxs=None,

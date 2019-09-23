@@ -79,7 +79,7 @@ class InstanceProblemConfig(object):
 
     @property
     def semantic_class_names_by_val(self):
-        return {l.val: l.name for i, l in enumerate(self.labels_table)}
+        return {l.id: l.name for i, l in enumerate(self.labels_table)}
 
     @property
     def n_semantic_classes(self):
@@ -361,18 +361,6 @@ def get_instance_to_semantic_mapping_from_model_channel_semantic_ids(model_chann
             instance_to_semantic_mapping_matrix[semantic_idx, instance_idx] = 1
     return instance_to_semantic_mapping_matrix if not as_numpy else \
         instance_to_semantic_mapping_matrix.numpy()
-
-
-def permute_labels(label_preds, permutations):
-    if torch.is_tensor(label_preds):
-        label_preds_permuted = label_preds.clone()
-    else:
-        label_preds_permuted = label_preds.copy()
-    for idx in range(permutations.shape[0]):
-        permutation = permutations[idx, :]
-        for new_channel, old_channel in enumerate(permutation):
-            label_preds_permuted[label_preds == old_channel] = new_channel
-    return label_preds_permuted
 
 
 def create_default_labels_table_from_instance_problem_config(semantic_class_names, semantic_class_vals, colors=None,

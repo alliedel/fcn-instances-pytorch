@@ -1,10 +1,9 @@
 import torch
 import tqdm
-
 from torch.autograd import Variable
 from torch.utils.data import sampler
 
-from instanceseg.utils.tensors import softmax_scores, argmax_scores, center_crop_to_reduced_size
+from instanceseg.utils.torch_utils import softmax_scores, argmax_scores, center_crop_to_reduced_size
 
 
 def is_sequential(my_sampler):

@@ -1,7 +1,7 @@
 import numpy as np
 
 from instanceseg.utils import datasets
-from instanceseg.datasets.panoptic_dataset import PanopticDatasetBase, TransformedPanopticDataset
+from instanceseg.datasets.panoptic_dataset_base import PanopticDatasetBase, TransformedPanopticDataset
 from instanceseg.datasets import coco_format
 
 BACKGROUND_WHITE = (255, 255, 255)
@@ -78,7 +78,7 @@ class BlobExampleGenerator(PanopticDatasetBase):
         self.semantic_subset = semantic_subset_to_generate
         # TODO(allie): change the line below to allow dif. blob types
         self.semantic_classes = semantic_subset_to_generate or ALL_BLOB_CLASS_NAMES
-        self.class_names, self.idxs_into_all_blobs = datasets.get_semantic_names_and_idxs(
+        self.semantic_class_names, self.idxs_into_all_blobs = datasets.get_semantic_names_and_idxs(
             semantic_subset=semantic_subset_to_generate, full_set=ALL_BLOB_CLASS_NAMES)
         self.n_instances_per_sem_cls = [0] + [n_instances_per_img for _ in range(len(self.semantic_classes) - 1)]
         self.ordering = ordering.lower() if ordering is not None else None
@@ -147,10 +147,6 @@ class BlobExampleGenerator(PanopticDatasetBase):
 
     def __len__(self):
         return self.n_images
-
-    @property
-    def semantic_class_names(self):
-        return self.class_names
 
     def copy(self, modified_length=10):
         my_copy = BlobExampleGenerator(_im_a_copy=True)

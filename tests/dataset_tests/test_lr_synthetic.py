@@ -1,9 +1,9 @@
-from instanceseg.datasets import dataset_generator_registry
-import instanceseg.utils.script_setup
-from scripts.configurations import synthetic_cfg
-from scripts.configurations import voc_cfg
 import numpy as np
+
+import instanceseg.utils.script_setup
+from instanceseg.datasets import dataset_generator_registry
 from instanceseg.utils import datasets
+from scripts.configurations import synthetic_cfg
 
 
 def is_lr_ordered(sem_lbl, inst_lbl):

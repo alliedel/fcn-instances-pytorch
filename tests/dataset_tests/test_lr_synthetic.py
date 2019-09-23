@@ -33,18 +33,7 @@ def is_lr_ordered(sem_lbl, inst_lbl):
 
 def test_lr_of_dataset(dataset_name):
     print('Getting datasets')
-    if dataset_name == 'voc':
-        cfg = voc_cfg.get_default_config()
-        # unordered
-        cfg['ordering'] = None
-        instanceseg.utils.script_setup.set_random_seeds()
-        train_dataset_unordered = dataset_generator_registry.get_dataset('voc', cfg, split='train')
-
-        # ordered
-        cfg['ordering'] = 'LR'
-        instanceseg.utils.script_setup.set_random_seeds()
-        train_dataset_ordered = dataset_generator_registry.get_dataset('voc', cfg, split='train')
-    elif dataset_name == 'synthetic':
+    if dataset_name == 'synthetic':
         cfg = synthetic_cfg.get_default_train_config()
         # unordered
         cfg['ordering'] = None

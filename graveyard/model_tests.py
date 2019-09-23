@@ -4,8 +4,7 @@ import torch
 
 import instanceseg.factory.data
 import instanceseg.factory.models
-from scripts.configurations import voc_cfg
-from instanceseg.datasets.voc import ALL_VOC_CLASS_NAMES
+from scripts.configurations import generic_cfg
 from instanceseg.models import model_utils
 
 
@@ -15,10 +14,10 @@ def build_example_model(**model_cfg_override_kwargs):
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))
     cuda = torch.cuda.is_available()
 
-    cfg = voc_cfg.get_default_config()
+    cfg = generic_cfg.get_default_config()
     for k, v in model_cfg_override_kwargs.items():
         cfg[k] = v
-    problem_config = instanceseg.factory.models.get_problem_config(ALL_VOC_CLASS_NAMES, 2, map_to_semantic=cfg['map_to_semantic'])
+    problem_config = instanceseg.factory.models.get_problem_config(...)
     model, start_epoch, start_iteration = instanceseg.factory.models.get_model(cfg, problem_config,
                                                                                checkpoint_file=None, semantic_init=None, cuda=cuda)
     return model
@@ -26,7 +25,7 @@ def build_example_model(**model_cfg_override_kwargs):
 
 def test_forward_hook():
     model = build_example_model()
-    cfg = voc_cfg.get_default_config()
+    cfg = generic_cfg.get_default_config()
     print('Getting datasets')
     gpu = 0
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu) if isinstance(gpu, int) else ','.join(str(gpu))

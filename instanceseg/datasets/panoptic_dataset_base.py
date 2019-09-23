@@ -6,23 +6,48 @@ from .runtime_transformations import GenericSequenceRuntimeDatasetTransformer
 
 class PanopticDatasetBase(data.Dataset):
     __metaclass__ = abc.ABC
+    void_val = 255  # default
 
-    @property
-    @abc.abstractmethod
-    def semantic_class_names(self):
-        raise NotImplementedError
-
+    # __getitem__(self, index) enforced by data.Dataset
+    # __len__(self) enforced by data.Dataset
     @property
     @abc.abstractmethod
     def labels_table(self):
         raise NotImplementedError
 
-    # __getitem__(self, index) enforced by data.Dataset
-    # __len__(self) enforced by data.Dataset
+    @abc.abstractmethod
+    def get_image_id(self, index):
+        """
+        Preferably, override this property with a useful image id.
+        """
+        # return '{:06d}'.format(index)
+        raise NotImplementedError
+
+    @property
+    def image_ids(self):
+        """
+        [image_id0, image_id1, ..., image_idN] where N is len(self)
+        """
+        return [self.get_image_id(index) for index in range(len(self))]
+
+    @property
+    def semantic_class_names(self):
+        """
+        If we changed the semantic subset, we have to account for that change in the semantic
+        class name list.
+        """
+        return self.get_semantic_class_names_from_labels_table(self.labels_table, self.void_val)
+
+    @staticmethod
+    def get_semantic_class_names_from_labels_table(labels_table, void_val):
+        return [l['name'] for l in labels_table if l['id'] != void_val]
+
+    @property
+    def n_semantic_classes(self):
+        return len(self.semantic_class_names)
 
 
 class TransformedPanopticDataset(PanopticDatasetBase):
-    __metaclass__ = data.Dataset
 
     def __init__(self, raw_dataset: PanopticDatasetBase, raw_dataset_returns_images=False,
                  precomputed_file_transformation=None, runtime_transformation=None):
@@ -54,16 +79,14 @@ class TransformedPanopticDataset(PanopticDatasetBase):
                                  runtime_transformation=runtime_transformation)
         return img, lbl
 
-    def get_image_files(self):
-        data_files = []
-        for index in range(len(self)):
-            if not self.raw_dataset_returns_images:
-                data_file = self.raw_dataset.files[
-                    index]  # files populated when raw_dataset was instantiated
-                data_files.append(data_file)
-            else:
-                raise Exception('Cannot get filename from raw dataset {}'.format(type(self.raw_dataset)))
-        return data_files
+    def get_image_id(self, index):
+        """
+        Preferably, override this property with a useful image id.
+        """
+        if self.raw_dataset_returns_images:
+            return '{:06d}'.format(index)
+        else:
+            return self.raw_dataset.files[index]['image']
 
     def get_image_file(self, index):
         if not self.raw_dataset_returns_images:
@@ -73,18 +96,7 @@ class TransformedPanopticDataset(PanopticDatasetBase):
         return data_file
 
     @property
-    def semantic_class_names(self):
-        return self.get_semantic_class_names()
-
-    @property
-    def n_semantic_classes(self):
-        return len(self.semantic_class_names)
-
-    @property
     def labels_table(self):
-        return self.get_labels_table()
-
-    def get_labels_table(self):
         # Select labels from labels_table that belong to the subset of semantic classes
         original_labels_table = self.raw_dataset.labels_table
         if self.should_use_runtime_transform and self.runtime_transformation is not None:
@@ -95,39 +107,17 @@ class TransformedPanopticDataset(PanopticDatasetBase):
             for transformer in transformation_list:
                 if hasattr(transformer, 'transform_labels_table'):
                     labels_table = transformer.transform_labels_table(labels_table)
-                else:
-                    assert not hasattr(transformer, 'transform_semantic_class_names')
-                    'If you are going to subsample the semantic classes, you need to subsample the labels table too'
 
             return labels_table
         else:
             return original_labels_table
-
-    def get_semantic_class_names(self):
-        """
-        If we changed the semantic subset, we have to account for that change in the semantic class
-         name list.
-        """
-        if self.should_use_runtime_transform and self.runtime_transformation is not None:
-            transformation_list = self.runtime_transformation.transformer_sequence if isinstance(
-                self.runtime_transformation, GenericSequenceRuntimeDatasetTransformer) else \
-                [self.runtime_transformation]
-            semantic_class_names = self.raw_dataset.semantic_class_names
-            for transformer in transformation_list:
-                if hasattr(transformer, 'transform_semantic_class_names'):
-                    semantic_class_names = transformer.transform_semantic_class_names(
-                        semantic_class_names)
-            return semantic_class_names
-        else:
-            return self.raw_dataset.semantic_class_names
 
     def load_files(self, img_file, sem_lbl_file, inst_lbl_file):
         # often self.raw_dataset.load_files(?)
         raise NotImplementedError
 
     def get_item_from_files(self, index, precomputed_file_transformation=None):
-        data_file = self.raw_dataset.files[
-            index]  # files populated when raw_dataset was instantiated
+        data_file = self.raw_dataset.files[index]  # files populated when raw_dataset was instantiated
         img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file[
             'inst_lbl']
 

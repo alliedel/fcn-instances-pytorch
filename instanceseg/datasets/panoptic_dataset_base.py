@@ -1,6 +1,8 @@
 import abc
 
 from torch.utils import data
+
+from instanceseg.utils.misc import value_as_string
 from .runtime_transformations import GenericSequenceRuntimeDatasetTransformer
 
 
@@ -10,11 +12,6 @@ class PanopticDatasetBase(data.Dataset):
 
     # __getitem__(self, index) enforced by data.Dataset
     # __len__(self) enforced by data.Dataset
-
-    def __getitem__(self, index):
-        identifier = self.get_image_id(index)
-        image, lbl = self.get_datapoint_from_identifier(identifier)
-        return identifier, image, lbl
 
     @property
     @abc.abstractmethod
@@ -26,11 +23,11 @@ class PanopticDatasetBase(data.Dataset):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_datapoint_from_identifier(self, identifier):
+    def get_datapoint(self, index):
         raise NotImplementedError
 
     @property
-    def image_ids(self):
+    def image_id_list(self):
         """
         [image_id0, image_id1, ..., image_idN] where N is len(self)
         """
@@ -58,13 +55,15 @@ class TransformedPanopticDataset(PanopticDatasetBase):
     def __init__(self, raw_dataset: PanopticDatasetBase, raw_dataset_returns_images=False,
                  precomputed_file_transformation=None, runtime_transformation=None):
         """
-        :param raw_dataset_returns_images: Set to false for standard datasets that load from files; set to true for
+        :param raw_dataset_returns_images: Set to false for standard datasets that load from
+        files; set to true for
         synthetic datasets that directly return images and labels.
         """
 
         if raw_dataset_returns_images:
-            assert precomputed_file_transformation is None, 'Cannot do precomputed file transformation on datasets ' \
-                                                            'of type \'images\' (generated on the fly).'
+            assert precomputed_file_transformation is None, \
+                'Cannot do precomputed file transformation on datasets of type \'images\' ' \
+                '(generated on the fly).'
         self.raw_dataset_returns_images = raw_dataset_returns_images
         self.raw_dataset = raw_dataset
         self.precomputed_file_transformation = precomputed_file_transformation
@@ -80,25 +79,34 @@ class TransformedPanopticDataset(PanopticDatasetBase):
             self.should_use_precompute_transform else None
         runtime_transformation = self.runtime_transformation if \
             self.should_use_runtime_transform else None
-        img, lbl = self.get_item(index,
-                                 precomputed_file_transformation=precomputed_file_transformation,
-                                 runtime_transformation=runtime_transformation)
-        return img, lbl
-
-    def get_image_id(self, index):
-        """
-        Preferably, override this property with a useful image id.
-        """
-        if self.raw_dataset_returns_images:
-            return '{:06d}'.format(index)
+        identifier = self.get_image_id(index)
+        if not self.raw_dataset_returns_images:
+            img, (sem_lbl, inst_lbl) = self.get_item_from_files(identifier,
+                                                         precomputed_file_transformation)
         else:
-            return self.raw_dataset.files[index]['image']
+            img, (sem_lbl, inst_lbl) = self.raw_dataset.__getitem__(index)
+            assert precomputed_file_transformation is None, \
+                'Cannot do precomputed file transformation on datasets of type \'images\' ' \
+                '(generated on the fly).'
+        if runtime_transformation is not None:
+            img, (sem_lbl, inst_lbl) = runtime_transformation.transform(img, (sem_lbl, inst_lbl))
+
+        return {
+            'image_id': identifier,
+            'image': img,
+            'sem_lbl': sem_lbl,
+            'inst_lbl': inst_lbl,
+            'transformation_tag': self.transformation_tag
+        }
 
     def get_image_file(self, index):
         if not self.raw_dataset_returns_images:
-            data_file = self.raw_dataset.files[index]  # files populated when raw_dataset was instantiated
+            identifier = self.raw_dataset.image_id_list[index]
+            data_file = self.raw_dataset.files[identifier]  # files populated when raw_dataset was
+                                                            # instantiated
         else:
-            raise Exception('Cannot get filename from raw dataset {}'.format(type(self.raw_dataset)))
+            raise Exception(
+                'Cannot get filename from raw dataset {}'.format(type(self.raw_dataset)))
         return data_file
 
     @property
@@ -122,8 +130,9 @@ class TransformedPanopticDataset(PanopticDatasetBase):
         # often self.raw_dataset.load_files(?)
         raise NotImplementedError
 
-    def get_item_from_files(self, index, precomputed_file_transformation=None):
-        data_file = self.raw_dataset.files[index]  # files populated when raw_dataset was instantiated
+    def get_item_from_files(self, identifier, precomputed_file_transformation=None):
+        data_file = self.raw_dataset.files[
+            identifier]  # files populated when raw_dataset was instantiated
         img_file, sem_lbl_file, inst_lbl_file = data_file['img'], data_file['sem_lbl'], data_file[
             'inst_lbl']
 
@@ -138,14 +147,15 @@ class TransformedPanopticDataset(PanopticDatasetBase):
         img, lbl = self.load_files(img_file, sem_lbl_file, inst_lbl_file)
         return img, lbl
 
-    def get_item(self, index, precomputed_file_transformation=None, runtime_transformation=None):
-        if not self.raw_dataset_returns_images:
-            img, lbl = self.get_item_from_files(index, precomputed_file_transformation)
-        else:
-            img, lbl = self.raw_dataset.__getitem__(index)
-            assert precomputed_file_transformation is None, 'Cannot do precomputed file transformation on datasets ' \
-                                                            'of type \'images\' (generated on the fly).'
-        if runtime_transformation is not None:
-            img, lbl = runtime_transformation.transform(img, lbl)
+    @property
+    def transformation_tag(self):
+        return get_transformer_identifier_tag(self.precomputed_file_transformation,
+                                              self.runtime_transformation)
 
-        return img, lbl
+
+def get_transformer_identifier_tag(precomputed_file_transformation, runtime_transformation):
+    transformer_tag = ''
+    for tr in [precomputed_file_transformation, runtime_transformation]:
+        attributes = tr.get_attribute_items() if tr is not None else {}.items()
+        transformer_tag += '__'.join(['{}-{}'.format(k, value_as_string(v)) for k, v in attributes])
+    return transformer_tag

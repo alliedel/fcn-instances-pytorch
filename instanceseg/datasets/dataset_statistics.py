@@ -123,9 +123,11 @@ class PixelsPerSemanticClass(DatasetStatisticCacheInterface):
     @staticmethod
     def compute_semantic_pixel_counts(dataset, semantic_class_vals):
         semantic_pixel_counts_nested_list = []
-        for idx, (img, (sem_lbl, inst_lbl)) in tqdm.tqdm(
+        for idx, data_dict in tqdm.tqdm(
                 enumerate(dataset), total=len(dataset),
                 desc='Running semantic pixel statistics on dataset'.format(dataset), leave=True):
+            img_data, (sem_lbl, inst_lbl) = data_dict['image'], \
+                                            (data_dict['sem_lbl'], data_dict['inst_lbl'])
             semantic_pixel_counts_nested_list.append([(sem_lbl == sem_val).sum() for sem_val in \
                                                       semantic_class_vals])
         semantic_pixel_counts = torch.IntTensor(semantic_pixel_counts_nested_list)
@@ -155,10 +157,13 @@ class NumberofInstancesPerSemanticClass(DatasetStatisticCacheInterface):
     @staticmethod
     def compute_instance_counts(dataset, semantic_classes):
         instance_counts = torch.ones(len(dataset), len(semantic_classes)) * -1
-        for idx, (img, (sem_lbl, inst_lbl)) in \
+        for idx, data_dict in \
                 tqdm.tqdm(enumerate(dataset), total=len(dataset),
                           desc='Running instance statistics on dataset'.format(dataset),
                           leave=True):
+            img_data, (sem_lbl, inst_lbl) = data_dict['image'], (data_dict['sem_lbl'], data_dict[
+                'inst_lbl'])
+
             for sem_idx, sem_val in enumerate(semantic_classes):
                 sem_locations_bool = sem_lbl == sem_val
                 if torch.sum(sem_locations_bool) > 0:
@@ -241,9 +246,10 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False,
                                                  sampler=None, num_workers=4)
         batch_img_idx = 0
-        for batch_idx, (_, (sem_lbl_batch, inst_lbl_batch)) in tqdm.tqdm(
+        for batch_idx, data_dict in tqdm.tqdm(
                 enumerate(dataloader), total=len(dataloader),
                 desc='Running occlusion statistics on dataset'.format(dataset), leave=True):
+            sem_lbl_batch, inst_lbl_batch = data_dict['sem_lbl'], data_dict['inst_lbl']
             batch_sz = sem_lbl_batch.shape[0]
             # Populates occlusion_counts
             batch_occlusion_counts = self.compute_occlusions_from_batch(

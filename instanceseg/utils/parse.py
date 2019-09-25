@@ -19,26 +19,29 @@ def parse_args_test(replacement_args_list=None):
                                                      '{}'.format(args.dataset,
                                                                  os.path.split(os.path.split(args.logdir)[0])[1])
 
-    cfg_default = dataset_registry.REGISTRY[args.dataset].default_config
-    cfg_override_parser = configs.get_cfg_override_parser(cfg_default)
 
+    override_cfg_args = get_override_cfg(argv, args.dataset, args.sampler)
+    return args, override_cfg_args
+
+
+def get_override_cfg(argv, dataset, sampler=None):
+    cfg_default = dataset_registry.REGISTRY[dataset].default_config
+    cfg_override_parser = configs.get_cfg_override_parser(cfg_default)
     bad_args = [arg for arg in argv[::2] if arg.replace('-', '') not in cfg_default.keys()]
     assert len(bad_args) == 0, cfg_override_parser.error('bad_args: {}'.format(bad_args))
-    if args.sampler is not None:
-        argv += ['--sampler', args.sampler]
+    if sampler is not None:
+        argv += ['--sampler', sampler]
     # Parse with list of options
     override_cfg_args, leftovers = cfg_override_parser.parse_known_args(argv)
     assert len(leftovers) == 0, ValueError('args not recognized: {}'.format(leftovers))
     # apparently this is failing, so I'm going to have to screen this on my own:
-
     # Remove options from namespace that weren't defined
     unused_keys = [k for k in list(override_cfg_args.__dict__.keys()) if
                    '--' + k not in argv and '-' + k not in argv]
     for k in unused_keys:
         delattr(override_cfg_args, k)
-
     postprocess_test_args(override_cfg_args)
-    return args, override_cfg_args
+    return override_cfg_args
 
 
 def parse_args_train(replacement_args_list=None):

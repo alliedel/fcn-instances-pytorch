@@ -17,6 +17,7 @@ from instanceseg.analysis import visualization_utils
 from instanceseg.datasets import runtime_transformations
 from instanceseg.ext.panopticapi.utils import rgb2id, id2rgb
 from instanceseg.losses.loss import LossMatchAssignments
+from instanceseg.losses.match import GT_VALUE_FOR_FALSE_POSITIVE
 from instanceseg.utils import instance_utils
 from instanceseg.utils.instance_utils import InstanceProblemConfig
 from instanceseg.utils.misc import flatten_dict
@@ -365,8 +366,8 @@ class TrainerExporter(object):
         if visualizations is None:
             return
         out_dir = out_dir or osp.join(self.out_dir, 'visualization_viz')
-        visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer, iteration,
-                                                  basename=basename, tile=tile)
+        visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer,
+                                                  iteration, basename=basename, tile=tile)
 
     def run_post_train_iteration(self, full_input, sem_lbl, inst_lbl, loss, loss_components,
                                  assignments: LossMatchAssignments, score,
@@ -422,11 +423,13 @@ class TrainerExporter(object):
             sem_lbl_np, inst_lbl_np = lbl_untransformed
             assert max_n_insts_per_thing >= inst_lbl.max()
             if should_visualize:
+
                 segmentation_viz = visualization_utils.visualize_segmentations_as_rgb_imgs(
                     gt_sem_inst_lbl_tuple=(sem_lbl_np, inst_lbl_np),
                     pred_channelwise_lbl=pred_l,
                     channel_inst_vals=assignments.assigned_gt_inst_vals[idx, ...].numpy(),
                     channel_sem_vals=assignments.sem_values[idx, ...].numpy(),
+                    unmatched_val=GT_VALUE_FOR_FALSE_POSITIVE,
                     instance_count_id_list=self.instance_problem.instance_count_id_list,
                     img=img_untransformed, overlay=False,
                     void_val=self.instance_problem.void_value)

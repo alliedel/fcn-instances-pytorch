@@ -1,18 +1,10 @@
 from instanceseg.datasets import precomputed_file_transformations, runtime_transformations
 from instanceseg.datasets import synthetic, cityscapes
+from instanceseg.datasets.panoptic_dataset_base import get_transformer_identifier_tag
 from instanceseg.utils import datasets
 from instanceseg.utils.misc import pop_without_del, TermColors
-from instanceseg.utils.misc import value_as_string
 from scripts.configurations import cityscapes_cfg
 import numpy as np
-
-
-def get_transformer_identifier_tag(precomputed_file_transformation, runtime_transformation):
-    transformer_tag = ''
-    for tr in [precomputed_file_transformation, runtime_transformation]:
-        attributes = tr.get_attribute_items() if tr is not None else {}.items()
-        transformer_tag += '__'.join(['{}-{}'.format(k, value_as_string(v)) for k, v in attributes])
-    return transformer_tag
 
 
 def get_default_datasets_for_instance_counts(dataset_type, splits=('train', 'val')):

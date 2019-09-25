@@ -56,8 +56,6 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
         number of predicted pixels, for instance. -- this means that we must have at least as many columns (# gt) as
         rows (# pred) -- the last columns will be reserved for false positives, and we'll be able to identify them as
         the columns where the groundtruth value is GT_VALUE_FOR_FALSE_POSITIVE
-
-
     """
 
     if DEBUG_ASSERTS:

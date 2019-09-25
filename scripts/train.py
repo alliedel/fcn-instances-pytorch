@@ -40,8 +40,8 @@ def main(replacement_dict_for_sys_args=None):
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args)
     atexit.register(query_remove_logdir, out_dir)
-    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu, checkpoint_path=args.resume,
-                          semantic_init=args.semantic_init)
+    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu,
+                          checkpoint_path=args.resume, semantic_init=args.semantic_init)
 
     if cfg['debug_dataloader_only']:
         n_debug_images = None if cfg['n_debug_images'] is None else int(cfg['n_debug_images'])

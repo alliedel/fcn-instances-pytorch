@@ -417,17 +417,32 @@ def label2rgb(lbl, img=None, label_names=None, n_labels=None,
     return lbl_viz
 
 
-def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_lbl, channel_inst_vals,
-                                        channel_sem_vals, instance_count_id_list=None,
+def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_lbl,
+                                        channel_inst_vals,
+                                        channel_sem_vals, unmatched_val=None,
+                                        instance_count_id_list=None,
                                         margin_color=(255, 255, 255),
                                         overlay=True, img=None, void_val=-1):
     """
     Note this is not channelwise!
     """
+    if unmatched_val is None and any([c < 0 for c in channel_inst_vals]):
+        raise AssertionError('Instance values cannot be less than 0 when mapping to rgb images.  '
+                             'You must assign them to something or let me assign them by defining '
+                             'unmatched_val')
+    max_inst_vals_per_sv = {
+        sem_val: max([iv for iv, sv in zip(channel_inst_vals, channel_sem_vals) if sv == sem_val])
+        for sem_val in np.unique(channel_sem_vals)
+    }
+    for i, (iv, sv) in enumerate(zip(channel_inst_vals, channel_sem_vals)):
+        if iv == unmatched_val:
+            channel_inst_vals[i] = max_inst_vals_per_sv[sv] + 1
+            max_inst_vals_per_sv[sv] += 1
 
     gt_sem_lbl, gt_inst_lbl = gt_sem_inst_lbl_tuple
-    max_n_inst_vals = max(gt_sem_lbl[gt_sem_lbl != void_val].max(), max(channel_inst_vals)) + 1
-    max_sem_val = max(gt_sem_lbl[gt_sem_lbl != void_val].max(), max(channel_sem_vals))
+    max_n_inst_vals = int(max(gt_inst_lbl[gt_sem_lbl != void_val].max(), max(channel_inst_vals))
+                          + 1)
+    max_sem_val = int(max(gt_sem_lbl[gt_sem_lbl != void_val].max(), max(channel_sem_vals)))
     n_labels = min(255, max_n_inst_vals * (max_sem_val + 1))
     assert pred_channelwise_lbl.shape == gt_sem_lbl.shape
     # Generate funky pixels for void class
@@ -472,7 +487,8 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
             instance_count_id_list=instance_count_id_list or channel_inst_vals,
             void_value=void_val)
 
-        pred_lbl_as_arbitrary_channels = np.mod(sem_l * max_n_inst_vals + inst_l, 255).astype(sem_l.dtype)
+        pred_lbl_as_arbitrary_channels = np.mod(sem_l * max_n_inst_vals + inst_l, 255).astype(
+            sem_l.dtype)
         pred_lbl_as_arbitrary_channels[mask_unlabeled] = n_labels - 1
 
         if overlay:
@@ -634,8 +650,8 @@ def write_label(out_file, out_lbl):
         raise
 
 
-def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_', tile=True,
-                          ext='.png'):
+def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration, basename='val_',
+                          tile=True, ext='.png'):
     if not osp.exists(out_dir):
         os.makedirs(out_dir)
     if tile:

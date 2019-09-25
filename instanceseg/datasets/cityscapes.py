@@ -48,13 +48,19 @@ class CityscapesWithOurBasicTrainIds(PanopticDatasetBase):
         """
         self.root = osp.expanduser(osp.realpath(root))
         self.split = split
-        self.files = self.get_files()
+        self.files, self.id_list = self.get_files_and_identifiers()
+        self.idx_by_id = {
+            self.id_list[idx]: idx for idx in range(len(self.files))
+        }
 
     def __len__(self):
         return len(self.files)
 
-    def __getitem__(self, index):
-        data_file = self.files[index]
+    def get_image_id(self, index):
+        return self.id_list[index]
+
+    def get_datapoint_from_identifier(self, identifier):
+        data_file = self.files[identifier]
         img, lbl = load_cityscapes_files(data_file['img'], data_file['sem_lbl'],
                                          data_file['inst_lbl'])
         return img, lbl
@@ -73,12 +79,13 @@ class CityscapesWithOurBasicTrainIds(PanopticDatasetBase):
                                          'mapper to give us the labels_table'
         return labels_table
 
-    def get_files(self):
+    def get_files_and_identifiers(self):
         dataset_dir = self.root
         split = self.split
         orig_file_list = get_raw_cityscapes_files(dataset_dir, split)
         if self.precomputed_file_transformer is not None:
             file_list = []
+            id_list = []
             for i, data_files in enumerate(orig_file_list):
                 img_file, sem_lbl_file, raw_inst_lbl_file = self.precomputed_file_transformer.transform(
                     img_file=data_files['img'],
@@ -89,9 +96,15 @@ class CityscapesWithOurBasicTrainIds(PanopticDatasetBase):
                     'sem_lbl': sem_lbl_file,
                     'inst_lbl': raw_inst_lbl_file,
                 })
+                identifier = osp.splitext(osp.basename(raw_inst_lbl_file))[0]
+                id_list.append(identifier)
         else:
             file_list = orig_file_list
-        return file_list
+            id_list = []
+        files_by_id = {
+            id: file for id, file in zip(id_list, file_list)
+        }
+        return files_by_id, id_list
 
     @classmethod
     def get_default_labels_table(cls):
@@ -165,6 +178,9 @@ class TransformedCityscapes(TransformedPanopticDataset):
             raw_dataset_returns_images=False,
             precomputed_file_transformation=precomputed_file_transformation,
             runtime_transformation=runtime_transformation)
+
+    def get_image_id(self, index):
+        return self.raw_dataset.get_image_id(index)
 
     def load_files(self, img_file, sem_lbl_file, inst_lbl_file):
         return load_cityscapes_files(img_file, sem_lbl_file, inst_lbl_file)

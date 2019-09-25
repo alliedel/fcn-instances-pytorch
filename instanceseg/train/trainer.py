@@ -92,7 +92,8 @@ class Trainer(object):
 
         if self.loss_type is not None:
             self.loss_object = self.build_my_loss()
-            self.eval_loss_object_with_matching = self.build_my_loss(matching_override=True)  # Uses matching
+            self.eval_loss_object_with_matching = self.build_my_loss(
+                matching_override=True)  # Uses matching
         else:
             self.loss_object = None
             self.eval_loss_object_with_matching = None
@@ -128,13 +129,16 @@ class Trainer(object):
 
     def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
         """
-        Loads data and transforms it into Variable based on GPUs, input augmentations, and loader type (if semantic)
-        requires_grad: True if training; False if you're not planning to backprop through (for validation / metrics)
+        Loads data and transforms it into Variable based on GPUs, input augmentations, and loader
+        type (if semantic)
+        requires_grad: True if training; False if you're not planning to backprop through (for
+        validation / metrics)
         """
         if not self.loader_semantic_lbl_only:
             (sem_lbl, inst_lbl) = target
         else:
-            assert self.use_semantic_loss, 'Can''t run instance losses if loader is semantic labels only.  Set ' \
+            assert self.use_semantic_loss, 'Can''t run instance losses if loader is semantic ' \
+                                           'labels only.  Set ' \
                                            'use_semantic_loss to True'
             assert type(target) is not tuple
             sem_lbl = target
@@ -158,7 +162,8 @@ class Trainer(object):
                 inst_lbl.requires_grad = False
 
         assert not self.instance_problem.include_instance_channel0, NotImplementedError
-        for sem_id in self.instance_problem.thing_class_ids:  # inst_val == 0 for thing classes get mapped to 255
+        for sem_id in self.instance_problem.thing_class_ids:  # inst_val == 0 for thing classes
+            # get mapped to 255
             inst_lbl[(sem_lbl == sem_id) * (inst_lbl == 0)] = self.instance_problem.void_value
 
         return full_input, sem_lbl, inst_lbl
@@ -188,10 +193,12 @@ class Trainer(object):
             inst_lbl[inst_lbl > 1] = 1
         # print('APD: Running loss fcn')
         if val_matching_override:
-            assignments, total_loss, loss_components_by_channel = self.eval_loss_fcn_with_matching(score, sem_lbl,
-                                                                                                   inst_lbl)
+            assignments, total_loss, loss_components_by_channel = self.eval_loss_fcn_with_matching(
+                score, sem_lbl,
+                inst_lbl)
         else:
-            assignments, total_loss, loss_components_by_channel = self.loss_fcn(score, sem_lbl, inst_lbl)
+            assignments, total_loss, loss_components_by_channel = self.loss_fcn(score, sem_lbl,
+                                                                                inst_lbl)
 
         # print('APD: Finished running loss fcn')
         avg_loss = total_loss / score.size(0)
@@ -206,7 +213,8 @@ class Trainer(object):
     def save_checkpoint_and_update_if_best(self, mean_iu, save_by_iteration=True):
         current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
                                                                 self.state.iteration, self.model,
-                                                                self.optim, self.best_mean_iu, mean_iu,
+                                                                self.optim, self.best_mean_iu,
+                                                                mean_iu,
                                                                 save_by_iteration=save_by_iteration)
         if mean_iu > self.best_mean_iu or self.best_mean_iu == 0:
             self.best_mean_iu = mean_iu
@@ -221,7 +229,8 @@ class Trainer(object):
         self.exporter.instance_problem.save(self.exporter.instance_problem_path)
         predictions_outdir = os.path.join(test_outdir, 'predictions')
         groundtruth_outdir = os.path.join(test_outdir, 'groundtruth')
-        scores_outdir = None if not save_scores else predictions_outdir.replace('predictions', 'scores')
+        scores_outdir = None if not save_scores else predictions_outdir.replace('predictions',
+                                                                                'scores')
         images_outdir = os.path.join(test_outdir, 'images')
         for my_dir in [predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir]:
             if my_dir is None:
@@ -234,16 +243,19 @@ class Trainer(object):
         if data_loader.sampler.sequential:
             indices = [i for i in data_loader.sampler]
         else:
-            raise Exception('We need the sampler to be sequential to know which images we\'re testing')
+            raise Exception(
+                'We need the sampler to be sequential to know which images we\'re testing')
         image_filenames = [data_loader.dataset.get_image_file(i) for i in indices]
         np.savez(os.path.join(test_outdir, 'image_filenames.npz'), image_filenames=image_filenames)
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
-                enumerate(data_loader), total=len(data_loader), desc='Test iteration (split=%s)=%d' %
-                                                                     (split, self.state.iteration), ncols=150,
+                enumerate(data_loader), total=len(data_loader),
+                desc='Test iteration (split=%s)=%d' %
+                     (split, self.state.iteration), ncols=150,
                 leave=False)
             batch_img_idx = 0
-            for batch_idx, (img_data, lbls) in t:
+            for batch_idx, data_dict in t:
+                img_data, lbls = data_dict['image'], (data_dict['sem_lbl'], data_dict['inst_lbl'])
                 full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(
                     img_data, lbls, requires_grad=False)
                 batch_sz = full_input.size(0)
@@ -259,15 +271,20 @@ class Trainer(object):
                         torch.save(score[idx_into_batch, ...], os.path.join(scores_outdir, outf))
 
                 # TODO(allie): remap both to original semantic values
-                prediction_names = ['predictions_{:06d}_sem255instid2rgb.png'.format(img_idx) for img_idx in img_idxs]
-                self.exporter.export_channelvals2d_as_id2rgb(label_pred, predictions_outdir, prediction_names)
-                groundtruth_names = ['groundtruth_{:06d}_sem255instid2rgb.png'.format(img_idx) for img_idx in img_idxs]
+                prediction_names = ['predictions_{:06d}_sem255instid2rgb.png'.format(img_idx) for
+                                    img_idx in img_idxs]
+                self.exporter.export_channelvals2d_as_id2rgb(label_pred, predictions_outdir,
+                                                             prediction_names)
+                groundtruth_names = ['groundtruth_{:06d}_sem255instid2rgb.png'.format(img_idx) for
+                                     img_idx in img_idxs]
                 self.exporter.export_inst_sem_lbls_as_id2rgb(sem_lbl_np,
-                                                             inst_lbl_np, groundtruth_outdir, groundtruth_names)
+                                                             inst_lbl_np, groundtruth_outdir,
+                                                             groundtruth_names)
                 if 1:
                     image_names = ['image_{:06d}.png'.format(img_idx) for img_idx in img_idxs]
                     for ii, img_idx in enumerate(img_idxs):
-                        orig_image, _ = self.exporter.untransform_data(data_loader, img_data[ii], None)
+                        orig_image, _ = self.exporter.untransform_data(data_loader, img_data[ii],
+                                                                       None)
                         out_file = os.path.join(images_outdir, image_names[ii])
                         self.exporter.write_rgb_image(out_file, orig_image)
                     batch_img_idx += batch_sz
@@ -275,9 +292,11 @@ class Trainer(object):
 
     def map_sem_ids_to_sem_vals(self, sem_lbl_channel_ids):
         """
-        When training, we load sem_vals as channel idxs rather than their original semantic val (which in retrospect
+        When training, we load sem_vals as channel idxs rather than their original semantic val (
+        which in retrospect
         was dumb, but we're rolling with it for now...)
-        This transformation function creates a copy of the 'dumb' semantic label and maps it onto the original
+        This transformation function creates a copy of the 'dumb' semantic label and maps it onto
+        the original
         semantic values (e.g. - from the labels table).
         """
         sem_vals = np.nan * np.ones_like(sem_lbl_channel_ids)
@@ -285,7 +304,9 @@ class Trainer(object):
                 self.instance_problem.semantic_transformed_label_ids,
                 self.instance_problem.semantic_vals):
             sem_vals[sem_lbl_channel_ids == sem_channel_lbl] = sem_val
-        sem_vals[sem_lbl_channel_ids == self.instance_problem.void_value] = self.instance_problem.void_value
+        sem_vals[
+            sem_lbl_channel_ids == self.instance_problem.void_value] = \
+            self.instance_problem.void_value
         try:
             assert np.all(~np.isnan(sem_vals))
         except AssertionError:
@@ -307,7 +328,8 @@ class Trainer(object):
         write_instance_metrics = (split == 'val') and self.write_instance_metrics \
             if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
-        should_compute_basic_metrics = write_basic_metrics or write_instance_metrics or save_checkpoint
+        should_compute_basic_metrics = write_basic_metrics or write_instance_metrics or \
+                                       save_checkpoint
         save_checkpoint_by_itr_name = self.state.iteration in self.model_save_iters
         assert split in ['train', 'val']
         if split == 'train':
@@ -324,13 +346,16 @@ class Trainer(object):
         label_trues, label_preds, assignments = [], [], []
         num_images_to_visualize = min(len(data_loader), 9)
         memory_allocated_before = torch.cuda.memory_allocated(device=None)
-
+        identifiers = []
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
-                enumerate(data_loader), total=len(data_loader), desc='Valid iteration (split=%s)=%d' %
-                                                                     (split, self.state.iteration), ncols=150,
+                enumerate(data_loader), total=len(data_loader),
+                desc='Valid iteration (split=%s)=%d' %
+                     (split, self.state.iteration), ncols=150,
                 leave=False)
-            for batch_idx, (img_data, lbls) in t:
+            for batch_idx, data_dict in t:
+                identifiers.append(data_dict['image_id'])
+                img_data, lbls = data_dict['image'], (data_dict['sem_lbl'], data_dict['inst_lbl'])
                 memory_allocated = sum(torch.cuda.memory_allocated(device=d) for d in
                                        range(torch.cuda.device_count()))
                 description = 'Valid iteration=%d, %g GB (%g GB at start)' % \
@@ -343,10 +368,12 @@ class Trainer(object):
                     # Don't waste computation if we don't need to run on the remaining images
                     continue
 
-                score_sb, val_loss_sb, assignments_sb, segmentation_visualizations_sb, score_visualizations_sb = \
+                score_sb, val_loss_sb, assignments_sb, segmentation_visualizations_sb, \
+                    score_visualizations_sb = \
                     self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                                should_visualize=should_visualize)
-                # print('APD: Memory allocated after validating {} GB'.format(memory_allocated / 1e9))
+                # print('APD: Memory allocated after validating {} GB'.format(memory_allocated /
+                # 1e9))
                 val_loss += val_loss_sb
                 # scores += [score_sb]  # This takes up way too much memory
                 assignments += [assignments_sb]
@@ -369,16 +396,20 @@ class Trainer(object):
 
         if should_compute_basic_metrics:
             if write_basic_metrics:
-        #         self.exporter.write_eval_metrics(val_metrics, val_loss, split, epoch=self.state.epoch,
-        #                                          iteration=self.state.iteration)
+                #         self.exporter.write_eval_metrics(val_metrics, val_loss, split,
+                #         epoch=self.state.epoch,
+                #                                          iteration=self.state.iteration)
                 if self.exporter.tensorboard_writer is not None:
-                    self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{}/losses'.format(split), val_loss,
-                                                                self.state.iteration)
-                    # self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{}/mIOU'.format(split), val_metrics[2],
+                    self.exporter.tensorboard_writer.add_scalar(
+                        'A_eval_metrics/{}/losses'.format(split), val_loss,
+                        self.state.iteration)
+                    # self.exporter.tensorboard_writer.add_scalar('A_eval_metrics/{
+                    # }/mIOU'.format(split), val_metrics[2],
                     #                                             self.state.iteration)
         #
         if write_instance_metrics:
-            self.exporter.compute_and_write_instance_metrics(model=self.model, iteration=self.state.iteration)
+            self.exporter.compute_and_write_instance_metrics(model=self.model,
+                                                             iteration=self.state.iteration)
         if save_checkpoint:
             # self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2],
             #                                         save_by_iteration=save_checkpoint_by_itr_name)
@@ -400,20 +431,25 @@ class Trainer(object):
 
             score = self.model(full_input)
             # print('APD: Computing loss')
-            assignments, avg_loss, loss_components_by_channel = self.compute_loss(score, sem_lbl, inst_lbl,
+            assignments, avg_loss, loss_components_by_channel = self.compute_loss(score, sem_lbl,
+                                                                                  inst_lbl,
                                                                                   val_matching_override=True)
             # print('APD: Finished computing loss')
             val_loss = float(avg_loss.item())
-            segmentation_visualizations, score_visualizations = self.exporter.run_post_val_iteration(
-                imgs, sem_lbl, inst_lbl, score, assignments, should_visualize,
-                data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
+            segmentation_visualizations, score_visualizations = \
+                self.exporter.run_post_val_iteration(
+                    imgs, sem_lbl, inst_lbl, score, assignments, should_visualize,
+                    data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader,
+                                                                                        i,
+                                                                                        l))
 
             # print('APD: Finished iteration')
         return score, val_loss, assignments, segmentation_visualizations, score_visualizations
 
     @property
     def model_save_iters(self):
-        val_iters = [i for i in range(0, self.state.max_iteration) if self.state.iteration % self.interval_validate
+        val_iters = [i for i in range(0, self.state.max_iteration) if
+                     self.state.iteration % self.interval_validate
                      == 0]
         if self.n_model_checkpoints is None:
             n_model_checkpoints = len(val_iters)
@@ -422,7 +458,8 @@ class Trainer(object):
         else:
             n_model_checkpoints = self.n_model_checkpoints
         model_save_locs = [val_iters[i] for i in np.round(np.linspace(0, len(val_iters) - 1,
-                                                                      n_model_checkpoints)).astype(int)]
+                                                                      n_model_checkpoints)).astype(
+            int)]
         if self.n_model_checkpoints is None:
             assert len(val_iters) == len(model_save_locs)
         return model_save_locs
@@ -436,13 +473,14 @@ class Trainer(object):
         if self.generate_new_synthetic_data_each_epoch:
             seed = np.random.randint(100)
             self.dataloaders['train'].dataset.raw_dataset.initialize_locations_per_image(seed)
-            self.dataloaders['train_for_val'].dataset.raw_dataset.initialize_locations_per_image(seed)
+            self.dataloaders['train_for_val'].dataset.raw_dataset.initialize_locations_per_image(
+                seed)
 
         t = tqdm.tqdm(  # tqdm: progress bar
             enumerate(self.dataloaders['train']), total=len(self.dataloaders['train']),
             desc='Train epoch=%d' % self.state.epoch, ncols=80, leave=False)
 
-        for batch_idx, (img_data, target) in t:
+        for batch_idx, data_dict in t:
             memory_allocated = torch.cuda.memory_allocated(device=None)
             description = 'Train epoch=%d, %g GB' % (self.state.epoch, memory_allocated / 1e9)
             t.set_description_str(description)
@@ -458,14 +496,16 @@ class Trainer(object):
                 self.validate_all_splits()
 
             # Run training iteration
-            self.train_iteration(img_data, target)
+            self.train_iteration(data_dict)
 
             if self.state.training_complete():
                 self.validate_all_splits()
                 break
 
-    def train_iteration(self, img_data, target):
+    def train_iteration(self, data_dict):
         assert self.model.training
+        img_data = data_dict['image']
+        target = (data_dict['sem_lbl'], data_dict['inst_lbl'])
         full_input, sem_lbl, inst_lbl = self.prepare_data_for_forward_pass(img_data, target,
                                                                            requires_grad=True)
         self.optim.zero_grad()
@@ -475,7 +515,8 @@ class Trainer(object):
 
         # if 1:
         #     prediction = self.loss_object.transform_scores_to_predictions(score)
-        #     cost_matrices_as_list = self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
+        #     cost_matrices_as_list =
+        #     self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
         #         prediction[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
         #
         #     import ipdb; ipdb.set_trace()
@@ -489,7 +530,8 @@ class Trainer(object):
                 self.compute_loss(new_score, sem_lbl, inst_lbl)
             # num_reassignments = np.sum(new_pred_permutations != pred_permutations)
             # if not num_reassignments == 0:
-            #     self.debug_loss(score, sem_lbl, inst_lbl, new_score, new_loss, loss_components, new_loss_components)
+            #     self.debug_loss(score, sem_lbl, inst_lbl, new_score, new_loss, loss_components,
+            #     new_loss_components)
 
             self.model.train()
 
@@ -500,13 +542,14 @@ class Trainer(object):
         for grp_idx, param_group in enumerate(self.optim.param_groups):
             group_lr = self.optim.param_groups[grp_idx]['lr']
             group_lrs.append(group_lr)
-        self.exporter.run_post_train_iteration(full_input=full_input, sem_lbl=sem_lbl, inst_lbl=inst_lbl, loss=loss,
-                                               loss_components=loss_components, assignments=assignments, score=score,
-                                               epoch=self.state.epoch, iteration=self.state.iteration,
-                                               new_assignments=new_assignments, new_loss=new_loss,
-                                               get_activations_fcn=self.model.module.get_activations
-                                               if isinstance(self.model, torch.nn.DataParallel)
-                                               else self.model.get_activations, lrs_by_group=group_lrs)
+        self.exporter.run_post_train_iteration(
+            full_input=full_input, sem_lbl=sem_lbl, inst_lbl=inst_lbl, loss=loss,
+            loss_components=loss_components, assignments=assignments, score=score,
+            epoch=self.state.epoch, iteration=self.state.iteration,
+            new_assignments=new_assignments, new_loss=new_loss,
+            get_activations_fcn=self.model.module.get_activations
+            if isinstance(self.model, torch.nn.DataParallel) else self.model.get_activations,
+            lrs_by_group=group_lrs)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.dataloaders['train'])))

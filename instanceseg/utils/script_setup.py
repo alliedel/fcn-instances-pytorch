@@ -155,7 +155,7 @@ def setup_common(dataset_type, cfg, gpu, model_checkpoint_path, sampler_cfg, sem
     return checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration
 
 
-def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscript.py',
+def configure(dataset_name, config_idx, sampler_name=None, script_py_file='unknownscript.py',
               cfg_override_args=None, parent_script_directory='scripts', additional_logdir_tag=''):
     script_basename = osp.basename(script_py_file).replace('.py', '')
     parent_directory = os.path.join(PROJECT_ROOT, parent_script_directory, 'logs', dataset_name)
@@ -170,7 +170,8 @@ def configure(dataset_name, config_idx, sampler_name, script_py_file='unknownscr
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
     sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg_set(sampler_name)
-    out_dir = get_log_dir(os.path.join(parent_directory, script_basename), cfg_to_print,
+    out_dir = get_log_dir(os.path.join(parent_directory, script_basename, script_basename),
+    cfg_to_print,
                           additional_tag=additional_logdir_tag)
     instanceseg.utils.configs.save_config(out_dir, cfg)
     print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir),
@@ -188,7 +189,8 @@ def get_test_dir_parent_from_traindir(traindir):
     return os.path.join(train_parentdir, 'test', os.path.basename(traindir))
 
 
-def test_configure(dataset_name, checkpoint_path, config_idx, sampler_name, script_py_file='unknownscript.py',
+def test_configure(dataset_name, checkpoint_path, config_idx, sampler_name,
+                   script_py_file='unknownscript.py',
                    cfg_override_args=None, additional_logdir_tag=''):
     parent_directory = get_test_dir_parent_from_traindir(checkpoint_path)
     script_basename = os.path.basename(script_py_file).replace('.py', '')

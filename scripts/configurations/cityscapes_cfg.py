@@ -117,7 +117,7 @@ train_configurations = {
         n_instances_per_class=3,
         dataset_instance_cap='match_model',
         max_iteration=10000,
-        interval_validate=10
+        interval_validate=20
     ),
     'resnet_car_2_4': dict(
         max_iteration=1000000,

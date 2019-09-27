@@ -2,8 +2,6 @@ import atexit
 import os.path as osp
 import sys
 
-from instanceseg.datasets import dataset_registry
-from instanceseg.utils import configs
 from instanceseg.utils.parse import get_override_cfg
 from instanceseg.utils.script_setup import setup_train, configure
 
@@ -54,8 +52,7 @@ def main():
 
     atexit.unregister(query_remove_logdir)
 
-    import ipdb;
-    ipdb.set_trace()
+    import ipdb; ipdb.set_trace()
 
 
 if __name__ == '__main__':

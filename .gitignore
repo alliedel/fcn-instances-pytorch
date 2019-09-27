@@ -1,3 +1,6 @@
+./upsnet  # upsnet symlink
+./my_tools  # my_tools symlink
+
 *.egg-info/
 *.py[cdo]
 .idea

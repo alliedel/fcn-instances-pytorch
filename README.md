@@ -9,6 +9,9 @@ Install the packages from the requirements file (a superset of the true requirem
 `activate <virtualenv path>`
 `pip install -r requirements.txt`
 
+### Paths
+Check the .envrc (which works with direnv if you have that installed).  Set up symlinks to match what it's looking for (we use this method to avoid pulling the pythonpath from bashrc, so it should run on multiple servers, and you directly point the environment loader to the right path with a symlink in this directory)
+
 Try running a sample experiment:
 `python scripts/train_instances_filtered.py synthetic -g 0 -c 0`
 
@@ -64,3 +67,4 @@ python scripts/analysis/script_in_depth_evaluation.py --logdir <logdir>
 
 ## Credit
 This project was originally built on top of [pytorch-fcn](https://github.com/wkentaro/pytorch-fcn "pytorch-fcn"), but now you may not see much resemblance...
+n

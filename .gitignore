@@ -1,5 +1,5 @@
-./upsnet  # upsnet symlink
-./my_tools  # my_tools symlink
+upsnet
+my_tools
 
 *.egg-info/
 *.py[cdo]

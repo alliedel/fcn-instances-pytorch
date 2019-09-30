@@ -32,7 +32,7 @@ def main():
 
     gpu = [1]
     dataset = 'cityscapes'
-    config_idx = 'overfit_10'
+    config_idx = 'overfit_1'
 
     override_cfg = get_override_cfg(sys.argv[1:], dataset, sampler=None)
     cfg, out_dir, sampler_cfg = configure(dataset_name=dataset, config_idx=config_idx,

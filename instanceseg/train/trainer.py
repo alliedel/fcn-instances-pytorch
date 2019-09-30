@@ -110,10 +110,11 @@ class Trainer(object):
             for split in self.dataloaders.keys()
         }
 
-        self.n_model_checkpoints = n_model_checkpoints
-        export_config = trainer_exporter.ExportConfig(export_activations=export_activations,
+        export_config = trainer_exporter.ExportConfig(interval_validate=interval_validate,
+                                                      export_activations=export_activations,
                                                       activation_layers_to_export=activation_layers_to_export,
-                                                      write_instance_metrics=write_instance_metrics)
+                                                      write_instance_metrics=write_instance_metrics,
+                                                      max_n_saved_models=n_model_checkpoints)
         self.exporter = trainer_exporter.TrainerExporter(
             out_dir=out_dir, instance_problem=instance_problem,
             export_config=export_config, tensorboard_writer=tensorboard_writer,
@@ -214,8 +215,7 @@ class Trainer(object):
         current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
                                                                 self.state.iteration, self.model,
                                                                 self.optim, self.best_mean_iu,
-                                                                mean_iu,
-                                                                save_by_iteration=save_by_iteration)
+                                                                mean_iu)
         if mean_iu > self.best_mean_iu or self.best_mean_iu == 0:
             self.best_mean_iu = mean_iu
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
@@ -330,7 +330,6 @@ class Trainer(object):
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
         should_compute_basic_metrics = write_basic_metrics or write_instance_metrics or \
                                        save_checkpoint
-        save_checkpoint_by_itr_name = self.state.iteration in self.model_save_iters
         assert split in ['train', 'val']
         if split == 'train':
             data_loader = self.dataloaders['train_for_val']
@@ -369,7 +368,7 @@ class Trainer(object):
                     continue
 
                 score_sb, val_loss_sb, assignments_sb, segmentation_visualizations_sb, \
-                    score_visualizations_sb = \
+                score_visualizations_sb = \
                     self.validate_single_batch(img_data, lbls[0], lbls[1], data_loader=data_loader,
                                                should_visualize=should_visualize)
                 # print('APD: Memory allocated after validating {} GB'.format(memory_allocated /
@@ -413,8 +412,7 @@ class Trainer(object):
         if save_checkpoint:
             # self.save_checkpoint_and_update_if_best(mean_iu=val_metrics[2],
             #                                         save_by_iteration=save_checkpoint_by_itr_name)
-            self.save_checkpoint_and_update_if_best(mean_iu=-val_loss,
-                                                    save_by_iteration=save_checkpoint_by_itr_name)
+            self.save_checkpoint_and_update_if_best(mean_iu=-val_loss)
 
         # Restore training settings set prior to function call
         if training:
@@ -445,24 +443,6 @@ class Trainer(object):
 
             # print('APD: Finished iteration')
         return score, val_loss, assignments, segmentation_visualizations, score_visualizations
-
-    @property
-    def model_save_iters(self):
-        val_iters = [i for i in range(0, self.state.max_iteration) if
-                     self.state.iteration % self.interval_validate
-                     == 0]
-        if self.n_model_checkpoints is None:
-            n_model_checkpoints = len(val_iters)
-        elif self.n_model_checkpoints > len(val_iters):
-            n_model_checkpoints = len(val_iters)
-        else:
-            n_model_checkpoints = self.n_model_checkpoints
-        model_save_locs = [val_iters[i] for i in np.round(np.linspace(0, len(val_iters) - 1,
-                                                                      n_model_checkpoints)).astype(
-            int)]
-        if self.n_model_checkpoints is None:
-            assert len(val_iters) == len(model_save_locs)
-        return model_save_locs
 
     def train_epoch(self):
         self.model.train()

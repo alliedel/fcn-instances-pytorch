@@ -119,6 +119,14 @@ train_configurations = {
         max_iteration=10000,
         interval_validate=20
     ),
+    'overfit_break_loss': dict(
+        sampler='2019-08-01-break_loss_overfit1',
+        semantic_subset=['car', 'person'],
+        n_instances_per_class=3,
+        dataset_instance_cap=None,
+        max_iteration=10000,
+        interval_validate=20
+    ),
     'resnet_car_2_4': dict(
         max_iteration=1000000,
         sampler='car_2_4',

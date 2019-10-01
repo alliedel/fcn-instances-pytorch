@@ -26,6 +26,9 @@ def create_sampler_cfg_set(n_images_train=None, n_images_val=None, n_images_trai
 sampler_cfgs = {
     None: create_sampler_cfg_set(),
     'default': create_sampler_cfg_set(),
+    '2019-08-01-break_loss_overfit1': create_sampler_cfg_set(n_images_train=1, val_copy_train=True,
+                                                             sem_cls_filter_names=['car', 'person'],
+                                                             n_instances_ranges=[(4, 6), (2, 4)]),
     'overfit_1_car_person': create_sampler_cfg_set(n_images_train=1, val_copy_train=True,
                                                    sem_cls_filter_names=['car', 'person'],
                                                    n_instances_ranges=[(2, 3 + 1), (2, 3 + 1)]),

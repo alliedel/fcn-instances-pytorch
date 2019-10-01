@@ -27,25 +27,27 @@ def get_single_img_data(dataloader, idx=0):
     return img, (sem_lbl, inst_lbl)
 
 
+def extract_from_argv(argv, key, default_val=None):
+    if key in argv:
+        k_idx = argv.index(key)
+        assert argv[k_idx + 1]
+        val = argv[k_idx + 1]
+        del argv[k_idx + 1]
+        del argv[k_idx]
+    else:
+        val = default_val
+    return val
+
+
 def main():
     # args, cfg_override_args = local_setup(loss)
     gpu = [1]
     dataset = 'cityscapes'
-    config_idx = 'overfit_1'
     argv = sys.argv[1:]
-    if '--gpu' in argv:
-        g_idx = argv.index('--gpu')
-    elif '-g' in argv:
-        g_idx = argv.index('-g')
-    else:
-        g_idx = None
-    if g_idx is None:
-        gpu = [1]
-    else:
-        assert argv[g_idx + 1]
-        gpu = argv[g_idx + 1]
-        del argv[g_idx + 1]
-        del argv[g_idx]
+    gpu = extract_from_argv(argv, key='--gpu', default_val=None)
+    if gpu is None:
+        gpu = extract_from_argv(argv, key='-g', default_val=[1])
+    config_idx = extract_from_argv(argv, key='-c', default_val='overfit_1')
     override_cfg = get_override_cfg(argv, dataset, sampler=None)
     cfg, out_dir, sampler_cfg = configure(dataset_name=dataset, config_idx=config_idx,
                                           sampler_name=None,

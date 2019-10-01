@@ -124,9 +124,9 @@ class Trainer(object):
     def eval_loss_fcn_with_matching(self):
         return None if self.loss_type is None else self.eval_loss_object_with_matching.loss_fcn
 
-    @property
-    def loss_fcn(self):
-        return self.loss_object.loss_fcn
+    def loss_fcn(self, *args, **kwargs):
+        loss_res_dict = self.loss_object.loss_fcn(*args, **kwargs)
+        return loss_res_dict
 
     def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
         """
@@ -194,16 +194,14 @@ class Trainer(object):
             inst_lbl[inst_lbl > 1] = 1
         # print('APD: Running loss fcn')
         if val_matching_override:
-            assignments, total_loss, loss_components_by_channel = self.eval_loss_fcn_with_matching(
-                score, sem_lbl,
-                inst_lbl)
+            loss_res_dict = self.eval_loss_fcn_with_matching(score, sem_lbl, inst_lbl)
         else:
-            assignments, total_loss, loss_components_by_channel = self.loss_fcn(score, sem_lbl,
-                                                                                inst_lbl)
+            loss_res_dict = self.loss_fcn(score, sem_lbl, inst_lbl)
 
-        # print('APD: Finished running loss fcn')
-        avg_loss = total_loss / score.size(0)
-        return assignments, avg_loss, loss_components_by_channel
+        assert all(k in loss_res_dict for k in ['assignments', 'total_loss', 'loss_components_by_channel'])
+        loss_res_dict['avg_loss'] = loss_res_dict['total_loss'] / score.size(0)
+
+        return loss_res_dict
 
     def augment_image(self, img, sem_lbl):
         semantic_one_hot = datasets.labels_to_one_hot(sem_lbl,
@@ -429,9 +427,10 @@ class Trainer(object):
 
             score = self.model(full_input)
             # print('APD: Computing loss')
-            assignments, avg_loss, loss_components_by_channel = self.compute_loss(score, sem_lbl,
-                                                                                  inst_lbl,
-                                                                                  val_matching_override=True)
+            loss_res_dict = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
+            assignments, avg_loss, loss_components_by_channel = \
+                loss_res_dict['assignments'], loss_res_dict['avg_loss'], \
+                    loss_res_dict['loss_components_by_channel']
             # print('APD: Finished computing loss')
             val_loss = float(avg_loss.item())
             segmentation_visualizations, score_visualizations = \
@@ -490,8 +489,10 @@ class Trainer(object):
                                                                            requires_grad=True)
         self.optim.zero_grad()
         score = self.model(full_input)
-        assignments, loss, loss_components = self.compute_loss(score, sem_lbl, inst_lbl)
-        debug_check_values_are_valid(loss, score, self.state.iteration)
+        loss_res_dict = self.compute_loss(score, sem_lbl, inst_lbl)
+        assignments, avg_loss, loss_components_by_channel = \
+            loss_res_dict['assignments'], loss_res_dict['avg_loss'], loss_res_dict['loss_components_by_channel']
+        debug_check_values_are_valid(avg_loss, score, self.state.iteration)
 
         # if 1:
         #     prediction = self.loss_object.transform_scores_to_predictions(score)
@@ -500,14 +501,15 @@ class Trainer(object):
         #         prediction[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
         #
         #     import ipdb; ipdb.set_trace()
-        loss.backward()
+        avg_loss.backward()
         self.optim.step()
 
         if self.exporter.run_loss_updates:
             self.model.eval()
             new_score = self.model(full_input)
+            loss_res_dict = self.compute_loss(new_score, sem_lbl, inst_lbl)
             new_assignments, new_loss, new_loss_components = \
-                self.compute_loss(new_score, sem_lbl, inst_lbl)
+                loss_res_dict['assignments'], loss_res_dict['avg_loss'], loss_res_dict['loss_components_by_channel']
             # num_reassignments = np.sum(new_pred_permutations != pred_permutations)
             # if not num_reassignments == 0:
             #     self.debug_loss(score, sem_lbl, inst_lbl, new_score, new_loss, loss_components,
@@ -523,8 +525,8 @@ class Trainer(object):
             group_lr = self.optim.param_groups[grp_idx]['lr']
             group_lrs.append(group_lr)
         self.exporter.run_post_train_iteration(
-            full_input=full_input, sem_lbl=sem_lbl, inst_lbl=inst_lbl, loss=loss,
-            loss_components=loss_components, assignments=assignments, score=score,
+            full_input=full_input, sem_lbl=sem_lbl, inst_lbl=inst_lbl, loss=avg_loss,
+            loss_components=loss_components_by_channel, assignments=assignments, score=score,
             epoch=self.state.epoch, iteration=self.state.iteration,
             new_assignments=new_assignments, new_loss=new_loss,
             get_activations_fcn=self.model.module.get_activations

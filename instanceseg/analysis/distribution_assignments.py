@@ -33,7 +33,9 @@ def get_per_channel_per_image_sizes_and_losses(model, dataloader: DataLoader, cu
         scores = model(x)
         # softmax_scores = F.softmax(score, dim=1).data.cpu()
         # inst_lbl_pred = score.data.max(dim=1)[1].cpu()[:, :, :]
-        assignments, loss, component_loss = my_trainer.compute_loss(scores, sem_lbl, inst_lbl)
+        loss_res_dict = my_trainer.compute_loss(scores, sem_lbl, inst_lbl)
+        assignments, loss, component_loss = loss_res_dict['assignments'], loss_res_dict['avg_loss'], \
+                                               loss_res_dict['loss_componets_by_channel']
         sem_lbl_np = sem_lbl.data.cpu().numpy()
         inst_lbl_np = inst_lbl.data.cpu().numpy()
         label_pred = scores.data.max(dim=1)[1].cpu().numpy()[:, :, :]

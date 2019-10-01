@@ -73,7 +73,7 @@ def run(trainer: trainer.Trainer):
         eval_metrics = np.array(eval_metrics)
         eval_metrics *= 100
     viz = visualization_utils.get_tile_image(segmentation_visualizations)
-    skimage.io.imsave(os.path.join(here, 'viz_evaluate.png'), viz)
+    write_np_array_as_img(os.path.join(here, 'viz_evaluate.png'), viz)
     return eval_metrics
 
 

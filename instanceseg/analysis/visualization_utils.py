@@ -7,29 +7,20 @@ import math
 import os
 import warnings
 from os import path as osp
-from skimage import transform  # resize
-
-import scipy.misc
 
 import instanceseg.utils.export as export_utils
 from instanceseg.utils import instance_utils
-from instanceseg.utils.datasets import write_np_array_as_img_with_colormap_palette
+from instanceseg.utils import imgutils
 
 try:
     import cv2
 except ImportError:
     cv2 = None
 
-# try:
-#     from skimage.transform import resize
-# except ImportError:
-#     resize = None
-
 import numpy as np
 import scipy.ndimage
 import six
 import skimage.color
-import PIL.Image
 
 DEBUG_ASSERTS = True
 
@@ -188,8 +179,13 @@ def centerize(src, dst_shape, margin_color=None):
         pad_vertical = (dst_h - h) // 2
     if w < dst_w:
         pad_horizontal = (dst_w - w) // 2
-    centerized[pad_vertical:pad_vertical + h,
-    pad_horizontal:pad_horizontal + w] = src
+    try:
+        if len(src.shape) == 3:
+            centerized[pad_vertical:(pad_vertical + h), pad_horizontal:(pad_horizontal + w), :] = src
+        else:
+            centerized[pad_vertical:(pad_vertical + h), pad_horizontal:(pad_horizontal + w)] = src
+    except:
+        import ipdb; ipdb.set_trace()
     return centerized
 
 
@@ -294,7 +290,7 @@ def get_tile_image(imgs, tile_shape=None, result_img=None, margin_color=None, ma
     max_height, max_width = get_max_height_and_width(imgs)
     # resize and concatenate images
     for i, img in enumerate(imgs):
-        img = resize_img_to_sz(img, max_height, max_width)
+        img = imgutils.resize_np_img(img, (max_height, max_width))
         if len(img.shape) == 3:
             img = centerize(img, (max_height + margin_size * 2, max_width + margin_size * 2, 3),
                             margin_color)
@@ -311,41 +307,6 @@ def get_max_height_and_width(imgs):
         max_height = max([max_height, img.shape[0]])
         max_width = max([max_width, img.shape[1]])
     return max_height, max_width
-
-
-def resize_np_img(img, sz):
-    dtype = img.dtype
-    # try:
-    img = transform.resize(img.astype(float), sz)
-    # except:
-    #     im = PIL.Image.fromarray(img.astype(int))
-    # img = np.array(im.resize((sz[1], sz[0])))
-    return img.astype(dtype)
-
-
-def resize_img_to_sz(img, height, width):
-    h, w = img.shape[:2]
-    if height == h and width == w:
-        return img
-    dtype = img.dtype
-    h_scale, w_scale = height / h, width / w
-    scale = min([h_scale, w_scale])
-    h, w = int(scale * h), int(scale * w)
-    img = resize_np_img(img, (h, w)).astype(dtype)
-    return img
-
-
-def get_new_size(img, multiplier):
-    h, w = img.shape[:2]
-    h, w = int(multiplier * h), int(multiplier * w)
-    return h, w
-
-
-def resize_img_by_multiplier(img, multiplier):
-    dtype = img.dtype
-    h, w = get_new_size(img, multiplier)
-    img = resize_np_img(img, (h, w)).astype(dtype)
-    return img
 
 
 def label2rgb(lbl, img=None, label_names=None, n_labels=None,
@@ -631,20 +592,16 @@ def get_text_color(bg_color):
 
 def write_image(out_file, out_img):
     try:
-        scipy.misc.imsave(out_file, out_img)
+        imgutils.write_np_array_as_img(out_img, out_file)
     except ValueError:
         print('size, shape of out_img: {}'.format(type(out_img), out_img.shape))
         raise
 
 
-def read_image(in_file):
-    return scipy.misc.imread(in_file)
-
-
 def write_label(out_file, out_lbl):
     out_img = label2rgb(out_lbl)
     try:
-        scipy.misc.imsave(out_file, out_img)
+        imgutils.write_np_array_as_img(out_img, out_file)
     except ValueError:
         print('size, shape of out_img: {}'.format(type(out_img), out_img.shape))
         raise
@@ -678,4 +635,4 @@ def export_visualizations(visualizations, out_dir, tensorboard_writer, iteration
             if not osp.exists(out_subsubdir):
                 os.makedirs(out_subsubdir)
             out_file = osp.join(out_subsubdir, 'iter-%012d' % iteration + ext)
-            scipy.misc.imsave(out_file, out_img)
+            write_image(out_file, out_img)

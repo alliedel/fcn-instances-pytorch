@@ -1,3 +1,4 @@
+import instanceseg.utils.imgutils
 from instanceseg.datasets import coco_format
 from instanceseg.utils.torch_utils import fast_remap
 from . import labels_table_cityscapes
@@ -149,8 +150,8 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
         return inst_lbl
 
     def generate_train_id_instance_file(self, raw_format_inst_lbl_file, new_format_inst_lbl_file, sem_lbl_file):
-        sem_lbl = datasets.load_img_as_dtype(sem_lbl_file, np.int32)
-        inst_lbl = datasets.load_img_as_dtype(raw_format_inst_lbl_file, np.int32)
+        sem_lbl = instanceseg.utils.imgutils.load_img_as_dtype(sem_lbl_file, np.int32)
+        inst_lbl = instanceseg.utils.imgutils.load_img_as_dtype(raw_format_inst_lbl_file, np.int32)
         inst_lbl = self.raw_inst_to_train_inst_labels(inst_lbl, sem_lbl)
         orig_lbl = PIL.Image.open(raw_format_inst_lbl_file)
         if orig_lbl.mode == 'P':
@@ -166,7 +167,7 @@ class CityscapesMapRawtoTrainIdPrecomputedFileDatasetTransformer(PrecomputedData
 
     def generate_train_id_semantic_file(self, raw_id_sem_lbl_file, new_train_id_sem_lbl_file):
         print('Generating per-semantic instance file: {}'.format(new_train_id_sem_lbl_file))
-        sem_lbl = datasets.load_img_as_dtype(raw_id_sem_lbl_file, np.int32)
+        sem_lbl = instanceseg.utils.imgutils.load_img_as_dtype(raw_id_sem_lbl_file, np.int32)
         sem_lbl = self.map_raw_sem_ids_to_train_ids(sem_lbl)
         datasets.write_np_array_as_img_with_borrowed_colormap_palette(
             sem_lbl, new_train_id_sem_lbl_file, filename_for_colormap=raw_id_sem_lbl_file)

@@ -1,4 +1,6 @@
 import os.path as osp
+
+import instanceseg.utils.imgutils
 from instanceseg.utils import datasets
 import numpy as np
 
@@ -39,9 +41,9 @@ def test_lr_ordering_cityscapes():
     datasets.generate_lr_ordered_instance_file(inst_lbl_file_unordered=inst_lbl_file_unordered,
                                                sem_lbl_file=sem_lbl_file,
                                                out_inst_lbl_file_ordered=out_inst_lbl_file_ordered)
-    sem_lbl = datasets.load_img_as_dtype(sem_lbl_file, np.int32)
-    inst_lbl_ordered = datasets.load_img_as_dtype(out_inst_lbl_file_ordered, np.int32)
-    inst_lbl_unordered = datasets.load_img_as_dtype(inst_lbl_file_unordered, np.int32)
+    sem_lbl = instanceseg.utils.imgutils.load_img_as_dtype(sem_lbl_file, np.int32)
+    inst_lbl_ordered = instanceseg.utils.imgutils.load_img_as_dtype(out_inst_lbl_file_ordered, np.int32)
+    inst_lbl_unordered = instanceseg.utils.imgutils.load_img_as_dtype(inst_lbl_file_unordered, np.int32)
 
     if is_lr_ordered(sem_lbl, inst_lbl_unordered):
         raise ValueError('Chose a bad image (already ordered).')

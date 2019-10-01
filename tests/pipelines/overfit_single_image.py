@@ -29,12 +29,24 @@ def get_single_img_data(dataloader, idx=0):
 
 def main():
     # args, cfg_override_args = local_setup(loss)
-
     gpu = [1]
     dataset = 'cityscapes'
     config_idx = 'overfit_1'
-
-    override_cfg = get_override_cfg(sys.argv[1:], dataset, sampler=None)
+    argv = sys.argv[1:]
+    if '--gpu' in argv:
+        g_idx = argv.index('--gpu')
+    elif '-g' in argv:
+        g_idx = argv.index('-g')
+    else:
+        g_idx = None
+    if g_idx is None:
+        gpu = [1]
+    else:
+        assert argv[g_idx + 1]
+        gpu = argv[g_idx + 1]
+        del argv[g_idx + 1]
+        del argv[g_idx]
+    override_cfg = get_override_cfg(argv, dataset, sampler=None)
     cfg, out_dir, sampler_cfg = configure(dataset_name=dataset, config_idx=config_idx,
                                           sampler_name=None,
                                           script_py_file=__file__,

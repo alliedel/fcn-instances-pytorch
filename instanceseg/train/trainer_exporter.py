@@ -13,6 +13,7 @@ from tensorboardX import SummaryWriter
 
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
+import instanceseg.utils.imgutils
 from instanceseg.analysis import visualization_utils
 from instanceseg.datasets import runtime_transformations
 from instanceseg.ext.panopticapi.utils import rgb2id, id2rgb
@@ -422,7 +423,7 @@ class TrainerExporter(object):
             use_funky_void_pixels=True, void_val=-1)
 
         if self.export_config.downsample_multiplier_score_images != 1:
-            score_viz = visualization_utils.resize_img_by_multiplier(
+            score_viz = instanceseg.utils.imgutils.resize_img_by_multiplier(
                 score_viz, self.export_config.downsample_multiplier_score_images)
         return score_viz
 
@@ -544,7 +545,7 @@ class TrainerExporter(object):
 
     @staticmethod
     def load_rgb_predictions_or_gt_to_id(in_file):
-        rgb_img = visualization_utils.read_image(in_file)
+        rgb_img = imgutils.load_img_as_dtype(in_file, dtype=None)
         lbl = rgb2id(rgb_img)
         # convert void class
         lbl[255 + 256 * 255 + 256 * 256 * 255] = -1

@@ -31,3 +31,5 @@ old_cache
 *.ipynb_checkpoints*
 
 sandbox/model_checkpoints
+upsnet
+my_tools

@@ -266,7 +266,6 @@ def get_list_of_model_paths(train_logdir, which_models):
 
 if __name__ == '__main__':
     args = parse_args()
-    print(args.scores_to_onehot)
     compiled_loss_arr_outfile = main(args.test_logdir, args.overwrite, args.eval_iou_threshold,
                                      which_models=args.which_models, visualize_pq_hists=args.visualize_pq_hists,
                                      export_sorted_perf_images=args.export_sorted_perf_images,

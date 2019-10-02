@@ -104,6 +104,22 @@ class LossMatchAssignments(AttrDict):
         self.unassigned_gt_sem_inst_tuples[image_index] = unassigned_gt_sem_inst_tuples
 
 
+class MatchingLossResult(AttrDict):
+    def __init__(self, total_channel_loss=None, assignments: LossMatchAssignments = None,
+                 loss_components_by_channel=None, sem_agg_loss=None,
+                 loss_components_by_sem_cls=None, avg_loss=None, total_loss=None, semantic_vals=None):
+        self.avg_loss = avg_loss
+        self.total_channel_loss = total_channel_loss
+        self.assignments = assignments
+        self.total_loss = total_loss
+        self.sem_agg_loss = sem_agg_loss
+        if loss_components_by_sem_cls is not None:
+            assert loss_components_by_sem_cls.shape[1] == len(semantic_vals)
+        self.loss_components_by_sem_cls = loss_components_by_sem_cls
+        self.semantic_vals = semantic_vals
+        self.loss_components_by_channel = loss_components_by_channel
+
+
 class ComponentMatchingLossBase(ComponentLossAbstractInterface):
     """
     Base class for matching loss functions -- allows us to take any 'normal' component loss and make a specialized
@@ -123,6 +139,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         self.size_average = size_average
         if self.loss_type is None:
             raise NotImplementedError('Loss type should be defined in subclass of {}'.format(__class__))
+        self.semantic_agg_multiplier = 0.1
 
     def transform_scores_to_predictions(self, scores):
         """
@@ -239,13 +256,11 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                 self.compute_nonmatching_loss(predictions, sem_lbl, inst_lbl)
         total_agg_sem_loss, loss_components_per_sem_cls, sem_vals = \
             self.compute_agg_semantic_component(predictions, sem_lbl, inst_lbl)
-        total_loss = total_channel_loss + total_agg_sem_loss
-        return {
-            'assignments': assignments,
-            'total_loss': total_loss,
-            'loss_components_by_channel': loss_components_by_channel,
-            'loss_components_per_sem_cls': total_agg_sem_loss
-        }
+        total_loss = total_channel_loss + self.semantic_agg_multiplier * total_agg_sem_loss
+        return MatchingLossResult(sem_agg_loss=total_agg_sem_loss, total_channel_loss=total_channel_loss,
+                                  total_loss=total_loss, assignments=assignments, semantic_vals=sem_vals,
+                                  loss_components_by_channel=loss_components_by_channel,
+                                  loss_components_by_sem_cls=loss_components_per_sem_cls)
 
     def _compute_optimal_match_loss_single_img(self, predictions, sem_lbl, inst_lbl):
         """

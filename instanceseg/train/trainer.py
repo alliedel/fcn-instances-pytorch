@@ -125,8 +125,8 @@ class Trainer(object):
         return None if self.loss_type is None else self.eval_loss_object_with_matching.loss_fcn
 
     def loss_fcn(self, *args, **kwargs):
-        loss_res_dict = self.loss_object.loss_fcn(*args, **kwargs)
-        return loss_res_dict
+        loss_result = self.loss_object.loss_fcn(*args, **kwargs)
+        return loss_result
 
     def prepare_data_for_forward_pass(self, img_data, target, requires_grad=True):
         """
@@ -181,7 +181,8 @@ class Trainer(object):
             matching, self.size_average)
         return my_loss_object
 
-    def compute_loss(self, score, sem_lbl, inst_lbl, val_matching_override=False):
+    def compute_loss(self, score, sem_lbl, inst_lbl,
+                     val_matching_override=False) -> instanceseg.losses.loss.MatchingLossResult:
         """
         Returns assignments, total_loss, loss_components_by_channel
         """
@@ -194,14 +195,12 @@ class Trainer(object):
             inst_lbl[inst_lbl > 1] = 1
         # print('APD: Running loss fcn')
         if val_matching_override:
-            loss_res_dict = self.eval_loss_fcn_with_matching(score, sem_lbl, inst_lbl)
+            loss_result = self.eval_loss_fcn_with_matching(score, sem_lbl, inst_lbl)
         else:
-            loss_res_dict = self.loss_fcn(score, sem_lbl, inst_lbl)
+            loss_result = self.loss_fcn(score, sem_lbl, inst_lbl)
+        loss_result.avg_loss = loss_result.total_loss / score.size(0)
 
-        assert all(k in loss_res_dict for k in ['assignments', 'total_loss', 'loss_components_by_channel'])
-        loss_res_dict['avg_loss'] = loss_res_dict['total_loss'] / score.size(0)
-
-        return loss_res_dict
+        return loss_result
 
     def augment_image(self, img, sem_lbl):
         semantic_one_hot = datasets.labels_to_one_hot(sem_lbl,
@@ -427,18 +426,15 @@ class Trainer(object):
 
             score = self.model(full_input)
             # print('APD: Computing loss')
-            loss_res_dict = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
+            loss_result = self.compute_loss(score, sem_lbl, inst_lbl, val_matching_override=True)
             assignments, avg_loss, loss_components_by_channel = \
-                loss_res_dict['assignments'], loss_res_dict['avg_loss'], \
-                    loss_res_dict['loss_components_by_channel']
+                loss_result.assignments, loss_result.avg_loss, loss_result.loss_components_by_channel
             # print('APD: Finished computing loss')
             val_loss = float(avg_loss.item())
             segmentation_visualizations, score_visualizations = \
                 self.exporter.run_post_val_iteration(
                     imgs, sem_lbl, inst_lbl, score, assignments, should_visualize,
-                    data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader,
-                                                                                        i,
-                                                                                        l))
+                    data_to_img_transformer=lambda i, l: self.exporter.untransform_data(data_loader, i, l))
 
             # print('APD: Finished iteration')
         return score, val_loss, assignments, segmentation_visualizations, score_visualizations
@@ -489,49 +485,31 @@ class Trainer(object):
                                                                            requires_grad=True)
         self.optim.zero_grad()
         score = self.model(full_input)
-        loss_res_dict = self.compute_loss(score, sem_lbl, inst_lbl)
-        assignments, avg_loss, loss_components_by_channel = \
-            loss_res_dict['assignments'], loss_res_dict['avg_loss'], loss_res_dict['loss_components_by_channel']
+        loss_result = self.compute_loss(score, sem_lbl, inst_lbl)
+        avg_loss, loss_components_by_channel = loss_result.avg_loss, loss_result.loss_components_by_channel
         debug_check_values_are_valid(avg_loss, score, self.state.iteration)
 
-        # if 1:
-        #     prediction = self.loss_object.transform_scores_to_predictions(score)
-        #     cost_matrices_as_list =
-        #     self.loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
-        #         prediction[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
-        #
-        #     import ipdb; ipdb.set_trace()
         avg_loss.backward()
         self.optim.step()
 
         if self.exporter.run_loss_updates:
             self.model.eval()
             new_score = self.model(full_input)
-            loss_res_dict = self.compute_loss(new_score, sem_lbl, inst_lbl)
-            new_assignments, new_loss, new_loss_components = \
-                loss_res_dict['assignments'], loss_res_dict['avg_loss'], loss_res_dict['loss_components_by_channel']
-            # num_reassignments = np.sum(new_pred_permutations != pred_permutations)
-            # if not num_reassignments == 0:
-            #     self.debug_loss(score, sem_lbl, inst_lbl, new_score, new_loss, loss_components,
-            #     new_loss_components)
-
+            new_loss_result = self.compute_loss(new_score, sem_lbl, inst_lbl)
             self.model.train()
-
         else:
-            new_assignments, new_loss = None, None
+            new_loss_result = None
 
         group_lrs = []
         for grp_idx, param_group in enumerate(self.optim.param_groups):
             group_lr = self.optim.param_groups[grp_idx]['lr']
             group_lrs.append(group_lr)
         self.exporter.run_post_train_iteration(
-            full_input=full_input, sem_lbl=sem_lbl, inst_lbl=inst_lbl, loss=avg_loss,
-            loss_components=loss_components_by_channel, assignments=assignments, score=score,
+            full_input=full_input, loss_result=loss_result,
             epoch=self.state.epoch, iteration=self.state.iteration,
-            new_assignments=new_assignments, new_loss=new_loss,
-            get_activations_fcn=self.model.module.get_activations
+            new_loss_result=new_loss_result, get_activations_fcn=self.model.module.get_activations
             if isinstance(self.model, torch.nn.DataParallel) else self.model.get_activations,
-            lrs_by_group=group_lrs)
+            lrs_by_group=group_lrs, semantic_names_by_val=self.instance_problem.semantic_class_names_by_model_id)
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.dataloaders['train'])))
@@ -553,7 +531,7 @@ class Trainer(object):
                                                                  self.state.iteration)
         if self.exporter.tensorboard_writer is not None:
             self.exporter.tensorboard_writer.add_scalar(
-                'B_intermediate_metrics/val_minus_train_loss', val_loss - train_loss,
+                'C_intermediate_metrics/val_minus_train_loss', val_loss - train_loss,
                 self.state.iteration)
         return train_metrics, train_loss, val_metrics, val_loss
 

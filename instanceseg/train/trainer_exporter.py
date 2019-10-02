@@ -11,6 +11,8 @@ import torch.nn.functional as F
 import tqdm
 from tensorboardX import SummaryWriter
 
+
+from instanceseg.losses.loss import MatchingLossResult
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
 import instanceseg.utils.imgutils
@@ -434,18 +436,17 @@ class TrainerExporter(object):
         visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer,
                                                   iteration, basename=basename, tile=tile)
 
-    def run_post_train_iteration(self, full_input, sem_lbl, inst_lbl, loss, loss_components,
-                                 assignments: LossMatchAssignments, score,
-                                 epoch, iteration, new_assignments=None, new_loss=None, get_activations_fcn=None,
-                                 lrs_by_group=None):
+    def run_post_train_iteration(self, full_input, loss_result: MatchingLossResult,
+                                 epoch, iteration, new_loss_result: MatchingLossResult = None,
+                                 get_activations_fcn=None, lrs_by_group=None, semantic_names_by_val=None):
         """
         get_activations_fcn=self.model.get_activations
         """
         eval_metrics = []
         if self.tensorboard_writer is not None:
             # TODO(allie): Check dimensionality of loss to prevent potential bugs
-            self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.detach().sum(),
-                                               iteration)
+            self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss',
+                                               loss_result.avg_loss.detach().sum(), iteration)
 
         if self.export_config.write_lr:
             for group_idx, lr in enumerate(lrs_by_group):
@@ -453,13 +454,20 @@ class TrainerExporter(object):
 
         if self.export_config.export_component_losses:
             for c_idx, c_lbl in enumerate(self.instance_problem.get_model_channel_labels('{}_{}')):
-                self.tensorboard_writer.add_scalar('B_component_losses/train/{}'.format(c_lbl),
-                                                   loss_components.detach()[:, c_idx].sum(),
+                self.tensorboard_writer.add_scalar('B_channel_component_losses/train/{}'.format(c_lbl),
+                                                   loss_result.loss_components_by_channel.detach()[:, c_idx].sum(),
+                                                   iteration)
+            for s_idx, s_val in enumerate(loss_result.semantic_vals):
+                s_lbl = '({})_{}'.format(s_val, semantic_names_by_val[s_val]) if semantic_names_by_val is not None \
+                    else '{}'.format(s_val)
+                self.tensorboard_writer.add_scalar('B_semantic_component_losses/train/{}'.format(s_lbl),
+                                                   loss_result.loss_components_by_sem_cls.detach()[:, s_idx].sum(),
                                                    iteration)
 
         if self.export_config.run_loss_updates:
-            self.write_loss_updates(old_loss=loss.item(), new_loss=new_loss.sum(), old_assignments=assignments,
-                                    new_assignments=new_assignments, iteration=iteration)
+            self.write_loss_updates(old_loss=loss_result.avg_loss.item(), new_loss=new_loss_result.avg_loss.item(),
+                                    old_assignments=loss_result.assignments,
+                                    new_assignments=new_loss_result.assignments, iteration=iteration)
 
             if self.export_config.export_activations and \
                     self.export_config.write_activation_condition(iteration, epoch):

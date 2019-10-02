@@ -38,7 +38,10 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
         cropped_r1, cropped_r2 = get_center_min_max(x.size(2), heatmap_img_shape_rc[0], floor=True)
         cropped_c1, cropped_c2 = get_center_min_max(x.size(3), heatmap_img_shape_rc[1], floor=True)
         softmax_scores = F.softmax(score, dim=1).data.cpu()
-        assignments, avg_loss, component_loss = my_trainer.compute_loss(score, sem_lbl, inst_lbl)
+
+        loss_res_dict = my_trainer.compute_loss(score, sem_lbl, inst_lbl)
+        assignments, loss, component_loss = \
+            loss_res_dict['assignments'], loss_res_dict['avg_loss'], loss_res_dict['loss_componets_by_channel']
 
         assert x.size(0) == 1, NotImplementedError('Assuming batch size 1 at the moment')
         data_idx = 0
@@ -66,7 +69,8 @@ def get_relative_per_image_per_channel_heatmaps(model, dataloader, cfg, cuda, my
                         softmax_scores[data_idx, c, ...]
                     list_of_heatmap_counts[c][channel_idx_to_be_relative_to, r1:r2, c1:c2] += 1
             except Exception as exc:
-                import ipdb; ipdb.set_trace()
+                import ipdb;
+                ipdb.set_trace()
                 raise
 
     list_of_heatmap_averages = [heatmap_scores / heatmap_counts for heatmap_scores, heatmap_counts in zip(

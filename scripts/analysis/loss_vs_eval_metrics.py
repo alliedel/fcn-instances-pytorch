@@ -214,8 +214,10 @@ def compute_losses(test_logdir, overwrite, scores_to_onehot=False):
             gt_sem_3d, gt_inst_3d = problem_config.decompose_semantic_and_instance_labels(gt_im)
             score = score_3d.view(1, *score_3d.shape)
             gt_sem, gt_inst = torch.Tensor(gt_sem_3d[np.newaxis, ...]).cuda(device=score.device), \
-                              torch.Tensor(gt_inst_3d[np.newaxis, ...]).cuda(device=score.device)
-            assignments, total_loss, loss_components_by_channel = my_loss_object.loss_fcn(score, gt_sem, gt_inst)
+                                torch.Tensor(gt_inst_3d[np.newaxis, ...]).cuda(device=score.device)
+            loss_res_dict = my_loss_object.loss_fcn(score, gt_sem, gt_inst)
+            assignments, total_loss, loss_components_by_channel = \
+                (loss_res_dict[k] for k in ('assignments', 'total_loss', 'loss_components_by_channel'))
             per_channel_loss = loss_components_by_channel.cpu().numpy()
             per_cls_loss = problem_config.aggregate_across_same_sem_cls(per_channel_loss)
             losses_compiled_per_img_per_channel[idx, :] = per_channel_loss

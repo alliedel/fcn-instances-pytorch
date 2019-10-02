@@ -59,8 +59,12 @@ def main():
     score_1_copy = score_1.clone()
     # cost_matrix_gt = loss_object.build_all_sem_cls_cost_matrices_as_tensor_data(
     #     loss_object.transform_scores_to_predictions(score_gt)[0, ...], sem_lbl[0, ...], inst_lbl[0, ...])
-    assignments_gt, avg_loss_gt, loss_components_gt = trainer.compute_loss(score_gt, sem_lbl, inst_lbl)
-    assignments_1, avg_loss_1, loss_components_1 = trainer.compute_loss(score_1, sem_lbl, inst_lbl)
+    loss_res_dict = trainer.compute_loss(score_gt, sem_lbl, inst_lbl)
+    assignments_gt, avg_loss_gt, loss_components_gt = \
+        loss_res_dict['assignments'], loss_res_dict['avg_loss'], loss_res_dict['loss_componets_by_channel']
+    loss_res_dict = trainer.compute_loss(score_1, sem_lbl, inst_lbl)
+    assignments_1, avg_loss_1, loss_components_1 = \
+        loss_res_dict['assignments'], loss_res_dict['avg_loss'], loss_res_dict['loss_componets_by_channel']
 
     assigned_gt_inst_vals = assignments_1.assigned_gt_inst_vals
     sem_vals = assignments_1.sem_values
@@ -72,9 +76,13 @@ def main():
     permuted_score_100 = permuted_score_1.clone() * magnitude_gt
 
     loss_object.matching = False
-    assignments_perm1, avg_loss_perm1, loss_components_perm1 = loss_object.loss_fcn(permuted_score_1, sem_lbl, inst_lbl)
-    assignments_perm100, avg_loss_perm100, loss_components_perm100 = loss_object.loss_fcn(
-        permuted_score_100, sem_lbl, inst_lbl)
+    # loss_res = loss_object.loss_fcn(permuted_score_1, sem_lbl, inst_lbl)
+    # assignments_perm1, avg_loss_perm1, loss_components_perm1 = \
+    #     loss_res['assignments'], loss_res['total_loss'], loss_res['loss_components_by_channel']
+    # loss_res = loss_object.loss_fcn(permuted_score_100, sem_lbl, inst_lbl)
+    # assignments_perm100, avg_loss_perm100, loss_components_perm100 = \
+    #     loss_res['assignments'], loss_res['total_loss'], loss_res['loss_components_by_channel']
+
     import ipdb; ipdb.set_trace()
 
 

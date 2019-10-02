@@ -137,7 +137,35 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
     def component_loss(self, single_channel_prediction, binary_target):
         raise NotImplementedError
 
-    def compute_matching_loss(self, predictions, sem_lbl, inst_lbl):
+    def compute_agg_semantic_component(self, predictions, sem_lbl, inst_lbl):
+        """
+        Note: predictions should be 'preprocessed' -- take softmax / log as needed for whatever form
+            single_class_component_loss_fcn expects.
+        Note: returned loss components indexed by ground truth order
+        """
+        sem_vals = self.unique_semantic_values
+        batch_sz = predictions.size(0)
+        loss_components_per_sem_cls = torch.empty((batch_sz, len(sem_vals)))
+        for batch_idx in range(batch_sz):
+            if self.size_average:
+                # TODO(allie): Verify this is correct (and not sem_lbl >=0, or some combo)
+                normalizer = (inst_lbl[batch_idx, ...] >= 0).data.sum()
+            else:
+                normalizer = 1.0
+            for sem_idx, sem_val in enumerate(sem_vals):
+                assert int(sem_val) == sem_val
+                sem_val = int(sem_val)
+                model_channels_for_this_cls = [i for i, sem_inst_val in enumerate(self.model_channel_semantic_ids)
+                                               if sem_inst_val == sem_val]
+
+                loss_components_per_sem_cls[batch_idx, sem_idx] = self.component_loss(
+                    (predictions[batch_idx, model_channels_for_this_cls, ...].sum(dim=0)).float(),
+                    (sem_lbl[batch_idx, ...] == sem_val).float()) / normalizer
+
+        total_agg_sem_loss = loss_components_per_sem_cls.sum()
+        return total_agg_sem_loss, loss_components_per_sem_cls, sem_vals
+
+    def compute_matching_channel_loss(self, predictions, sem_lbl, inst_lbl):
         """
         Note: predictions should be 'preprocessed' -- take softmax / log as needed for whatever form
             single_class_component_loss_fcn expects.
@@ -204,12 +232,20 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
 
         predictions = self.transform_scores_to_predictions(scores)
         if self.matching:
-            assignments, total_loss, loss_components_by_channel = \
-                self.compute_matching_loss(predictions, sem_lbl, inst_lbl)
+            assignments, total_channel_loss, loss_components_by_channel = \
+                self.compute_matching_channel_loss(predictions, sem_lbl, inst_lbl)
         else:
-            assignments, total_loss, loss_components_by_channel = \
+            assignments, total_channel_loss, loss_components_by_channel = \
                 self.compute_nonmatching_loss(predictions, sem_lbl, inst_lbl)
-        return assignments, total_loss, loss_components_by_channel
+        total_agg_sem_loss, loss_components_per_sem_cls, sem_vals = \
+            self.compute_agg_semantic_component(predictions, sem_lbl, inst_lbl)
+        total_loss = total_channel_loss + total_agg_sem_loss
+        return {
+            'assignments': assignments,
+            'total_loss': total_loss,
+            'loss_components_by_channel': loss_components_by_channel,
+            'loss_components_per_sem_cls': total_agg_sem_loss
+        }
 
     def _compute_optimal_match_loss_single_img(self, predictions, sem_lbl, inst_lbl):
         """
@@ -238,7 +274,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
             sem_val = int(sem_val)
             # print('APD: Running on sem_val {}'.format(sem_val))
             costs_this_cls, model_channels_for_this_cls, assigned_gt_inst_vals_this_cls, \
-                unassigned_gt_inst_vals_this_cls = \
+            unassigned_gt_inst_vals_this_cls = \
                 self._compute_optimal_match_loss_for_one_sem_cls(predictions, sem_lbl, inst_lbl, sem_val)
             channel_idxs = torch.LongTensor(model_channels_for_this_cls)
             model_channels[channel_idxs] = channel_idxs

@@ -2,12 +2,13 @@ import shutil
 
 import PIL.Image
 import numpy as np
-import scipy.misc
-import scipy.ndimage
 import torch
 from torch.autograd import Variable
 
+from instanceseg.utils import imgutils
+
 # TODO(allie): Allow for augmentations
+from instanceseg.utils.imgutils import load_img_as_dtype
 
 DEBUG_ASSERT = True
 
@@ -78,13 +79,13 @@ def convert_torch_img_to_numpy(img, mean_bgr=None):
 def resize_lbl(lbl, resized_sz):
     if resized_sz is not None:
         lbl = lbl.astype(float)
-        lbl = scipy.misc.imresize(lbl, (resized_sz[0], resized_sz[1]), 'nearest', mode='F')
+        lbl = imgutils.resize_np_img(lbl, (resized_sz[0], resized_sz[1]), resample_mode='nearest')
     return lbl
 
 
 def resize_img(img, resized_sz):
     if resized_sz is not None:
-        img = scipy.misc.imresize(img, (resized_sz[0], resized_sz[1]))
+        img = imgutils.resize_np_img(img, (resized_sz[0], resized_sz[1]), resample_mode='bilinear')
     return img
 
 
@@ -229,17 +230,6 @@ def pytorch_unique(pytorch_1d_tensor):
 
 def augment_channels(tensor, augmentation_tensor, dim=0):
     return torch.cat([tensor, augmentation_tensor], dim=dim)
-
-
-def load_img_as_dtype(img_file, dtype):
-    img = PIL.Image.open(img_file)
-    img = np.array(img, dtype=dtype)
-    return img
-
-
-def write_np_array_as_img(arr, filename):
-    im = PIL.Image.fromarray(arr.astype(np.uint8))
-    im.save(filename)
 
 
 def write_np_array_as_img_with_borrowed_colormap_palette(arr, filename, filename_for_colormap):

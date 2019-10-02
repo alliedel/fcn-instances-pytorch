@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import PIL.Image
 
+import utils.imgutils
 from instanceseg.analysis import visualization_utils
 from instanceseg.datasets import labels_table_cityscapes, panoptic_dataset_base
 from instanceseg.datasets.cityscapes_transformations import convert_to_p_mode_file
@@ -94,8 +95,8 @@ def keep_size_small(out_img, max_image_dim=MAX_IMAGE_DIM):
         out_img_resized = out_img
     else:
         multiplier = get_multiplier(out_img.shape[:2], max_image_dim)
-        out_img_resized = visualization_utils.resize_img_by_multiplier(out_img,
-                                                                       multiplier=multiplier)
+        out_img_resized = utils.imgutils.resize_img_by_multiplier(out_img,
+                                                                  multiplier=multiplier)
     return out_img_resized
 
 
@@ -238,9 +239,8 @@ def transformed_image_export(dataloader, max_image_dim, n_debug_images, out_dir_
                                                       image_idx, basename='loader_' + split + '_',
                                                       tile=True)
 
-            input_image_resized = visualization_utils.resize_img_to_sz(img_untransformed,
-                                                                       sem_lbl.shape[0],
-                                                                       sem_lbl.shape[1])
+            input_image_resized = utils.imgutils.resize_np_img(img_untransformed,
+                                                               (sem_lbl.shape[0], sem_lbl.shape[1]))
             out_img = create_instancewise_decomposed_label(sem_lbl, inst_lbl,
                                                            input_image=input_image_resized,
                                                            sem_names_dict=sem_names_dict,
@@ -328,8 +328,8 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
     for sem_val in sem_vals:
 
         if input_image is not None:
-            input_image_resized = visualization_utils.resize_img_by_multiplier(input_image,
-                                                                               downsample_multiplier)
+            input_image_resized = utils.imgutils.resize_img_by_multiplier(input_image,
+                                                                          downsample_multiplier)
             true_label_masks = [input_image_resized]
             colormaps = [input_image_resized]
         else:
@@ -358,10 +358,10 @@ def visualize_masks_by_sem_cls(instance_mask_dict, inst_vals_dict, cmap_dict_by_
                 colormap = np.ones_like(rgb_mask) * color
 
             if downsample_multiplier != 1:
-                colormap = visualization_utils.resize_img_by_multiplier(colormap,
-                                                                        downsample_multiplier)
-                rgb_mask = visualization_utils.resize_img_by_multiplier(rgb_mask,
-                                                                        downsample_multiplier)
+                colormap = utils.imgutils.resize_img_by_multiplier(colormap,
+                                                                   downsample_multiplier)
+                rgb_mask = utils.imgutils.resize_img_by_multiplier(rgb_mask,
+                                                                   downsample_multiplier)
 
             # font_scale = 2.0 * downsample_multiplier
             visualization_utils.write_word_in_img_center(colormap, mask_label,

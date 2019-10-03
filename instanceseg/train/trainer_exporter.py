@@ -11,7 +11,6 @@ import torch.nn.functional as F
 import tqdm
 from tensorboardX import SummaryWriter
 
-
 from instanceseg.losses.loss import MatchingLossResult
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
@@ -38,6 +37,42 @@ def should_write_activations(iteration, epoch):
 
 
 DEBUG_ASSERTS = True
+
+
+def log(num_or_vec, base):
+    # log_b(x) = log_c(x) / log_c(b)
+    return np.log(num_or_vec) / np.log(base)
+
+
+class ConservativeExportDecider(object):
+    def __init__(self, base_interval):
+        """
+        Decides whether we should export something
+        """
+        self.base_interval = base_interval
+        self.n_previous_exports = 0
+        self.power = 2  # 3
+
+    def get_export_iteration_list(self, max_iterations):
+        return [(x * self.base_interval) ** 3 for x in range(0, np.ceil(log(max_iterations, 3)) + 1)]
+
+    @property
+    def next_export_iteration(self):
+        return self.get_item_in_sequence(self.n_previous_exports)
+
+    @property
+    def current_export_iteration(self):
+        return None if self.n_previous_exports == 0 else self.get_item_in_sequence(self.n_previous_exports - 1)
+
+    def get_item_in_sequence(self, index):
+        return self.base_interval * (index ** self.power)
+
+    def is_prev_or_next_export_iteration(self, iteration):
+        if iteration > self.next_export_iteration:
+            raise Exception('Missed an export at iteration {}'.format(self.next_export_iteration ** 3))
+        else:
+            return iteration == self.next_export_iteration or \
+                   self.current_export_iteration is None and iteration == self.current_export_iteration
 
 
 class ModelHistorySaver(object):
@@ -198,8 +233,9 @@ class TrainerExporter(object):
         model_checkpoint_dir = osp.join(self.out_dir, 'model_checkpoints')
         os.mkdir(model_checkpoint_dir)
         self.model_history_saver = ModelHistorySaver(model_checkpoint_dir=model_checkpoint_dir,
-                                                interval_validate=self.export_config.interval_validate,
-                                                max_n_saved_models=self.export_config.max_n_saved_models)
+                                                     interval_validate=self.export_config.interval_validate,
+                                                     max_n_saved_models=self.export_config.max_n_saved_models)
+        self.conservative_export_decider = ConservativeExportDecider(base_interval=self.export_config.interval_validate)
 
     @staticmethod
     def export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
@@ -496,7 +532,6 @@ class TrainerExporter(object):
             sem_lbl_np, inst_lbl_np = lbl_untransformed
             assert max_n_insts_per_thing >= inst_lbl.max()
             if should_visualize:
-
                 segmentation_viz = visualization_utils.visualize_segmentations_as_rgb_imgs(
                     gt_sem_inst_lbl_tuple=(sem_lbl_np, inst_lbl_np),
                     pred_channelwise_lbl=pred_l,

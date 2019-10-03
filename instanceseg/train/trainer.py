@@ -314,12 +314,19 @@ class Trainer(object):
         return sem_vals
 
     def validate_split(self, split='val', write_basic_metrics=None, write_instance_metrics=None,
-                       should_export_visualizations=True):
+                       should_export_visualizations=None):
         """
         If split == 'val': write_metrics, save_checkpoint, update_best_checkpoint default to True.
         If split == 'train': write_metrics, save_checkpoint, update_best_checkpoint default to
             False.
         """
+        if should_export_visualizations is None:
+            if self.exporter.conservative_export_decider.is_prev_or_next_export_iteration(self.state.iteration):
+                should_export_visualizations = True
+                self.exporter.conservative_export_decider.n_previous_exports += 1
+            else:
+                should_export_visualizations = False
+
         val_metrics = None
         save_checkpoint = (split == 'val')
         write_instance_metrics = (split == 'val') and self.write_instance_metrics \

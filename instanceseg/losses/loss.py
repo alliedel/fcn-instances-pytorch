@@ -10,7 +10,7 @@ from instanceseg.losses.xentropy import DEBUG_ASSERTS
 from instanceseg.utils.misc import AttrDict
 
 LOSS_TYPES = ['cross_entropy', 'soft_iou', 'xent']
-DEFAULT_SEM_AGG_MULT = 1
+DEFAULT_SEM_AGG_MULT = 0
 
 
 def get_subclasses(cls):

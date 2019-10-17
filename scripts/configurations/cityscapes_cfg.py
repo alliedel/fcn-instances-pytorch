@@ -119,8 +119,24 @@ train_configurations = {
         max_iteration=10000,
         interval_validate=20
     ),
-    'overfit_break_loss': dict(
-        sampler='2019-08-01-break_loss_overfit1',
+    'overfit_above_capacity': dict(
+        sampler='2019-08-01-above_capacity_3',
+        semantic_subset=['car', 'person'],
+        n_instances_per_class=3,
+        dataset_instance_cap=None,
+        max_iteration=10000,
+        interval_validate=20
+    ),
+    'overfit_at_capacity': dict(
+        sampler='2019-08-01-at_capacity_3',
+        semantic_subset=['car', 'person'],
+        n_instances_per_class=3,
+        dataset_instance_cap=None,
+        max_iteration=10000,
+        interval_validate=20
+    ),
+    'overfit_below_capacity': dict(
+        sampler='2019-08-01-below_capacity_3',
         semantic_subset=['car', 'person'],
         n_instances_per_class=3,
         dataset_instance_cap=None,

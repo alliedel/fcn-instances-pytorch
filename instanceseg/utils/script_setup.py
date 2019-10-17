@@ -169,7 +169,7 @@ def configure(dataset_name, config_idx, sampler_name=None, script_py_file='unkno
                                            'args.dataset: {}'.format(cfg['dataset'], dataset_name)
     if cfg['dataset_instance_cap'] == 'match_model':
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
-    sampler_cfg = scripts.configurations.sampler_cfg_registry.get_sampler_cfg_set(sampler_name)
+    sampler_cfg = sampler_cfg_registry.get_sampler_cfg_set(sampler_name)
     out_dir = get_log_dir(os.path.join(parent_directory, script_basename, script_basename),
     cfg_to_print,
                           additional_tag=additional_logdir_tag)

@@ -10,6 +10,7 @@ from instanceseg.losses.xentropy import DEBUG_ASSERTS
 from instanceseg.utils.misc import AttrDict
 
 LOSS_TYPES = ['cross_entropy', 'soft_iou', 'xent']
+DEFAULT_SEM_AGG_MULT = 1
 
 
 def get_subclasses(cls):
@@ -128,7 +129,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
     loss_type = None
 
     def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
-                 size_average=True):
+                 size_average=True, semantic_agg_multiplier=DEFAULT_SEM_AGG_MULT):
         if matching:
             assert model_channel_semantic_ids is not None and model_channel_instance_ids is not None, ValueError(
                 'We need semantic and instance ids to perform matching')
@@ -139,7 +140,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         self.size_average = size_average
         if self.loss_type is None:
             raise NotImplementedError('Loss type should be defined in subclass of {}'.format(__class__))
-        self.semantic_agg_multiplier = 0.1
+        self.semantic_agg_multiplier = semantic_agg_multiplier
 
     def transform_scores_to_predictions(self, scores):
         """
@@ -366,8 +367,9 @@ class CrossEntropyComponentMatchingLoss(ComponentMatchingLossBase):
     loss_type = 'cross_entropy'
 
     def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
-                 size_average=True):
-        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average)
+                 size_average=True, semantic_agg_multiplier=DEFAULT_SEM_AGG_MULT):
+        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average,
+                         semantic_agg_multiplier)
 
     def transform_scores_to_predictions(self, scores):
         assert len(scores.size()) == 4
@@ -381,10 +383,11 @@ class SoftIOUComponentMatchingLoss(ComponentMatchingLossBase):
     loss_type = 'soft_iou'
 
     def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
-                 size_average=False):
+                 size_average=False, semantic_agg_multiplier=DEFAULT_SEM_AGG_MULT):
         if size_average:
             raise Exception('Pretty sure you didn\'t want size_average to be True since it\'s already embedded in iou.')
-        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average)
+        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average,
+                         semantic_agg_multiplier)
 
     def transform_scores_to_predictions(self, scores):
         assert len(scores.size()) == 4

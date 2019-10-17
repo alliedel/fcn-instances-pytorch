@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import tqdm
 from tensorboardX import SummaryWriter
 
+from instanceseg.losses.loss import MatchingLossResult
 import instanceseg.utils.display as display_pyutils
 import instanceseg.utils.export
 import instanceseg.utils.imgutils
@@ -36,6 +37,42 @@ def should_write_activations(iteration, epoch):
 
 
 DEBUG_ASSERTS = True
+
+
+def log(num_or_vec, base):
+    # log_b(x) = log_c(x) / log_c(b)
+    return np.log(num_or_vec) / np.log(base)
+
+
+class ConservativeExportDecider(object):
+    def __init__(self, base_interval):
+        """
+        Decides whether we should export something
+        """
+        self.base_interval = base_interval
+        self.n_previous_exports = 0
+        self.power = 2  # 3
+
+    def get_export_iteration_list(self, max_iterations):
+        return [(x * self.base_interval) ** 3 for x in range(0, np.ceil(log(max_iterations, 3)) + 1)]
+
+    @property
+    def next_export_iteration(self):
+        return self.get_item_in_sequence(self.n_previous_exports)
+
+    @property
+    def current_export_iteration(self):
+        return None if self.n_previous_exports == 0 else self.get_item_in_sequence(self.n_previous_exports - 1)
+
+    def get_item_in_sequence(self, index):
+        return self.base_interval * (index ** self.power)
+
+    def is_prev_or_next_export_iteration(self, iteration):
+        if iteration > self.next_export_iteration:
+            raise Exception('Missed an export at iteration {}'.format(self.next_export_iteration ** 3))
+        else:
+            return iteration == self.next_export_iteration or \
+                   self.current_export_iteration is None and iteration == self.current_export_iteration
 
 
 class ModelHistorySaver(object):
@@ -196,8 +233,9 @@ class TrainerExporter(object):
         model_checkpoint_dir = osp.join(self.out_dir, 'model_checkpoints')
         os.mkdir(model_checkpoint_dir)
         self.model_history_saver = ModelHistorySaver(model_checkpoint_dir=model_checkpoint_dir,
-                                                interval_validate=self.export_config.interval_validate,
-                                                max_n_saved_models=self.export_config.max_n_saved_models)
+                                                     interval_validate=self.export_config.interval_validate,
+                                                     max_n_saved_models=self.export_config.max_n_saved_models)
+        self.conservative_export_decider = ConservativeExportDecider(base_interval=self.export_config.interval_validate)
 
     @staticmethod
     def export_inst_sem_lbls_as_id2rgb(sem_lbls_as_batch_nparray, inst_lbls_as_batch_nparray, output_directory,
@@ -434,18 +472,17 @@ class TrainerExporter(object):
         visualization_utils.export_visualizations(visualizations, out_dir, self.tensorboard_writer,
                                                   iteration, basename=basename, tile=tile)
 
-    def run_post_train_iteration(self, full_input, sem_lbl, inst_lbl, loss, loss_components,
-                                 assignments: LossMatchAssignments, score,
-                                 epoch, iteration, new_assignments=None, new_loss=None, get_activations_fcn=None,
-                                 lrs_by_group=None):
+    def run_post_train_iteration(self, full_input, loss_result: MatchingLossResult,
+                                 epoch, iteration, new_loss_result: MatchingLossResult = None,
+                                 get_activations_fcn=None, lrs_by_group=None, semantic_names_by_val=None):
         """
         get_activations_fcn=self.model.get_activations
         """
         eval_metrics = []
         if self.tensorboard_writer is not None:
             # TODO(allie): Check dimensionality of loss to prevent potential bugs
-            self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss', loss.detach().sum(),
-                                               iteration)
+            self.tensorboard_writer.add_scalar('A_eval_metrics/train_minibatch_loss',
+                                               loss_result.avg_loss.detach().sum(), iteration)
 
         if self.export_config.write_lr:
             for group_idx, lr in enumerate(lrs_by_group):
@@ -453,13 +490,20 @@ class TrainerExporter(object):
 
         if self.export_config.export_component_losses:
             for c_idx, c_lbl in enumerate(self.instance_problem.get_model_channel_labels('{}_{}')):
-                self.tensorboard_writer.add_scalar('B_component_losses/train/{}'.format(c_lbl),
-                                                   loss_components.detach()[:, c_idx].sum(),
+                self.tensorboard_writer.add_scalar('B_channel_component_losses/train/{}'.format(c_lbl),
+                                                   loss_result.loss_components_by_channel.detach()[:, c_idx].sum(),
+                                                   iteration)
+            for s_idx, s_val in enumerate(loss_result.semantic_vals):
+                s_lbl = '({})_{}'.format(s_val, semantic_names_by_val[s_val]) if semantic_names_by_val is not None \
+                    else '{}'.format(s_val)
+                self.tensorboard_writer.add_scalar('B_semantic_component_losses/train/{}'.format(s_lbl),
+                                                   loss_result.loss_components_by_sem_cls.detach()[:, s_idx].sum(),
                                                    iteration)
 
         if self.export_config.run_loss_updates:
-            self.write_loss_updates(old_loss=loss.item(), new_loss=new_loss.sum(), old_assignments=assignments,
-                                    new_assignments=new_assignments, iteration=iteration)
+            self.write_loss_updates(old_loss=loss_result.avg_loss.item(), new_loss=new_loss_result.avg_loss.item(),
+                                    old_assignments=loss_result.assignments,
+                                    new_assignments=new_loss_result.assignments, iteration=iteration)
 
             if self.export_config.export_activations and \
                     self.export_config.write_activation_condition(iteration, epoch):
@@ -488,7 +532,6 @@ class TrainerExporter(object):
             sem_lbl_np, inst_lbl_np = lbl_untransformed
             assert max_n_insts_per_thing >= inst_lbl.max()
             if should_visualize:
-
                 segmentation_viz = visualization_utils.visualize_segmentations_as_rgb_imgs(
                     gt_sem_inst_lbl_tuple=(sem_lbl_np, inst_lbl_np),
                     pred_channelwise_lbl=pred_l,

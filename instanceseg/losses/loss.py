@@ -10,6 +10,7 @@ from instanceseg.losses.xentropy import DEBUG_ASSERTS
 from instanceseg.utils.misc import AttrDict
 
 LOSS_TYPES = ['cross_entropy', 'soft_iou', 'xent']
+DEFAULT_SEM_AGG_MULT = 0
 
 
 def get_subclasses(cls):
@@ -104,6 +105,22 @@ class LossMatchAssignments(AttrDict):
         self.unassigned_gt_sem_inst_tuples[image_index] = unassigned_gt_sem_inst_tuples
 
 
+class MatchingLossResult(AttrDict):
+    def __init__(self, total_channel_loss=None, assignments: LossMatchAssignments = None,
+                 loss_components_by_channel=None, sem_agg_loss=None,
+                 loss_components_by_sem_cls=None, avg_loss=None, total_loss=None, semantic_vals=None):
+        self.avg_loss = avg_loss
+        self.total_channel_loss = total_channel_loss
+        self.assignments = assignments
+        self.total_loss = total_loss
+        self.sem_agg_loss = sem_agg_loss
+        if loss_components_by_sem_cls is not None:
+            assert loss_components_by_sem_cls.shape[1] == len(semantic_vals)
+        self.loss_components_by_sem_cls = loss_components_by_sem_cls
+        self.semantic_vals = semantic_vals
+        self.loss_components_by_channel = loss_components_by_channel
+
+
 class ComponentMatchingLossBase(ComponentLossAbstractInterface):
     """
     Base class for matching loss functions -- allows us to take any 'normal' component loss and make a specialized
@@ -112,7 +129,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
     loss_type = None
 
     def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
-                 size_average=True):
+                 size_average=True, semantic_agg_multiplier=DEFAULT_SEM_AGG_MULT):
         if matching:
             assert model_channel_semantic_ids is not None and model_channel_instance_ids is not None, ValueError(
                 'We need semantic and instance ids to perform matching')
@@ -123,6 +140,7 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
         self.size_average = size_average
         if self.loss_type is None:
             raise NotImplementedError('Loss type should be defined in subclass of {}'.format(__class__))
+        self.semantic_agg_multiplier = semantic_agg_multiplier
 
     def transform_scores_to_predictions(self, scores):
         """
@@ -239,13 +257,11 @@ class ComponentMatchingLossBase(ComponentLossAbstractInterface):
                 self.compute_nonmatching_loss(predictions, sem_lbl, inst_lbl)
         total_agg_sem_loss, loss_components_per_sem_cls, sem_vals = \
             self.compute_agg_semantic_component(predictions, sem_lbl, inst_lbl)
-        total_loss = total_channel_loss + total_agg_sem_loss
-        return {
-            'assignments': assignments,
-            'total_loss': total_loss,
-            'loss_components_by_channel': loss_components_by_channel,
-            'loss_components_per_sem_cls': total_agg_sem_loss
-        }
+        total_loss = total_channel_loss + self.semantic_agg_multiplier * total_agg_sem_loss
+        return MatchingLossResult(sem_agg_loss=total_agg_sem_loss, total_channel_loss=total_channel_loss,
+                                  total_loss=total_loss, assignments=assignments, semantic_vals=sem_vals,
+                                  loss_components_by_channel=loss_components_by_channel,
+                                  loss_components_by_sem_cls=loss_components_per_sem_cls)
 
     def _compute_optimal_match_loss_single_img(self, predictions, sem_lbl, inst_lbl):
         """
@@ -351,8 +367,9 @@ class CrossEntropyComponentMatchingLoss(ComponentMatchingLossBase):
     loss_type = 'cross_entropy'
 
     def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
-                 size_average=True):
-        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average)
+                 size_average=True, semantic_agg_multiplier=DEFAULT_SEM_AGG_MULT):
+        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average,
+                         semantic_agg_multiplier)
 
     def transform_scores_to_predictions(self, scores):
         assert len(scores.size()) == 4
@@ -366,10 +383,11 @@ class SoftIOUComponentMatchingLoss(ComponentMatchingLossBase):
     loss_type = 'soft_iou'
 
     def __init__(self, model_channel_semantic_ids=None, model_channel_instance_ids=None, matching=True,
-                 size_average=False):
+                 size_average=False, semantic_agg_multiplier=DEFAULT_SEM_AGG_MULT):
         if size_average:
             raise Exception('Pretty sure you didn\'t want size_average to be True since it\'s already embedded in iou.')
-        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average)
+        super().__init__(model_channel_semantic_ids, model_channel_instance_ids, matching, size_average,
+                         semantic_agg_multiplier)
 
     def transform_scores_to_predictions(self, scores):
         assert len(scores.size()) == 4

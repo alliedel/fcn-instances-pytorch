@@ -36,6 +36,8 @@ def should_write_activations(iteration, epoch):
         return False
 
 
+TRAIN_FAST = True
+
 DEBUG_ASSERTS = True
 
 
@@ -139,12 +141,15 @@ class ModelHistorySaver(object):
 
 class ExportConfig(object):
     def __init__(self, interval_validate=None, export_activations=None, activation_layers_to_export=(),
-                 write_instance_metrics=False, run_loss_updates=True, max_n_saved_models=None):
+                 write_instance_metrics=False, run_loss_updates=True, max_n_saved_models=None,
+                 validate_only_on_vis_export=TRAIN_FAST):
         self.interval_validate = interval_validate
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
         self.write_instance_metrics = write_instance_metrics
         self.run_loss_updates = run_loss_updates
+
+        self.validate_only_on_vis_export = validate_only_on_vis_export
 
         self.write_activation_condition = should_write_activations
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'

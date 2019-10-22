@@ -512,7 +512,10 @@ class Trainer(object):
 
             # Run validation epochs if it's time
             if self.state.iteration % self.interval_validate == 0:
-                self.validate_all_splits()
+                if not (self.exporter.export_config.validate_only_on_vis_export and
+                        self.exporter.conservative_export_decider.is_prev_or_next_export_iteration(
+                            self.state.iteration)):
+                    self.validate_all_splits()
 
             # Run training iteration
             self.train_iteration(data_dict)

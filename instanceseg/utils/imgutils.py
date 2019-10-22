@@ -20,7 +20,11 @@ def resize_np_img(img, sz_hw, resample_mode='nearest'):
     else:
         sz = (sz_hw[1], sz_hw[0], sz_hw[2])
     if img.dtype != 'uint8':
-        assert np.all(img.astype('uint8') == img)
+        try:
+            assert np.all(img.astype('uint8') == img)
+        except:
+            import ipdb; ipdb.set_trace()
+            raise
         img = img.astype('uint8')
     img = np.array(Image.fromarray(img).resize(sz, resample=resample)).astype(dtype)
     if c3 is not None:

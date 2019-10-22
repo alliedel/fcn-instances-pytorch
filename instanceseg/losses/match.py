@@ -35,7 +35,7 @@ def solve_matching_problem(cost_tensor: torch.Tensor):
 
 
 def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem_lbl, inst_lbl,
-                               model_channel_semantic_ids, sem_val, size_average=True):
+                               model_channel_semantic_ids, sem_val, size_average=True, void_vals=(255,-1)):
     """
 
     :param single_class_component_loss_fcn: f(yhat, binary_y) where yhat, binary_2d_gt are (N, H, W)
@@ -69,8 +69,9 @@ def create_pytorch_cost_matrix(single_class_component_loss_fcn, predictions, sem
     model_channels_for_this_cls = [i for i, sem_inst_val in enumerate(model_channel_semantic_ids)
                                    if sem_inst_val == sem_val]
     # inst_id_lbls_for_this_class = [instance_id_labels[i] for i in sem_inst_idxs_for_this_class]
+    # can speed up by using range(torch.max())
     gt_inst_vals_present = sorted([x.detach().item() for x in torch.unique(inst_lbl[sem_lbl == sem_val])])
-        # can speed up by using range(torch.max())
+    gt_inst_vals_present = [x for x in gt_inst_vals_present if x not in void_vals]
     n_pred = len(model_channels_for_this_cls)
     n_gt = len(gt_inst_vals_present)  # unique takes a long time..
     if n_gt < n_pred:

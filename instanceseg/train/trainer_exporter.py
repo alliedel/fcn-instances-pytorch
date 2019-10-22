@@ -71,8 +71,11 @@ class ConservativeExportDecider(object):
         if iteration > self.next_export_iteration:
             raise Exception('Missed an export at iteration {}'.format(self.next_export_iteration ** 3))
         else:
-            return iteration == self.next_export_iteration or \
-                   self.current_export_iteration is None and iteration == self.current_export_iteration
+            if iteration == self.next_export_iteration:
+                self.n_previous_exports += 1
+                return True
+            else:
+                return iteration == self.current_export_iteration
 
 
 class ModelHistorySaver(object):
@@ -124,8 +127,8 @@ class ModelHistorySaver(object):
             if most_recent_itr not in iterations_to_keep:
                 iterations_to_keep.append(most_recent_itr)
             for j in iterations_to_keep:  # make sure the files we assume exist actually exist
-                assert os.path.exists(self.get_model_filename_from_iteration(j)), \
-                    '{} does not exist'.format(f)
+                f = self.get_model_filename_from_iteration(j)
+                assert os.path.exists(f), '{} does not exist'.format(f)
 
             for model_file in self.get_list_of_checkpoint_files():
                 iteration_number = self.get_iteration_from_model_filename(model_file)

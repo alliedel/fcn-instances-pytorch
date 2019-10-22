@@ -369,27 +369,17 @@ class OcclusionsOfSameClass(DatasetStatisticCacheInterface):
                 'I didnt expect a boolean mask with dtype {}'.format(mask1.dtype)
         return mask1 * mask2
 
-        # if debug:
-        #     for img_idx in range(batch_sz):
-        #         visualization_utils.write_label(os.path.join(
-        #             tmpdir, 'intermediate_union_before_img_{}_cls_{}.png'.format(
-        #                 img_idx + compute_batch_size * batch_idx,
-        #                 self.semantic_class_names[sem_idx])),
-        #             intermediate_union[:, :, img_idx])
 
-        # if debug:
-        #     for img_idx in range(batch_sz):
-        #         visualization_utils.write_label(os.path.join(
-        #             tmpdir, 'dilated_instance_mask_{}_cls_{}_inst_{}.png'.format(
-        #                 img_idx + compute_batch_size * batch_idx,
-        #                 self.semantic_class_names[sem_idx], inst_val)),
-        #             intersections_with_previous_instances[:, :, img_idx])
-        #
-        # if debug:
-        #     for img_idx in range(batch_sz):
-        #         visualization_utils.write_label(os.path.join(
-        #             tmpdir, 'intermediate_union_after_img_{}_cls_{}.png'.format(
-        #                 img_idx + compute_batch_size * batch_idx,
-        #                 self.semantic_class_names[sem_idx])),
-        #             intermediate_union[:, :, img_idx])
-        #
+def get_instance_sizes(sem_lbl, inst_lbl, sem_val, void_vals=(255,-1)):
+    bool_sem_cls = sem_lbl == sem_val
+    if bool_sem_cls.sum() == 0:
+        return [], []
+    gt_inst_vals = [x.detach().item() for x in torch.unique(inst_lbl[bool_sem_cls])]
+    gt_inst_vals = [x for x in gt_inst_vals if x not in void_vals]
+    gt_inst_sizes = []
+    for inst_val in gt_inst_vals:
+        inst_size = torch.sum(inst_lbl[bool_sem_cls] == inst_val)
+        if inst_size == 0:
+            raise Exception('Debug error..')
+        gt_inst_sizes.append(inst_size)
+    return gt_inst_vals, gt_inst_sizes

@@ -18,6 +18,9 @@ from instanceseg.train import metrics, trainer_exporter
 from instanceseg.utils import datasets
 from instanceseg.utils.instance_utils import InstanceProblemConfig
 
+import GPUtil
+
+
 DEBUG_ASSERTS = True
 DEBUG_MEMORY_ISSUES = False
 
@@ -362,6 +365,8 @@ class Trainer(object):
             if self.exporter.conservative_export_decider.is_prev_or_next_export_iteration(self.state.iteration):
                 should_export_visualizations = True
             else:
+                import ipdb;
+                ipdb.set_trace()
                 should_export_visualizations = False
 
         val_metrics = None
@@ -387,6 +392,8 @@ class Trainer(object):
         num_images_to_visualize = min(len(data_loader), 9)
         memory_allocated_before = torch.cuda.memory_allocated(device=None)
         identifiers = []
+        GPUtil.showUtilization()
+
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
                 enumerate(data_loader), total=len(data_loader),
@@ -513,9 +520,11 @@ class Trainer(object):
             # Run validation epochs if it's time
             if self.state.iteration % self.interval_validate == 0:
                 if not (self.exporter.export_config.validate_only_on_vis_export and
-                        self.exporter.conservative_export_decider.is_prev_or_next_export_iteration(
+                        not self.exporter.conservative_export_decider.is_prev_or_next_export_iteration(
                             self.state.iteration)):
                     self.validate_all_splits()
+                else:
+                    import ipdb; ipdb.set_trace()
 
             # Run training iteration
             self.train_iteration(data_dict)

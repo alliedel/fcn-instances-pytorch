@@ -11,5 +11,3 @@ if __name__ == '__main__':
     commandline_arguments_list = parse.construct_args_list_to_replace_sys(**config)
     import ipdb; ipdb.set_trace()
     train.main(commandline_arguments_list)
-
- 

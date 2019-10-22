@@ -238,6 +238,7 @@ class Trainer(object):
         if cap_sizes:
             for i, l in enumerate(loss_result.assignments.unassigned_gt_sem_inst_tuples):
                 loss_result.assignments.unassigned_gt_sem_inst_tuples[i].extend(removed_gt_inst_tuples[i])
+        import ipdb; ipdb.set_trace()
         return loss_result
 
     def augment_image(self, img, sem_lbl):

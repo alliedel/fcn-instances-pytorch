@@ -378,6 +378,15 @@ def label2rgb(lbl, img=None, label_names=None, n_labels=None,
     return lbl_viz
 
 
+def my_copy(lst_or_tensor):
+    if type(lst_or_tensor) is list:
+        return list.copy(lst_or_tensor)
+    elif type(lst_or_tensor) is np.ndarray:
+        return lst_or_tensor.copy()
+    else:
+        return lst_or_tensor.clone()
+
+
 def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_lbl,
                                         channel_inst_vals,
                                         channel_sem_vals, unmatched_val=None,
@@ -395,6 +404,8 @@ def visualize_segmentations_as_rgb_imgs(gt_sem_inst_lbl_tuple, pred_channelwise_
         sem_val: max([iv for iv, sv in zip(channel_inst_vals, channel_sem_vals) if sv == sem_val])
         for sem_val in np.unique(channel_sem_vals)
     }
+
+    channel_inst_vals = my_copy(channel_inst_vals)
     for i, (iv, sv) in enumerate(zip(channel_inst_vals, channel_sem_vals)):
         if iv == unmatched_val:
             channel_inst_vals[i] = max_inst_vals_per_sv[sv] + 1

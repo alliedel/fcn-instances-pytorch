@@ -182,7 +182,7 @@ train_configurations = {
         ordering=None,
         semantic_subset=None,
         backbone='resnet50',
-        lr=1e-2
+        lr=1e-3
         ),
     'full_panoptic_5each_fcn8': dict(
         max_iteration=10000000,
@@ -193,7 +193,7 @@ train_configurations = {
         ordering=None,
         semantic_subset=None,
         backbone='fcn8',
-        lr=1e-2
+        lr=1e-4
         ),
     # 'debug_all': dict(
     #     max_iteration=10000,

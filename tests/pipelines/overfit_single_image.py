@@ -57,12 +57,10 @@ def main():
     trainer = setup_train(dataset_type=dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
                           gpu=gpu, checkpoint_path=None)
 
-    img, (sem_lbl, inst_lbl) = get_single_img_data(trainer.dataloaders['train'], 0)
+    img, (sem_lbl, inst_lbl) = get_single_img_data(trainer.dataloaders['train'], 2)
 
     trainer.train()
     train_loss, train_metrics, _ = trainer.validate_split('train')
-
-    img, (sem_lbl, inst_lbl) = get_single_img_data(trainer.dataloaders['train'], 0)
 
     atexit.unregister(query_remove_logdir)
 

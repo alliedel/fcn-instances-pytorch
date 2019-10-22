@@ -11,6 +11,7 @@ import instanceseg
 import instanceseg.losses.loss
 import instanceseg.utils.export
 import instanceseg.utils.misc
+from instanceseg.datasets import dataset_statistics
 from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
@@ -181,7 +182,7 @@ class Trainer(object):
             matching, self.size_average)
         return my_loss_object
 
-    def compute_loss(self, score, sem_lbl, inst_lbl,
+    def compute_loss(self, score, sem_lbl, inst_lbl, cap_sizes=True,
                      val_matching_override=False) -> instanceseg.losses.loss.MatchingLossResult:
         """
         Returns assignments, total_loss, loss_components_by_channel
@@ -191,15 +192,52 @@ class Trainer(object):
         if not (sem_lbl.size() == inst_lbl.size() == (score.size(0), score.size(2), score.size(3))):
             raise Exception('Sizes of score, targets are incorrect')
 
+        if DEBUG_ASSERTS:
+            unique_sem_vals = torch.unique(sem_lbl)
+            for sem_val in unique_sem_vals:
+                assert sem_val in self.instance_problem.semantic_ids or sem_val == self.instance_problem.void_value
+
+        train_inst_lbl = None
+        if cap_sizes:
+            removed_gt_inst_tuples = []
+            assert len(sem_lbl.shape) == 3
+            for i in range(sem_lbl.shape[0]):
+                removed_gt_inst_tuples_img_i = []
+                for sem_val, n_channels_allocated in zip(
+                        self.instance_problem.semantic_ids,
+                        self.instance_problem.model_n_instances_by_semantic_id):
+                    if sem_val in self.instance_problem.thing_class_ids:
+                        inst_vals, inst_sizes = dataset_statistics.get_instance_sizes(sem_lbl[i, ...],
+                                                                                      inst_lbl[i, ...], sem_val)
+                        sorted_inst_vals = [inst_vals[i] for i in np.argsort(inst_sizes)][::-1]
+                        bad_inst_vals = sorted_inst_vals[n_channels_allocated:]
+                        if DEBUG_ASSERTS:
+                            assert (len(bad_inst_vals) == max(0, len(inst_vals) - n_channels_allocated))
+                        for inst_val in bad_inst_vals:
+                            if train_inst_lbl is None:  # allocate new inst lbl if we need to
+                                train_inst_lbl = torch.clone(inst_lbl)
+                            train_inst_lbl[(sem_lbl == sem_val) * (inst_lbl == inst_val)] = \
+                                self.instance_problem.void_value
+                        removed_gt_inst_tuples_img_i.extend([(sem_val, iv) for iv in bad_inst_vals])
+                    else:
+                        assert sem_val in self.instance_problem.stuff_class_ids
+                removed_gt_inst_tuples.append(removed_gt_inst_tuples_img_i)
+        else:
+            removed_gt_inst_tuples = None
+        if train_inst_lbl is None:
+            train_inst_lbl = inst_lbl
         if map_to_semantic:
-            inst_lbl[inst_lbl > 1] = 1
+            train_inst_lbl[train_inst_lbl > 1] = 1
         # print('APD: Running loss fcn')
         if val_matching_override:
-            loss_result = self.eval_loss_fcn_with_matching(score, sem_lbl, inst_lbl)
+            loss_result = self.eval_loss_fcn_with_matching(score, sem_lbl, train_inst_lbl)
         else:
-            loss_result = self.loss_fcn(score, sem_lbl, inst_lbl)
+            loss_result = self.loss_fcn(score, sem_lbl, train_inst_lbl)
         loss_result.avg_loss = loss_result.total_loss / score.size(0)
 
+        if cap_sizes:
+            for i, l in enumerate(loss_result.assignments.unassigned_gt_sem_inst_tuples):
+                loss_result.assignments.unassigned_gt_sem_inst_tuples[i].extend(removed_gt_inst_tuples[i])
         return loss_result
 
     def augment_image(self, img, sem_lbl):
@@ -323,7 +361,6 @@ class Trainer(object):
         if should_export_visualizations is None:
             if self.exporter.conservative_export_decider.is_prev_or_next_export_iteration(self.state.iteration):
                 should_export_visualizations = True
-                self.exporter.conservative_export_decider.n_previous_exports += 1
             else:
                 should_export_visualizations = False
 
@@ -475,7 +512,10 @@ class Trainer(object):
 
             # Run validation epochs if it's time
             if self.state.iteration % self.interval_validate == 0:
-                self.validate_all_splits()
+                if not (self.exporter.export_config.validate_only_on_vis_export and
+                        self.exporter.conservative_export_decider.is_prev_or_next_export_iteration(
+                            self.state.iteration)):
+                    self.validate_all_splits()
 
             # Run training iteration
             self.train_iteration(data_dict)
@@ -492,7 +532,7 @@ class Trainer(object):
                                                                            requires_grad=True)
         self.optim.zero_grad()
         score = self.model(full_input)
-        loss_result = self.compute_loss(score, sem_lbl, inst_lbl)
+        loss_result = self.compute_loss(score, sem_lbl, inst_lbl, cap_sizes=True)
         avg_loss, loss_components_by_channel = loss_result.avg_loss, loss_result.loss_components_by_channel
         debug_check_values_are_valid(avg_loss, score, self.state.iteration)
 
@@ -550,3 +590,8 @@ def debug_check_values_are_valid(loss, score, iteration):
         print('WARNING: losses={} at iteration {}'.format(loss.data.item(), iteration))
     if any_nan(score.data):
         raise ValueError('score is nan while training')
+
+
+def argsort_lst(lst):
+    alst = np.argsort(lst)
+    return alst, [lst[a] for a in alst]

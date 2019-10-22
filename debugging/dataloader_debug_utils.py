@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import PIL.Image
 
-import utils.imgutils
+import instanceseg.utils.imgutils
 from instanceseg.analysis import visualization_utils
 from instanceseg.datasets import labels_table_cityscapes, panoptic_dataset_base
 from instanceseg.datasets.cityscapes_transformations import convert_to_p_mode_file

@@ -14,7 +14,8 @@ def parse_args_test(replacement_args_list=None):
     # Config override parser
     assert args.dataset is not None, ValueError('dataset argument must not be None.  '
                                                 'Run with --help for more details.')
-    dataset_name_from_logdir = os.path.split(os.path.split(args.logdir.rstrip('/'))[0])[1]
+    parent_dir = os.path.split(args.logdir.rstrip('/'))[0]
+    dataset_name_from_logdir = os.path.split(os.path.split(parent_dir)[0])[1]
     assert args.dataset == dataset_name_from_logdir, 'Dataset given: {}.  I expected this dataset from logdir: ' \
                                                      '{}'.format(args.dataset,
                                                                  os.path.split(os.path.split(args.logdir)[0])[1])
@@ -107,7 +108,14 @@ def postprocess_train_args(override_cfg_args):
 def construct_args_list_to_replace_sys(dataset_name, gpu=None, config_idx=None, sampler_name=None,
                                        resume=None, **kwargs):
     default_args_list = [dataset_name]
-    for key, val in {'-g': gpu, '-c': config_idx, '--sampler': sampler_name,
+    for key, val in {'-g': gpu}.items():
+        if val is not None:
+            default_args_list.append(key)
+            if type(val) is str:
+                val = val.split(' ')
+            for v in val:
+                default_args_list.append(str(v))
+    for key, val in {'-c': config_idx, '--sampler': sampler_name,
                      '--resume': resume}.items():
         if val is not None:
             default_args_list += [key, str(val)]

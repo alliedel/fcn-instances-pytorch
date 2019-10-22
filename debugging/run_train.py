@@ -1,4 +1,4 @@
-import utils.parse
+import instanceseg.utils.parse
 from scripts import train
 from instanceseg.utils import script_setup as script_utils
 

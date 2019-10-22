@@ -88,7 +88,7 @@ train_configurations = {
     ),
     'vehicle_instance': dict(
         max_iteration=1000000,
-        interval_validate=4000,
+        interval_validate=100,
         n_instances_per_class=3,
         dataset_instance_cap='match_model',
         ordering=None,
@@ -146,7 +146,7 @@ train_configurations = {
     'resnet_car_2_4': dict(
         max_iteration=1000000,
         sampler='car_2_4',
-        interval_validate=4000,
+        interval_validate=100,
         n_instances_per_class=4,
         dataset_instance_cap='match_model',
         ordering=None,
@@ -156,7 +156,7 @@ train_configurations = {
     'resnet_car_2_5': dict(
         max_iteration=1000000,
         sampler='car_2_5',
-        interval_validate=4000,
+        interval_validate=100,
         n_instances_per_class=5,
         dataset_instance_cap='match_model',
         ordering=None,
@@ -166,7 +166,7 @@ train_configurations = {
     'car_2_4_plus_semantics': dict(
         max_iteration=1000000,
         sampler='car_2_4',
-        interval_validate=4000,
+        interval_validate=100,
         n_instances_per_class=4,
         dataset_instance_cap='match_model',
         ordering=None,
@@ -176,12 +176,24 @@ train_configurations = {
     'full_panoptic_5each': dict(
         max_iteration=10000000,
         sampler=None,
-        interval_validate=4000,
+        interval_validate=100,
         n_instances_per_class=5,
         dataset_instance_cap=None,
         ordering=None,
         semantic_subset=None,
         backbone='resnet50',
+        lr=1e-3
+        ),
+    'full_panoptic_5each_fcn8': dict(
+        max_iteration=10000000,
+        sampler=None,
+        interval_validate=100,
+        n_instances_per_class=5,
+        dataset_instance_cap=None,
+        ordering=None,
+        semantic_subset=None,
+        backbone='fcn8',
+        lr=1e-4
         ),
     # 'debug_all': dict(
     #     max_iteration=10000,

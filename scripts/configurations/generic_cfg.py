@@ -37,7 +37,7 @@ _default_train_config = dict(
     lr_scheduler=None,  #'plateau',
 
     # export
-    interval_validate=4000,
+    interval_validate=100,
     export_activations=False,
     activation_layers_to_export=('conv1.conv0',
                                  'conv3.pool', 'conv4.pool', 'conv5.pool', 'drop6', 'fc7', 'drop7', 'upscore8'),

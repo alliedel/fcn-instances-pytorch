@@ -106,10 +106,11 @@ class ModelHistorySaver(object):
         assert itr_as_06d.isdigit()
         return int(itr_as_06d)
 
-    def save_model_to_history(self, current_itr, checkpoint_file_src):
+    def save_model_to_history(self, current_itr, checkpoint_file_src, clean_up_checkpoints=True):
         if np.mod(current_itr, self.adaptive_save_model_every * self.interval_validate) == 0:
             shutil.copyfile(checkpoint_file_src, self.get_model_filename_from_iteration(current_itr))
-            self.clean_up_checkpoints()
+            if clean_up_checkpoints:
+                self.clean_up_checkpoints()
             return True
         else:
             return False
@@ -448,7 +449,10 @@ class TrainerExporter(object):
             'mean_iu': mean_iu
         }, checkpoint_file)
 
-        self.model_history_saver.save_model_to_history(iteration, checkpoint_file)
+        self.model_history_saver.save_model_to_history(iteration, checkpoint_file,
+                                                       clean_up_checkpoints=
+                                                       (False if self.export_config.validate_only_on_vis_export else
+                                                        True))
 
         return checkpoint_file
 

@@ -13,7 +13,7 @@ from instanceseg.utils.script_setup import setup_train, configure
 import debugging.dataloader_debug_utils as debug_helper
 from instanceseg.train import trainer
 from instanceseg.utils.misc import y_or_n_input
-from utils.imgutils import write_np_array_as_img
+from instanceseg.utils.imgutils import write_np_array_as_img
 
 here = osp.dirname(osp.abspath(__file__))
 

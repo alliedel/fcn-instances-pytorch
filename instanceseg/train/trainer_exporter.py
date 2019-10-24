@@ -91,6 +91,7 @@ class ModelHistorySaver(object):
         n_digits = max(6, np.ceil(np.log10(max_n_iterations + 1)))
         self.itr_format = '{:0' + str(n_digits) + 'd}'
         self.adaptive_save_model_every = 1
+        self.last_model_saved = None
 
     def get_list_of_checkpoint_files(self):
         return [os.path.join(self.model_checkpoint_dir, f) for f in sorted(os.listdir(self.model_checkpoint_dir))]
@@ -109,6 +110,7 @@ class ModelHistorySaver(object):
     def save_model_to_history(self, current_itr, checkpoint_file_src, clean_up_checkpoints=True):
         if np.mod(current_itr, self.adaptive_save_model_every * self.interval_validate) == 0:
             shutil.copyfile(checkpoint_file_src, self.get_model_filename_from_iteration(current_itr))
+            self.last_model_saved = self.get_model_filename_from_iteration(current_itr)
             if clean_up_checkpoints:
                 self.clean_up_checkpoints()
             return True

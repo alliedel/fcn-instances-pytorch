@@ -1,19 +1,21 @@
 import atexit
+import io
 import os
 import os.path as osp
+import subprocess
+import time
+import sys
 
 import numpy as np
-import skimage.io
-import shutil
 
-import instanceseg.utils.script_setup as script_utils
-from instanceseg.utils import parse
-from instanceseg.analysis import visualization_utils
-from instanceseg.utils.script_setup import setup_train, configure
 import debugging.dataloader_debug_utils as debug_helper
+import instanceseg.utils.script_setup as script_utils
+from instanceseg.analysis import visualization_utils
 from instanceseg.train import trainer
-from instanceseg.utils.misc import y_or_n_input
+from instanceseg.utils import parse
 from instanceseg.utils.imgutils import write_np_array_as_img
+from instanceseg.utils.misc import y_or_n_input
+from instanceseg.utils.script_setup import setup_train, configure
 
 here = osp.dirname(osp.abspath(__file__))
 
@@ -35,13 +37,20 @@ def parse_args(replacement_dict_for_sys_args=None):
 def main(replacement_dict_for_sys_args=None):
     script_utils.check_clean_work_tree()
     args, cfg_override_args = parse_args(replacement_dict_for_sys_args)
+    if len(args.gpu) == 1:
+        trainer_gpu = args.gpu
+        watchingval_gpu = None
+    else:
+        trainer_gpu = [g for g in args.gpu[:-1]]
+        watchingval_gpu = args.gpu[-1]
     cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
                                           config_idx=args.config,
                                           sampler_name=args.sampler,
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args)
     atexit.register(query_remove_logdir, out_dir)
-    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=args.gpu,
+
+    trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=trainer_gpu,
                           checkpoint_path=args.resume, semantic_init=args.semantic_init)
 
     if cfg['debug_dataloader_only']:
@@ -50,7 +59,7 @@ def main(replacement_dict_for_sys_args=None):
         atexit.unregister(query_remove_logdir)
     else:
         print('Evaluating final model')
-        metrics = run(trainer)
+        metrics = run(trainer, watchingval_gpu)
         # atexit.unregister(query_remove_logdir)
         if metrics is not None:
             print('''\
@@ -60,21 +69,51 @@ def main(replacement_dict_for_sys_args=None):
                 FWAV Accuracy: {3}'''.format(*metrics))
     return out_dir
 
+def start_watcher(my_trainer, watching_validator_gpu):
+    if watching_validator_gpu is not None:
+        pidout_filename = os.path.join(my_trainer.exporter.out_dir, 'watcher_output.log')
+        writer = io.open(pidout_filename, 'wb')
+        pid = subprocess.Popen(['scripts/watch_and_validate.py', my_trainer.exporter.out_dir, '--gpu', '{}'.format(
+            watching_validator_gpu)], stdout=writer)
+    else:
+        pid = None
+        pidout_filename = None
+        writer = None
+    return pid, pidout_filename, writer
 
-def run(trainer: trainer.Trainer):
+
+def terminate_watcher(pid, writer):
+    pid.terminate()
+    writer.close()
+
+
+def run(my_trainer: trainer.Trainer, watching_validator_gpu=None):
+    pid, pidout_filename, writer = start_watcher(my_trainer, watching_validator_gpu)
+    atexit.register(terminate_watcher, pid, writer)
+
     try:
-        trainer.train()
+        my_trainer.train()
         atexit.unregister(query_remove_logdir)
     except KeyboardInterrupt:
         if y_or_n_input('I\'ve stopped training.  Finish script?', default='y') == 'n':
             raise
+
+    if pid is not None:
+        with io.open(pidout_filename, 'rb', 1) as reader:
+            while pid.poll() is None:
+                sys.stdout.write(reader.read())
+                time.sleep(0.5)
+            # Read the remaining
+            sys.stdout.write(reader.read())
+
     val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = \
-        trainer.validate_split(should_export_visualizations=False)
+        my_trainer.validate_split(should_export_visualizations=False)
     if eval_metrics is not None:
         eval_metrics = np.array(eval_metrics)
         eval_metrics *= 100
     viz = visualization_utils.get_tile_image(segmentation_visualizations)
     write_np_array_as_img(os.path.join(here, 'viz_evaluate.png'), viz)
+
     return eval_metrics
 
 

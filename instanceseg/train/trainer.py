@@ -392,7 +392,7 @@ class Trainer(object):
         num_images_to_visualize = min(len(data_loader), 9)
         memory_allocated_before = torch.cuda.memory_allocated(device=None)
         identifiers = []
-        GPUtil.showUtilization()
+        # GPUtil.showUtilization()
 
         with torch.set_grad_enabled(False):
             t = tqdm.tqdm(
@@ -583,8 +583,7 @@ class Trainer(object):
         else:
             train_loss, train_metrics = None, None
         if train_loss is not None:
-            self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss,
-                                                                 self.state.iteration)
+            self.exporter.update_mpl_joint_train_val_loss_figure(train_loss, val_loss, self.state.iteration)
         if self.exporter.tensorboard_writer is not None:
             self.exporter.tensorboard_writer.add_scalar(
                 'C_intermediate_metrics/val_minus_train_loss', val_loss - train_loss,

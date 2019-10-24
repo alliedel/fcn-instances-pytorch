@@ -145,7 +145,7 @@ class ModelHistorySaver(object):
 class ExportConfig(object):
     def __init__(self, interval_validate=None, export_activations=None, activation_layers_to_export=(),
                  write_instance_metrics=False, run_loss_updates=True, max_n_saved_models=None,
-                 validate_only_on_vis_export=TRAIN_FAST):
+                 validate_only_on_vis_export=TRAIN_FAST, skip_model_checkpoint_saving=False):
         self.interval_validate = interval_validate
         self.export_activations = export_activations
         self.activation_layers_to_export = activation_layers_to_export
@@ -157,6 +157,7 @@ class ExportConfig(object):
         self.write_activation_condition = should_write_activations
         self.which_heatmaps_to_visualize = 'same semantic'  # 'all'
 
+        self.skip_model_checkpoint_saving = skip_model_checkpoint_saving
         self.max_n_saved_models = 20 if max_n_saved_models is None else max_n_saved_models
 
         self.downsample_multiplier_score_images = 0.5
@@ -240,12 +241,14 @@ class TrainerExporter(object):
         # Writing activations
 
         self.run_loss_updates = True
-
-        model_checkpoint_dir = osp.join(self.out_dir, 'model_checkpoints')
-        os.mkdir(model_checkpoint_dir)
-        self.model_history_saver = ModelHistorySaver(model_checkpoint_dir=model_checkpoint_dir,
-                                                     interval_validate=self.export_config.interval_validate,
-                                                     max_n_saved_models=self.export_config.max_n_saved_models)
+        if not self.export_config.skip_model_checkpoint_saving:
+            model_checkpoint_dir = osp.join(self.out_dir, 'model_checkpoints')
+            os.mkdir(model_checkpoint_dir)
+            self.model_history_saver = ModelHistorySaver(model_checkpoint_dir=model_checkpoint_dir,
+                                                         interval_validate=self.export_config.interval_validate,
+                                                         max_n_saved_models=self.export_config.max_n_saved_models)
+        else:
+            self.model_history_saver = None
         self.conservative_export_decider = ConservativeExportDecider(base_interval=self.export_config.interval_validate)
 
     @staticmethod

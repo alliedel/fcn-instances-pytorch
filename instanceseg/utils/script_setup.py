@@ -107,8 +107,8 @@ def setup_test(dataset_type, cfg, out_dir, sampler_cfg, model_checkpoint_path, g
 def setup_validator(dataset_type: str, train_cfg, out_dir, sampler_cfg, init_model_checkpoint_path, gpu=(0,)):
     checkpoint, cuda, dataloaders, model, problem_config, start_epoch, start_iteration = \
         setup_common(dataset_type, train_cfg, gpu, init_model_checkpoint_path, sampler_cfg, semantic_init=None,
-                     splits=('train', 'val'))
-    validator = instanceseg.factory.trainers.get_evaluator(train_cfg, cuda, model, dataloaders, problem_config, out_dir)
+                     splits=('train', 'val', 'train_for_val'))
+    validator = instanceseg.factory.trainers.get_validator(train_cfg, cuda, model, dataloaders, problem_config, out_dir)
     validator.epoch = start_epoch
     validator.iteration = start_iteration
 
@@ -186,8 +186,7 @@ def configure(dataset_name, config_idx, sampler_name=None, script_py_file='unkno
         cfg['dataset_instance_cap'] = cfg['n_instances_per_class']
     sampler_cfg = sampler_cfg_registry.get_sampler_cfg_set(sampler_name)
     out_dir = get_log_dir(os.path.join(parent_directory, script_basename, script_basename),
-    cfg_to_print,
-                          additional_tag=additional_logdir_tag)
+    cfg_to_print, additional_tag=additional_logdir_tag)
     instanceseg.utils.configs.save_config(out_dir, cfg)
     print(instanceseg.utils.misc.color_text('logdir: {}'.format(out_dir),
                                             instanceseg.utils.misc.TermColors.OKGREEN))

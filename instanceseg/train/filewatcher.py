@@ -47,15 +47,15 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         event.src_path
             path/to/observed/file
         """
+        self.broadcast_started(new_model_pth)
         checkpoint = torch.load(new_model_pth)
         self.validator.model.load_state_dict(checkpoint['model_state_dict'], strict=True)
         self.validator.validate_all_splits()
+        self.broadcast_finished()
 
     def on_modified(self, event):
         print("{} modified".format(event.src_path))
-        self.broadcast_started(event.src_path)
         self.process_new_model_file(event.src_path)
-        self.broadcast_finished()
 
     def on_created(self, event):
         pass  # Also creates an on_modified event
@@ -73,6 +73,12 @@ class WatchingValidator(object):
 
     def start(self):
         print('Set up to watch directory {}'.format(self.watch_directory))
+        existing_files = os.listdir(self.watch_directory)
+        existing_files = [os.path.join(self.watch_directory, f) for f in existing_files
+                          if f.endswith('.pth') or f.endswith('.pth.tar')]
+        print('Found files {}'.format(existing_files))
+        for file in existing_files:
+            self.file_handler.process_new_model_file(file)
         self.observer.start()
         try:
             while True:

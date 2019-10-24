@@ -19,8 +19,8 @@ from instanceseg.utils.script_setup import setup_train, configure
 
 here = osp.dirname(osp.abspath(__file__))
 
-
-DEBUG_WATCHER = False
+# DEBUG_WATCHER = False
+DEBUG_WATCHER = True
 
 if DEBUG_WATCHER:
     from scripts import watch_and_validate
@@ -78,20 +78,24 @@ def main(replacement_dict_for_sys_args=None):
     return out_dir
 
 
-def start_watcher(my_trainer, watching_validator_gpu, as_subprocess=(not DEBUG_WATCHER)):
-    if watching_validator_gpu is not None:
-        pidout_filename = os.path.join(my_trainer.exporter.out_dir, 'watcher_output.log')
-        writer = io.open(pidout_filename, 'wb')
-        if not as_subprocess:
-            watch_and_validate.main(my_trainer.exporter.out_dir, watching_validator_gpu)
-            return
-        else:
-            pid = subprocess.Popen(['python', 'scripts/watch_and_validate.py', my_trainer.exporter.out_dir, '--gpu',
-                                    '{}'.format(watching_validator_gpu)], stdout=writer)
+def offload_validation_to_watcher(my_trainer, watching_validator_gpu, as_subprocess=(not DEBUG_WATCHER)):
+    my_trainer.skip_validation = True
+    starting_model_checkpoint = my_trainer.exporter.save_checkpoint(my_trainer.state.epoch,
+                                                                    my_trainer.state.iteration, my_trainer.model,
+                                                                    my_trainer.optim, my_trainer.best_mean_iu,
+                                                                    mean_iu=None)
+    pidout_filename = os.path.join(my_trainer.exporter.out_dir, 'watcher_output.log')
+    writer = io.open(pidout_filename, 'wb')
+    if not as_subprocess:
+        validator = watch_and_validate.get_validator(my_trainer.exporter.out_dir, watching_validator_gpu,
+                                                     starting_model_checkpoint)
+        watch_and_validate.main(my_trainer.exporter.out_dir, watching_validator_gpu,
+                                starting_model_checkpoint=starting_model_checkpoint)
+        return
     else:
-        pid = None
-        pidout_filename = None
-        writer = None
+        pid = subprocess.Popen(['python', 'scripts/watch_and_validate.py', my_trainer.exporter.out_dir, '--gpu',
+                                '{}'.format(watching_validator_gpu), '--starting_model_checkpoint',
+                                starting_model_checkpoint], stdout=writer)
     return pid, pidout_filename, writer
 
 
@@ -101,7 +105,13 @@ def terminate_watcher(pid, writer):
 
 
 def run(my_trainer: trainer.Trainer, watching_validator_gpu=None):
-    pid, pidout_filename, writer = start_watcher(my_trainer, watching_validator_gpu)
+    if watching_validator_gpu is not None:
+        pid, pidout_filename, writer = offload_validation_to_watcher(my_trainer, watching_validator_gpu)
+    else:
+        pid = None
+        pidout_filename = None
+        writer = None
+
     atexit.register(terminate_watcher, pid, writer)
 
     try:

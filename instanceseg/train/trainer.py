@@ -50,10 +50,14 @@ class Trainer(object):
                  generate_new_synthetic_data_each_epoch=False,
                  export_activations=False, activation_layers_to_export=(),
                  lr_scheduler: ReduceLROnPlateau = None,
-                 n_model_checkpoints=None):
+                 n_model_checkpoints=None,
+                 skip_validation=False, skip_model_checkpoint_saving=False):
 
         # System parameters
         self.cuda = cuda
+        self.skip_validation = skip_validation  # If another process is doing it for us, or we're going to do it later.
+        self.skip_model_checkpoint_saving = skip_model_checkpoint_saving  # Generally if we're alreadyloading from a
+                                                                          # checkpoint
 
         # Model objects
         self.model = model
@@ -118,7 +122,8 @@ class Trainer(object):
                                                       export_activations=export_activations,
                                                       activation_layers_to_export=activation_layers_to_export,
                                                       write_instance_metrics=write_instance_metrics,
-                                                      max_n_saved_models=n_model_checkpoints)
+                                                      max_n_saved_models=n_model_checkpoints,
+                                                      skip_model_checkpoint_saving=skip_model_checkpoint_saving)
         self.exporter = trainer_exporter.TrainerExporter(
             out_dir=out_dir, instance_problem=instance_problem,
             export_config=export_config, tensorboard_writer=tensorboard_writer,
@@ -370,7 +375,7 @@ class Trainer(object):
                 should_export_visualizations = False
 
         val_metrics = None
-        save_checkpoint = (split == 'val')
+        save_checkpoint = (split == 'val') and not self.skip_model_checkpoint_saving
         write_instance_metrics = (split == 'val') and self.write_instance_metrics \
             if write_instance_metrics is None else write_instance_metrics
         write_basic_metrics = True if write_basic_metrics is None else write_basic_metrics
@@ -522,9 +527,13 @@ class Trainer(object):
                 if not (self.exporter.export_config.validate_only_on_vis_export and
                         not self.exporter.conservative_export_decider.is_prev_or_next_export_iteration(
                             self.state.iteration)):
-                    self.validate_all_splits()
-                else:
-                    import ipdb; ipdb.set_trace()
+                    if not self.skip_validation:
+                        self.validate_all_splits()
+                    elif not self.skip_model_checkpoint_saving:
+                        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
+                                                                                self.state.iteration, self.model,
+                                                                                self.optim, self.best_mean_iu,
+                                                                                None)
 
             # Run training iteration
             self.train_iteration(data_dict)

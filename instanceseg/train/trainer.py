@@ -20,12 +20,67 @@ from instanceseg.utils.instance_utils import InstanceProblemConfig
 
 import GPUtil
 
+WATCH_VAL_SUBDIR = 'watching_validator'
 
 DEBUG_ASSERTS = True
 DEBUG_MEMORY_ISSUES = False
 
 BINARY_AUGMENT_MULTIPLIER = 100.0
 BINARY_AUGMENT_CENTERED = True
+
+
+class ValProgressWatcher(object):
+    def __init__(self, watcher_log_directory, trainer_model_directory):
+        assert os.path.exists(watcher_log_directory)
+        self.watcher_log_directory = watcher_log_directory
+        self.trainer_model_directory = trainer_model_directory
+        self.prev_total = self.get_total()
+        self.t = self.make_new_progress_bar(self.prev_total)
+        self.prev_count = 0
+
+    def make_new_progress_bar(self, total=None):
+        total = total or self.get_total()
+        return tqdm.tqdm(total=total, desc=self.desc, ncols=80, leave=True)
+
+    @property
+    def desc(self):
+        in_progress_files = self.get_in_progress_files()
+        in_progress_files = in_progress_files if len(in_progress_files) == 1 else in_progress_files[0]
+        return 'Val progress: {n_finished}/{n_trained} models (In progress: {in_progress_files})'.format(
+            n_finished=self.get_finished_count(), n_trained=self.get_total(),
+            in_progress_files=in_progress_files)
+
+    def get_total(self):
+        return len(self.get_trained_model_list())
+
+    def get_trained_model_list(self):
+        trained_model_list = os.listdir(self.trainer_model_directory)
+        return [f for f in trained_model_list if f.endswith('.pth') or f.endswith('.pth.tar')]
+
+    def get_watcher_log_files(self):
+        return os.listdir(os.path.join(self.watcher_log_directory))
+
+    def get_finished_files(self):
+        return [f for f in self.get_watcher_log_files() if f.startswith('finished-')]
+
+    def get_in_progress_files(self):
+        return [f for f in self.get_watcher_log_files() if f.startswith('started-')]
+
+    def get_finished_count(self):
+        return len(self.get_finished_files())
+
+    def update(self):
+        count = self.get_finished_count()
+        total = self.get_total()
+        if self.get_total() != self.prev_total:
+            self.make_new_progress_bar(total)
+            self.prev_count = 0
+        self.t.update(count - self.prev_count)
+        self.prev_count = count
+        self.prev_total = total
+
+    def close(self):
+        self.t.close()
 
 
 class TrainingState(object):
@@ -57,7 +112,7 @@ class Trainer(object):
         self.cuda = cuda
         self.skip_validation = skip_validation  # If another process is doing it for us, or we're going to do it later.
         self.skip_model_checkpoint_saving = skip_model_checkpoint_saving  # Generally if we're alreadyloading from a
-                                                                          # checkpoint
+        # checkpoint
 
         # Model objects
         self.model = model
@@ -507,11 +562,22 @@ class Trainer(object):
             self.dataloaders['train_for_val'].dataset.raw_dataset.initialize_locations_per_image(
                 seed)
 
+        watcher_log_dir = os.path.join(self.exporter.export_config.outdir, WATCH_VAL_SUBDIR)
+        if not os.path.exists(watcher_log_dir):
+            del watcher_log_dir
+            t_val = None
+        else:
+            t_val = ValProgressWatcher(
+                watcher_log_directory=os.path.join(self.exporter.export_config.outdir, WATCH_VAL_SUBDIR),
+                trainer_model_directory=self.exporter.model_history_saver.model_checkpoint_dir)
+
         t = tqdm.tqdm(  # tqdm: progress bar
             enumerate(self.dataloaders['train']), total=len(self.dataloaders['train']),
             desc='Train epoch=%d' % self.state.epoch, ncols=80, leave=False)
 
         for batch_idx, data_dict in t:
+            if t_val is not None:
+                t_val.update()
             memory_allocated = torch.cuda.memory_allocated(device=None)
             description = 'Train epoch=%d, %g GB' % (self.state.epoch, memory_allocated / 1e9)
             t.set_description_str(description)

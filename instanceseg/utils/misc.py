@@ -2,6 +2,10 @@ import argparse
 import collections
 import logging
 import os
+try:
+    import tqdm
+except ImportError:
+    tqdm = None
 
 import numpy as np
 import torch
@@ -262,3 +266,4 @@ def rgb2hex(r, g, b):
     assert 0 <= g <= 255
     assert 0 <= b <= 255
     return '#%02x%02x%02x' % (r, g, b)
+

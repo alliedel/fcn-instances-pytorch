@@ -35,7 +35,7 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         with open(self.current_logfile, 'w+') as fid:
             fid.write(msg)
         finished_file = self.convert_name_to_finished(self.current_logfile)
-        shutil.copyfile(self.current_logfile, finished_file)
+        shutil.move(self.current_logfile, finished_file)
         self.current_logfile = finished_file
 
     def process_new_model_file(self, new_model_pth):
@@ -50,6 +50,8 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         self.broadcast_started(new_model_pth)
         checkpoint = torch.load(new_model_pth)
         self.validator.model.load_state_dict(checkpoint['model_state_dict'], strict=True)
+        self.validator.state.epoch = checkpoint['epoch']
+        self.validator.state.iteration = checkpoint['iteration']
         self.validator.validate_all_splits()
         self.broadcast_finished()
 

@@ -19,8 +19,8 @@ from instanceseg.utils.script_setup import setup_train, configure
 
 here = osp.dirname(osp.abspath(__file__))
 
-# DEBUG_WATCHER = False
-DEBUG_WATCHER = True
+DEBUG_WATCHER = False
+# DEBUG_WATCHER = True
 
 if DEBUG_WATCHER:
     from scripts import watch_and_validate
@@ -86,7 +86,7 @@ def offload_validation_to_watcher(my_trainer, watching_validator_gpu, as_subproc
                                                                     mean_iu=None)
     pidout_filename = os.path.join(my_trainer.exporter.out_dir, 'watcher_output.log')
     writer = io.open(pidout_filename, 'wb')
-    if not as_subprocess:
+    if not as_subprocess:  # debug
         validator = watch_and_validate.get_validator(my_trainer.exporter.out_dir, watching_validator_gpu,
                                                      starting_model_checkpoint)
         watch_and_validate.main(my_trainer.exporter.out_dir, watching_validator_gpu,

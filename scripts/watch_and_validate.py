@@ -4,6 +4,7 @@ import yaml
 
 from instanceseg.train.filewatcher import WatchingValidator
 from instanceseg.utils import script_setup
+from scripts.configurations import sampler_cfg_registry
 
 
 def main(trainer_logdir, gpu):
@@ -14,12 +15,13 @@ def main(trainer_logdir, gpu):
     validator_kwargs = {
         'dataset_type': train_cfg['dataset'],
         'train_cfg': train_cfg,
-        'sampler_cfg': train_cfg['sampler'],
+        'sampler_cfg': sampler_cfg_registry.get_sampler_cfg_set(train_cfg['sampler']),
         'out_dir': watch_val_outdir,
         'init_model_checkpoint_path': None
     }
+
     validator = script_setup.setup_validator(**validator_kwargs, gpu=gpu)
-    watching_validator = WatchingValidator(validator, train_outdir)
+    watching_validator = WatchingValidator(validator, os.path.join(train_outdir, 'model_checkpoints'))
     watching_validator.start()
 
 

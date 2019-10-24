@@ -66,10 +66,13 @@ class WatchingValidator(object):
         self.watch_directory = watch_directory
         self.observer = Observer()
         watcher_log_directory = watch_directory.rstrip(os.path.sep) + '-val-log'
+        if not os.path.exists(watcher_log_directory):
+            os.makedirs(watcher_log_directory)
         self.file_handler = CheckpointFileHandler(validator, watcher_log_directory)
         self.observer.schedule(self.file_handler, path=self.watch_directory)
 
     def start(self):
+        print('Set up to watch directory {}'.format(self.watch_directory))
         self.observer.start()
         try:
             while True:

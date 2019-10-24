@@ -20,6 +20,14 @@ from instanceseg.utils.script_setup import setup_train, configure
 here = osp.dirname(osp.abspath(__file__))
 
 
+DEBUG_WATCHER = False
+
+if DEBUG_WATCHER:
+    from scripts import watch_and_validate
+else:
+    watch_and_validate = None
+
+
 def query_remove_logdir(logdir):
     from instanceseg.utils import misc
     import os
@@ -69,12 +77,17 @@ def main(replacement_dict_for_sys_args=None):
                 FWAV Accuracy: {3}'''.format(*metrics))
     return out_dir
 
-def start_watcher(my_trainer, watching_validator_gpu):
+
+def start_watcher(my_trainer, watching_validator_gpu, as_subprocess=(not DEBUG_WATCHER)):
     if watching_validator_gpu is not None:
         pidout_filename = os.path.join(my_trainer.exporter.out_dir, 'watcher_output.log')
         writer = io.open(pidout_filename, 'wb')
-        pid = subprocess.Popen(['scripts/watch_and_validate.py', my_trainer.exporter.out_dir, '--gpu', '{}'.format(
-            watching_validator_gpu)], stdout=writer)
+        if not as_subprocess:
+            watch_and_validate.main(my_trainer.exporter.out_dir, watching_validator_gpu)
+            return
+        else:
+            pid = subprocess.Popen(['python', 'scripts/watch_and_validate.py', my_trainer.exporter.out_dir, '--gpu',
+                                    '{}'.format(watching_validator_gpu)], stdout=writer)
     else:
         pid = None
         pidout_filename = None

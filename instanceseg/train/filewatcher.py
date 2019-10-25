@@ -11,6 +11,9 @@ import torch
 
 class CheckpointFileHandler(PatternMatchingEventHandler):
     patterns = ['*.pth.tar', '*.pth']
+    queued_prefix = 'queued'
+    started_prefix = 'started'
+    finished_prefix = 'finished'
 
     def __init__(self, validator: Evaluator, file_event_logdir):
         self.file_event_logdir = file_event_logdir
@@ -18,25 +21,43 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         self.current_logfile = None
         self.status = None
         self.validator = validator
+        self.file_queue = []
 
     def broadcast_started(self, checkpoint_file):
-        self.current_logfile = os.path.join(self.file_event_logdir,
-                                            'started-watcherlog_{}.txt'.format(os.path.basename(checkpoint_file)))
+        queue_file = os.path.join(self.file_event_logdir,
+                                  '{}-watcherlog_{}.txt'.format(self.queued_prefix, os.path.basename(
+                                      checkpoint_file)))
+        started_file = queue_file.replace(self.queued_prefix, self.started_prefix)
+        self.current_logfile = started_file
         msg = "{}\tStarted processing {}".format(datetime.datetime.now(), checkpoint_file)
-        with open(self.current_logfile, 'w+') as fid:
+        if os.path.exists(queue_file):
+            shutil.move(queue_file, started_file)
+        with open(self.current_logfile, 'a') as fid:
             fid.write(msg)
         print(msg)
 
     def convert_name_to_finished(self, started_fname):
-        return started_fname.replace('started-', 'finished-')
+        return started_fname.replace(self.started_prefix, self.finished_prefix)
 
     def broadcast_finished(self):
-        msg = "{}\tFinished processing {}".format(datetime.datetime.now(), self.current_logfile)
-        with open(self.current_logfile, 'w+') as fid:
+        msg = "\n{}\tFinished processing {}".format(datetime.datetime.now(), self.current_logfile)
+        with open(self.current_logfile, 'a') as fid:
+            fid.write('\n')
             fid.write(msg)
         finished_file = self.convert_name_to_finished(self.current_logfile)
         shutil.move(self.current_logfile, finished_file)
         self.current_logfile = finished_file
+
+    def enqueue(self, new_model_pth):
+        queue_logfile = os.path.join(self.file_event_logdir,
+                                     '{}-watcherlog_{}.txt'.format(self.queued_prefix,
+                                                                   os.path.basename(new_model_pth)))
+        msg = "{}\tQueued {}".format(datetime.datetime.now(), new_model_pth)
+        with open(queue_logfile, 'w') as fid:
+            fid.write('\n')
+            fid.write(msg)
+        print(msg)
+        self.file_queue.append(new_model_pth)
 
     def process_new_model_file(self, new_model_pth):
         """
@@ -57,7 +78,7 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
 
     def on_modified(self, event):
         print("{} modified".format(event.src_path))
-        self.process_new_model_file(event.src_path)
+        self.enqueue(event.src_path)
 
     def on_created(self, event):
         pass  # Also creates an on_modified event
@@ -66,10 +87,10 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
 class WatchingValidator(object):
     def __init__(self, validator, watch_directory):
         self.watch_directory = watch_directory
-        self.observer = Observer()
         watcher_log_directory = watch_directory.rstrip(os.path.sep) + '-val-log'
         if not os.path.exists(watcher_log_directory):
             os.makedirs(watcher_log_directory)
+        self.observer = Observer()
         self.file_handler = CheckpointFileHandler(validator, watcher_log_directory)
         self.observer.schedule(self.file_handler, path=self.watch_directory)
 
@@ -84,6 +105,10 @@ class WatchingValidator(object):
         self.observer.start()
         try:
             while True:
+                if len(self.file_handler.file_queue) > 0:
+                    model_pth_to_process = self.file_handler.file_queue.pop(0)
+                    self.file_handler.process_new_model_file(model_pth_to_process)
+
                 time.sleep(1)
         except KeyboardInterrupt:
             self.observer.stop()

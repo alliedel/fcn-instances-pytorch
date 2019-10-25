@@ -1,5 +1,6 @@
 import math
 import os
+import subprocess
 
 import numpy as np
 import torch
@@ -10,17 +11,18 @@ from torch.optim.optimizer import Optimizer
 import instanceseg
 import instanceseg.losses.loss
 import instanceseg.utils.export
-import instanceseg.utils.misc
 from instanceseg.datasets import dataset_statistics
 from instanceseg.models.fcn8s_instance import FCN8sInstance
 from instanceseg.models.model_utils import is_nan, any_nan
 from instanceseg.train import metrics, trainer_exporter
 from instanceseg.utils import datasets
+from instanceseg.utils import misc
 from instanceseg.utils.instance_utils import InstanceProblemConfig
+import time
 
-import GPUtil
 
 WATCH_VAL_SUBDIR = 'watching_validator'
+
 
 DEBUG_ASSERTS = True
 DEBUG_MEMORY_ISSUES = False
@@ -45,7 +47,7 @@ class ValProgressWatcher(object):
     @property
     def desc(self):
         in_progress_files = self.get_in_progress_files()
-        in_progress_files = in_progress_files if len(in_progress_files) == 1 else in_progress_files[0]
+        in_progress_files = in_progress_files if len(in_progress_files) != 1 else in_progress_files[0]
         return 'Val progress: {n_finished}/{n_trained} models (In progress: {in_progress_files})'.format(
             n_finished=self.get_finished_count(), n_trained=self.get_total(),
             in_progress_files=in_progress_files)
@@ -61,13 +63,16 @@ class ValProgressWatcher(object):
         return os.listdir(os.path.join(self.watcher_log_directory))
 
     def get_finished_files(self):
-        return [f for f in self.get_watcher_log_files() if f.startswith('finished-')]
+        return [f for f in self.get_watcher_log_files() if os.path.basename(f).startswith('finished-')]
 
     def get_in_progress_files(self):
-        return [f for f in self.get_watcher_log_files() if f.startswith('started-')]
+        return [f for f in self.get_watcher_log_files() if os.path.basename(f).startswith('started-')]
 
     def get_finished_count(self):
         return len(self.get_finished_files())
+
+    def finished(self):
+        return self.get_total() == len(self.get_finished_files())
 
     def update(self):
         count = self.get_finished_count()
@@ -183,6 +188,23 @@ class Trainer(object):
             out_dir=out_dir, instance_problem=instance_problem,
             export_config=export_config, tensorboard_writer=tensorboard_writer,
             metric_makers=metric_makers)
+        self.t_val = None  # We need to initialize this when we make our validation watcher.
+
+    def get_validation_progress_bar(self) -> ValProgressWatcher:
+        watcher_log_dir = os.path.join(self.exporter.out_dir, WATCH_VAL_SUBDIR)
+        if not os.path.exists(watcher_log_dir):
+            print('Waiting for validator to start..')
+            time.sleep(10)  # give subprocess a chance to make its log directory.
+        if not os.path.exists(watcher_log_dir):
+            t_val = None
+            print('No directory exists at {}'.format(watcher_log_dir))
+            if self.skip_validation:
+                misc.color_text("Validation might not be happening: Couldn't find a watcher log directory at {}".format(
+                    watcher_log_dir))
+        else:
+            t_val = ValProgressWatcher(watcher_log_directory=watcher_log_dir,
+                                       trainer_model_directory=self.exporter.model_history_saver.model_checkpoint_dir)
+        return t_val
 
     @property
     def eval_loss_fcn_with_matching(self):
@@ -562,22 +584,13 @@ class Trainer(object):
             self.dataloaders['train_for_val'].dataset.raw_dataset.initialize_locations_per_image(
                 seed)
 
-        watcher_log_dir = os.path.join(self.exporter.export_config.outdir, WATCH_VAL_SUBDIR)
-        if not os.path.exists(watcher_log_dir):
-            del watcher_log_dir
-            t_val = None
-        else:
-            t_val = ValProgressWatcher(
-                watcher_log_directory=os.path.join(self.exporter.export_config.outdir, WATCH_VAL_SUBDIR),
-                trainer_model_directory=self.exporter.model_history_saver.model_checkpoint_dir)
-
         t = tqdm.tqdm(  # tqdm: progress bar
             enumerate(self.dataloaders['train']), total=len(self.dataloaders['train']),
             desc='Train epoch=%d' % self.state.epoch, ncols=80, leave=False)
 
         for batch_idx, data_dict in t:
-            if t_val is not None:
-                t_val.update()
+            if self.t_val is not None:
+                self.t_val.update()
             memory_allocated = torch.cuda.memory_allocated(device=None)
             description = 'Train epoch=%d, %g GB' % (self.state.epoch, memory_allocated / 1e9)
             t.set_description_str(description)
@@ -644,12 +657,21 @@ class Trainer(object):
 
     def train(self):
         max_epoch = int(math.ceil(1. * self.state.max_iteration / len(self.dataloaders['train'])))
+        if self.t_val is None:
+            self.t_val = self.get_validation_progress_bar()
+
         for epoch in tqdm.trange(self.state.epoch, max_epoch,
                                  desc='Train', ncols=80, leave=False):
             self.state.epoch = epoch
             self.train_epoch()
             if self.state.training_complete():
                 break
+        if self.t_val is not None:
+            self.t_val.close()
+            if not self.t_val.finished():
+                misc.color_text('Validation is continuing.', color='WARNING')
+            else:
+                misc.color_text('Validation is continuing.', color='OKGREEN')
 
     def validate_all_splits(self):
         val_loss, val_metrics, _ = self.validate_split('val')
@@ -678,3 +700,5 @@ def debug_check_values_are_valid(loss, score, iteration):
 def argsort_lst(lst):
     alst = np.argsort(lst)
     return alst, [lst[a] for a in alst]
+
+

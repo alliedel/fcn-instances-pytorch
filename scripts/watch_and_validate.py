@@ -1,39 +1,15 @@
 import argparse
 import os
-import yaml
 
-from instanceseg.train.filewatcher import WatchingValidator
-from instanceseg.utils import script_setup
-from scripts.configurations import sampler_cfg_registry
+import instanceseg.train.validator
+from instanceseg.train import filewatcher
+from instanceseg.train import trainer
 
 
 def main(trainer_logdir, gpu, starting_model_checkpoint=None):
-    validator = get_validator(trainer_logdir, gpu, starting_model_checkpoint)
-    watching_validator = WatchingValidator(validator, os.path.join(trainer_logdir, 'model_checkpoints'))
+    validator = instanceseg.train.validator.get_validator(trainer_logdir, gpu, starting_model_checkpoint)
+    watching_validator = filewatcher.WatchingValidator(validator, os.path.join(trainer_logdir, 'model_checkpoints'))
     watching_validator.start()
-
-
-def get_validator(trainer_logdir, gpu, starting_model_checkpoint=None):
-    trainer_config_file = os.path.join(trainer_logdir, 'config.yaml')
-    train_cfg = yaml.safe_load(open(trainer_config_file, 'r'))
-    watch_val_outdir = os.path.join(os.path.dirname(trainer_config_file), 'watching_validator')
-    if starting_model_checkpoint is not None:
-        assert os.path.isfile(starting_model_checkpoint)
-    else:
-        starting_model_checkpoint = os.path.join(trainer_logdir, 'checkpoint.pth.tar')
-    sampler_cfg = sampler_cfg_registry.get_sampler_cfg_set(train_cfg['sampler'])
-    validator_kwargs = {
-        'dataset_type': train_cfg['dataset'],
-        'train_cfg': train_cfg,
-        'sampler_cfg': sampler_cfg,
-        'out_dir': watch_val_outdir,
-        'init_model_checkpoint_path': starting_model_checkpoint
-    }
-    validator = script_setup.setup_validator(**validator_kwargs, gpu=gpu)
-    assert 'train_for_val' in validator.dataloaders.keys()
-    assert validator.state.iteration is not None
-    assert validator.exporter.conservative_export_decider.base_interval is not None
-    return validator
 
 
 def parse_args():

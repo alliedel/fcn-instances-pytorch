@@ -63,7 +63,8 @@ def parse_args_train(replacement_args_list=None):
         argv += ['--sampler', args.sampler]
     # Parse with list of options
     override_cfg_args, leftovers = cfg_override_parser.parse_known_args(argv)
-    assert len(leftovers) == 0, ValueError('args not recognized: {}'.format(leftovers))
+    assert len(leftovers) == 0, ValueError('args not recognized: {}\n{}'.format(leftovers,
+                                                                                cfg_override_parser.print_help()))
     # apparently this is failing, so I'm going to have to screen this on my own:
 
     # Remove options from namespace that weren't defined
@@ -119,8 +120,10 @@ def construct_args_list_to_replace_sys(dataset_name, gpu=None, config_idx=None, 
                      '--resume': resume}.items():
         if val is not None:
             default_args_list += [key, str(val)]
-    for key, val in kwargs:
+    for key, val in kwargs.items():
         if val is not None:
+            if not key.startswith('--'):
+                key = '--' + key if len(key) > 1 else '-' + key
             default_args_list += [key, str(val)]
     return default_args_list
 

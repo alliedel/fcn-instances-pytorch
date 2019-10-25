@@ -1,31 +1,24 @@
 import atexit
-import io
 import os
 import os.path as osp
-import subprocess
-import time
 import sys
+import time
 
 import numpy as np
 
 import debugging.dataloader_debug_utils as debug_helper
 import instanceseg.utils.script_setup as script_utils
 from instanceseg.analysis import visualization_utils
-from instanceseg.train import trainer
-from instanceseg.utils import parse
+from instanceseg.train import trainer, validator
+from instanceseg.utils import parse, misc
 from instanceseg.utils.imgutils import write_np_array_as_img
 from instanceseg.utils.misc import y_or_n_input
 from instanceseg.utils.script_setup import setup_train, configure
 
 here = osp.dirname(osp.abspath(__file__))
 
-DEBUG_WATCHER = False
 # DEBUG_WATCHER = True
-
-if DEBUG_WATCHER:
-    from scripts import watch_and_validate
-else:
-    watch_and_validate = None
+DEBUG_WATCHER = False
 
 
 def query_remove_logdir(logdir):
@@ -66,7 +59,6 @@ def main(replacement_dict_for_sys_args=None):
         debug_helper.debug_dataloader(trainer, split='train', n_debug_images=n_debug_images)
         atexit.unregister(query_remove_logdir)
     else:
-        print('Evaluating final model')
         metrics = run(trainer, watchingval_gpu)
         # atexit.unregister(query_remove_logdir)
         if metrics is not None:
@@ -78,57 +70,69 @@ def main(replacement_dict_for_sys_args=None):
     return out_dir
 
 
-def offload_validation_to_watcher(my_trainer, watching_validator_gpu, as_subprocess=(not DEBUG_WATCHER)):
-    my_trainer.skip_validation = True
-    starting_model_checkpoint = my_trainer.exporter.save_checkpoint(my_trainer.state.epoch,
-                                                                    my_trainer.state.iteration, my_trainer.model,
-                                                                    my_trainer.optim, my_trainer.best_mean_iu,
-                                                                    mean_iu=None)
-    pidout_filename = os.path.join(my_trainer.exporter.out_dir, 'watcher_output.log')
-    writer = io.open(pidout_filename, 'wb')
-    if not as_subprocess:  # debug
-        validator = watch_and_validate.get_validator(my_trainer.exporter.out_dir, watching_validator_gpu,
-                                                     starting_model_checkpoint)
-        watch_and_validate.main(my_trainer.exporter.out_dir, watching_validator_gpu,
-                                starting_model_checkpoint=starting_model_checkpoint)
-        return
-    else:
-        pid = subprocess.Popen(['python', 'scripts/watch_and_validate.py', my_trainer.exporter.out_dir, '--gpu',
-                                '{}'.format(watching_validator_gpu), '--starting_model_checkpoint',
-                                starting_model_checkpoint], stdout=writer)
-    return pid, pidout_filename, writer
-
-
 def terminate_watcher(pid, writer):
+    print('Terminating watcher')
     pid.terminate()
     writer.close()
 
 
-def run(my_trainer: trainer.Trainer, watching_validator_gpu=None):
+def find_and_kill_watcher(my_trainer_logdir):
+    print('Killing watcher')
+    import subprocess
+    pid = subprocess.Popen(['ps', 'ux'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, error = pid.communicate()
+    processes = output.decode('ascii').split('\n')
+    watch_processes = [proc for proc in processes if 'watch_and_validate' in proc]
+    my_watch_processes = [proc for proc in watch_processes if os.path.basename(my_trainer_logdir) in proc]
+    if len(my_watch_processes) > 1:
+        raise Exception('Multiple watch processes to kill. That shouldnt happen')
+    elif len(my_watch_processes) == 1:
+        process_id = [s for s in my_watch_processes[0].split(' ') if s != ''][1]
+        print('Killing watcher (process {})'.format(int(process_id)))
+        subprocess.check_call(['kill', '{}'.format(int(process_id))])
+    else:
+        print('No validation watcher to kill.')
+
+
+def run(my_trainer: trainer.Trainer, watching_validator_gpu=None, write_val_to_stdout=False):
     if watching_validator_gpu is not None:
-        pid, pidout_filename, writer = offload_validation_to_watcher(my_trainer, watching_validator_gpu)
+        atexit.register(find_and_kill_watcher, my_trainer.exporter.out_dir)
+        pid, pidout_filename, writer = validator.offload_validation_to_watcher(my_trainer, watching_validator_gpu,
+                                                                               as_subprocess=not DEBUG_WATCHER,
+                                                                               write_val_to_stdout=write_val_to_stdout)
+        atexit.unregister(find_and_kill_watcher)
+        atexit.register(terminate_watcher, pid, writer)
     else:
         pid = None
         pidout_filename = None
         writer = None
 
-    atexit.register(terminate_watcher, pid, writer)
-
     try:
         my_trainer.train()
+        misc.color_text('Training is complete!', 'OKGREEN')
         atexit.unregister(query_remove_logdir)
     except KeyboardInterrupt:
         if y_or_n_input('I\'ve stopped training.  Finish script?', default='y') == 'n':
             raise
 
     if pid is not None:
-        with io.open(pidout_filename, 'rb', 1) as reader:
+        with open(pidout_filename, 'rb', 1) as reader:
             while pid.poll() is None:
-                sys.stdout.write(reader.read())
+                if my_trainer.t_val.finished():
+                    misc.color_text('Validation is complete!', 'OKGREEN')
+                if write_val_to_stdout:
+                    import ipdb;
+                    ipdb.set_trace()
+                    sys.stdout.write(reader.read())
+                print('Models: {}'.format(my_trainer.t_val.get_trained_model_list()))
+                print('Finished: {}'.format(my_trainer.t_val.get_finished_files()))
+                print('Watcher: {}'.format(my_trainer.t_val.get_watcher_log_files()))
                 time.sleep(0.5)
             # Read the remaining
-            sys.stdout.write(reader.read())
+            if write_val_to_stdout:
+                sys.stdout.write(reader.read())
 
+    print('Evaluating final model')
     val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = \
         my_trainer.validate_split(should_export_visualizations=False)
     if eval_metrics is not None:

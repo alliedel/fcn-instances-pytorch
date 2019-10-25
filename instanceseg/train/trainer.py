@@ -191,7 +191,7 @@ class Trainer(object):
         self.t_val = None  # We need to initialize this when we make our validation watcher.
 
     def get_validation_progress_bar(self) -> ValProgressWatcher:
-        watcher_log_dir = os.path.join(self.exporter.out_dir, WATCH_VAL_SUBDIR)
+        watcher_log_dir = os.path.join(self.exporter.out_dir, 'model_checkpoints-val-log')
         if not os.path.exists(watcher_log_dir):
             print('Waiting for validator to start..')
             time.sleep(10)  # give subprocess a chance to make its log directory.

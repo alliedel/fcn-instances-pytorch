@@ -126,7 +126,7 @@ def run(my_trainer: trainer.Trainer, watching_validator_gpu=None, write_val_to_s
                     sys.stdout.write(reader.read())
                 print('Models: {}'.format(my_trainer.t_val.get_trained_model_list()))
                 print('Finished: {}'.format(my_trainer.t_val.get_finished_files()))
-                print('Watcher: {}'.format(my_trainer.t_val.get_watcher_log_files()))
+                print('All: {}'.format(my_trainer.t_val.get_watcher_log_files()))
                 time.sleep(0.5)
             # Read the remaining
             if write_val_to_stdout:

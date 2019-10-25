@@ -10,7 +10,7 @@ if __name__ == '__main__':
     #               sampler_name=None)
     config = dict(dataset_name='cityscapes',
                   gpu=[0, 1],
-                  config_idx='overfit_above_capacity',
+                  config_idx='',
                   sampler_name=None,
                   max_iteration=100)
 

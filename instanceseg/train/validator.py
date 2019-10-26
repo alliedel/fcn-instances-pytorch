@@ -19,7 +19,7 @@ def start_screen_session_with_cmd(cmd, session_name=None, new_window_name=None):
     now_str = datetime.datetime.now().strftime('%m_%d_%H-%M-%S')
     session_name = session_name or 'autoscreen_{}'.format(now_str)
     new_window_name = new_window_name or 'autowindow_{}'.format(now_str)
-    window_creator = ['screen', '-S', session_name, '-t', new_window_name, '-A', '-d', '-m']
+    window_creator = ['screen', '-S', session_name, '-t', new_window_name, '-A', '-d', '-m']  # '-A?'
     print('Ran:\n' + ' '.join(window_creator))
     subprocess.check_output(window_creator)
     # Reload direnv

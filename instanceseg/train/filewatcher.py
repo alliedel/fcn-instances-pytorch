@@ -37,7 +37,7 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
                                       checkpoint_file)))
         started_file = queue_file.replace(self.queued_prefix, self.started_prefix)
         self.current_logfile = started_file
-        msg = "{}\tStarted processing {}".format(datetime.datetime.now(), checkpoint_file)
+        msg = "{}\tStarted processing {}".format(datetime.datetime.now(), os.path.basename(checkpoint_file))
         if os.path.exists(queue_file):
             shutil.move(queue_file, started_file)
         with open(self.current_logfile, 'a') as fid:
@@ -92,6 +92,7 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
             pass
         else:
             self.enqueue(event.src_path)
+        time.sleep(0.5)  # modifications can happen rapidfire -- gets annoying.
 
     def on_created(self, event):
         pass  # Also creates an on_modified event
@@ -112,18 +113,23 @@ class WatchingValidator(object):
         existing_files = os.listdir(self.watch_directory)
         existing_files = sorted([os.path.join(self.watch_directory, f) for f in existing_files
                           if f.endswith('.pth') or f.endswith('.pth.tar')])
-        self.file_handler.broadcast('Found files {}'.format(existing_files))
+        self.file_handler.broadcast('Found files {}'.format([os.path.basename(sf) for sf in existing_files]))
         for file in existing_files:
             self.file_handler.process_new_model_file(file)
         self.observer.start()
         try:
             self.file_handler.broadcast('Starting while() to continuously process files')
+            time_since_last_file = 0
             while True:
                 if len(self.file_handler.file_queue) > 0:
+                    time_since_last_file = 0
                     model_pth_to_process = self.file_handler.file_queue.pop(0)
-                    self.file_handler.broadcast('Popped {}'.format(model_pth_to_process))
+                    self.file_handler.broadcast('Popped {}'.format(os.path.basename(model_pth_to_process)))
                     self.file_handler.process_new_model_file(model_pth_to_process)
                 time.sleep(1)
+                time_since_last_file += 1
+                if time_since_last_file % 60:
+                    print('\r{} minutes since last file'.format(int(time_since_last_file / 60)))
         except KeyboardInterrupt:
             self.observer.stop()
         self.observer.join()

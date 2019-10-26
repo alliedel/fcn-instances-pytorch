@@ -6,16 +6,19 @@ from instanceseg.utils import script_setup, misc
 from scripts import watch_and_validate
 from scripts.configurations import sampler_cfg_registry
 import subprocess
-
+import datetime
 
 WATCH_VAL_SUBDIR = 'watching_validator'
 
 
-def start_screen_session_with_cmd(cmd, session_name='my_session_name', new_window_name='new_window_name'):
+def start_screen_session_with_cmd(cmd, session_name=None, new_window_name='new_window_name'):
     # screen -dm -S screen_name
     # -dm -- in detached state
     # screen -S automate_me -X stuff 'echo HELLO WORLD'$(echo -ne '\015')
     #
+    now_str = datetime.datetime.now().strftime('%m_%d_%H-%M-%S')
+    session_name = session_name or 'autoscreen_{}'.format(now_str)
+    new_window_name = new_window_name or 'autowindow_{}'.format(now_str)
     window_creator = ['screen', '-S', session_name, '-t', new_window_name, '-A', '-d', '-m']
     print('Ran:\n' + ' '.join(window_creator))
     subprocess.check_output(window_creator)
@@ -45,10 +48,14 @@ def offload_validation_to_watcher(my_trainer, watching_validator_gpu, as_subproc
                                 starting_model_checkpoint=starting_model_checkpoint)
         return
     else:
-        pid = subprocess.Popen(['screen', '-d', '-RR' '-d', '-m', 'python', 'scripts/watch_and_validate.py',
-                                my_trainer.exporter.out_dir,
-                                '--gpu', '{}'.format(watching_validator_gpu), '--starting_model_checkpoint',
-                                starting_model_checkpoint], stdout=writer, stderr=subprocess.STDOUT)
+        # pid = subprocess.Popen(['screen', '-d', '-RR' '-d', '-m', 'python', 'scripts/watch_and_validate.py',
+        #                         my_trainer.exporter.out_dir,
+        #                         '--gpu', '{}'.format(watching_validator_gpu), '--starting_model_checkpoint',
+        #                         starting_model_checkpoint], stdout=writer, stderr=subprocess.STDOUT)
+        cmd = ' '.join(['python', 'scripts/watch_and_validate.py',
+                        my_trainer.exporter.out_dir, '--gpu', '{}'.format(watching_validator_gpu),
+                        '--starting_model_checkpoint', starting_model_checkpoint])
+        pid = start_screen_session_with_cmd(cmd)
     misc.color_text('Offloaded validation to GPU {}'.format(watching_validator_gpu), color='OKBLUE')
     my_trainer.skip_validation = True
     my_trainer.t_val = my_trainer.get_validation_progress_bar()

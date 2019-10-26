@@ -2,7 +2,7 @@ class PARAM_CLASSIFICATIONS(object):
     debug = {'debug_dataloader_only', 'n_debug_images'}
     optim = {'optim', 'max_iteration', 'lr', 'momentum', 'weight_decay', 'reset_optim'}
     export = {'interval_validate', 'export_activations', 'activation_layers_to_export', 'write_instance_metrics',
-              'n_model_checkpoints', 'no_validation', 'validation_gpu'}
+              'n_model_checkpoints', 'skip_validation', 'validation_gpu'}
     loss = {'matching', 'size_average', 'loss_type', 'lr_scheduler'}
     data = {'semantic_only_labels', 'set_extras_to_void', 'semantic_subset', 'ordering', 'sampler', 'dataset',
             'dataset_instance_cap', 'resize', 'resize_size', 'dataset_path', 'train_batch_size',
@@ -36,9 +36,9 @@ _default_train_config = dict(
     clip=1e20,
     lr_scheduler=None,  #'plateau',
 
-    # export
+    # exportno
     interval_validate=100,
-    no_validation=False,
+    skip_validation=False,
     validation_gpu=None,
     export_activations=False,
     activation_layers_to_export=('conv1.conv0',

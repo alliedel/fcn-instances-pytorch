@@ -11,6 +11,24 @@ import subprocess
 WATCH_VAL_SUBDIR = 'watching_validator'
 
 
+def start_screen_session_with_cmd(cmd, session_name='my_session_name', new_window_name='new_window_name'):
+    # screen -dm -S screen_name
+    # -dm -- in detached state
+    # screen -S automate_me -X stuff 'echo HELLO WORLD'$(echo -ne '\015')
+    #
+    window_creator = ['screen', '-S', session_name, '-t', new_window_name, '-A', '-d', '-m']
+    print('Ran:\n' + ' '.join(window_creator))
+    subprocess.check_output(window_creator)
+    # Reload direnv
+    cmd_opener = ['screen', '-S', session_name, '-p', new_window_name, '-X', 'stuff', 'direnv reload\n']
+    subprocess.check_output(cmd_opener, shell=False)  # If this fails, it's likely a name overload.
+
+    cmd_opener = ['screen', '-S', session_name, '-p', new_window_name, '-X', 'stuff', cmd + '\n']
+    print('Ran:\n' + ' '.join(cmd_opener))
+    pid2 = subprocess.check_output(cmd_opener, shell=False)
+    return pid2
+
+
 def offload_validation_to_watcher(my_trainer, watching_validator_gpu, as_subprocess=True,
                                   write_val_to_stdout=False):
     assert my_trainer.t_val is None, 'Watcher already exists'
@@ -27,7 +45,7 @@ def offload_validation_to_watcher(my_trainer, watching_validator_gpu, as_subproc
                                 starting_model_checkpoint=starting_model_checkpoint)
         return
     else:
-        pid = subprocess.Popen(['python', 'scripts/watch_and_validate.py',
+        pid = subprocess.Popen(['screen', '-d', '-RR' '-d', '-m', 'python', 'scripts/watch_and_validate.py',
                                 my_trainer.exporter.out_dir,
                                 '--gpu', '{}'.format(watching_validator_gpu), '--starting_model_checkpoint',
                                 starting_model_checkpoint], stdout=writer, stderr=subprocess.STDOUT)

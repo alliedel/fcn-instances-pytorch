@@ -68,6 +68,9 @@ class ValProgressWatcher(object):
     def get_in_progress_files(self):
         return [f for f in self.get_watcher_log_files() if os.path.basename(f).startswith('started-')]
 
+    def get_queued_files(self):
+        return [f for f in self.get_watcher_log_files() if os.path.basename(f).startswith('queue-')]
+
     def get_finished_count(self):
         return len(self.get_finished_files())
 

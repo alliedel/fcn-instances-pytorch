@@ -38,18 +38,20 @@ def parse_args(replacement_dict_for_sys_args=None):
 def main(replacement_dict_for_sys_args=None):
     script_utils.check_clean_work_tree()
     args, cfg_override_args = parse_args(replacement_dict_for_sys_args)
-    if len(args.gpu) == 1:
-        trainer_gpu = args.gpu
-        watchingval_gpu = None
-    else:
-        trainer_gpu = [g for g in args.gpu[:-1]]
-        watchingval_gpu = args.gpu[-1]
     cfg, out_dir, sampler_cfg = configure(dataset_name=args.dataset,
                                           config_idx=args.config,
                                           sampler_name=args.sampler,
                                           script_py_file=__file__,
                                           cfg_override_args=cfg_override_args)
     atexit.register(query_remove_logdir, out_dir)
+
+    trainer_gpu = args.gpu
+    watchingval_gpu = None if cfg['validation_gpu'] is None or len(cfg['validation_gpu']) == 0 \
+        else int(cfg['validation_gpu'])
+
+    if cfg['train_batch_size'] == 1 and len(trainer_gpu) > 1:
+        print(misc.color_text('Batch size is 1; another GPU won\'t speed things up.  We recommend assigning the other '
+                              'gpu to validation for speed: --validation_gpu <gpu_num>', 'WARNING'))
 
     trainer = setup_train(args.dataset, cfg, out_dir, sampler_cfg, gpu=trainer_gpu,
                           checkpoint_path=args.resume, semantic_init=args.semantic_init)

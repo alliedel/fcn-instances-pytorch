@@ -22,6 +22,14 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         self.status = None
         self.validator = validator
         self.file_queue = []
+        self.logging_file = os.path.join(self.file_event_logdir, 'logging_file')
+        with open(self.logging_file, 'w') as f:
+            f.write('')  # Write nothing; we'll append to it
+
+    def broadcast(self, msg):
+        with open(self.logging_file, 'a') as f:
+            f.write(msg + '\n')
+        print(msg)
 
     def broadcast_started(self, checkpoint_file):
         queue_file = os.path.join(self.file_event_logdir,
@@ -34,7 +42,7 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
             shutil.move(queue_file, started_file)
         with open(self.current_logfile, 'a') as fid:
             fid.write(msg)
-        print(msg)
+        self.broadcast(msg)
 
     def convert_name_to_finished(self, started_fname):
         return started_fname.replace(self.started_prefix, self.finished_prefix)
@@ -44,6 +52,7 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         with open(self.current_logfile, 'a') as fid:
             fid.write('\n')
             fid.write(msg)
+        self.broadcast(msg)
         finished_file = self.convert_name_to_finished(self.current_logfile)
         shutil.move(self.current_logfile, finished_file)
         self.current_logfile = finished_file
@@ -56,7 +65,7 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         with open(queue_logfile, 'w') as fid:
             fid.write('\n')
             fid.write(msg)
-        print(msg)
+        self.broadcast(msg)
         self.file_queue.append(new_model_pth)
 
     def process_new_model_file(self, new_model_pth):
@@ -77,8 +86,12 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         self.broadcast_finished()
 
     def on_modified(self, event):
-        print("{} modified".format(event.src_path))
-        self.enqueue(event.src_path)
+        self.broadcast("{} modified".format(event.src_path))
+        if event.src_path in self.file_queue:
+            self.broadcast('{} already on queue'.format(event.src_path))
+            pass
+        else:
+            self.enqueue(event.src_path)
 
     def on_created(self, event):
         pass  # Also creates an on_modified event
@@ -97,20 +110,21 @@ class WatchingValidator(object):
     def start(self):
         print('Set up to watch directory {}'.format(self.watch_directory))
         existing_files = os.listdir(self.watch_directory)
-        existing_files = [os.path.join(self.watch_directory, f) for f in existing_files
-                          if f.endswith('.pth') or f.endswith('.pth.tar')]
-        print('Found files {}'.format(existing_files))
+        existing_files = sorted([os.path.join(self.watch_directory, f) for f in existing_files
+                          if f.endswith('.pth') or f.endswith('.pth.tar')])
+        self.file_handler.broadcast('Found files {}'.format(existing_files))
         for file in existing_files:
             self.file_handler.process_new_model_file(file)
         self.observer.start()
         try:
+            self.file_handler.broadcast('Starting while() to continuously process files')
             while True:
                 if len(self.file_handler.file_queue) > 0:
                     model_pth_to_process = self.file_handler.file_queue.pop(0)
+                    self.file_handler.broadcast('Popped {}'.format(model_pth_to_process))
                     self.file_handler.process_new_model_file(model_pth_to_process)
-
                 time.sleep(1)
         except KeyboardInterrupt:
             self.observer.stop()
-
         self.observer.join()
+        self.file_handler.broadcast('Exiting observer')

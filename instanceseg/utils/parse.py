@@ -20,7 +20,6 @@ def parse_args_test(replacement_args_list=None):
                                                      '{}'.format(args.dataset,
                                                                  os.path.split(os.path.split(args.logdir)[0])[1])
 
-
     override_cfg_args = get_override_cfg(argv, args.dataset, args.sampler)
     return args, override_cfg_args
 

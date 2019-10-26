@@ -334,11 +334,9 @@ class Trainer(object):
         return datasets.augment_channels(img, BINARY_AUGMENT_MULTIPLIER * semantic_one_hot -
                                          (0.5 if BINARY_AUGMENT_CENTERED else 0), dim=1)
 
-    def save_checkpoint_and_update_if_best(self, mean_iu, save_by_iteration=True):
-        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
-                                                                self.state.iteration, self.model,
-                                                                self.optim, self.best_mean_iu,
-                                                                mean_iu)
+    def save_checkpoint_and_update_if_best(self, mean_iu):
+        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch, self.state.iteration, self.model,
+                                                                self.optim, self.best_mean_iu, mean_iu)
         if mean_iu > self.best_mean_iu or self.best_mean_iu == 0:
             self.best_mean_iu = mean_iu
             self.exporter.copy_checkpoint_as_best(current_checkpoint_file)
@@ -612,10 +610,9 @@ class Trainer(object):
                     if not self.skip_validation:
                         self.validate_all_splits()
                     elif not self.skip_model_checkpoint_saving:
-                        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch,
-                                                                                self.state.iteration, self.model,
-                                                                                self.optim, self.best_mean_iu,
-                                                                                None)
+                        current_checkpoint_file = self.exporter.save_checkpoint(self.state.epoch, self.state.iteration,
+                                                                                self.model, self.optim,
+                                                                                self.best_mean_iu, None)
 
             # Run training iteration
             self.train_iteration(data_dict)
@@ -668,6 +665,8 @@ class Trainer(object):
             self.state.epoch = epoch
             self.train_epoch()
             if self.state.training_complete():
+                self.exporter.save_checkpoint(self.state.epoch, self.state.iteration, self.model, self.optim,
+                                              self.best_mean_iu, None)
                 break
         if self.t_val is not None:
             self.t_val.close()

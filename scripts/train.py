@@ -104,10 +104,6 @@ def run(my_trainer: trainer.Trainer, watching_validator_gpu=None, write_val_to_s
                                                                                write_val_to_stdout=write_val_to_stdout)
         atexit.unregister(find_and_kill_watcher)
         atexit.register(terminate_watcher, pid, writer)
-    else:
-        pid = None
-        pidout_filename = None
-        writer = None
 
     try:
         my_trainer.train()
@@ -116,23 +112,6 @@ def run(my_trainer: trainer.Trainer, watching_validator_gpu=None, write_val_to_s
     except KeyboardInterrupt:
         if y_or_n_input('I\'ve stopped training.  Finish script?', default='y') == 'n':
             raise
-
-    if pid is not None:
-        with open(pidout_filename, 'rb', 1) as reader:
-            while pid.poll() is None:
-                if my_trainer.t_val.finished():
-                    misc.color_text('Validation is complete!', 'OKGREEN')
-                if write_val_to_stdout:
-                    import ipdb;
-                    ipdb.set_trace()
-                    sys.stdout.write(reader.read())
-                print('Models: {}'.format(my_trainer.t_val.get_trained_model_list()))
-                print('Finished: {}'.format(my_trainer.t_val.get_finished_files()))
-                print('All: {}'.format(my_trainer.t_val.get_watcher_log_files()))
-                time.sleep(0.5)
-            # Read the remaining
-            if write_val_to_stdout:
-                sys.stdout.write(reader.read())
 
     print('Evaluating final model')
     val_loss, eval_metrics, (segmentation_visualizations, score_visualizations) = \

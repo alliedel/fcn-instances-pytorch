@@ -435,8 +435,7 @@ class TrainerExporter(object):
                             raise ValueError('I\'m not sure how to write {} to tensorboard_writer (name is '
                                              '{}'.format(type(metric), name))
 
-    def save_checkpoint(self, epoch, iteration, model, optimizer, best_mean_iu, mean_iu, out_dir=None,
-                        save_by_iteration=True):
+    def save_checkpoint(self, epoch, iteration, model, optimizer, best_mean_iu, mean_iu, out_dir=None):
         out_name = 'checkpoint.pth.tar'
         out_dir = out_dir or os.path.join(self.out_dir)
         checkpoint_file = osp.join(out_dir, out_name)
@@ -458,7 +457,6 @@ class TrainerExporter(object):
                                                        clean_up_checkpoints=
                                                        (False if self.export_config.validate_only_on_vis_export else
                                                         True))
-
         return checkpoint_file
 
     def copy_checkpoint_as_best(self, current_checkpoint_file, out_dir=None, out_name='model_best.pth.tar'):

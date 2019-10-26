@@ -48,7 +48,7 @@ class CheckpointFileHandler(PatternMatchingEventHandler):
         return started_fname.replace(self.started_prefix, self.finished_prefix)
 
     def broadcast_finished(self):
-        msg = "\n{}\tFinished processing {}".format(datetime.datetime.now(), self.current_logfile)
+        msg = "\n{}\tFinished processing {}".format(datetime.datetime.now(), os.path.basename(self.current_logfile))
         with open(self.current_logfile, 'a') as fid:
             fid.write('\n')
             fid.write(msg)
@@ -128,8 +128,9 @@ class WatchingValidator(object):
                     self.file_handler.process_new_model_file(model_pth_to_process)
                 time.sleep(1)
                 time_since_last_file += 1
-                if time_since_last_file % 60:
-                    print('\r{} minutes since last file'.format(int(time_since_last_file / 60)))
+                if (time_since_last_file % 20) == 0:
+                    print('\r{}m{}s since last file'.format(int(time_since_last_file / 60), time_since_last_file %
+                                                            60), end='')
         except KeyboardInterrupt:
             self.observer.stop()
         self.observer.join()

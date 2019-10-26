@@ -35,10 +35,9 @@ def start_screen_session_with_cmd(cmd, session_name=None, new_window_name='new_w
 def offload_validation_to_watcher(my_trainer, watching_validator_gpu, as_subprocess=True,
                                   write_val_to_stdout=False):
     assert my_trainer.t_val is None, 'Watcher already exists'
-    starting_model_checkpoint = my_trainer.exporter.save_checkpoint(my_trainer.state.epoch,
-                                                                    my_trainer.state.iteration, my_trainer.model,
-                                                                    my_trainer.optim, my_trainer.best_mean_iu,
-                                                                    mean_iu=None)
+    starting_model_checkpoint = my_trainer.exporter.save_checkpoint(my_trainer.state.epoch, my_trainer.state.iteration,
+                                                                    my_trainer.model, my_trainer.optim,
+                                                                    my_trainer.best_mean_iu, mean_iu=None)
     pidout_filename = os.path.join(my_trainer.exporter.out_dir, 'watcher_output_subprocess.log')
     writer = open(pidout_filename, 'wb')
     if not as_subprocess:  # debug

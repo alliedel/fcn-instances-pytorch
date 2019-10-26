@@ -107,6 +107,7 @@ class WatchingValidator(object):
         self.observer = Observer()
         self.file_handler = CheckpointFileHandler(validator, watcher_log_directory)
         self.observer.schedule(self.file_handler, path=self.watch_directory)
+        self.wait_print_sec = 10
 
     def start(self):
         print('Set up to watch directory {}'.format(self.watch_directory))
@@ -128,7 +129,7 @@ class WatchingValidator(object):
                     self.file_handler.process_new_model_file(model_pth_to_process)
                 time.sleep(1)
                 time_since_last_file += 1
-                if (time_since_last_file % 20) == 0:
+                if (time_since_last_file % self.wait_print_sec) == 0:
                     print('\r{}m{}s since last file'.format(int(time_since_last_file / 60), time_since_last_file %
                                                             60), end='')
         except KeyboardInterrupt:

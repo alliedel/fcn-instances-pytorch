@@ -11,7 +11,7 @@ import datetime
 WATCH_VAL_SUBDIR = 'watching_validator'
 
 
-def start_screen_session_with_cmd(cmd, session_name=None, new_window_name='new_window_name'):
+def start_screen_session_with_cmd(cmd, session_name=None, new_window_name=None):
     # screen -dm -S screen_name
     # -dm -- in detached state
     # screen -S automate_me -X stuff 'echo HELLO WORLD'$(echo -ne '\015')
@@ -26,7 +26,7 @@ def start_screen_session_with_cmd(cmd, session_name=None, new_window_name='new_w
     cmd_opener = ['screen', '-S', session_name, '-p', new_window_name, '-X', 'stuff', 'direnv reload\n']
     subprocess.check_output(cmd_opener, shell=False)  # If this fails, it's likely a name overload.
 
-    cmd_opener = ['screen', '-S', session_name, '-p', new_window_name, '-X', 'stuff', cmd + '\n']
+    cmd_opener = ['screen', '-S', session_name, '-p', new_window_name, '-X', '-A', 'stuff', cmd + '\n']
     print('Ran:\n' + ' '.join(cmd_opener))
     pid2 = subprocess.check_output(cmd_opener, shell=False)
     return pid2

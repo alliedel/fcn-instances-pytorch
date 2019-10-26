@@ -1,6 +1,7 @@
 import os
 import argparse
 import numpy as np
+import yaml
 
 import instanceseg.utils.script_setup
 from instanceseg.utils import script_setup as script_utils
@@ -52,7 +53,8 @@ def main(logdir, test_split, gpu, sampler=None, batch_size=1, dataset_name=None,
         script_utils.check_clean_work_tree()
 
     train_logdir = logdir.rstrip('/')
-    dataset_name = dataset_name or os.path.basename(os.path.dirname(train_logdir))
+    config = yaml.safe_load(open(os.path.join(train_logdir, 'config.yaml'), 'rb'))
+    dataset_name = dataset_name or config['dataset']
     replacement_dict_for_sys_args = [dataset_name, '--logdir', train_logdir, '--{}_batch_size'.format(test_split),
                                      str(batch_size), '-g', ' '.join(str(g) for g in gpu), '--test_split', test_split,
                                      '--sampler', sampler]

@@ -20,7 +20,7 @@ def main(predictions_dir, groundtruth_dir, problem_config, out_dirs_root, overwr
         file_list = sorted(glob.glob(os.path.join(in_dir, '*.png')))
         out_file = os.path.abspath(os.path.expanduser(os.path.join(out_dir, '..', dir_basename + '.json')))
         panoptic_converter_from_rgb_ids(out_dir, out_file, labels_file_list=file_list, problem_config=problem_config,
-                                        overwrite=overwrite)
+                                        labels_table=problem_config.labels_table, overwrite=overwrite)
         out_dirs[label_type] = out_dir
         out_jsons[label_type] = out_file
 
@@ -36,8 +36,6 @@ def main(predictions_dir, groundtruth_dir, problem_config, out_dirs_root, overwr
     check_annotation(out_dirs, gt_annotations[0], pred_annotations[0], categories)
     print('Conversion successful.  Predictions and groundtruth written to {}'.format([v for k, v in out_dirs.items()]))
     return out_jsons, out_dirs
-
-
 
 
 def get_paths(test_outdir):

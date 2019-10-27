@@ -350,8 +350,7 @@ class Trainer(object):
         self.exporter.instance_problem.save(self.exporter.instance_problem_path)
         predictions_outdir = os.path.join(test_outdir, 'predictions')
         groundtruth_outdir = os.path.join(test_outdir, 'groundtruth')
-        scores_outdir = None if not save_scores else predictions_outdir.replace('predictions',
-                                                                                'scores')
+        scores_outdir = None if not save_scores else predictions_outdir.replace('predictions', 'scores')
         images_outdir = os.path.join(test_outdir, 'images')
         for my_dir in [predictions_outdir, groundtruth_outdir, images_outdir, scores_outdir]:
             if my_dir is None:

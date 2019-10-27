@@ -194,13 +194,16 @@ def configure(dataset_name, config_idx, sampler_name=None, script_py_file='unkno
 
 
 def get_test_dir_parent_from_traindir(traindir):
-
-    if pathlib.Path(traindir).suffix is not '':
-        traindir = os.path.dirname(traindir)
-    else:
-        traindir = traindir.rstrip(os.sep)
-    train_parentdir = os.path.dirname(traindir)
-    return os.path.join(train_parentdir, 'test', os.path.basename(traindir))
+    if not os.path.isdir(traindir):
+        raise Exception('Pass in the directory, not any file within the directory ({})'.format(traindir))
+    traindir = traindir.rstrip(os.sep)
+    train_parentdir, train_basename = os.path.split(traindir)
+    assert os.path.split(train_parentdir)[1] == 'train', 'I assumed the train logs were in something like ' \
+                                                         'scripts/logs/cityscapes/train.  I dont know where to put ' \
+                                                         'test logs otherwise (I want them in ' \
+                                                         'scripts/log/citsycapes/test in this case)'
+    test_parentdir = os.path.join(os.path.split(train_parentdir)[0], 'test')
+    return os.path.join(test_parentdir, train_basename)
 
 
 def test_configure(dataset_name, checkpoint_path, config_idx, sampler_name,

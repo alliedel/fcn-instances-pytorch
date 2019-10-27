@@ -12,19 +12,20 @@ from instanceseg.utils.misc import y_or_n_input
 
 
 def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
-                                    problem_config: instance_utils.InstanceProblemConfig,
+                                    problem_config: instance_utils.InstanceProblemConfig, labels_table=None,
                                     VOID_RGB=(255, 255, 255), VOID_INSTANCE_G=255, overwrite=None):
     """
     Takes predictions output from tester (special Trainer type) and outputs coco panoptic format
     Inputs should represent the different channels, where rgb2id creates the channel id (R + G*255 + B*255*255)
     """
     # Replace split with file_list
-    labels_table = problem_config.labels_table
+    labels_table = labels_table or problem_config.labels_table
     if not os.path.isdir(out_folder):
         print("Creating folder {} for panoptic segmentation PNGs".format(out_folder))
         os.mkdir(out_folder)
 
     categories_dict = {cat.id: cat for cat in labels_table}
+    import ipdb; ipdb.set_trace()
     images = []
     annotations = []
     n_files = len(labels_file_list)
@@ -83,11 +84,10 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         segm_info = []
         pan_ids = np.zeros((rgb_format.shape[0], rgb_format.shape[1]))
         semantic_ids_not_in_category_dict = []
+        unique_segm_ids = []
         for color_val in present_channel_colors:
-            sem255_inst_ids = rgb2id(color_val)
-            semantic_id = int(sem255_inst_ids / 255)
-            instance_count_id = sem255_inst_ids - semantic_id * 255
-            assert (semantic_id * 255 + instance_count_id) == sem255_inst_ids
+            semantic_id = color_val[0]
+            instance_count_id = color_val[1]
             is_crowd = instance_count_id < 1
             if semantic_id not in categories_dict:
                 if semantic_id not in semantic_ids_not_in_category_dict:
@@ -102,7 +102,8 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
             pan_color = id2rgb(segment_id)
             pan_format[mask, :] = pan_color
             pan_ids[mask] = segment_id
-
+            assert segment_id not in unique_segm_ids  # every segment should be unique
+            unique_segm_ids.append(segment_id)
             segm_info.append({"id": int(segment_id),
                               "category_id": int(semantic_id),
                               "area": area,

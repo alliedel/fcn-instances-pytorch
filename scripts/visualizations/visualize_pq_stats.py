@@ -98,7 +98,7 @@ def plot_bar_graph_over_full_dataset(stats_arrays_total, stats_arrays_per_class,
         ax.set_title(ylabel)
         ax.yaxis.grid(True)
         autolabel_above_bars(ax)
-        figname = 'avg_with_err' + ylabel + '.png'
+        figname = 'avg_' + ylabel + '.png'
         plt.tight_layout()
         if save_to_workspace:
             display_pyutils.save_fig_to_workspace(figname)
@@ -134,13 +134,13 @@ def plot_averages_with_error_bars(stats_arrays, semantic_class_names, category_i
         plt.clf()
         fig, ax = plt.subplots()
         ax.bar(x=x, height=y, yerr=std, align='center', alpha=0.5, ecolor='black',
-               color=[category_colors[i] for i in category_idxs_to_display], capsize=10)
+               color=[category_colors[i] for i in category_idxs_to_display], capsize=5)
         ax.set_ylabel(ylabel)
         ax.set_xticks(category_idxs_to_display)
         ax.set_xticklabels(list(category_names_to_display), rotation='vertical')
         ax.set_title(ylabel)
         ax.yaxis.grid(True)
-        figname = 'avg_' + ylabel + '.png'
+        figname = 'avg_with_err_' + ylabel + '.png'
         plt.tight_layout()
         if save_to_workspace:
             display_pyutils.save_fig_to_workspace(figname)
@@ -174,6 +174,80 @@ def plot_scatterplot_sq_rq(stats_arrays, semantic_class_names, category_idxs_to_
         nanscatter_list_of_xs_and_ys([sq_cat], [rq_cat], labels=[cat_name], xlabel='SQ', ylabel='RQ',
                                      colors=[cat_color])
         figname = 'sq_vs_rq_{}'.format(cat_name) + '.png'
+        if save_to_workspace:
+            display_pyutils.save_fig_to_workspace(figname)
+        plt.savefig(os.path.join(output_dir, figname))
+
+
+def plot_scatterplot_sq_ninst(stats_arrays, semantic_class_names, category_idxs_to_display=None, save_to_workspace=True,
+                              output_dir='/tmp/', category_colors=None):
+    category_colors = category_colors or [default_colors[i % len(semantic_class_names)]
+                                          for i in range(len(semantic_class_names))]
+    category_idxs_to_display = category_idxs_to_display if category_idxs_to_display is not None \
+        else range(stats_arrays[stats_arrays.keys()[0]].shape[1])
+    category_names_to_display = [semantic_class_names[idx] for idx in category_idxs_to_display]
+    sqs = [stats_arrays['sq'][:, i] for i in category_idxs_to_display]
+    ninst = [stats_arrays['n_inst'][:, i] for i in category_idxs_to_display]
+
+    plt.figure(1)
+    plt.clf()
+    ninst_nan = [np.copy(a) for a in ninst]
+    for a, b in zip(ninst_nan, ninst):
+        a[b == 0] = np.nan
+    nanscatter_list_of_xs_and_ys(ninst_nan, sqs, labels=category_names_to_display, xlabel='# inst', ylabel='SQ',
+                                 colors=category_colors)
+    figname = 'ninst_vs_sq' + '.png'
+    if save_to_workspace:
+        display_pyutils.save_fig_to_workspace(figname)
+    plt.savefig(os.path.join(output_dir, figname))
+
+    for cat_idx, sq_cat, ninst_cat in zip(category_idxs_to_display, sqs, ninst_nan):
+        if not np.all(ninst_nan[~np.isnan(ninst_nan)].astype(int) == ninst_nan[~np.isnan(ninst_nan)]):
+            raise Exception('Number of instances should be integer-valued')
+        plt.figure(1)
+        plt.clf()
+        cat_color = category_colors[cat_idx]
+        cat_name = semantic_class_names[cat_idx]
+        nanscatter_list_of_xs_and_ys([ninst_cat], [sq_cat], labels=[cat_name], xlabel='# inst', ylabel='SQ',
+                                     colors=[cat_color])
+        figname = 'ninst_vs_sq_{}'.format(cat_name) + '.png'
+        if save_to_workspace:
+            display_pyutils.save_fig_to_workspace(figname)
+        plt.savefig(os.path.join(output_dir, figname))
+
+
+def plot_scatterplot_rq_ninst(stats_arrays, semantic_class_names, category_idxs_to_display=None, save_to_workspace=True,
+                              output_dir='/tmp/', category_colors=None):
+    category_colors = category_colors or [default_colors[i % len(semantic_class_names)]
+                                          for i in range(len(semantic_class_names))]
+    category_idxs_to_display = category_idxs_to_display if category_idxs_to_display is not None \
+        else range(stats_arrays[stats_arrays.keys()[0]].shape[1])
+    category_names_to_display = [semantic_class_names[idx] for idx in category_idxs_to_display]
+    rqs = [stats_arrays['rq'][:, i] for i in category_idxs_to_display]
+    ninst = [stats_arrays['n_inst'][:, i] for i in category_idxs_to_display]
+    ninst_nan = [np.copy(a) for a in ninst]
+    for a, b in zip(ninst_nan, ninst):
+        a[b == 0] = np.nan
+
+    plt.figure(1)
+    plt.clf()
+    nanscatter_list_of_xs_and_ys(ninst_nan, rqs, labels=category_names_to_display, xlabel='# inst', ylabel='RQ',
+                                 colors=category_colors)
+    figname = 'ninst_vs_rq' + '.png'
+    if save_to_workspace:
+        display_pyutils.save_fig_to_workspace(figname)
+    plt.savefig(os.path.join(output_dir, figname))
+
+    for cat_idx, rq_cat, ninst_cat in zip(category_idxs_to_display, rqs, ninst_nan):
+        if not np.all(ninst_nan[~np.isnan(ninst_nan)].astype(int) == ninst_nan[~np.isnan(ninst_nan)]):
+            raise Exception('Number of instances should be integer-valued')
+        plt.figure(1)
+        plt.clf()
+        cat_color = category_colors[cat_idx]
+        cat_name = semantic_class_names[cat_idx]
+        nanscatter_list_of_xs_and_ys([ninst_cat], [rq_cat], labels=[cat_name], xlabel='# inst', ylabel='RQ',
+                                     colors=[cat_color])
+        figname = 'ninst_vs_rq_{}'.format(cat_name) + '.png'
         if save_to_workspace:
             display_pyutils.save_fig_to_workspace(figname)
         plt.savefig(os.path.join(output_dir, figname))
@@ -247,6 +321,7 @@ def nanscatter_list_of_xs_and_ys(xs, ys, labels=None, xlabel=None, ylabel=None, 
     plt.legend()
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    plt.tight_layout()
 
 
 def nanscatter_x_y(x, y, marker=None, alpha=1.0, c=None, label=None, s=None, remove_nan=True):
@@ -265,7 +340,7 @@ def nanscatter_x_y(x, y, marker=None, alpha=1.0, c=None, label=None, s=None, rem
 
 
 def main(collated_stats_npz_file, supercategories_to_ignore=('void', 'background'), values_to_ignore=(-1,)):
-    loaded_dict = dict(np.load(collated_stats_npz_file))
+    loaded_dict = dict(np.load(collated_stats_npz_file, allow_pickle=True))
     stats_arrays_per_img = extract_variable(loaded_dict, 'collated_stats_per_image_per_cat')
     stats_arrays_total_dataset = extract_variable(loaded_dict, 'dataset_totals')
     vals_to_ignore_in_collation = extract_variable(loaded_dict, 'vals_to_ignore_in_collation')
@@ -300,6 +375,13 @@ def main(collated_stats_npz_file, supercategories_to_ignore=('void', 'background
     plot_scatterplot_sq_rq(stats_arrays_per_img, semantic_class_names=semantic_class_names_before_selection,
                            category_idxs_to_display=category_idxs_to_display, output_dir=fig_output_dir,
                            category_colors=colors_norm1)
+    plot_scatterplot_sq_ninst(stats_arrays_per_img, semantic_class_names=semantic_class_names_before_selection,
+                              category_idxs_to_display=category_idxs_to_display, output_dir=fig_output_dir,
+                              category_colors=colors_norm1)
+    plot_scatterplot_rq_ninst(stats_arrays_per_img, semantic_class_names=semantic_class_names_before_selection,
+                              category_idxs_to_display=category_idxs_to_display, output_dir=fig_output_dir,
+                              category_colors=colors_norm1)
+
     plot_hists_pq_rq_sq(stats_arrays_per_img, semantic_class_names=semantic_class_names_before_selection,
                         category_idxs_to_display=category_idxs_to_display, output_dir=fig_output_dir,
                         category_colors=colors_norm1)

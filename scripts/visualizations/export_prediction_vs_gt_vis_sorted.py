@@ -332,7 +332,6 @@ def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorte
                                     for im in img_d['input_image']]
 
         print('Tiling images')
-        import ipdb; ipdb.set_trace()
         imgs_side_by_side = [get_tile_image(list(imgs), (1, len(imgs)), margin_color=(0, 0, 0), margin_size=2)
                              for imgs in zip(*[img_d[img_type] for img_type in img_types])]
 
@@ -343,7 +342,7 @@ def get_tiled_pred_gt_images(collated_stats_dict, img_types, labels_table, sorte
 
 
 def main(collated_stats_npz, original_image_list=None, overwrite_imgs=False):
-    collated_stats_dict = dict(np.load(collated_stats_npz))
+    collated_stats_dict = dict(np.load(collated_stats_npz, allow_pickle=True))
     for key in collated_stats_dict:
         collated_stats_dict[key] = extract_variable(collated_stats_dict, key)
 
@@ -357,7 +356,7 @@ def main(collated_stats_npz, original_image_list=None, overwrite_imgs=False):
                 err_msg = 'I looked for a list in {} and the directory exists, but the file does not.'.format(test_dir)
             raise Exception('Please specify the original image list; ' + err_msg)
         else:
-            image_filenames = np.load(image_list_filename)['image_filenames']
+            image_filenames = np.load(image_list_filename, allow_pickle=True)['image_filenames']
             original_image_list = [f['img'] for f in image_filenames]
     use_labels_table = True
     collated_stats = collated_stats_dict['collated_stats_per_image_per_cat']

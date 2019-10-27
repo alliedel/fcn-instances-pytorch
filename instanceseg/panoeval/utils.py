@@ -25,7 +25,6 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         os.mkdir(out_folder)
 
     categories_dict = {cat.id: cat for cat in labels_table}
-    import ipdb; ipdb.set_trace()
     images = []
     annotations = []
     n_files = len(labels_file_list)
@@ -126,7 +125,8 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
                             "segments_info": segm_info})
 
         # shutil.copy(label_f, os.path.join(out_folder, file_name))
-
+        if len(segm_info) != len(present_channel_colors):
+            import ipdb; ipdb.set_trace()
         assert len(segm_info) == len(present_channel_colors)
 
     d = {
@@ -134,8 +134,13 @@ def panoptic_converter_from_rgb_ids(out_folder, out_json_file, labels_file_list,
         'annotations': annotations,
         'categories': [l.__dict__ for l in labels_table],
     }
-
-    save_json(d, out_json_file)
+    rm_json_if_breaks = not os.path.exists(out_json_file)
+    try:
+        save_json(d, out_json_file)
+    except:
+        if rm_json_if_breaks:
+            os.remove(out_json_file)
+        raise
 
 
 def get_bounding_box(mask):

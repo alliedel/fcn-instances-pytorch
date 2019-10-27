@@ -95,8 +95,11 @@ def id2rgb(id_map):
 
 
 def save_json(d, file):
+
     def default(o):
         if isinstance(o, np.integer): return int(o)
-        raise TypeError
+        if isinstance(o, np.bool_): return bool(o)
+        raise TypeError(print('Cannot serialize type {} ()'.format(type(o), o)))
+
     with open(file, 'w') as f:
         json.dump(d, f, default=default)

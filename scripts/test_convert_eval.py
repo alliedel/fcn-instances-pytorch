@@ -19,6 +19,9 @@ if 'panopticapi' not in os.environ['PYTHONPATH']:
 
 def get_test_parser_without_logdir():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--existing_test_cache_dir', default=None,
+                        help='if test.py and convert...py were already successful and you want to '
+                             'run the rest of the pipeline (eval, visualize)')
     parser.add_argument('--test_split', default='val', help='train, val, test, or any other split the dataloader can '
                                                             'load for this dataset')
     parser.add_argument('--dataset_name', default=None, help='dataset; default=dataset you trained on')
@@ -44,26 +47,30 @@ def parse_args():
 
 
 def main(logdir, test_split, gpu, sampler=None, batch_size=1, dataset_name=None, iou_threshold=0.5,
-         export_sorted_perf_images=True, check_clean_tree=True):
+         export_sorted_perf_images=True, check_clean_tree=True, existing_test_cache_dir=None):
     if check_clean_tree:
         script_utils.check_clean_work_tree()
 
-    train_logdir = logdir.rstrip('/')
-    config = yaml.safe_load(open(os.path.join(train_logdir, 'config.yaml'), 'rb'))
-    dataset_name = dataset_name or config['dataset']
-    replacement_dict_for_sys_args = [dataset_name, '--logdir', train_logdir, '--{}_batch_size'.format(test_split),
-                                     str(batch_size), '-g', ' '.join(str(g) for g in gpu), '--test_split', test_split,
-                                     '--sampler', sampler]
     # Test
     np.random.seed(100)
-    predictions_outdir, groundtruth_outdir, tester, test_logdir = test.main(replacement_dict_for_sys_args,
-                                                                            check_clean_tree=False)
-
-    # Convert
-    cache_out_root = instanceseg.utils.script_setup.get_cache_dir_from_test_logdir(test_logdir)
-    problem_config = tester.exporter.instance_problem.load(tester.exporter.instance_problem_path)
-    out_jsons, out_dirs = convert_test_results_to_coco.main(predictions_outdir, groundtruth_outdir, problem_config,
-                                                            cache_out_root)
+    if existing_test_cache_dir is not None:
+        assert os.path.isdir(existing_test_cache_dir), ValueError('{} does not exist'.format(existing_test_cache_dir))
+        cache_out_root = existing_test_cache_dir
+    else:
+        train_logdir = logdir.rstrip('/')
+        config = yaml.safe_load(open(os.path.join(train_logdir, 'config.yaml'), 'rb'))
+        dataset_name = dataset_name or config['dataset']
+        replacement_dict_for_sys_args = [dataset_name, '--logdir', train_logdir, '--{}_batch_size'.format(test_split),
+                                         str(batch_size), '-g', ' '.join(str(g) for g in gpu), '--test_split',
+                                         test_split,
+                                         '--sampler', sampler]
+        predictions_outdir, groundtruth_outdir, tester, test_logdir = test.main(replacement_dict_for_sys_args,
+                                                                                check_clean_tree=False)
+        # Convert
+        cache_out_root = instanceseg.utils.script_setup.get_cache_dir_from_test_logdir(test_logdir)
+        problem_config = tester.exporter.instance_problem.load(tester.exporter.instance_problem_path)
+        out_jsons, out_dirs = convert_test_results_to_coco.main(predictions_outdir, groundtruth_outdir, problem_config,
+                                                                cache_out_root)
 
     # Evaluate
     collated_stats_per_image_file = evaluate.main(cache_out_root, iou_threshold=iou_threshold)

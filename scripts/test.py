@@ -125,7 +125,6 @@ def setup_tester(args, cfg_override_args, checkpoint_path, model_subpath='model_
     # out_dir = checkpoint_path.rstrip('/') + '_test'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-    import ipdb; ipdb.set_trace()
     tester = script_utils.setup_test(dataset_type=args.dataset, cfg=cfg, out_dir=out_dir, sampler_cfg=sampler_cfg,
                                      model_checkpoint_path=model_checkpoint_path, gpu=args.gpu, splits=('train', split))
     return cfg, out_dir, split, tester

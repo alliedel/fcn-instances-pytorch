@@ -278,7 +278,7 @@ def plot_scatterplot_rq_ninst(stats_arrays, semantic_class_names, category_idxs_
 
 
 def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_display=None, save_to_workspace=True,
-                        output_dir='/tmp/', category_colors=None, ylim=(0,1)):
+                        output_dir='/tmp/', category_colors=None, ylim=None):
     category_colors = category_colors or [default_colors[i % len(semantic_class_names)] for i in range(len(
         semantic_class_names))]
     category_idxs_to_display = category_idxs_to_display if category_idxs_to_display is not None \
@@ -292,7 +292,7 @@ def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_dis
             display_pyutils.nanhistogram(stat_array[:, catidx], label=catname, color=category_colors[catidx])
             figname = '{}_{}_hist'.format(stat_type, catname) + '.png'
             plt.title(figname.replace('.png', '').replace('_', ' '))
-            if ylim is not None:
+            if ylim is not None or stat_type == 'n_inst':
                 plt.ylim(ylim)
             if save_to_workspace:
                 display_pyutils.save_fig_to_workspace(figname)
@@ -325,8 +325,8 @@ def plot_hists_pq_rq_sq(stats_arrays, semantic_class_names, category_idxs_to_dis
         r += 1
 
     # plt.tight_layout()
-    if ylim is not None:
-        plt.ylim(ylim)
+    # if ylim is not None:
+    #     plt.ylim(ylim)
     figname = 'all_hist.png'
     fig.set_size_inches(figsize)
     if save_to_workspace:

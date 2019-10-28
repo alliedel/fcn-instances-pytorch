@@ -2,16 +2,14 @@ import argparse
 import os
 
 import yaml
+
 from instanceseg.utils import display as display_pyutils
 
 default_markers = display_pyutils.MARKERS
 default_colors = display_pyutils.GOOD_COLOR_CYCLE
 
-import scripts
 from instanceseg.datasets.dataset_generator_registry import get_default_datasets_for_instance_counts
-from instanceseg.factory import data
 from instanceseg.factory.samplers import get_samplers
-from instanceseg.utils.misc import rgb2hex
 from scripts import evaluate
 from scripts.analysis import loss_vs_eval_metrics
 import numpy as np
@@ -19,9 +17,8 @@ import json
 
 from scripts.analysis.get_upsnet_pq_eval import upsnet_evaluate
 from scripts.configurations import sampler_cfg_registry
-from scripts.visualizations import visualize_pq_stats, export_prediction_vs_gt_vis_sorted
 import matplotlib.pyplot as plt
-from scripts.visualizations.visualize_pq_stats import extract_variable, nanscatter_list_of_xs_and_ys, nanscatter_x_y, \
+from scripts.visualizations.visualize_pq_stats import extract_variable, nanscatter_x_y, \
     swap_outer_and_inner_keys
 
 

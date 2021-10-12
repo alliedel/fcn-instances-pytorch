@@ -7,7 +7,7 @@ fvcore==0.1
 gputil==1.4.0
 ipdb==0.12
 jupyter==1.0.0
-opencv-python==4.1.1.26
+opencv-python==4.2.0.32
 ortools==7.0.6546
 pip-chill==0.1.8
 pycocotools==2.0.0
